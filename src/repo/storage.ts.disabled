@@ -1,0 +1,217 @@
+import { CID } from 'multiformats';
+import { check } from '@atproto/common';
+import { RepoRecord } from '@atproto/lexicon';
+import { BlockMap, CommitData, RepoStorage } from '@atproto/repo';
+import { query } from '../db/client';
+import * as cbor from '@atproto/common';
+
+/**
+ * PostgreSQL-backed repository storage implementation
+ * Implements the RepoStorage interface for @atproto/repo
+ */
+export class PostgresRepoStorage implements RepoStorage {
+  private communityDid: string;
+  private rootCid: CID | null = null;
+  private currentRev: string | null = null;
+
+  constructor(communityDid: string) {
+    this.communityDid = communityDid;
+  }
+
+  /**
+   * Get the current root CID of the repository
+   */
+  async getRoot(): Promise<CID | null> {
+    if (this.rootCid) {
+      return this.rootCid;
+    }
+
+    // Query the latest commit from the database
+    const result = await query<{ cid: string }>(
+      'SELECT cid FROM commits WHERE community_did = $1 ORDER BY created_at DESC LIMIT 1',
+      [this.communityDid]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    this.rootCid = CID.parse(result.rows[0].cid);
+    return this.rootCid;
+  }
+
+  /**
+   * Store a single block in the database
+   */
+  async putBlock(cid: CID, block: Uint8Array, rev: string): Promise<void> {
+    await query(
+      `INSERT INTO repo_blocks (community_did, cid, block_bytes)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (community_did, cid) DO NOTHING`,
+      [this.communityDid, cid.toString(), Buffer.from(block)]
+    );
+  }
+
+  /**
+   * Store multiple blocks in a single transaction
+   */
+  async putMany(blocks: BlockMap, rev: string): Promise<void> {
+    const entries = Array.from(blocks.entries());
+
+    for (const [cid, block] of entries) {
+      await this.putBlock(cid, block, rev);
+    }
+  }
+
+  /**
+   * Update the root CID of the repository
+   */
+  async updateRoot(cid: CID, rev: string): Promise<void> {
+    this.rootCid = cid;
+    this.currentRev = rev;
+
+    // Record the new commit
+    await query(
+      `INSERT INTO commits (community_did, cid, prev_cid)
+       VALUES ($1, $2, (SELECT cid FROM commits WHERE community_did = $1 ORDER BY created_at DESC LIMIT 1))`,
+      [this.communityDid, cid.toString()]
+    );
+  }
+
+  /**
+   * Apply a full commit to storage
+   */
+  async applyCommit(commit: CommitData): Promise<void> {
+    // Store all new blocks
+    await this.putMany(commit.newBlocks, commit.rev);
+
+    // Update the root
+    await this.updateRoot(commit.cid, commit.rev);
+  }
+
+  /**
+   * Retrieve raw bytes for a CID
+   */
+  async getBytes(cid: CID): Promise<Uint8Array | null> {
+    const result = await query<{ block_bytes: Buffer }>(
+      'SELECT block_bytes FROM repo_blocks WHERE community_did = $1 AND cid = $2',
+      [this.communityDid, cid.toString()]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return new Uint8Array(result.rows[0].block_bytes);
+  }
+
+  /**
+   * Check if a block exists
+   */
+  async has(cid: CID): Promise<boolean> {
+    const result = await query<{ exists: boolean }>(
+      'SELECT EXISTS(SELECT 1 FROM repo_blocks WHERE community_did = $1 AND cid = $2) as exists',
+      [this.communityDid, cid.toString()]
+    );
+
+    return result.rows[0].exists;
+  }
+
+  /**
+   * Get multiple blocks at once
+   */
+  async getBlocks(cids: CID[]): Promise<{ blocks: BlockMap; missing: CID[] }> {
+    const blocks = new BlockMap();
+    const missing: CID[] = [];
+
+    for (const cid of cids) {
+      const bytes = await this.getBytes(cid);
+      if (bytes) {
+        blocks.set(cid, bytes);
+      } else {
+        missing.push(cid);
+      }
+    }
+
+    return { blocks, missing };
+  }
+
+  /**
+   * Attempt to read and parse an object from a CID
+   */
+  async attemptRead<T>(
+    cid: CID,
+    def: check.Def<T>
+  ): Promise<{ obj: T; bytes: Uint8Array } | null> {
+    const bytes = await this.getBytes(cid);
+    if (!bytes) {
+      return null;
+    }
+
+    try {
+      const obj = cbor.decode(bytes);
+      // Use zod-style validation if available, otherwise just return the object
+      if (typeof (def as any).safeParse === 'function') {
+        const result = (def as any).safeParse(obj);
+        if (result.success) {
+          return { obj: result.data as T, bytes };
+        }
+        return null;
+      }
+      // Assume valid if no safeParse method
+      return { obj: obj as T, bytes };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Read and parse an object, throwing if not found
+   */
+  async readObjAndBytes<T>(
+    cid: CID,
+    def: check.Def<T>
+  ): Promise<{ obj: T; bytes: Uint8Array }> {
+    const result = await this.attemptRead(cid, def);
+    if (!result) {
+      throw new Error(`Block not found: ${cid.toString()}`);
+    }
+    return result;
+  }
+
+  /**
+   * Read and parse an object, returning only the parsed object
+   */
+  async readObj<T>(cid: CID, def: check.Def<T>): Promise<T> {
+    const { obj } = await this.readObjAndBytes(cid, def);
+    return obj;
+  }
+
+  /**
+   * Attempt to read a record
+   */
+  async attemptReadRecord(cid: CID): Promise<RepoRecord | null> {
+    const bytes = await this.getBytes(cid);
+    if (!bytes) {
+      return null;
+    }
+
+    try {
+      const obj = cbor.decode(bytes);
+      return obj as RepoRecord;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Read a record, throwing if not found
+   */
+  async readRecord(cid: CID): Promise<RepoRecord> {
+    const record = await this.attemptReadRecord(cid);
+    if (!record) {
+      throw new Error(`Record not found: ${cid.toString()}`);
+    }
+    return record;
+  }
+}

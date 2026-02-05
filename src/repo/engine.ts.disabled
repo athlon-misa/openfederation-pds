@@ -1,0 +1,228 @@
+import { Repo, WriteOpAction } from '@atproto/repo';
+import { Secp256k1Keypair } from '@atproto/crypto';
+import { CID } from 'multiformats/cid';
+import { PostgresRepoStorage } from './storage';
+import { query } from '../db/client';
+
+/**
+ * Repository Engine
+ * Provides high-level operations for working with ATProto repositories
+ */
+export class RepoEngine {
+  private communityDid: string;
+  private storage: PostgresRepoStorage;
+  private repo: Repo | null = null;
+
+  constructor(communityDid: string) {
+    this.communityDid = communityDid;
+    this.storage = new PostgresRepoStorage(communityDid);
+  }
+
+  /**
+   * Initialize a new repository for a community
+   */
+  async createRepo(
+    signingKeyBase64: string,
+    initialRecords?: Array<{ collection: string; rkey: string; record: any }>
+  ): Promise<void> {
+    // Parse the signing key
+    const keyBytes = Buffer.from(signingKeyBase64, 'base64');
+    const keypair = await Secp256k1Keypair.import(keyBytes, { exportable: true });
+
+    // Prepare initial writes
+    const initialWrites =
+      initialRecords?.map((r) => ({
+        action: WriteOpAction.Create,
+        collection: r.collection,
+        rkey: r.rkey,
+        record: r.record,
+      })) || [];
+
+    // Create the repo with initial records
+    this.repo = await Repo.create(this.storage, this.communityDid, keypair, initialWrites);
+
+    // Index the initial records in SQL
+    if (initialRecords) {
+      for (const r of initialRecords) {
+        await this.indexRecord(r.collection, r.rkey, r.record);
+      }
+    }
+  }
+
+  /**
+   * Load an existing repository
+   */
+  async loadRepo(): Promise<void> {
+    this.repo = await Repo.load(this.storage);
+  }
+
+  /**
+   * Get or load the repository
+   */
+  private async getRepo(): Promise<Repo> {
+    if (!this.repo) {
+      await this.loadRepo();
+    }
+    if (!this.repo) {
+      throw new Error('Repository not initialized');
+    }
+    return this.repo;
+  }
+
+  /**
+   * Put (create or update) a record in the repository
+   */
+  async putRecord(
+    signingKeyBase64: string,
+    collection: string,
+    rkey: string,
+    record: any
+  ): Promise<{ cid: CID; uri: string }> {
+    const repo = await this.getRepo();
+    const keyBytes = Buffer.from(signingKeyBase64, 'base64');
+    const keypair = await Secp256k1Keypair.import(keyBytes, { exportable: true });
+
+    // Create the write operation
+    const writeOp = {
+      action: WriteOpAction.Update,
+      collection,
+      rkey,
+      record,
+    };
+
+    // Apply the write to the repo
+    this.repo = await repo.applyWrites(writeOp, keypair);
+
+    // Index the record in SQL for fast lookup
+    await this.indexRecord(collection, rkey, record);
+
+    // Get the CID of the record (this would need to be extracted from the commit)
+    const uri = `at://${this.communityDid}/${collection}/${rkey}`;
+
+    // For now, return a placeholder CID
+    // In production, we'd extract this from the commit data
+    const cid = CID.parse('bafyreihpc3vupfos5yqnlakgpjxtyx3smkg26ft7e2jnqf3qkyhromhb64');
+
+    return { cid, uri };
+  }
+
+  /**
+   * Get a record from the repository
+   */
+  async getRecord(collection: string, rkey: string): Promise<{ record: any; cid: string } | null> {
+    const result = await query<{ record: any; cid: string }>(
+      'SELECT record, cid FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
+      [this.communityDid, collection, rkey]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return {
+      record: result.rows[0].record,
+      cid: result.rows[0].cid,
+    };
+  }
+
+  /**
+   * List records in a collection
+   */
+  async listRecords(
+    collection: string,
+    limit: number = 50,
+    cursor?: string
+  ): Promise<{ records: Array<{ rkey: string; record: any; cid: string }>; cursor?: string }> {
+    let queryStr = `
+      SELECT rkey, record, cid
+      FROM records_index
+      WHERE community_did = $1 AND collection = $2
+    `;
+    const params: any[] = [this.communityDid, collection];
+
+    if (cursor) {
+      queryStr += ' AND rkey > $3';
+      params.push(cursor);
+    }
+
+    queryStr += ' ORDER BY rkey ASC LIMIT $' + (params.length + 1);
+    params.push(limit + 1); // Fetch one extra to determine if there's a next page
+
+    const result = await query<{ rkey: string; record: any; cid: string }>(queryStr, params);
+
+    const records = result.rows.slice(0, limit);
+    const hasMore = result.rows.length > limit;
+    const nextCursor = hasMore ? records[records.length - 1].rkey : undefined;
+
+    return {
+      records,
+      cursor: nextCursor,
+    };
+  }
+
+  /**
+   * Delete a record from the repository
+   */
+  async deleteRecord(
+    signingKeyBase64: string,
+    collection: string,
+    rkey: string
+  ): Promise<void> {
+    const repo = await this.getRepo();
+    const keyBytes = Buffer.from(signingKeyBase64, 'base64');
+    const keypair = await Secp256k1Keypair.import(keyBytes, { exportable: true });
+
+    // Create the delete operation
+    const writeOp = {
+      action: WriteOpAction.Delete,
+      collection,
+      rkey,
+    };
+
+    // Apply the delete to the repo
+    this.repo = await repo.applyWrites(writeOp, keypair);
+
+    // Remove from SQL index
+    await query(
+      'DELETE FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
+      [this.communityDid, collection, rkey]
+    );
+  }
+
+  /**
+   * Index a record in the SQL database for fast lookup
+   */
+  private async indexRecord(collection: string, rkey: string, record: any): Promise<void> {
+    // For now, use a placeholder CID
+    // In production, we'd get the actual CID from the MST
+    const cid = 'bafyreihpc3vupfos5yqnlakgpjxtyx3smkg26ft7e2jnqf3qkyhromhb64';
+
+    await query(
+      `INSERT INTO records_index (community_did, collection, rkey, cid, record, updated_at)
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+       ON CONFLICT (community_did, collection, rkey)
+       DO UPDATE SET cid = $4, record = $5, updated_at = CURRENT_TIMESTAMP`,
+      [this.communityDid, collection, rkey, cid, JSON.stringify(record)]
+    );
+
+    // If this is a member record, also update the members_unique table
+    if (collection === 'net.openfederation.community.member' && record.did) {
+      await query(
+        `INSERT INTO members_unique (community_did, member_did, record_rkey)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (community_did, member_did) DO NOTHING`,
+        [this.communityDid, record.did, rkey]
+      );
+    }
+  }
+
+  /**
+   * Generate a new TID (timestamp identifier) for use as an rkey
+   */
+  static generateTid(): string {
+    // Simple TID implementation: timestamp (in microseconds) + random suffix
+    const timestamp = Date.now() * 1000; // Convert to microseconds
+    const random = Math.floor(Math.random() * 1000);
+    return `${timestamp}${random.toString().padStart(3, '0')}`;
+  }
+}
