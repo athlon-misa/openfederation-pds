@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { createPlcIdentity, createWebIdentity } from '../identity/manager';
-import { SimpleRepoEngine } from '../repo/simple-engine';
-import { query } from '../db/client';
+import { createPlcIdentity, createWebIdentity } from '../identity/manager.js';
+import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { query } from '../db/client.js';
 
 interface CreateCommunityInput {
   handle: string;

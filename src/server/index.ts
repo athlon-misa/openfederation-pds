@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
-import { config } from '../config';
-import { testConnection } from '../db/client';
-import createCommunity from '../api/net.openfederation.community.create';
-import getRecord from '../api/com.atproto.repo.getRecord';
+import { config } from '../config.js';
+import { testConnection } from '../db/client.js';
+import createCommunity from '../api/net.openfederation.community.create.js';
+import getRecord from '../api/com.atproto.repo.getRecord.js';
 
 const app = express();
 

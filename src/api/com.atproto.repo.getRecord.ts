@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { SimpleRepoEngine } from '../repo/simple-engine';
+import { SimpleRepoEngine } from '../repo/simple-engine.js';
 
 /**
  * com.atproto.repo.getRecord

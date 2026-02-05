@@ -9,7 +9,7 @@
  */
 
 import { Secp256k1Keypair } from '@atproto/crypto';
-import { query } from '../db/client';
+import { query } from '../db/client.js';
 
 /**
  * Simplified Repository Engine

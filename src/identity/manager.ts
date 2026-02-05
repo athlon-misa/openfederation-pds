@@ -1,7 +1,7 @@
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { base58btc } from 'multiformats/bases/base58';
-import { config } from '../config';
-import * as crypto from 'crypto';
+import { config } from '../config.js';
+import crypto from 'crypto';
 
 /**
  * Result of creating a did:plc identity
