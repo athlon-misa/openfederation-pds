@@ -128,24 +128,141 @@ docker run -d \
 
 ## Railway Deployment
 
-1. **Create a new project on Railway**
-2. **Add PostgreSQL database** (Railway will auto-configure connection variables)
-3. **Deploy from GitHub:**
-   - Connect your GitHub repository
-   - Railway will auto-detect the Node.js app
-4. **Set environment variables:**
-   - `PDS_HOSTNAME`: Your Railway domain
-   - `PDS_SERVICE_URL`: `https://your-app.railway.app`
-   - `HANDLE_SUFFIX`: `.openfederation.net`
+### Prerequisites
+- Railway account: https://railway.app
+- GitHub repository linked to Railway
 
-Railway automatically sets these (use Railway's provided values):
-- `DATABASE_URL` (Railway format)
-- `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
+### Deployment Steps
 
-5. **Initialize database:**
+#### 1. Create Project & Deploy
+```bash
+# Option A: Railway Dashboard (Recommended for first time)
+1. Go to https://railway.app/new
+2. Select "Deploy from GitHub repo"
+3. Choose your repository
+4. Railway auto-detects Node.js and starts deployment
+
+# Option B: Railway CLI
+railway login
+railway init
+railway up
+```
+
+#### 2. Add PostgreSQL Database
+In Railway Dashboard:
+1. Click your project
+2. Click "New" → "Database" → "Add PostgreSQL"
+3. Railway automatically configures these variables:
+   - `DATABASE_URL`
+   - `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
+
+#### 3. Set Required Environment Variables
+In Railway Dashboard → Variables tab:
+
+**Required:**
+```bash
+PDS_HOSTNAME=your-service-name.up.railway.app
+PDS_SERVICE_URL=https://your-service-name.up.railway.app
+```
+
+**Optional (only if changing defaults):**
+```bash
+HANDLE_SUFFIX=.openfederation.net
+PLC_DIRECTORY_URL=https://plc.directory
+```
+
+**Note:** Do NOT set `PORT` or database variables - Railway sets these automatically.
+
+#### 4. Initialize Database Schema
+After first deployment, run:
 ```bash
 railway run psql $DATABASE_URL -f src/db/schema.sql
 ```
+
+Or connect to Railway's PostgreSQL and run the schema:
+```bash
+railway connect postgres
+# Then paste contents of src/db/schema.sql
+```
+
+#### 5. Verify Deployment
+```bash
+# Check health endpoint
+curl https://your-service-name.up.railway.app/health
+
+# Expected response:
+{
+  "status": "ok",
+  "database": "connected",
+  "timestamp": "2026-02-05T..."
+}
+```
+
+### Railway Configuration Files
+
+The repository includes `railway.json` which configures:
+- Build command: `npm run build`
+- Start command: `npm start`
+- Health check: `/health` endpoint
+- Auto-restart on failure
+
+### Custom Domain Setup
+
+1. In Railway Dashboard → Settings → Domains
+2. Click "Generate Domain" or "Add Custom Domain"
+3. Update environment variables to match your domain:
+   ```
+   PDS_HOSTNAME=pds.yourdomain.com
+   PDS_SERVICE_URL=https://pds.yourdomain.com
+   ```
+4. For custom domains, configure DNS:
+   - Add CNAME: `pds.yourdomain.com` → `your-service.up.railway.app`
+
+### Monitoring & Logs
+
+Railway provides:
+- **Real-time logs:** `railway logs` or in Dashboard
+- **Metrics:** CPU, Memory, Network usage in Dashboard
+- **Health checks:** Automatic monitoring of `/health` endpoint
+- **Alerts:** Configure via Dashboard → Settings → Notifications
+
+### Troubleshooting
+
+**Build fails:**
+- Check Railway build logs in Dashboard
+- Ensure Node.js >=18 (specified in package.json engines)
+- Verify all dependencies are in package.json
+
+**Database connection failed:**
+- Ensure PostgreSQL service is added and running
+- Check Railway sets database variables automatically
+- Verify schema is initialized: `railway run psql $DATABASE_URL -f src/db/schema.sql`
+
+**Application crashes:**
+- Check deployment logs: `railway logs`
+- Verify environment variables are set correctly
+- Ensure `/health` endpoint is accessible
+- Check that PORT is not hardcoded (Railway sets it dynamically)
+
+### Cost Estimate
+
+Railway Pricing (2026):
+- Hobby Plan: $5/month base + usage
+- PostgreSQL: Included in plan
+- Compute: ~$0.000463 per minute
+- Storage: ~$0.25 per GB per month
+
+Typical monthly cost for light-moderate usage: **$5-20**
+
+### Railway-Specific Features
+
+- **Automatic SSL:** Free SSL certificates for all deployments
+- **Auto-scaling:** Automatically scales based on traffic
+- **Zero-downtime deploys:** New version deployed before old one stops
+- **Environment branches:** Separate staging/production environments
+- **Webhooks:** Deploy hooks, notification webhooks
+
+For a detailed quick-start guide, see [RAILWAY.md](./RAILWAY.md).
 
 ## Vercel/Netlify/Cloud Functions
 

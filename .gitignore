@@ -6,6 +6,8 @@ dist/
 
 # Environment variables
 .env
+.env.local
+.env.*.local
 
 # Logs
 *.log
@@ -23,3 +25,7 @@ npm-debug.log*
 # Documentation (kept locally, not in repo)
 Documentation/
 CLAUDE.md
+
+# Railway
+.railway/
+railway.json.backup

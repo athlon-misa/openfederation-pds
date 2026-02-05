@@ -1,0 +1,31 @@
+# Development files
+node_modules/
+.env
+.env.local
+
+# Documentation
+Documentation/
+CLAUDE.md
+*.md
+!README.md
+!DEPLOYMENT.md
+
+# Build artifacts (will be regenerated)
+dist/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Disabled files
+*.disabled

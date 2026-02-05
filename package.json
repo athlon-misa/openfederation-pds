@@ -2,6 +2,10 @@
   "name": "openfederationpds",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
