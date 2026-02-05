@@ -70,8 +70,13 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  const dbStatus = await testConnection();
+  res.json({
+    status: dbStatus ? 'ok' : 'degraded',
+    database: dbStatus ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Root endpoint
@@ -91,14 +96,25 @@ export function registerHandler(nsid: string, handler: XRPCHandler): void {
 // Start the server
 export async function startServer(): Promise<void> {
   // Test database connection before starting
+  console.log('Testing database connection...');
+  console.log(`Database config: ${config.database.user}@${config.database.host}:${config.database.port}/${config.database.database}`);
+
   const dbConnected = await testConnection();
   if (!dbConnected) {
-    throw new Error('Failed to connect to database');
+    console.error('⚠️  WARNING: Database connection failed!');
+    console.error('⚠️  The server will start but database-dependent features will not work.');
+    console.error('⚠️  Please configure your database connection in the .env file:');
+    console.error('⚠️    DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD');
+  } else {
+    console.log('✓ Database connection successful');
   }
 
   return new Promise((resolve) => {
     app.listen(config.port, () => {
-      console.log(`Server listening on port ${config.port}`);
+      console.log(`✓ Server listening on port ${config.port}`);
+      if (!dbConnected) {
+        console.log('⚠️  WARNING: Running without database connection');
+      }
       resolve();
     });
   });

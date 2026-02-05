@@ -45,10 +45,12 @@ export async function closePool(): Promise<void> {
 export async function testConnection(): Promise<boolean> {
   try {
     const result = await query('SELECT NOW()');
-    console.log('Database connection successful:', result.rows[0]);
     return true;
   } catch (error) {
-    console.error('Database connection failed:', error);
+    // Only log the connection error message, not the full stack
+    if (error instanceof Error) {
+      console.error('Database connection failed:', error.message);
+    }
     return false;
   }
 }
