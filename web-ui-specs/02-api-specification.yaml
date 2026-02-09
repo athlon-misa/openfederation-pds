@@ -1,0 +1,734 @@
+openapi: 3.0.0
+info:
+  title: OpenFederation PDS Web Interface API
+  version: 1.0.0
+  description: |
+    API specification for OpenFederation Personal Data Server Web Management Interface.
+    Built on AT Protocol (XRPC) for decentralized identity and community management.
+    
+    **Key Features:**
+    - AT Protocol native endpoints (XRPC)
+    - DID-based identity (did:plc and did:web)
+    - Community sovereignty and portability
+    - JWT-based session management
+    
+    **Base URL:** All endpoints are prefixed with `/xrpc/` following AT Protocol conventions.
+  
+  contact:
+    name: OpenFederation
+    url: https://openfederation.net
+  
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://pds.openfederation.net
+    description: Production server
+  - url: http://localhost:3000
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Account Management
+    description: User account registration and approval
+  - name: Communities
+    description: Community creation and management
+  - name: Admin
+    description: Server administration endpoints
+  - name: Invites
+    description: Invite code management
+
+# ═══════════════════════════════════════════════════════════════
+# API ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+paths:
+  # ==================== AUTHENTICATION ====================
+  
+  /xrpc/net.openfederation.account.register:
+    post:
+      summary: Register new user account
+      description: |
+        Creates a new user account with pending status. 
+        Requires admin approval before login is allowed.
+        Optional invite code if invites are enabled.
+      tags: [Authentication, Account Management]
+      operationId: registerAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [handle, email, password]
+              properties:
+                handle:
+                  type: string
+                  pattern: '^[a-z0-9-]+$'
+                  minLength: 3
+                  maxLength: 255
+                  description: Unique username handle (lowercase, alphanumeric, hyphens)
+                  example: "alice-smith"
+                email:
+                  type: string
+                  format: email
+                  description: User email address
+                  example: "alice@example.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  description: User password (min 8 characters)
+                inviteCode:
+                  type: string
+                  description: Invite code (required if invites enabled)
+                  example: "ABC123XYZ"
+      responses:
+        '201':
+          description: Account created successfully (pending approval)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  handle:
+                    type: string
+                  email:
+                    type: string
+                  status:
+                    type: string
+                    enum: [pending]
+                    description: Account status (always pending after registration)
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '403':
+          description: Invite code issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                inviteRequired:
+                  value:
+                    error: "InviteRequired"
+                    message: "Invite code required but not provided"
+                inviteInvalid:
+                  value:
+                    error: "InviteInvalid"
+                    message: "Invalid invite code"
+        '409':
+          description: Handle or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "AccountExists"
+                message: "Handle or email already taken"
+
+  /xrpc/com.atproto.server.createSession:
+    post:
+      summary: Login to create session
+      description: |
+        Authenticates user with email/password or handle/password.
+        Returns JWT access and refresh tokens.
+        Account must be approved by admin to login.
+      tags: [Authentication]
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier:
+                  type: string
+                  description: Email address or handle
+                  example: "alice@example.com"
+                password:
+                  type: string
+                  format: password
+                  description: User password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "AuthenticationRequired"
+                message: "Invalid credentials"
+        '403':
+          description: Account not approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "AccountNotApproved"
+                message: "Account pending admin approval"
+
+  /xrpc/com.atproto.server.getSession:
+    get:
+      summary: Get current session
+      description: Returns information about the current authenticated session
+      tags: [Authentication]
+      operationId: getSession
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  did:
+                    type: string
+                    example: "did:plc:xyz123"
+                  handle:
+                    type: string
+                    example: "alice-smith"
+                  email:
+                    type: string
+                    example: "alice@example.com"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /xrpc/com.atproto.server.refreshSession:
+    post:
+      summary: Refresh access token
+      description: Uses refresh token to get new access token (15 min TTL)
+      tags: [Authentication]
+      operationId: refreshSession
+      security:
+        - refreshAuth: []
+      responses:
+        '200':
+          description: New tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==================== ADMIN ENDPOINTS ====================
+  
+  /xrpc/net.openfederation.account.listPending:
+    get:
+      summary: List pending user accounts
+      description: Get all accounts awaiting admin approval (admin only)
+      tags: [Admin, Account Management]
+      operationId: listPendingAccounts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending accounts retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PendingAccount'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /xrpc/net.openfederation.account.approve:
+    post:
+      summary: Approve pending account
+      description: Approve a user account (admin only)
+      tags: [Admin, Account Management]
+      operationId: approveAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: ID of user to approve
+      responses:
+        '200':
+          description: Account approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Account approved successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /xrpc/net.openfederation.account.reject:
+    post:
+      summary: Reject pending account
+      description: Reject and remove a pending account (admin only)
+      tags: [Admin, Account Management]
+      operationId: rejectAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: ID of user to reject
+      responses:
+        '200':
+          description: Account rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Account rejected and removed"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ==================== INVITE MANAGEMENT ====================
+  
+  /xrpc/net.openfederation.invite.create:
+    post:
+      summary: Create invite code
+      description: Generate a new invite code (admin only)
+      tags: [Admin, Invites]
+      operationId: createInvite
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxUses:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                  description: Maximum number of times code can be used
+                expiresIn:
+                  type: integer
+                  minimum: 3600
+                  description: Expiration time in seconds (optional)
+                  example: 86400
+      responses:
+        '201':
+          description: Invite code created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== COMMUNITY MANAGEMENT ====================
+  
+  /xrpc/net.openfederation.community.create:
+    post:
+      summary: Create new community
+      description: |
+        Create a new community with DID method choice (did:plc or did:web).
+        User becomes the community owner.
+        Account must be approved to create communities.
+      tags: [Communities]
+      operationId: createCommunity
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [handle, didMethod]
+              properties:
+                handle:
+                  type: string
+                  pattern: '^[a-z0-9-]+$'
+                  minLength: 3
+                  maxLength: 255
+                  description: Community handle (unique identifier)
+                  example: "my-community"
+                didMethod:
+                  type: string
+                  enum: [plc, web]
+                  description: DID method to use
+                  example: "plc"
+                domain:
+                  type: string
+                  format: hostname
+                  description: Domain for did:web (required if didMethod is 'web')
+                  example: "example.com"
+                displayName:
+                  type: string
+                  maxLength: 255
+                  description: Community display name (optional)
+                  example: "My Cool Community"
+                description:
+                  type: string
+                  description: Community description (optional)
+                  example: "A community for cool people"
+      responses:
+        '201':
+          description: Community created successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/CommunityPLC'
+                  - $ref: '#/components/schemas/CommunityWeb'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Account not approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Handle already taken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /xrpc/com.atproto.repo.getRecord:
+    get:
+      summary: Get AT Protocol record
+      description: |
+        Fetch a single record from a repository.
+        Used to get community profiles and settings.
+      tags: [Communities]
+      operationId: getRecord
+      parameters:
+        - name: repo
+          in: query
+          required: true
+          schema:
+            type: string
+          description: DID of the repository
+          example: "did:plc:xyz123"
+        - name: collection
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Collection name
+          example: "net.openfederation.community.profile"
+        - name: rkey
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Record key
+          example: "self"
+      responses:
+        '200':
+          description: Record retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ATProtocolRecord'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          description: Record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+# ═══════════════════════════════════════════════════════════════
+# REUSABLE COMPONENTS
+# ═══════════════════════════════════════════════════════════════
+
+components:
+  # ==================== SECURITY SCHEMES ====================
+  
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access JWT token (15 min TTL)
+    
+    refreshAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Refresh JWT token (30 days TTL)
+
+  # ==================== SCHEMAS ====================
+  
+  schemas:
+    Session:
+      type: object
+      properties:
+        did:
+          type: string
+          description: User's decentralized identifier
+          example: "did:plc:abc123"
+        handle:
+          type: string
+          description: User's handle
+          example: "alice-smith"
+        email:
+          type: string
+          format: email
+          description: User's email
+          example: "alice@example.com"
+        accessJwt:
+          type: string
+          description: JWT access token (15 min TTL)
+        refreshJwt:
+          type: string
+          description: JWT refresh token (30 days TTL)
+    
+    PendingAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        handle:
+          type: string
+          example: "new-user"
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        status:
+          type: string
+          enum: [pending]
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-01T00:00:00Z"
+    
+    InviteCode:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Generated invite code
+          example: "ABC123XYZ"
+        maxUses:
+          type: integer
+          example: 1
+        usesCount:
+          type: integer
+          example: 0
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-01-02T00:00:00Z"
+        createdBy:
+          type: string
+          format: uuid
+          description: Admin user ID who created this invite
+    
+    CommunityPLC:
+      type: object
+      description: Community created with did:plc method
+      properties:
+        did:
+          type: string
+          pattern: '^did:plc:'
+          example: "did:plc:xyz123"
+        handle:
+          type: string
+          example: "my-community"
+        didMethod:
+          type: string
+          enum: [plc]
+        primaryRotationKey:
+          type: string
+          description: Base64-encoded rotation key (BACKUP IMMEDIATELY)
+          example: "base64-encoded-key..."
+        message:
+          type: string
+          example: "IMPORTANT: Please back up your primaryRotationKey immediately. This is the only time it will be shown."
+    
+    CommunityWeb:
+      type: object
+      description: Community created with did:web method
+      properties:
+        did:
+          type: string
+          pattern: '^did:web:'
+          example: "did:web:example.com"
+        handle:
+          type: string
+          example: "my-community"
+        didMethod:
+          type: string
+          enum: [web]
+        didDocument:
+          type: object
+          description: DID document to host
+        instructions:
+          type: string
+          example: "Host this JSON document at https://example.com/.well-known/did.json"
+    
+    ATProtocolRecord:
+      type: object
+      properties:
+        uri:
+          type: string
+          description: AT Protocol URI
+          example: "at://did:plc:xyz123/net.openfederation.community.profile/self"
+        cid:
+          type: string
+          description: Content identifier
+          example: "bafyreiabc123..."
+        value:
+          type: object
+          description: Record value (schema depends on collection)
+    
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "InvalidRequest"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Missing required field: handle"
+
+  # ==================== RESPONSES ====================
+  
+  responses:
+    InvalidRequest:
+      description: Invalid request (malformed, missing fields)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "InvalidRequest"
+            message: "Missing required field: handle"
+    
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "AuthenticationRequired"
+            message: "Missing or invalid authentication token"
+    
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Forbidden"
+            message: "Insufficient permissions for this operation"
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "NotFound"
+            message: "Resource not found"
+
+# ═══════════════════════════════════════════════════════════════
+# PHASE 1 ENDPOINTS SUMMARY
+# ═══════════════════════════════════════════════════════════════
+# 
+# ✓ Authentication (4 endpoints)
+#   - Register account
+#   - Create session (login)
+#   - Get session
+#   - Refresh session
+# 
+# ✓ Admin (3 endpoints)
+#   - List pending accounts
+#   - Approve account
+#   - Reject account
+# 
+# ✓ Invites (1 endpoint)
+#   - Create invite code
+# 
+# ✓ Communities (2 endpoints)
+#   - Create community
+#   - Get record (profile/settings)
+# 
+# Total: 10 endpoints
+# 
+# Phase 2 Additions (Future):
+# - Update community profile (PUT /xrpc/com.atproto.repo.putRecord)
+# - List user's communities (GET /xrpc/net.openfederation.community.list)
+# - Export community (GET /xrpc/com.atproto.sync.getRepo)
+# - Member management endpoints
+# - Join request endpoints
+# 
+# ═══════════════════════════════════════════════════════════════

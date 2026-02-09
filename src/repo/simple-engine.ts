@@ -1,14 +1,14 @@
 /**
  * Simplified Repository Engine for MVP
  *
- * This is a simplified version that stores records directly in SQL
- * without full ATProto MST implementation. This allows us to get
- * the MVP working quickly while maintaining the same API surface.
+ * Uses proper ATProto TID generation and content-addressed CIDs
+ * for protocol compatibility. Records are stored in SQL with JSONB.
  *
- * TODO: Replace with full @atproto/repo implementation for production
+ * TODO: Replace with full @atproto/repo MST implementation for production
  */
 
-import { Secp256k1Keypair } from '@atproto/crypto';
+import { TID } from '@atproto/common-web';
+import { cidForRecord } from '@atproto/repo';
 import { query } from '../db/client.js';
 
 /**
@@ -28,7 +28,6 @@ export class SimpleRepoEngine {
     signingKeyBase64: string,
     initialRecords?: Array<{ collection: string; rkey: string; record: any }>
   ): Promise<void> {
-    // Store initial records
     if (initialRecords) {
       for (const r of initialRecords) {
         await this.putRecord(signingKeyBase64, r.collection, r.rkey, r.record);
@@ -45,8 +44,9 @@ export class SimpleRepoEngine {
     rkey: string,
     record: any
   ): Promise<{ cid: string; uri: string }> {
-    // Generate a simple CID (in production, this would be a real content-addressed identifier)
-    const cid = this.generateSimpleCid(collection, rkey, record);
+    // Generate a proper content-addressed CID using ATProto's cidForRecord
+    const cid = await cidForRecord(record);
+    const cidStr = cid.toString();
     const uri = `at://${this.communityDid}/${collection}/${rkey}`;
 
     // Store in database
@@ -55,7 +55,7 @@ export class SimpleRepoEngine {
        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
        ON CONFLICT (community_did, collection, rkey)
        DO UPDATE SET cid = $4, record = $5, updated_at = CURRENT_TIMESTAMP`,
-      [this.communityDid, collection, rkey, cid, JSON.stringify(record)]
+      [this.communityDid, collection, rkey, cidStr, record]
     );
 
     // If this is a member record, also update the members_unique table
@@ -68,14 +68,14 @@ export class SimpleRepoEngine {
       );
     }
 
-    return { cid, uri };
+    return { cid: cidStr, uri };
   }
 
   /**
    * Get a record from the repository
    */
   async getRecord(collection: string, rkey: string): Promise<{ record: any; cid: string } | null> {
-    const result = await query<{ record: string; cid: string }>(
+    const result = await query<{ record: any; cid: string }>(
       'SELECT record, cid FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
       [this.communityDid, collection, rkey]
     );
@@ -85,7 +85,7 @@ export class SimpleRepoEngine {
     }
 
     return {
-      record: JSON.parse(result.rows[0].record),
+      record: result.rows[0].record,
       cid: result.rows[0].cid,
     };
   }
@@ -111,13 +111,13 @@ export class SimpleRepoEngine {
     }
 
     queryStr += ' ORDER BY rkey ASC LIMIT $' + (params.length + 1);
-    params.push(limit + 1); // Fetch one extra to determine if there's a next page
+    params.push(limit + 1);
 
-    const result = await query<{ rkey: string; record: string; cid: string }>(queryStr, params);
+    const result = await query<{ rkey: string; record: any; cid: string }>(queryStr, params);
 
     const records = result.rows.slice(0, limit).map(row => ({
       rkey: row.rkey,
-      record: JSON.parse(row.record),
+      record: row.record,
       cid: row.cid,
     }));
 
@@ -145,28 +145,10 @@ export class SimpleRepoEngine {
   }
 
   /**
-   * Generate a simple CID-like identifier
-   * In production, this would use proper content addressing
-   */
-  private generateSimpleCid(collection: string, rkey: string, record: any): string {
-    const content = JSON.stringify({ collection, rkey, record });
-    // Simple hash-like identifier (not cryptographically secure, just for MVP)
-    let hash = 0;
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return `bafy${Math.abs(hash).toString(36)}${Date.now().toString(36)}`;
-  }
-
-  /**
-   * Generate a new TID (timestamp identifier) for use as an rkey
+   * Generate a new TID using ATProto's standard TID algorithm.
+   * TIDs are timestamp-based, monotonically increasing, base32-sortable identifiers.
    */
   static generateTid(): string {
-    // Simple TID implementation: timestamp in base32 + random suffix
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000);
-    return `${timestamp.toString(32)}${random.toString(32).padStart(3, '0')}`;
+    return TID.nextStr();
   }
 }

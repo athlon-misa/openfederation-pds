@@ -26,6 +26,9 @@ npm-debug.log*
 Documentation/
 CLAUDE.md
 
+# CLI session storage
+.pds-cli/
+
 # Railway
 .railway/
 railway.json.backup

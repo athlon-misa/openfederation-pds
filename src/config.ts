@@ -2,6 +2,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const INSECURE_JWT_DEFAULTS = ['dev-secret-change-me', 'change_me', ''];
+
+const jwtSecret = process.env.AUTH_JWT_SECRET || '';
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
 
@@ -12,6 +16,10 @@ export const config = {
     database: process.env.DB_NAME || 'openfederation_pds',
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || '',
+    ssl: process.env.DB_SSL === 'true',
+    maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE || '20', 10),
+    idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
+    connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '5000', 10),
   },
 
   // PDS configuration
@@ -27,4 +35,19 @@ export const config = {
 
   // Handle suffix for did:plc communities
   handleSuffix: process.env.HANDLE_SUFFIX || '.openfederation.net',
+
+  // Auth configuration
+  auth: {
+    jwtSecret,
+    jwtSecretIsInsecure: INSECURE_JWT_DEFAULTS.includes(jwtSecret) || jwtSecret.length < 32,
+    accessTokenTtl: process.env.ACCESS_TOKEN_TTL || '15m',
+    refreshTokenTtl: process.env.REFRESH_TOKEN_TTL || '30d',
+    inviteRequired: process.env.INVITE_REQUIRED !== 'false',
+    bootstrapAdminEmail: process.env.BOOTSTRAP_ADMIN_EMAIL || '',
+    bootstrapAdminHandle: process.env.BOOTSTRAP_ADMIN_HANDLE || '',
+    bootstrapAdminPassword: process.env.BOOTSTRAP_ADMIN_PASSWORD || '',
+  },
+
+  // Key encryption secret for encrypting recovery keys at rest
+  keyEncryptionSecret: process.env.KEY_ENCRYPTION_SECRET || '',
 };

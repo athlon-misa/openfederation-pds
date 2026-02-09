@@ -11,6 +11,10 @@ export function getPool(): Pool {
       database: config.database.database,
       user: config.database.user,
       password: config.database.password,
+      max: config.database.maxPoolSize,
+      idleTimeoutMillis: config.database.idleTimeoutMs,
+      connectionTimeoutMillis: config.database.connectionTimeoutMs,
+      ssl: config.database.ssl ? { rejectUnauthorized: false } : undefined,
     });
 
     pool.on('error', (err) => {

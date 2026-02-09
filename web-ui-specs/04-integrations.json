@@ -1,0 +1,330 @@
+{
+  "project_id": "PROJ_OPENFEDERATION_WEB_001",
+  "project_name": "OpenFederation Web Management Interface",
+  "phase": "04_integrations",
+  "generated_at": "2025-02-06T00:00:00Z",
+  
+  "integration_summary": {
+    "total_integrations": 1,
+    "phase_1_count": 1,
+    "phase_2_count": 2,
+    "phase_3_count": 1
+  },
+  
+  "core_integrations": [
+    {
+      "id": "INT_ATPROTO_001",
+      "name": "AT Protocol Integration",
+      "category": "Core Protocol",
+      "provider": "AT Protocol",
+      "complexity": "HIGH",
+      "status": "IMPLEMENTED",
+      "description": "Integration with AT Protocol for decentralized identity and data management",
+      "purpose": "Enable DID-based identity, community repositories, and federated data",
+      "required_for": ["Community creation", "DID management", "Record storage"],
+      
+      "setup_steps": [
+        {
+          "step": 1,
+          "action": "Install @atproto/api library",
+          "command": "npm install @atproto/api",
+          "documentation": "https://github.com/bluesky-social/atproto/tree/main/packages/api"
+        },
+        {
+          "step": 2,
+          "action": "Initialize AtpAgent with PDS URL",
+          "code_example": "const agent = new AtpAgent({ service: process.env.NEXT_PUBLIC_PDS_URL });",
+          "config_required": {
+            "NEXT_PUBLIC_PDS_URL": "PDS server URL (http://localhost:3000 or production URL)"
+          }
+        },
+        {
+          "step": 3,
+          "action": "Configure authentication",
+          "description": "AtpAgent handles JWT tokens automatically after login",
+          "session_management": "Tokens stored in agent.session after successful login"
+        }
+      ],
+      
+      "api_endpoints_used": [
+        "com.atproto.server.createSession",
+        "com.atproto.server.getSession",
+        "com.atproto.server.refreshSession",
+        "com.atproto.repo.getRecord",
+        "net.openfederation.account.register",
+        "net.openfederation.community.create"
+      ],
+      
+      "authentication": {
+        "method": "JWT Bearer Token",
+        "access_token_ttl": "15 minutes",
+        "refresh_token_ttl": "30 days",
+        "storage": "AtpAgent manages tokens internally"
+      },
+      
+      "error_handling": {
+        "network_errors": "Retry with exponential backoff",
+        "auth_errors": "Refresh token or redirect to login",
+        "validation_errors": "Display to user with field-specific messages"
+      },
+      
+      "rate_limits": {
+        "description": "No explicit rate limits in Phase 1",
+        "phase_2_consideration": "Implement rate limiting for community operations"
+      },
+      
+      "cost": {
+        "model": "Self-hosted PDS",
+        "pricing": "Free (infrastructure costs only)",
+        "estimated_monthly": "$0 (development) / $20-50 (production hosting)"
+      },
+      
+      "testing": {
+        "test_credentials": "Use development PDS at localhost:3000",
+        "test_mode": "Development server with test users",
+        "mock_available": false
+      }
+    }
+  ],
+  
+  "phase_2_integrations": [
+    {
+      "id": "INT_EMAIL_001",
+      "name": "Email Service",
+      "category": "Communication",
+      "provider": "SendGrid / AWS SES / Mailgun",
+      "complexity": "MEDIUM",
+      "status": "PLANNED",
+      "description": "Email service for notifications, verification, and admin alerts",
+      "purpose": "Send registration confirmations, approval notifications, password resets",
+      "required_for": ["Account approval emails", "Password reset", "Admin notifications"],
+      
+      "setup_steps": [
+        {
+          "step": 1,
+          "action": "Choose email provider",
+          "options": ["SendGrid", "AWS SES", "Mailgun", "Postmark"],
+          "recommendation": "SendGrid (simple, generous free tier)"
+        },
+        {
+          "step": 2,
+          "action": "Install SDK",
+          "command": "npm install @sendgrid/mail",
+          "alternative": "npm install nodemailer aws-sdk"
+        },
+        {
+          "step": 3,
+          "action": "Configure API key",
+          "env_variable": "SENDGRID_API_KEY",
+          "security_note": "Store in environment variables, never commit to git"
+        },
+        {
+          "step": 4,
+          "action": "Create email templates",
+          "templates_needed": [
+            "registration_pending",
+            "account_approved",
+            "account_rejected",
+            "password_reset"
+          ]
+        }
+      ],
+      
+      "email_templates": [
+        {
+          "template_id": "registration_pending",
+          "subject": "Account Registration Pending",
+          "content": "Your account has been created and is awaiting admin approval."
+        },
+        {
+          "template_id": "account_approved",
+          "subject": "Account Approved - Welcome to OpenFederation",
+          "content": "Your account has been approved! You can now log in."
+        }
+      ]
+    },
+    {
+      "id": "INT_STORAGE_001",
+      "name": "Blob Storage",
+      "category": "File Storage",
+      "provider": "AWS S3 / Cloudflare R2 / MinIO",
+      "complexity": "MEDIUM",
+      "status": "PLANNED",
+      "description": "Object storage for community avatars, banners, and CAR files",
+      "purpose": "Store and serve media files for communities",
+      "required_for": ["Community avatars", "Community banners", "CAR file exports"],
+      
+      "setup_steps": [
+        {
+          "step": 1,
+          "action": "Choose storage provider",
+          "options": ["AWS S3", "Cloudflare R2", "MinIO (self-hosted)"],
+          "recommendation": "Cloudflare R2 (no egress fees)"
+        },
+        {
+          "step": 2,
+          "action": "Create bucket",
+          "bucket_name": "openfederation-media",
+          "public_access": "Avatars and banners public, CAR files private"
+        },
+        {
+          "step": 3,
+          "action": "Configure CDN",
+          "purpose": "Serve media files with low latency",
+          "options": ["CloudFront", "Cloudflare"]
+        }
+      ]
+    }
+  ],
+  
+  "phase_3_integrations": [
+    {
+      "id": "INT_ANALYTICS_001",
+      "name": "Analytics",
+      "category": "Monitoring",
+      "provider": "Plausible / Umami",
+      "complexity": "LOW",
+      "status": "PLANNED",
+      "description": "Privacy-friendly analytics for usage tracking",
+      "purpose": "Track user engagement and community growth",
+      "required_for": ["Admin dashboard metrics", "Community owner stats"]
+    }
+  ],
+  
+  "integration_dependencies": {
+    "at_protocol": {
+      "required_by": ["All community features", "User authentication", "DID management"],
+      "blocking": true,
+      "priority": "CRITICAL"
+    },
+    "email_service": {
+      "required_by": ["Registration flow", "Admin notifications"],
+      "blocking": false,
+      "priority": "HIGH",
+      "workaround": "Log emails to console in development"
+    },
+    "blob_storage": {
+      "required_by": ["Community media"],
+      "blocking": false,
+      "priority": "MEDIUM",
+      "workaround": "Defer avatars/banners to Phase 2"
+    }
+  },
+  
+  "environment_variables": {
+    "phase_1": [
+      {
+        "name": "NEXT_PUBLIC_PDS_URL",
+        "description": "PDS server URL",
+        "example": "http://localhost:3000",
+        "required": true
+      },
+      {
+        "name": "NEXT_PUBLIC_APP_NAME",
+        "description": "Application name for branding",
+        "example": "OpenFederation PDS",
+        "required": false
+      }
+    ],
+    "phase_2": [
+      {
+        "name": "SENDGRID_API_KEY",
+        "description": "SendGrid API key for sending emails",
+        "required": true,
+        "sensitive": true
+      },
+      {
+        "name": "AWS_S3_BUCKET",
+        "description": "S3 bucket name for file storage",
+        "required": true
+      },
+      {
+        "name": "AWS_ACCESS_KEY_ID",
+        "description": "AWS access key",
+        "required": true,
+        "sensitive": true
+      }
+    ]
+  },
+  
+  "webhook_endpoints": {
+    "description": "No webhooks required in Phase 1",
+    "phase_2_webhooks": []
+  },
+  
+  "third_party_dependencies": {
+    "frontend": [
+      "@atproto/api - AT Protocol client library",
+      "next - React framework",
+      "tailwindcss - CSS framework",
+      "shadcn/ui - UI components",
+      "zustand - State management"
+    ],
+    "backend": [
+      "Already implemented in PDS server",
+      "@atproto/api - For server-side AT Protocol operations",
+      "express - Web server",
+      "bcrypt - Password hashing",
+      "jsonwebtoken - JWT management",
+      "pg - PostgreSQL client"
+    ]
+  },
+  
+  "data_flow": {
+    "user_registration": [
+      "Web UI → POST /xrpc/net.openfederation.account.register → PDS Server",
+      "PDS Server → PostgreSQL (create user record)",
+      "PDS Server → (Phase 2: Email service) → User email"
+    ],
+    "community_creation": [
+      "Web UI → POST /xrpc/net.openfederation.community.create → PDS Server",
+      "PDS Server → AT Protocol DID creation",
+      "PDS Server → PostgreSQL (create community record)",
+      "PDS Server → Return DID and rotation key to Web UI"
+    ]
+  },
+  
+  "security_considerations": {
+    "api_keys": "Store in environment variables, use secret management in production",
+    "cors": "Configure CORS to only allow web interface origin",
+    "https": "Always use HTTPS in production",
+    "token_refresh": "AtpAgent handles token refresh automatically"
+  },
+  
+  "testing_integration": {
+    "development": {
+      "pds_server": "Run locally on localhost:3000",
+      "database": "Local PostgreSQL instance",
+      "email": "Log to console (no email service needed)"
+    },
+    "staging": {
+      "pds_server": "Staging Railway deployment",
+      "database": "Railway PostgreSQL",
+      "email": "SendGrid sandbox mode"
+    },
+    "production": {
+      "pds_server": "Production Railway deployment",
+      "database": "Production PostgreSQL with backups",
+      "email": "SendGrid production with templates"
+    }
+  },
+  
+  "monitoring_and_logging": {
+    "phase_1": "Console logging only",
+    "phase_2": "Add structured logging with Winston or Pino",
+    "phase_3": "Add error tracking with Sentry"
+  },
+  
+  "phase_1_implementation_status": {
+    "implemented": [
+      "AT Protocol integration (@atproto/api)",
+      "PDS server communication",
+      "JWT session management"
+    ],
+    "deferred": [
+      "Email service (Phase 2)",
+      "Blob storage (Phase 2)",
+      "Analytics (Phase 3)"
+    ]
+  }
+}

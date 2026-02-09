@@ -1,0 +1,228 @@
+project_id: PROJ_OPENFEDERATION_WEB_001
+project_name: OpenFederation Web Management Interface
+phase: 05_business_logic
+generated_at: "2025-02-06T00:00:00Z"
+
+workflows:
+  user_registration_approval:
+    name: User Registration and Admin Approval
+    states:
+      - name: pending
+        description: User registered, awaiting admin review
+        allowed_transitions: [approved, rejected]
+      - name: approved
+        description: User approved, can login and create communities
+        allowed_transitions: []
+      - name: rejected
+        description: User rejected, account deleted
+        allowed_transitions: []
+    
+    triggers:
+      registration_submitted:
+        event: User submits registration form
+        actions:
+          - validate_email_format
+          - check_handle_uniqueness
+          - hash_password
+          - create_user_record
+          - send_confirmation_email
+      
+      admin_approves:
+        event: Admin clicks approve button
+        conditions:
+          - user_status == 'pending'
+          - current_user_role == 'admin'
+        actions:
+          - update_user_status_to_approved
+          - set_approved_at_timestamp
+          - send_approval_email
+      
+      admin_rejects:
+        event: Admin clicks reject button
+        conditions:
+          - user_status == 'pending'
+          - current_user_role == 'admin'
+        actions:
+          - delete_user_record
+          - send_rejection_email
+
+  community_creation:
+    name: Community Creation with DID Method Selection
+    states:
+      - name: selecting_method
+        description: User choosing between did:plc and did:web
+      - name: created
+        description: Community created with DID assigned
+    
+    triggers:
+      create_plc_community:
+        event: User submits community form with didMethod=plc
+        conditions:
+          - user_status == 'approved'
+          - handle_is_unique
+        actions:
+          - generate_did_plc
+          - generate_rotation_key
+          - create_community_record
+          - create_profile_record
+          - create_settings_record
+          - return_rotation_key_once
+      
+      create_web_community:
+        event: User submits community form with didMethod=web
+        conditions:
+          - user_status == 'approved'
+          - handle_is_unique
+          - domain_provided
+        actions:
+          - generate_did_web
+          - generate_did_document
+          - create_community_record
+          - create_profile_record
+          - create_settings_record
+          - return_did_document
+
+validation_rules:
+  user:
+    - name: unique_email
+      field: email
+      rule: Email must be unique across all users
+      error_code: EMAIL_EXISTS
+    
+    - name: unique_handle
+      field: handle
+      rule: Handle must be unique across all users
+      error_code: HANDLE_EXISTS
+    
+    - name: password_strength
+      field: password
+      rule: Minimum 8 characters
+      error_code: PASSWORD_TOO_SHORT
+    
+    - name: valid_invite_code
+      field: inviteCode
+      rule: If INVITE_REQUIRED=true, must provide valid unused non-expired code
+      error_code: INVALID_INVITE
+  
+  community:
+    - name: unique_community_handle
+      field: handle
+      rule: Community handle must be unique across all communities
+      error_code: COMMUNITY_HANDLE_EXISTS
+    
+    - name: domain_for_web
+      field: domain
+      rule: If didMethod='web', domain must be provided and valid
+      error_code: DOMAIN_REQUIRED
+    
+    - name: approved_user_only
+      rule: Only approved users can create communities
+      error_code: USER_NOT_APPROVED
+
+services:
+  authentication_service:
+    methods:
+      - name: register
+        inputs: [handle, email, password, inviteCode]
+        outputs: {userId, status}
+        logic: Hash password, create user with status=pending, send email
+      
+      - name: login
+        inputs: [identifier, password]
+        outputs: {accessJwt, refreshJwt, user}
+        logic: Verify credentials, check status=approved, generate tokens
+      
+      - name: refreshToken
+        inputs: [refreshJwt]
+        outputs: {accessJwt, refreshJwt}
+        logic: Validate refresh token, generate new access token
+  
+  community_service:
+    methods:
+      - name: createCommunity
+        inputs: [handle, didMethod, domain, displayName, description]
+        outputs: {did, handle, rotation_key_or_document}
+        logic: Generate DID, create records, return secrets
+      
+      - name: getCommunityProfile
+        inputs: [did]
+        outputs: {profile_data}
+        logic: Fetch community profile record from AT Protocol
+  
+  admin_service:
+    methods:
+      - name: listPendingUsers
+        inputs: []
+        outputs: {users_array}
+        logic: Query users where status='pending'
+      
+      - name: approveUser
+        inputs: [userId]
+        outputs: {success}
+        logic: Update status to approved, send email
+      
+      - name: rejectUser
+        inputs: [userId]
+        outputs: {success}
+        logic: Delete user record, send email
+
+business_rules:
+  - rule_id: BR_001
+    description: Only approved users can create communities
+    enforcement: Check user.status == 'approved' before community creation
+  
+  - rule_id: BR_002
+    description: Admin approval required for new accounts
+    enforcement: All new users start with status='pending'
+  
+  - rule_id: BR_003
+    description: DID method determines required fields
+    enforcement: If didMethod='web', require domain field
+  
+  - rule_id: BR_004
+    description: Rotation keys shown only once for did:plc
+    enforcement: Return rotation key in creation response, do not store decrypted
+  
+  - rule_id: BR_005
+    description: Community handles are globally unique
+    enforcement: Database unique constraint on communities.handle
+  
+  - rule_id: BR_006
+    description: Invite codes have usage limits
+    enforcement: Check uses_count < max_uses and expires_at > NOW()
+
+error_handling:
+  - error_code: VALIDATION_ERROR
+    http_status: 400
+    user_message: Invalid input data
+  
+  - error_code: UNAUTHORIZED
+    http_status: 401
+    user_message: Authentication required
+  
+  - error_code: FORBIDDEN
+    http_status: 403
+    user_message: Insufficient permissions
+  
+  - error_code: NOT_FOUND
+    http_status: 404
+    user_message: Resource not found
+  
+  - error_code: CONFLICT
+    http_status: 409
+    user_message: Resource already exists
+
+phase_1_scope:
+  implemented:
+    - User registration with pending status
+    - Admin approval/rejection workflow
+    - Community creation (did:plc and did:web)
+    - Community profile records
+    - JWT session management
+  
+  deferred_to_phase_2:
+    - Community updates
+    - Member management
+    - Join requests
+    - Community deletion
+    - Owner transfer

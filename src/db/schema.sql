@@ -2,11 +2,67 @@
 -- Version: 1.0
 -- Date: 2026-02-05
 
+-- Users table: stores account information for auth
+CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(36) PRIMARY KEY,
+    handle VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'disabled')),
+    did VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    approved_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_users_status ON users(status);
+
+-- User roles table: admin/moderator/user roles
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'moderator', 'user')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, role)
+);
+
+CREATE INDEX idx_user_roles_role ON user_roles(role);
+
+-- Invite codes table: invite-only registration
+CREATE TABLE IF NOT EXISTS invites (
+    code VARCHAR(64) PRIMARY KEY,
+    created_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    used_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    used_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    max_uses INTEGER NOT NULL DEFAULT 1,
+    uses_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_invites_expires_at ON invites(expires_at);
+
+-- Sessions table: refresh token storage
+CREATE TABLE IF NOT EXISTS sessions (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    refresh_token_hash VARCHAR(255) NOT NULL,
+    previous_token_hash VARCHAR(255),  -- for token reuse detection
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    revoked_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX idx_sessions_previous_hash ON sessions(previous_token_hash);
+
 -- Communities table: stores basic community information
 CREATE TABLE IF NOT EXISTS communities (
     did VARCHAR(255) PRIMARY KEY,
     handle VARCHAR(255) UNIQUE NOT NULL,
     did_method VARCHAR(10) NOT NULL CHECK (did_method IN ('plc', 'web')),
+    created_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -74,3 +130,40 @@ CREATE TABLE IF NOT EXISTS commits (
 
 CREATE INDEX idx_commits_community ON commits(community_did);
 CREATE INDEX idx_commits_cid ON commits(cid);
+
+-- Join Requests table: tracks requests to join communities with approval-required join policy
+CREATE TABLE IF NOT EXISTS join_requests (
+    id VARCHAR(36) PRIMARY KEY,
+    community_did VARCHAR(255) NOT NULL REFERENCES communities(did) ON DELETE CASCADE,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_did VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    resolved_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    UNIQUE(community_did, user_id)
+);
+
+CREATE INDEX idx_join_requests_community ON join_requests(community_did);
+CREATE INDEX idx_join_requests_status ON join_requests(community_did, status);
+
+-- Signing keys table: stores encrypted signing keys for community repos
+CREATE TABLE IF NOT EXISTS signing_keys (
+    community_did VARCHAR(255) PRIMARY KEY REFERENCES communities(did) ON DELETE CASCADE,
+    signing_key_bytes BYTEA NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Audit log table: tracks admin and security-relevant actions
+CREATE TABLE IF NOT EXISTS audit_log (
+    id SERIAL PRIMARY KEY,
+    action VARCHAR(64) NOT NULL,
+    actor_id VARCHAR(36),
+    target_id VARCHAR(255),
+    meta JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_log_action ON audit_log(action);
+CREATE INDEX idx_audit_log_actor ON audit_log(actor_id);
+CREATE INDEX idx_audit_log_created ON audit_log(created_at);

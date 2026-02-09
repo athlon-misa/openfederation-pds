@@ -1,7 +1,11 @@
-import { Request, Response } from 'express';
-import { createPlcIdentity, createWebIdentity } from '../identity/manager.js';
+import { Response } from 'express';
+import { createPlcIdentity, createWebIdentity, storeSigningKey } from '../identity/manager.js';
 import { SimpleRepoEngine } from '../repo/simple-engine.js';
 import { query } from '../db/client.js';
+import type { AuthRequest } from '../auth/types.js';
+import { requireApprovedUser } from '../auth/guards.js';
+import { isValidHandle } from '../auth/utils.js';
+import { auditLog } from '../db/audit.js';
 
 interface CreateCommunityInput {
   handle: string;
@@ -9,16 +13,21 @@ interface CreateCommunityInput {
   domain?: string; // Required if didMethod is 'web'
   displayName?: string;
   description?: string;
+  visibility?: 'public' | 'private';
+  joinPolicy?: 'open' | 'approval';
 }
 
 /**
  * net.openfederation.community.create
  *
  * Creates a new community with a chosen DID method.
- * This is the entry point for community creation.
  */
-export default async function createCommunity(req: Request, res: Response): Promise<void> {
+export default async function createCommunity(req: AuthRequest, res: Response): Promise<void> {
   try {
+    if (!requireApprovedUser(req, res)) {
+      return;
+    }
+
     const input: CreateCommunityInput = req.body;
 
     // 1. Validate input
@@ -30,11 +39,10 @@ export default async function createCommunity(req: Request, res: Response): Prom
       return;
     }
 
-    // Validate handle format (alphanumeric and hyphens only)
-    if (!/^[a-z0-9-]+$/.test(input.handle)) {
+    if (!isValidHandle(input.handle)) {
       res.status(400).json({
         error: 'InvalidRequest',
-        message: 'Handle must contain only lowercase letters, numbers, and hyphens',
+        message: 'Handle must be 3-30 characters, lowercase letters, numbers, and hyphens only. No leading/trailing hyphens or consecutive hyphens. Some names are reserved.',
       });
       return;
     }
@@ -64,7 +72,7 @@ export default async function createCommunity(req: Request, res: Response): Prom
     if (existingCommunity.rows.length > 0) {
       res.status(409).json({
         error: 'HandleTaken',
-        message: `Handle "${input.handle}" is already taken`,
+        message: 'This handle is already taken',
       });
       return;
     }
@@ -75,19 +83,19 @@ export default async function createCommunity(req: Request, res: Response): Prom
     let primaryRotationKey: string | undefined;
     let didDocument: any | undefined;
     let instructions: string | undefined;
-    let recoveryKeyBytes: Buffer | undefined;
 
     if (input.didMethod === 'plc') {
-      // Create did:plc identity
       const result = await createPlcIdentity(input.handle);
       did = result.did;
       signingKey = result.signingKey;
       primaryRotationKey = result.primaryRotationKey;
 
-      // TODO: Store the recovery key (encrypted!) in the database
-      // For MVP, we'll skip encryption but note that it MUST be encrypted in production
+      // Store recovery key (encrypted at rest)
+      await query(
+        'INSERT INTO plc_keys (community_did, recovery_key_bytes) VALUES ($1, $2)',
+        [did, result.recoveryKeyBytes]
+      );
     } else {
-      // Create did:web identity
       const result = await createWebIdentity(input.domain!);
       did = result.did;
       signingKey = result.signingKey;
@@ -97,9 +105,12 @@ export default async function createCommunity(req: Request, res: Response): Prom
 
     // 3. Store community in database
     await query(
-      'INSERT INTO communities (did, handle, did_method) VALUES ($1, $2, $3)',
-      [did, input.handle, input.didMethod]
+      'INSERT INTO communities (did, handle, did_method, created_by) VALUES ($1, $2, $3, $4)',
+      [did, input.handle, input.didMethod, req.auth!.userId]
     );
+
+    // Store signing key (encrypted at rest)
+    await storeSigningKey(did, signingKey);
 
     // 4. Create initial records using the repository engine
     const engine = new SimpleRepoEngine(did);
@@ -107,6 +118,8 @@ export default async function createCommunity(req: Request, res: Response): Prom
     const now = new Date().toISOString();
     const displayName = input.displayName || input.handle;
     const description = input.description || '';
+    const visibility = input.visibility || 'public';
+    const joinPolicy = input.joinPolicy || 'open';
 
     const initialRecords = [
       {
@@ -115,6 +128,8 @@ export default async function createCommunity(req: Request, res: Response): Prom
         record: {
           didMethod: input.didMethod,
           governanceModel: 'benevolent-dictator',
+          visibility,
+          joinPolicy,
         },
       },
       {
@@ -129,6 +144,20 @@ export default async function createCommunity(req: Request, res: Response): Prom
     ];
 
     await engine.createRepo(signingKey, initialRecords);
+
+    // Auto-add creator as first member
+    const memberRkey = SimpleRepoEngine.generateTid();
+    await engine.putRecord(signingKey, 'net.openfederation.community.member', memberRkey, {
+      did: req.auth!.did,
+      handle: req.auth!.handle,
+      role: 'owner',
+      joinedAt: now,
+    });
+
+    await auditLog('community.create', req.auth!.userId, did, {
+      handle: input.handle,
+      didMethod: input.didMethod,
+    });
 
     // 5. Return the result
     const response: any = {

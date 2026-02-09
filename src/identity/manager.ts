@@ -1,6 +1,9 @@
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { base58btc } from 'multiformats/bases/base58';
 import { config } from '../config.js';
+import { query } from '../db/client.js';
+import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
+import { isValidDomain } from '../auth/utils.js';
 import crypto from 'crypto';
 
 /**
@@ -10,6 +13,7 @@ export interface PlcIdentityResult {
   did: string;
   primaryRotationKey: string; // Base64 encoded private key - MUST be given to user ONCE
   signingKey: string; // Base64 encoded private key for repo signing
+  recoveryKeyBytes: Buffer; // Encrypted recovery key bytes for DB storage
   message: string;
 }
 
@@ -26,11 +30,8 @@ export interface WebIdentityResult {
 /**
  * Creates a did:plc identity with hybrid key model:
  * - Primary rotation key: given to community (NOT stored by server)
- * - Secondary recovery key: stored by server (for recovery)
+ * - Secondary recovery key: stored by server (encrypted at rest)
  * - Signing key: stored for repo operations
- *
- * @param handle - The desired handle for the community
- * @returns PlcIdentityResult with DID and keys
  */
 export async function createPlcIdentity(handle: string): Promise<PlcIdentityResult> {
   // 1. Generate keys
@@ -41,9 +42,6 @@ export async function createPlcIdentity(handle: string): Promise<PlcIdentityResu
   // 2. Construct the genesis operation for PLC
   const fullHandle = `${handle}${config.handleSuffix}`;
 
-  // Create the DID by calling the PLC directory
-  // Note: The actual PLC creation requires posting to https://plc.directory/
-  // For now, we'll generate a placeholder DID
   const genesis = {
     type: 'plc_operation',
     rotationKeys: [primaryRotationKey.did(), recoveryKey.did()],
@@ -63,56 +61,55 @@ export async function createPlcIdentity(handle: string): Promise<PlcIdentityResu
   // In production, this would come from the PLC directory
   const did = await generatePlcDid(genesis);
 
-  // 3. Export keys for storage/return
+  // 3. Export keys
   const primaryKeyExport = await primaryRotationKey.export();
+  const recoveryKeyExport = await recoveryKey.export();
   const signingKeyExport = await signingKey.export();
 
-  // CRITICAL: The primary rotation key is returned to the user and MUST NOT be stored by the server
-  // The recovery key will be stored by the server (encrypted at rest)
+  // 4. Encrypt recovery key for storage at rest
+  const recoveryKeyBuf = Buffer.from(recoveryKeyExport);
+  const encryptedRecoveryKey = encryptKeyBytes(recoveryKeyBuf);
 
   return {
     did,
     primaryRotationKey: Buffer.from(primaryKeyExport).toString('base64'),
     signingKey: Buffer.from(signingKeyExport).toString('base64'),
+    recoveryKeyBytes: encryptedRecoveryKey,
     message: 'IMPORTANT: Please back up your primaryRotationKey. This is the only time you will see it. It grants full control over your identity.',
   };
 }
 
 /**
- * Generates a did:plc identifier from a genesis operation
- * In production, this should post to the PLC directory and receive the DID
- * For MVP, we generate a deterministic identifier
+ * Generates a did:plc identifier from a genesis operation.
+ * Uses SHA-256 hash with base32-lower encoding to match PLC directory format.
+ * In production, this should post to the PLC directory and receive the DID.
  */
 async function generatePlcDid(genesis: any): Promise<string> {
-  // Hash the genesis operation to create a deterministic identifier
-  const genesisStr = JSON.stringify(genesis);
+  // Use deterministic CBOR-like serialization: sorted keys JSON
+  const genesisStr = JSON.stringify(genesis, Object.keys(genesis).sort());
   const hash = crypto.createHash('sha256').update(genesisStr).digest();
 
-  // Use base32 encoding for the DID (standard PLC format)
-  const base32 = hash.toString('base64url').substring(0, 24);
+  // base32-lower encoding (matching PLC directory format), truncated to 24 chars
+  const b32 = base32Encode(hash).substring(0, 24);
 
-  return `did:plc:${base32}`;
+  return `did:plc:${b32}`;
 }
 
 /**
- * Helper to convert Ed25519 public key to multibase multikey format
- * @param publicKey - The Ed25519 public key bytes
- * @returns Multibase-encoded multikey string
+ * Validate a domain for did:web before constructing identity.
+ * Throws if invalid.
  */
-function toMultibaseMultikey(publicKey: Uint8Array): string {
-  // multicodec ed25519-pub = 0xED (varint-encoded as 0xED 0x01)
-  const prefix = Uint8Array.from([0xed, 0x01]);
-  const bytes = new Uint8Array(prefix.length + publicKey.length);
-  bytes.set(prefix, 0);
-  bytes.set(publicKey, prefix.length);
-  // base58btc multibase encoding yields a string starting with 'z'
-  return base58btc.encode(bytes);
+export function validateWebDomain(domain: string): void {
+  if (!isValidDomain(domain)) {
+    throw new Error(
+      'Invalid domain. Must be a valid hostname (e.g., example.com). ' +
+      'No paths, ports, or special characters allowed.'
+    );
+  }
 }
 
 /**
  * Helper to convert secp256k1 public key to multibase multikey format
- * @param publicKey - The secp256k1 public key bytes
- * @returns Multibase-encoded multikey string
  */
 function toMultibaseMultikeySecp256k1(publicKey: Uint8Array): string {
   // multicodec secp256k1-pub = 0xE7 (varint-encoded as 0xE7 0x01)
@@ -124,13 +121,12 @@ function toMultibaseMultikeySecp256k1(publicKey: Uint8Array): string {
 }
 
 /**
- * Creates a did:web identity for a community with an existing domain
- * The community is responsible for hosting the did.json file
- *
- * @param domain - The domain name controlled by the community
- * @returns WebIdentityResult with DID document and instructions
+ * Creates a did:web identity for a community with an existing domain.
+ * Domain is validated before use.
  */
 export async function createWebIdentity(domain: string): Promise<WebIdentityResult> {
+  validateWebDomain(domain);
+
   // 1. Generate a signing key for the repository
   const signingKey = await Secp256k1Keypair.create({ exportable: true });
 
@@ -162,7 +158,6 @@ export async function createWebIdentity(domain: string): Promise<WebIdentityResu
   // 4. Export the signing key for storage
   const signingKeyExport = await signingKey.export();
 
-  // 5. Return the document and instructions
   return {
     did: `did:web:${domain}`,
     didDocument,
@@ -172,11 +167,64 @@ export async function createWebIdentity(domain: string): Promise<WebIdentityResu
 }
 
 /**
- * Gets the recovery key for a did:plc community
- * This is used by the server for recovery operations
+ * Store signing key for a community, encrypted at rest.
+ */
+export async function storeSigningKey(communityDid: string, signingKeyBase64: string): Promise<void> {
+  const keyBuf = Buffer.from(signingKeyBase64, 'base64');
+  const encrypted = encryptKeyBytes(keyBuf);
+  await query(
+    `INSERT INTO signing_keys (community_did, signing_key_bytes)
+     VALUES ($1, $2)
+     ON CONFLICT (community_did) DO UPDATE SET signing_key_bytes = $2`,
+    [communityDid, encrypted]
+  );
+}
+
+/**
+ * Retrieve and decrypt signing key for a community.
+ */
+export async function getSigningKey(communityDid: string): Promise<string | null> {
+  const result = await query<{ signing_key_bytes: Buffer }>(
+    'SELECT signing_key_bytes FROM signing_keys WHERE community_did = $1',
+    [communityDid]
+  );
+  if (result.rows.length === 0) return null;
+  const decrypted = decryptKeyBytes(result.rows[0].signing_key_bytes);
+  return decrypted.toString('base64');
+}
+
+/**
+ * Gets the recovery key for a did:plc community.
  */
 export async function getRecoveryKey(communityDid: string): Promise<Secp256k1Keypair | null> {
-  // This will be implemented when we add database queries
-  // For now, return null
-  return null;
+  const result = await query<{ recovery_key_bytes: Buffer }>(
+    'SELECT recovery_key_bytes FROM plc_keys WHERE community_did = $1',
+    [communityDid]
+  );
+  if (result.rows.length === 0) return null;
+
+  const decrypted = decryptKeyBytes(result.rows[0].recovery_key_bytes);
+  return Secp256k1Keypair.import(decrypted, { exportable: true });
+}
+
+function base32Encode(buffer: Buffer): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
+  let bits = 0;
+  let value = 0;
+  let result = '';
+
+  for (const byte of buffer) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      result += alphabet[(value >>> bits) & 0x1f];
+    }
+  }
+
+  if (bits > 0) {
+    result += alphabet[(value << (5 - bits)) & 0x1f];
+  }
+
+  return result;
 }

@@ -57,7 +57,7 @@ export default async function getRecord(req: Request, res: Response): Promise<vo
     if (cid && typeof cid === 'string' && cid !== result.cid) {
       res.status(404).json({
         error: 'RecordNotFound',
-        message: `Record found but CID does not match. Expected: ${cid}, Got: ${result.cid}`,
+        message: 'Record found but CID does not match',
       });
       return;
     }
