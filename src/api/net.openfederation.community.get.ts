@@ -23,8 +23,10 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       did_method: string;
       created_by: string;
       created_at: string;
+      status: string;
+      status_reason: string | null;
     }>(
-      'SELECT did, handle, did_method, created_by, created_at FROM communities WHERE did = $1',
+      'SELECT did, handle, did_method, created_by, created_at, status, status_reason FROM communities WHERE did = $1',
       [did]
     );
 
@@ -34,6 +36,15 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
     }
 
     const community = communityResult.rows[0];
+
+    // Taken-down communities are invisible to everyone except PDS admin
+    if (community.status === 'takendown') {
+      const isAdmin = req.auth?.roles?.includes('admin') || false;
+      if (!isAdmin) {
+        res.status(410).json({ error: 'CommunityTakenDown', message: 'This community has been taken down.' });
+        return;
+      }
+    }
 
     // Fetch profile
     const profileResult = await query<{ record: { displayName?: string; description?: string } }>(
@@ -110,6 +121,8 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       joinPolicy,
       memberCount,
       createdAt: community.created_at,
+      status: community.status,
+      statusReason: community.status_reason,
       isOwner,
       isMember,
       joinRequestStatus,

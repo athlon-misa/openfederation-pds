@@ -22,6 +22,11 @@ import leaveCommunity from '../api/net.openfederation.community.leave.js';
 import listMembers from '../api/net.openfederation.community.listMembers.js';
 import listJoinRequests from '../api/net.openfederation.community.listJoinRequests.js';
 import resolveJoinRequest from '../api/net.openfederation.community.resolveJoinRequest.js';
+import exportCommunity from '../api/net.openfederation.community.export.js';
+import suspendCommunity from '../api/net.openfederation.community.suspend.js';
+import unsuspendCommunity from '../api/net.openfederation.community.unsuspend.js';
+import takedownCommunity from '../api/net.openfederation.community.takedown.js';
+import transferCommunity from '../api/net.openfederation.community.transfer.js';
 import { authMiddleware } from '../auth/middleware.js';
 import { ensureBootstrapAdmin } from '../auth/bootstrap.js';
 
@@ -110,6 +115,11 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.community.listMembers': { handler: listMembers },
   'net.openfederation.community.listJoinRequests': { handler: listJoinRequests },
   'net.openfederation.community.resolveJoinRequest': { handler: resolveJoinRequest },
+  'net.openfederation.community.export': { handler: exportCommunity },
+  'net.openfederation.community.suspend': { handler: suspendCommunity },
+  'net.openfederation.community.unsuspend': { handler: unsuspendCommunity },
+  'net.openfederation.community.takedown': { handler: takedownCommunity },
+  'net.openfederation.community.transfer': { handler: transferCommunity },
 
   // Standard ATProto endpoints
   'com.atproto.server.createSession': { handler: createSession, limiter: authLimiter },

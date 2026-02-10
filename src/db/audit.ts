@@ -12,6 +12,11 @@ export type AuditAction =
   | 'community.update'
   | 'community.join'
   | 'community.leave'
+  | 'community.export'
+  | 'community.suspend'
+  | 'community.unsuspend'
+  | 'community.takedown'
+  | 'community.transfer.initiate'
   | 'join_request.approve'
   | 'join_request.reject';
 

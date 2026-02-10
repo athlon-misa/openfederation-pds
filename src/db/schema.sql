@@ -63,10 +63,16 @@ CREATE TABLE IF NOT EXISTS communities (
     handle VARCHAR(255) UNIQUE NOT NULL,
     did_method VARCHAR(10) NOT NULL CHECK (did_method IN ('plc', 'web')),
     created_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'takendown')),
+    status_changed_at TIMESTAMP WITH TIME ZONE,
+    status_changed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    status_reason TEXT,
+    exported_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX idx_communities_handle ON communities(handle);
+CREATE INDEX idx_communities_status ON communities(status);
 
 -- PLC Keys table: stores encrypted recovery keys for did:plc communities
 -- IMPORTANT: The recovery_key_bytes should be encrypted at rest

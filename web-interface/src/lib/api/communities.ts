@@ -2,6 +2,8 @@ import { xrpc } from '../api-client';
 import type {
   CommunityCreateResponse,
   CommunityDetail,
+  CommunityExportData,
+  CommunityTransferPackage,
   JoinCommunityResponse,
   LeaveCommunityResponse,
   ListAllCommunitiesResponse,
@@ -9,6 +11,9 @@ import type {
   ListJoinRequestsResponse,
   ListMembersResponse,
   ResolveJoinRequestResponse,
+  SuspendCommunityResponse,
+  TakedownCommunityResponse,
+  UnsuspendCommunityResponse,
   UpdateCommunityResponse,
 } from './types';
 
@@ -92,5 +97,36 @@ export async function listJoinRequests(did: string, limit = 50, offset = 0) {
 export async function resolveJoinRequest(requestId: string, action: 'approve' | 'reject') {
   return xrpc<ResolveJoinRequestResponse>('net.openfederation.community.resolveJoinRequest', {
     body: { requestId, action },
+  });
+}
+
+export async function exportCommunity(did: string) {
+  return xrpc<CommunityExportData>('net.openfederation.community.export', {
+    method: 'GET',
+    params: { did },
+  });
+}
+
+export async function suspendCommunity(did: string, reason?: string) {
+  return xrpc<SuspendCommunityResponse>('net.openfederation.community.suspend', {
+    body: { did, reason },
+  });
+}
+
+export async function unsuspendCommunity(did: string) {
+  return xrpc<UnsuspendCommunityResponse>('net.openfederation.community.unsuspend', {
+    body: { did },
+  });
+}
+
+export async function takedownCommunity(did: string, reason?: string) {
+  return xrpc<TakedownCommunityResponse>('net.openfederation.community.takedown', {
+    body: { did, reason },
+  });
+}
+
+export async function transferCommunity(did: string) {
+  return xrpc<CommunityTransferPackage>('net.openfederation.community.transfer', {
+    body: { did },
   });
 }

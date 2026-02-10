@@ -131,6 +131,18 @@ export class SimpleRepoEngine {
   }
 
   /**
+   * Export all records in the repository as a flat list.
+   * Used for community export / backup (AT Protocol "free to go" principle).
+   */
+  async exportAllRecords(): Promise<Array<{ collection: string; rkey: string; cid: string; record: any }>> {
+    const result = await query<{ collection: string; rkey: string; cid: string; record: any }>(
+      'SELECT collection, rkey, cid, record FROM records_index WHERE community_did = $1 ORDER BY collection, rkey',
+      [this.communityDid]
+    );
+    return result.rows;
+  }
+
+  /**
    * Delete a record from the repository
    */
   async deleteRecord(

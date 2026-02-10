@@ -128,141 +128,49 @@ docker run -d \
 
 ## Railway Deployment
 
-### Prerequisites
-- Railway account: https://railway.app
-- GitHub repository linked to Railway
+For complete Railway deployment instructions (two-service setup, bootstrap admin, HTTPS configuration), see **[RAILWAY.md](./RAILWAY.md)**.
 
-### Deployment Steps
+Quick summary: deploy as two Railway services (PDS API + Web UI) from the same repo, each on standard HTTPS. Railway handles TLS and port assignment automatically.
 
-#### 1. Create Project & Deploy
+## First Admin Login
+
+The PDS supports automatic admin bootstrap via environment variables. On first startup with a connected database, if all three bootstrap variables are set, an admin account is created automatically.
+
+### Setup
+
+Set these environment variables before the first boot:
+
 ```bash
-# Option A: Railway Dashboard (Recommended for first time)
-1. Go to https://railway.app/new
-2. Select "Deploy from GitHub repo"
-3. Choose your repository
-4. Railway auto-detects Node.js and starts deployment
-
-# Option B: Railway CLI
-railway login
-railway init
-railway up
+BOOTSTRAP_ADMIN_EMAIL=admin@yourdomain.com
+BOOTSTRAP_ADMIN_HANDLE=admin
+BOOTSTRAP_ADMIN_PASSWORD=<strong-password-here>
 ```
 
-#### 2. Add PostgreSQL Database
-In Railway Dashboard:
-1. Click your project
-2. Click "New" → "Database" → "Add PostgreSQL"
-3. Railway automatically configures these variables:
-   - `DATABASE_URL`
-   - `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
+The account is:
+- Pre-approved (no manual approval needed)
+- Granted **admin**, **moderator**, and **user** roles
+- Ready to log in immediately
 
-#### 3. Set Required Environment Variables
-In Railway Dashboard → Variables tab:
+### Logging In
 
-**Required:**
-```bash
-PDS_HOSTNAME=your-service-name.up.railway.app
-PDS_SERVICE_URL=https://your-service-name.up.railway.app
-```
+1. Open the Web UI at your deployment URL (e.g., `https://your-web-ui.up.railway.app/login`)
+2. Enter the handle (or email) and password you configured
+3. You'll see the dashboard with full admin privileges
 
-**Optional (only if changing defaults):**
-```bash
-HANDLE_SUFFIX=.openfederation.net
-PLC_DIRECTORY_URL=https://plc.directory
-```
+### What You Can Do as Admin
 
-**Note:** Do NOT set `PORT` or database variables - Railway sets these automatically.
+- **Communities** — create communities with did:plc or did:web identity
+- **Explore** — browse all public communities
+- **Admin panel:**
+  - **Users** tab — approve/reject pending registrations
+  - **Invites** tab — generate invite codes for new users
+  - **Communities** tab — view all communities, suspend/unsuspend for moderation
 
-#### 4. Initialize Database Schema
-After first deployment, run:
-```bash
-railway run psql $DATABASE_URL -f src/db/schema.sql
-```
+### Security
 
-Or connect to Railway's PostgreSQL and run the schema:
-```bash
-railway connect postgres
-# Then paste contents of src/db/schema.sql
-```
+After the admin account is created, **remove the `BOOTSTRAP_ADMIN_*` variables** from your environment. The account persists in the database. If the account already exists on subsequent boots, the PDS just ensures it has admin role (idempotent).
 
-#### 5. Verify Deployment
-```bash
-# Check health endpoint
-curl https://your-service-name.up.railway.app/health
-
-# Expected response:
-{
-  "status": "ok",
-  "database": "connected",
-  "timestamp": "2026-02-05T..."
-}
-```
-
-### Railway Configuration Files
-
-The repository includes `railway.json` which configures:
-- Build command: `npm run build`
-- Start command: `npm start`
-- Health check: `/health` endpoint
-- Auto-restart on failure
-
-### Custom Domain Setup
-
-1. In Railway Dashboard → Settings → Domains
-2. Click "Generate Domain" or "Add Custom Domain"
-3. Update environment variables to match your domain:
-   ```
-   PDS_HOSTNAME=pds.yourdomain.com
-   PDS_SERVICE_URL=https://pds.yourdomain.com
-   ```
-4. For custom domains, configure DNS:
-   - Add CNAME: `pds.yourdomain.com` → `your-service.up.railway.app`
-
-### Monitoring & Logs
-
-Railway provides:
-- **Real-time logs:** `railway logs` or in Dashboard
-- **Metrics:** CPU, Memory, Network usage in Dashboard
-- **Health checks:** Automatic monitoring of `/health` endpoint
-- **Alerts:** Configure via Dashboard → Settings → Notifications
-
-### Troubleshooting
-
-**Build fails:**
-- Check Railway build logs in Dashboard
-- Ensure Node.js >=18 (specified in package.json engines)
-- Verify all dependencies are in package.json
-
-**Database connection failed:**
-- Ensure PostgreSQL service is added and running
-- Check Railway sets database variables automatically
-- Verify schema is initialized: `railway run psql $DATABASE_URL -f src/db/schema.sql`
-
-**Application crashes:**
-- Check deployment logs: `railway logs`
-- Verify environment variables are set correctly
-- Ensure `/health` endpoint is accessible
-- Check that PORT is not hardcoded (Railway sets it dynamically)
-
-### Cost Estimate
-
-Railway Pricing (2026):
-- Hobby Plan: $5/month base + usage
-- PostgreSQL: Included in plan
-- Compute: ~$0.000463 per minute
-- Storage: ~$0.25 per GB per month
-
-Typical monthly cost for light-moderate usage: **$5-20**
-
-### Railway-Specific Features
-
-- **Automatic SSL:** Free SSL certificates for all deployments
-- **Auto-scaling:** Automatically scales based on traffic
-- **Zero-downtime deploys:** New version deployed before old one stops
-- **Environment branches:** Separate staging/production environments
-- **Webhooks:** Deploy hooks, notification webhooks
-
-For a detailed quick-start guide, see [RAILWAY.md](./RAILWAY.md).
+---
 
 ## Vercel/Netlify/Cloud Functions
 
@@ -339,17 +247,17 @@ Check logs for:
 
 Before going to production:
 
-- [ ] Set strong `DB_PASSWORD`
-- [ ] Configure proper `PDS_HOSTNAME` and `PDS_SERVICE_URL`
+- [ ] Set strong `DB_PASSWORD` (Railway auto-generates)
+- [ ] Set `AUTH_JWT_SECRET` (64-char random hex)
+- [ ] Set `KEY_ENCRYPTION_SECRET` (64-char random hex)
+- [ ] Configure `PDS_HOSTNAME` and `PDS_SERVICE_URL`
+- [ ] Set `CORS_ORIGINS` to your Web UI URL
 - [ ] Initialize database schema
-- [ ] Set up SSL/TLS certificates
-- [ ] Configure reverse proxy (nginx/Caddy)
+- [ ] Set up bootstrap admin and verify login
+- [ ] Set up SSL/TLS certificates (Railway provides free SSL)
 - [ ] Set up monitoring and alerting
 - [ ] Configure backups for PostgreSQL
-- [ ] Review security settings
-- [ ] Implement rate limiting (TODO in code)
-- [ ] Encrypt recovery keys at rest (TODO in code)
-- [ ] Integrate with real PLC directory (TODO in code)
+- [ ] Remove `BOOTSTRAP_ADMIN_*` variables after first login
 
 ## Monitoring
 

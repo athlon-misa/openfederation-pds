@@ -81,6 +81,9 @@ export interface ListCommunitiesResponse {
   offset: number;
 }
 
+// Community status type (AT Protocol compliance)
+export type CommunityStatus = 'active' | 'suspended' | 'takendown';
+
 // Community detail type (from community.get)
 export interface CommunityDetail {
   did: string;
@@ -92,6 +95,8 @@ export interface CommunityDetail {
   joinPolicy: 'open' | 'approval';
   memberCount: number;
   createdAt: string;
+  status: CommunityStatus;
+  statusReason: string | null;
   isOwner: boolean;
   isMember: boolean;
   joinRequestStatus: 'pending' | 'approved' | 'rejected' | null;
@@ -102,6 +107,7 @@ export interface CommunityListAllItem extends CommunityListItem {
   visibility: 'public' | 'private';
   joinPolicy: 'open' | 'approval';
   memberCount: number;
+  status?: CommunityStatus;
   isMember: boolean;
   joinRequestStatus: 'pending' | 'approved' | 'rejected' | null;
 }
@@ -157,6 +163,64 @@ export interface ResolveJoinRequestResponse {
 
 export interface UpdateCommunityResponse {
   success: boolean;
+}
+
+// Community export type
+export interface CommunityExportData {
+  $type: 'net.openfederation.community.export';
+  exportedAt: string;
+  exportedBy: string;
+  community: {
+    did: string;
+    handle: string;
+    didMethod: string;
+    status: string;
+  };
+  stats: {
+    totalRecords: number;
+    memberCount: number;
+    collections: number;
+  };
+  collections: Record<string, Array<{ rkey: string; cid: string; record: Record<string, unknown> }>>;
+}
+
+// Community moderation response types
+export interface SuspendCommunityResponse {
+  did: string;
+  status: 'suspended';
+  reason: string | null;
+}
+
+export interface UnsuspendCommunityResponse {
+  did: string;
+  status: 'active';
+}
+
+export interface TakedownCommunityResponse {
+  did: string;
+  status: 'takendown';
+  reason: string | null;
+}
+
+// Community transfer type
+export interface CommunityTransferPackage {
+  $type: 'net.openfederation.community.transfer';
+  transferToken: string;
+  transferExpiresAt: string;
+  exportedAt: string;
+  sourcePds: string;
+  community: {
+    did: string;
+    handle: string;
+    didMethod: string;
+  };
+  stats: {
+    totalRecords: number;
+    memberCount: number;
+    collections: number;
+  };
+  collections: Record<string, Array<{ rkey: string; cid: string; record: Record<string, unknown> }>>;
+  instructions: string;
 }
 
 // API error type

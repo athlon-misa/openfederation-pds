@@ -29,10 +29,11 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
     let dataParams: any[];
 
     if (showAll) {
+      // Admin sees all communities including suspended/takendown
       countQuery = 'SELECT COUNT(*) as count FROM communities';
       countParams = [];
       dataQuery = `
-        SELECT c.did, c.handle, c.did_method, c.created_at,
+        SELECT c.did, c.handle, c.did_method, c.created_at, c.status as community_status,
                s.record as settings, p.record as profile,
                COALESCE(mc.member_count, 0) as member_count,
                CASE WHEN mu.member_did IS NOT NULL THEN true ELSE false END as is_member,
@@ -53,18 +54,20 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
         LIMIT $1 OFFSET $2`;
       dataParams = [limit, offset, req.auth.did, req.auth.userId];
     } else {
+      // Public view: only active, public communities that user hasn't joined
       countQuery = `
         SELECT COUNT(*) as count FROM communities c
         LEFT JOIN records_index s ON s.community_did = c.did
           AND s.collection = 'net.openfederation.community.settings' AND s.rkey = 'self'
-        WHERE COALESCE(s.record->>'visibility', 'public') = 'public'
+        WHERE c.status = 'active'
+          AND COALESCE(s.record->>'visibility', 'public') = 'public'
           AND NOT EXISTS (
             SELECT 1 FROM members_unique mu
             WHERE mu.community_did = c.did AND mu.member_did = $1
           )`;
       countParams = [req.auth.did];
       dataQuery = `
-        SELECT c.did, c.handle, c.did_method, c.created_at,
+        SELECT c.did, c.handle, c.did_method, c.created_at, c.status as community_status,
                s.record as settings, p.record as profile,
                COALESCE(mc.member_count, 0) as member_count,
                false as is_member,
@@ -80,7 +83,8 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
         ) mc ON mc.community_did = c.did
         LEFT JOIN join_requests jr ON jr.community_did = c.did AND jr.user_id = $4
           AND jr.status = 'pending'
-        WHERE COALESCE(s.record->>'visibility', 'public') = 'public'
+        WHERE c.status = 'active'
+          AND COALESCE(s.record->>'visibility', 'public') = 'public'
           AND NOT EXISTS (
             SELECT 1 FROM members_unique mu2
             WHERE mu2.community_did = c.did AND mu2.member_did = $3
@@ -107,7 +111,7 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
 
     const total = parseInt(countResult.rows[0].count, 10);
 
-    const communities = dataResult.rows.map((c) => ({
+    const communities = dataResult.rows.map((c: any) => ({
       did: c.did,
       handle: c.handle,
       didMethod: c.did_method,
@@ -117,6 +121,7 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
       joinPolicy: c.settings?.joinPolicy || 'open',
       memberCount: c.member_count,
       createdAt: c.created_at,
+      status: c.community_status || 'active',
       isMember: c.is_member,
       joinRequestStatus: c.join_request_status || null,
     }));

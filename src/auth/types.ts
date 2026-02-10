@@ -2,6 +2,8 @@ import type { Request } from 'express';
 
 export type UserStatus = 'pending' | 'approved' | 'rejected' | 'disabled';
 export type UserRole = 'admin' | 'moderator' | 'user';
+export type CommunityRole = 'owner' | 'moderator' | 'member';
+export type CommunityStatus = 'active' | 'suspended' | 'takendown';
 
 export interface AuthContext {
   userId: string;
