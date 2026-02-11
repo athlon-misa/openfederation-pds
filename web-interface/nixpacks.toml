@@ -1,8 +1,11 @@
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
+[phases.install]
+cmds = ["npm install --include=dev"]
+
 [phases.build]
-cmds = ["npm install", "rm -rf .next", "npm run build"]
+cmds = ["npm run build"]
 
 [start]
 cmd = "npm start"
