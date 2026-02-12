@@ -1,44 +1,87 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { listAllCommunities } from '@/lib/api/communities';
-import type { CommunityListAllItem } from '@/lib/api/types';
+import { useState } from 'react';
+import { Compass } from 'lucide-react';
+import { useExploreCommunitiesQuery } from '@/hooks/use-communities';
+import { PageHeader } from '@/components/page-header';
 import { ExploreCommunityCard } from '@/components/explore-community-card';
+import { EmptyState } from '@/components/empty-state';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+const PAGE_SIZE = 20;
 
 export default function ExplorePage() {
-  const [communities, setCommunities] = useState<CommunityListAllItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState('');
+  const { data, isLoading } = useExploreCommunitiesQuery(PAGE_SIZE, page * PAGE_SIZE);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchCommunities() {
-      const result = await listAllCommunities(50, 0, 'public');
-      if (cancelled) return;
-      if (result.ok) {
-        setCommunities(result.data.communities);
-      }
-      setLoading(false);
-    }
-    fetchCommunities();
-    return () => { cancelled = true; };
-  }, [refreshKey]);
-
-  const reload = () => setRefreshKey((k) => k + 1);
+  const filtered = data?.communities.filter((c) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      c.displayName.toLowerCase().includes(q) ||
+      c.handle.toLowerCase().includes(q) ||
+      c.description?.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Explore Communities</h1>
-      {loading ? (
-        <p className="text-muted-foreground">Loading...</p>
-      ) : communities.length === 0 ? (
-        <p className="text-muted-foreground">No public communities yet.</p>
-      ) : (
+      <PageHeader title="Explore Communities" description="Discover and join public communities." />
+
+      <div className="mb-6">
+        <Input
+          placeholder="Search communities..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+      </div>
+
+      {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          {communities.map((c) => (
-            <ExploreCommunityCard key={c.did} community={c} onJoined={reload} />
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-36 rounded-lg" />
           ))}
         </div>
+      ) : !filtered?.length ? (
+        <EmptyState
+          icon={Compass}
+          title={search ? 'No matching communities' : 'No public communities yet'}
+          description={search ? 'Try a different search term.' : 'Be the first to create one!'}
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {filtered.map((c) => (
+              <ExploreCommunityCard key={c.did} community={c} />
+            ))}
+          </div>
+          {!search && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 0}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">Page {page + 1}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={(data?.communities.length ?? 0) < PAGE_SIZE}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

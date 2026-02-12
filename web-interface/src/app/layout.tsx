@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { StoreHydration } from "@/components/store-hydration";
+import { QueryProvider } from "@/providers/query-provider";
+import { CommandPaletteProvider } from "@/providers/command-palette-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
@@ -30,8 +32,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <StoreHydration>
-          {children}
-          <Toaster />
+          <QueryProvider>
+            <CommandPaletteProvider>
+              {children}
+              <Toaster />
+            </CommandPaletteProvider>
+          </QueryProvider>
         </StoreHydration>
       </body>
     </html>

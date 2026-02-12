@@ -130,3 +130,15 @@ export async function transferCommunity(did: string) {
     body: { did },
   });
 }
+
+export async function removeMember(did: string, memberDid: string) {
+  return xrpc<{ success: boolean }>('net.openfederation.community.removeMember', {
+    body: { did, memberDid },
+  });
+}
+
+export async function deleteCommunity(did: string) {
+  return xrpc<{ success: boolean }>('net.openfederation.community.delete', {
+    body: { did },
+  });
+}

@@ -27,6 +27,12 @@ import suspendCommunity from '../api/net.openfederation.community.suspend.js';
 import unsuspendCommunity from '../api/net.openfederation.community.unsuspend.js';
 import takedownCommunity from '../api/net.openfederation.community.takedown.js';
 import transferCommunity from '../api/net.openfederation.community.transfer.js';
+import removeMember from '../api/net.openfederation.community.removeMember.js';
+import deleteCommunity from '../api/net.openfederation.community.delete.js';
+import listAccounts from '../api/net.openfederation.account.list.js';
+import listInvites from '../api/net.openfederation.invite.list.js';
+import listAudit from '../api/net.openfederation.audit.list.js';
+import getServerConfig from '../api/net.openfederation.server.getConfig.js';
 import { authMiddleware } from '../auth/middleware.js';
 import { ensureBootstrapAdmin } from '../auth/bootstrap.js';
 
@@ -106,6 +112,10 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.account.reject': { handler: rejectAccount },
   'net.openfederation.account.listPending': { handler: listPendingAccounts },
   'net.openfederation.invite.create': { handler: createInvite },
+  'net.openfederation.account.list': { handler: listAccounts },
+  'net.openfederation.invite.list': { handler: listInvites },
+  'net.openfederation.audit.list': { handler: listAudit },
+  'net.openfederation.server.getConfig': { handler: getServerConfig },
   'net.openfederation.community.listMine': { handler: listMyCommunities },
   'net.openfederation.community.get': { handler: getCommunity },
   'net.openfederation.community.listAll': { handler: listAllCommunities },
@@ -120,6 +130,8 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.community.unsuspend': { handler: unsuspendCommunity },
   'net.openfederation.community.takedown': { handler: takedownCommunity },
   'net.openfederation.community.transfer': { handler: transferCommunity },
+  'net.openfederation.community.removeMember': { handler: removeMember },
+  'net.openfederation.community.delete': { handler: deleteCommunity },
 
   // Standard ATProto endpoints
   'com.atproto.server.createSession': { handler: createSession, limiter: authLimiter },

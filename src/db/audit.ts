@@ -17,6 +17,8 @@ export type AuditAction =
   | 'community.unsuspend'
   | 'community.takedown'
   | 'community.transfer.initiate'
+  | 'community.removeMember'
+  | 'community.delete'
   | 'join_request.approve'
   | 'join_request.reject';
 

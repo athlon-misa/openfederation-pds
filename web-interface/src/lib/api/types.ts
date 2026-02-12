@@ -25,20 +25,6 @@ export interface RegisterResponse {
   status: 'pending';
 }
 
-// Admin types
-export interface PendingUser {
-  id: string;
-  handle: string;
-  email: string;
-  created_at: string;
-}
-
-export interface ListPendingResponse {
-  users: PendingUser[];
-  limit: number;
-  offset: number;
-}
-
 // Invite types
 export interface InviteResponse {
   code: string;
@@ -221,6 +207,79 @@ export interface CommunityTransferPackage {
   };
   collections: Record<string, Array<{ rkey: string; cid: string; record: Record<string, unknown> }>>;
   instructions: string;
+}
+
+// Account list types
+export interface AccountListItem {
+  id: string;
+  handle: string;
+  email: string;
+  did: string;
+  status: string;
+  roles: string[];
+  createdAt: string;
+  approvedAt: string | null;
+}
+
+export interface ListAccountsResponse {
+  users: AccountListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Invite list types
+export interface InviteListItem {
+  code: string;
+  maxUses: number;
+  usesCount: number;
+  expiresAt: string | null;
+  createdAt: string;
+  createdByHandle: string;
+  status: string;
+}
+
+export interface ListInvitesResponse {
+  invites: InviteListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Audit log types
+export interface AuditEntry {
+  id: string;
+  action: string;
+  actorId: string | null;
+  actorHandle: string | null;
+  targetId: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface ListAuditResponse {
+  entries: AuditEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Server config types
+export interface ServerConfigResponse {
+  service: string;
+  version: string;
+  hostname: string;
+  inviteRequired: boolean;
+  stats: {
+    totalUsers: number;
+    pendingUsers: number;
+    approvedUsers: number;
+    totalCommunities: number;
+    activeCommunities: number;
+    suspendedCommunities: number;
+    totalInvites: number;
+    activeInvites: number;
+  };
 }
 
 // API error type

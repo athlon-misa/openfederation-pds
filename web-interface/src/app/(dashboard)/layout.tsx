@@ -1,7 +1,7 @@
 'use client';
 
 import { AuthGuard } from '@/components/auth-guard';
-import { Navbar } from '@/components/navbar';
+import { AppShell } from '@/components/shell/app-shell';
 
 export default function DashboardLayout({
   children,
@@ -10,10 +10,7 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
-      </div>
+      <AppShell>{children}</AppShell>
     </AuthGuard>
   );
 }
