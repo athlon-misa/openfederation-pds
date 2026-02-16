@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.invite.list",
+  "description": "List invite codes with filtering. Requires admin or moderator role.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve a paginated list of invite codes with optional status filtering.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Maximum number of results to return." },
+          "offset": { "type": "integer", "description": "Number of results to skip for pagination." },
+          "status": { "type": "string", "description": "Filter by invite status: active, expired, or exhausted." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "invites": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "code": { "type": "string", "description": "The invite code." },
+                  "maxUses": { "type": "integer", "description": "Maximum number of uses allowed." },
+                  "usesCount": { "type": "integer", "description": "Number of times the code has been used." },
+                  "expiresAt": { "type": "string", "format": "datetime", "description": "Expiration timestamp, or null if no expiration." },
+                  "createdAt": { "type": "string", "format": "datetime", "description": "Timestamp when the invite was created." },
+                  "createdByHandle": { "type": "string", "description": "Handle of the user who created the invite." },
+                  "status": { "type": "string", "description": "Current status of the invite: active, expired, or exhausted." }
+                },
+                "required": ["code", "maxUses", "usesCount", "createdAt", "createdByHandle", "status"]
+              }
+            },
+            "total": { "type": "integer", "description": "Total number of invites matching the filter." },
+            "limit": { "type": "integer" },
+            "offset": { "type": "integer" }
+          },
+          "required": ["invites", "total", "limit", "offset"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Invalid filter parameters provided." }
+      ]
+    }
+  }
+}

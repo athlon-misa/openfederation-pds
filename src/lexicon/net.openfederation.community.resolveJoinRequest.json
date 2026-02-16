@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.resolveJoinRequest",
+  "description": "Approve or reject a pending join request. Requires auth (owner or admin).",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Resolve a pending join request by approving or rejecting it.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "requestId": { "type": "string", "description": "The ID of the join request to resolve." },
+            "action": { "type": "string", "enum": ["approve", "reject"], "description": "The action to take: approve or reject." }
+          },
+          "required": ["requestId", "action"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "description": "The resolved status: approved or rejected." }
+          },
+          "required": ["status"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid parameters." },
+        { "name": "NotFound", "description": "Join request not found." },
+        { "name": "Forbidden", "description": "Only the community owner or an admin can resolve join requests." },
+        { "name": "AlreadyResolved", "description": "The join request has already been approved or rejected." }
+      ]
+    }
+  }
+}

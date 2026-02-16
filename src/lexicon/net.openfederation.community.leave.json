@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.leave",
+  "description": "Leave a community. Requires auth. Owners cannot leave their own community.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Leave a community the user is currently a member of.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The DID of the community to leave." }
+          },
+          "required": ["did"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "boolean", "description": "Whether the user successfully left the community." }
+          },
+          "required": ["success"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
+        { "name": "NotMember", "description": "User is not a member of this community." },
+        { "name": "Forbidden", "description": "Owner cannot leave their own community." },
+        { "name": "NotFound", "description": "Community not found." }
+      ]
+    }
+  }
+}

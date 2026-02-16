@@ -1,0 +1,64 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.transfer",
+  "description": "Generate a transfer package for migrating a community to another PDS. Requires auth (owner only). Per AT Protocol, only the DID holder can initiate transfer.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generate a complete transfer package including a time-limited transfer token, community data, and migration instructions.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The DID of the community to transfer." }
+          },
+          "required": ["did"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "$type": { "type": "string", "description": "Always 'net.openfederation.community.transfer'." },
+            "transferToken": { "type": "string", "description": "A time-limited token authorizing the transfer." },
+            "transferExpiresAt": { "type": "string", "format": "datetime", "description": "When the transfer token expires." },
+            "exportedAt": { "type": "string", "format": "datetime", "description": "When the export was generated." },
+            "sourcePds": { "type": "string", "description": "The URL of the source PDS." },
+            "community": {
+              "type": "object",
+              "properties": {
+                "did": { "type": "string", "description": "The community DID." },
+                "handle": { "type": "string", "description": "The community handle." },
+                "didMethod": { "type": "string", "description": "The DID method used (plc or web)." }
+              },
+              "required": ["did", "handle", "didMethod"]
+            },
+            "stats": {
+              "type": "object",
+              "properties": {
+                "totalRecords": { "type": "integer", "description": "Total number of records in the transfer." },
+                "memberCount": { "type": "integer", "description": "Number of members in the community." },
+                "collections": { "type": "integer", "description": "Number of distinct collections." }
+              },
+              "required": ["totalRecords", "memberCount", "collections"]
+            },
+            "collections": {
+              "type": "unknown",
+              "description": "Record of collection arrays, keyed by collection NSID."
+            },
+            "instructions": { "type": "string", "description": "Human-readable instructions for completing the transfer." }
+          },
+          "required": ["$type", "transferToken", "transferExpiresAt", "exportedAt", "sourcePds", "community", "stats", "collections", "instructions"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
+        { "name": "NotFound", "description": "Community not found." },
+        { "name": "Forbidden", "description": "Only the community owner can initiate a transfer." },
+        { "name": "CommunityTakenDown", "description": "The community has been taken down and cannot be transferred." }
+      ]
+    }
+  }
+}

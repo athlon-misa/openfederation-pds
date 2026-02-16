@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.update",
+  "description": "Update community settings. Requires auth (owner only).",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Update the settings of an existing community.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The DID of the community to update." },
+            "displayName": { "type": "string", "description": "New display name for the community." },
+            "description": { "type": "string", "description": "New description for the community." },
+            "visibility": { "type": "string", "enum": ["public", "private"], "description": "New visibility setting." },
+            "joinPolicy": { "type": "string", "enum": ["open", "approval"], "description": "New join policy." }
+          },
+          "required": ["did"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "boolean", "description": "Whether the update was successful." }
+          },
+          "required": ["success"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields or validation failed." },
+        { "name": "Forbidden", "description": "User is not the owner of this community." },
+        { "name": "NotFound", "description": "Community not found." }
+      ]
+    }
+  }
+}

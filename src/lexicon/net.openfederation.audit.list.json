@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.audit.list",
+  "description": "List audit log entries. Admin only. Supports filtering by action, actor, target, and date range.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve paginated audit log entries with optional filters.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 },
+          "offset": { "type": "integer", "minimum": 0, "default": 0 },
+          "action": { "type": "string", "description": "Filter by audit action type (e.g. 'community.create', 'account.approve')." },
+          "actorId": { "type": "string", "description": "Filter by actor user ID." },
+          "targetId": { "type": "string", "description": "Filter by target ID (user ID, community DID, etc.)." },
+          "since": { "type": "string", "format": "datetime", "description": "Only return entries after this timestamp." },
+          "until": { "type": "string", "format": "datetime", "description": "Only return entries before this timestamp." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "entries": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#auditEntry" }
+            },
+            "total": { "type": "integer" },
+            "limit": { "type": "integer" },
+            "offset": { "type": "integer" }
+          },
+          "required": ["entries", "total", "limit", "offset"]
+        }
+      }
+    },
+    "auditEntry": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string", "description": "Audit action type." },
+        "actorId": { "type": "string", "description": "User ID of the actor, or null for system actions." },
+        "actorHandle": { "type": "string", "description": "Handle of the actor, resolved via JOIN." },
+        "targetId": { "type": "string", "description": "Target ID (user ID, community DID, etc.)." },
+        "meta": { "type": "unknown", "description": "Arbitrary JSON metadata about the action." },
+        "createdAt": { "type": "string", "format": "datetime" }
+      },
+      "required": ["id", "action", "createdAt"]
+    }
+  }
+}

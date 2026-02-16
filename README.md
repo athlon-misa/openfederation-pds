@@ -25,7 +25,7 @@ npm start              # Starts on $PORT (default 3000)
 
 For local development, run both in parallel:
 ```bash
-# Terminal 1: PDS API (port 3000 or as configured in .env)
+# Terminal 1: PDS API (port 8080 or as configured in .env)
 npm run dev
 
 # Terminal 2: Web UI (port 3001)
@@ -67,9 +67,18 @@ For Docker and other platforms, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 ## Authentication and Admin Flow
 
 ### Roles
-- **admin**: full access — manage users, communities, moderation (suspend/takedown)
-- **moderator**: approve/reject users, create invites
+- **admin**: full access — manage users, communities, moderation (suspend/takedown), view audit log, server stats
+- **moderator**: approve/reject users, create and list invites, list accounts
 - **user**: can create communities once approved
+
+### Account Status Lifecycle
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Newly registered, awaiting admin/moderator approval. |
+| `approved` | Active account, can log in and use the system. |
+| `rejected` | Registration denied by admin/moderator. |
+| `disabled` | Previously approved account disabled by admin. |
 
 ### Typical Flow
 
@@ -89,12 +98,14 @@ Handles must be 3-30 characters: lowercase letters, numbers, and hyphens. No lea
 
 ## API Endpoints
 
+All endpoints are XRPC methods at `/xrpc/{nsid}`. Formal lexicon schemas for all custom endpoints are in `src/lexicon/`.
+
 ### ATProto Sessions
 
 | NSID | Method | Auth | Description |
 |------|:---:|:---:|-------------|
 | `com.atproto.server.createSession` | POST | No | Login |
-| `com.atproto.server.refreshSession` | POST | Yes | Rotate refresh token |
+| `com.atproto.server.refreshSession` | POST | Yes | Rotate refresh token (with reuse detection) |
 | `com.atproto.server.getSession` | GET | Yes | Get current session |
 | `com.atproto.server.deleteSession` | POST | Yes | Logout |
 | `com.atproto.repo.getRecord` | GET | No | Fetch a record |
@@ -105,24 +116,28 @@ Handles must be 3-30 characters: lowercase letters, numbers, and hyphens. No lea
 |------|:---:|:---:|-------------|
 | `net.openfederation.account.register` | POST | No | Register (invite required) |
 | `net.openfederation.account.listPending` | GET | Admin/Mod | List pending users |
+| `net.openfederation.account.list` | GET | Admin/Mod | List all accounts (search, filter by status/role) |
 | `net.openfederation.account.approve` | POST | Admin/Mod | Approve user |
 | `net.openfederation.account.reject` | POST | Admin/Mod | Reject user |
 | `net.openfederation.invite.create` | POST | Admin/Mod | Create invite code |
+| `net.openfederation.invite.list` | GET | Admin/Mod | List invite codes (filter by status) |
 
 ### Community Management
 
 | NSID | Method | Auth | Description |
 |------|:---:|:---:|-------------|
-| `net.openfederation.community.create` | POST | Approved | Create community |
-| `net.openfederation.community.get` | GET | Optional | Get community details |
-| `net.openfederation.community.listAll` | GET | Yes | Browse public communities |
-| `net.openfederation.community.listMine` | GET | Yes | List my communities |
-| `net.openfederation.community.update` | POST | Owner | Update community |
-| `net.openfederation.community.join` | POST | Approved | Join / request to join |
-| `net.openfederation.community.leave` | POST | Member | Leave community |
-| `net.openfederation.community.listMembers` | GET | Yes | List members |
+| `net.openfederation.community.create` | POST | Approved | Create community (did:plc or did:web) |
+| `net.openfederation.community.get` | GET | No | Get community details (auth optional for membership info) |
+| `net.openfederation.community.listAll` | GET | Yes | Browse public communities (excludes user's own; admin mode=all shows everything) |
+| `net.openfederation.community.listMine` | GET | Yes | List my communities with role |
+| `net.openfederation.community.update` | POST | Owner | Update community settings |
+| `net.openfederation.community.join` | POST | Approved | Join (open) or request to join (approval). Re-request after rejection allowed. |
+| `net.openfederation.community.leave` | POST | Member | Leave community (owner cannot leave) |
+| `net.openfederation.community.listMembers` | GET | Yes | List members (private communities: members/owner/admin only) |
 | `net.openfederation.community.listJoinRequests` | GET | Owner/Admin | List pending join requests |
 | `net.openfederation.community.resolveJoinRequest` | POST | Owner/Admin | Approve/reject join request |
+| `net.openfederation.community.removeMember` | POST | Owner/Admin | Remove (kick) a member from a community |
+| `net.openfederation.community.delete` | POST | Owner/Admin | Permanently delete a community and all its data |
 
 ### AT Protocol Compliance (Moderation & Portability)
 
@@ -139,12 +154,46 @@ Communities follow the AT Protocol "free to go" principle:
 - Suspended communities remain readable by owners for export
 - Takedown requires that an export has been performed first
 - Transfer generates a package with migration instructions for did:plc or did:web
+- **Transfer is owner-only** per AT Protocol — the DID holder initiates migration, not the PDS admin
+
+### Administration
+
+| NSID | Method | Auth | Description |
+|------|:---:|:---:|-------------|
+| `net.openfederation.audit.list` | GET | PDS Admin | List audit log entries (filter by action, actor, target, date range) |
+| `net.openfederation.server.getConfig` | GET | PDS Admin | Get server config and statistics |
+
+## Web Interface
+
+The web UI (`web-interface/`) is built with Next.js 15, shadcn/ui, React Query v5, and kbar.
+
+### Features
+
+- **Sidebar shell** with navigation (Dashboard, My Communities, Explore) and admin section
+- **Command palette** (Ctrl+K) for quick navigation and admin actions
+- **Dashboard** with stat cards and quick actions
+- **Community management**: create, browse, join, leave, member management, settings
+- **Admin pages**: Users (search/filter/approve/reject), Communities (suspend/unsuspend/takedown/delete), Invites (create/list), Audit Log (filter/search)
+- **Data tables** with server-side pagination via @tanstack/react-table
+- **Settings** page with account info display
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 15 (App Router) |
+| UI | shadcn/ui + Tailwind CSS |
+| Server state | React Query v5 (30s staleTime, 5min gcTime) |
+| Auth state | Zustand (persisted refresh token) |
+| Data tables | @tanstack/react-table |
+| Command palette | kbar |
+| Notifications | Sonner |
 
 ## Example Requests
 
 Create invite (admin/moderator):
 ```bash
-curl -X POST http://localhost:3000/xrpc/net.openfederation.invite.create \
+curl -X POST http://localhost:8080/xrpc/net.openfederation.invite.create \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"maxUses":1}'
@@ -152,7 +201,7 @@ curl -X POST http://localhost:3000/xrpc/net.openfederation.invite.create \
 
 Register (invite required):
 ```bash
-curl -X POST http://localhost:3000/xrpc/net.openfederation.account.register \
+curl -X POST http://localhost:8080/xrpc/net.openfederation.account.register \
   -H "Content-Type: application/json" \
   -d '{
     "handle": "alice",
@@ -164,7 +213,7 @@ curl -X POST http://localhost:3000/xrpc/net.openfederation.account.register \
 
 Approve user (admin/moderator):
 ```bash
-curl -X POST http://localhost:3000/xrpc/net.openfederation.account.approve \
+curl -X POST http://localhost:8080/xrpc/net.openfederation.account.approve \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"handle":"alice"}'
@@ -172,14 +221,14 @@ curl -X POST http://localhost:3000/xrpc/net.openfederation.account.approve \
 
 Login (approved user):
 ```bash
-curl -X POST http://localhost:3000/xrpc/com.atproto.server.createSession \
+curl -X POST http://localhost:8080/xrpc/com.atproto.server.createSession \
   -H "Content-Type: application/json" \
   -d '{"identifier":"alice","password":"MyStr0ng!Pass"}'
 ```
 
 Create community (approved user):
 ```bash
-curl -X POST http://localhost:3000/xrpc/net.openfederation.community.create \
+curl -X POST http://localhost:8080/xrpc/net.openfederation.community.create \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -191,13 +240,13 @@ curl -X POST http://localhost:3000/xrpc/net.openfederation.community.create \
 
 Export community (owner):
 ```bash
-curl http://localhost:3000/xrpc/net.openfederation.community.export?did=did:plc:abc123 \
+curl 'http://localhost:8080/xrpc/net.openfederation.community.export?did=did:plc:abc123' \
   -H "Authorization: Bearer <accessJwt>"
 ```
 
 Logout:
 ```bash
-curl -X POST http://localhost:3000/xrpc/com.atproto.server.deleteSession \
+curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"refreshJwt":"<refreshJwt>"}'
@@ -236,6 +285,10 @@ npm run cli -- logout
 - Audit logging for all admin, moderation, and security-relevant actions.
 - Community moderation follows AT Protocol composable moderation: suspend (reversible) and takedown (requires prior export).
 - Approve/reject endpoints guard against re-processing already-resolved users.
+
+## Lexicon Schemas
+
+AT Protocol lexicon definitions for all 26 custom `net.openfederation.*` endpoints are in `src/lexicon/`. These define the formal request/response schemas following the [AT Protocol Lexicon specification](https://atproto.com/specs/lexicon).
 
 ## Development
 

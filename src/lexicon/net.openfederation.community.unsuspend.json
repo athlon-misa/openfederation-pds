@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.unsuspend",
+  "description": "Lift a suspension from a community. Requires admin role.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Unsuspend a previously suspended community, restoring it to active status.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The DID of the community to unsuspend." }
+          },
+          "required": ["did"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The community DID." },
+            "status": { "type": "string", "description": "The new status, always 'active'." }
+          },
+          "required": ["did", "status"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
+        { "name": "NotFound", "description": "Community not found." },
+        { "name": "NotSuspended", "description": "The community is not currently suspended." }
+      ]
+    }
+  }
+}

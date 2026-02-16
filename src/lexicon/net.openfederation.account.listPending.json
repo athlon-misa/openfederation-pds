@@ -1,0 +1,42 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.listPending",
+  "description": "List pending user registrations awaiting approval. Requires admin or moderator role.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve a paginated list of pending user registrations.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50, "description": "Maximum number of results to return." },
+          "offset": { "type": "integer", "default": 0, "description": "Number of results to skip for pagination." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "users": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "handle": { "type": "string" },
+                  "email": { "type": "string" },
+                  "createdAt": { "type": "string", "format": "datetime" }
+                },
+                "required": ["id", "handle", "email", "createdAt"]
+              }
+            },
+            "limit": { "type": "integer" },
+            "offset": { "type": "integer" }
+          },
+          "required": ["users", "limit", "offset"]
+        }
+      }
+    }
+  }
+}

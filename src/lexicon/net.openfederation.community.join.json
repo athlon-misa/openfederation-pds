@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.join",
+  "description": "Join a community or submit a join request. Requires an approved user account.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Join a community directly (open policy) or submit a join request (approval policy).",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The DID of the community to join." }
+          },
+          "required": ["did"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "description": "Result status: 'joined' if immediately joined, 'pending' if join request submitted." }
+          },
+          "required": ["status"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
+        { "name": "NotFound", "description": "Community not found." },
+        { "name": "AlreadyMember", "description": "User is already a member of this community." },
+        { "name": "AlreadyRequested", "description": "User has already submitted a pending join request." }
+      ]
+    }
+  }
+}

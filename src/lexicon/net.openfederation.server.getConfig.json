@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.server.getConfig",
+  "description": "Get server configuration and statistics. Admin only.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Returns server information, feature flags, and aggregate statistics.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "service": { "type": "string", "description": "Service name." },
+            "version": { "type": "string", "description": "Server version." },
+            "hostname": { "type": "string", "description": "Server hostname." },
+            "inviteRequired": { "type": "boolean", "description": "Whether invite codes are required for registration." },
+            "stats": { "type": "ref", "ref": "#serverStats" }
+          },
+          "required": ["service", "version", "hostname", "inviteRequired", "stats"]
+        }
+      }
+    },
+    "serverStats": {
+      "type": "object",
+      "description": "Aggregate server statistics.",
+      "properties": {
+        "totalUsers": { "type": "integer" },
+        "pendingUsers": { "type": "integer" },
+        "approvedUsers": { "type": "integer" },
+        "totalCommunities": { "type": "integer" },
+        "activeCommunities": { "type": "integer" },
+        "suspendedCommunities": { "type": "integer" },
+        "totalInvites": { "type": "integer" },
+        "activeInvites": { "type": "integer" }
+      },
+      "required": ["totalUsers", "pendingUsers", "approvedUsers", "totalCommunities", "activeCommunities", "suspendedCommunities", "totalInvites", "activeInvites"]
+    }
+  }
+}

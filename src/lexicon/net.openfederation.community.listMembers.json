@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.listMembers",
+  "description": "List members of a community. Requires auth. Private communities restrict access to members, owner, or admin.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve a paginated list of members in a community.",
+      "parameters": {
+        "type": "params",
+        "required": ["did"],
+        "properties": {
+          "did": { "type": "string", "description": "The DID of the community whose members to list." },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50, "description": "Maximum number of results to return." },
+          "offset": { "type": "integer", "default": 0, "description": "Number of results to skip for pagination." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "did": { "type": "string", "description": "The member's DID." },
+                  "handle": { "type": "string", "description": "The member's handle." },
+                  "role": { "type": "string", "description": "The member's role in the community." },
+                  "joinedAt": { "type": "string", "format": "datetime", "description": "When the member joined the community." }
+                },
+                "required": ["did", "handle", "role", "joinedAt"]
+              }
+            },
+            "total": { "type": "integer", "description": "Total number of members in the community." },
+            "limit": { "type": "integer" },
+            "offset": { "type": "integer" }
+          },
+          "required": ["members", "total", "limit", "offset"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid DID parameter." },
+        { "name": "NotFound", "description": "Community not found." },
+        { "name": "Forbidden", "description": "Private community access restricted to members, owner, or admin." }
+      ]
+    }
+  }
+}

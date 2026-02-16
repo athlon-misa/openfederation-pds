@@ -1,0 +1,56 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.list",
+  "description": "List all user accounts with filtering and search. Requires admin or moderator role.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve a paginated, filterable list of user accounts.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Maximum number of results to return." },
+          "offset": { "type": "integer", "description": "Number of results to skip for pagination." },
+          "status": { "type": "string", "description": "Filter by account status (e.g. pending, approved, rejected)." },
+          "role": { "type": "string", "description": "Filter by user role (e.g. admin, moderator, user)." },
+          "q": { "type": "string", "description": "Search query to match against handle or email." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "users": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "handle": { "type": "string" },
+                  "email": { "type": "string" },
+                  "did": { "type": "string" },
+                  "status": { "type": "string" },
+                  "roles": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "createdAt": { "type": "string", "format": "datetime" },
+                  "approvedAt": { "type": "string", "format": "datetime", "description": "Timestamp when the account was approved. Null if not yet approved." }
+                },
+                "required": ["id", "handle", "email", "did", "status", "roles", "createdAt"]
+              }
+            },
+            "total": { "type": "integer", "description": "Total number of users matching the filters." },
+            "limit": { "type": "integer" },
+            "offset": { "type": "integer" }
+          },
+          "required": ["users", "total", "limit", "offset"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Invalid filter parameters provided." }
+      ]
+    }
+  }
+}

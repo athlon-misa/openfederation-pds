@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.removeMember",
+  "description": "Remove a member from a community. Requires auth (owner or admin). Cannot remove the community owner.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Remove a member from a community. The community owner cannot be removed.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The DID of the community." },
+            "memberDid": { "type": "string", "description": "The DID of the member to remove." }
+          },
+          "required": ["did", "memberDid"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "boolean", "description": "Whether the member was successfully removed." }
+          },
+          "required": ["success"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid parameters." },
+        { "name": "NotFound", "description": "Community not found." },
+        { "name": "Forbidden", "description": "Cannot remove the community owner, or insufficient permissions." },
+        { "name": "NotMember", "description": "The specified user is not a member of this community." }
+      ]
+    }
+  }
+}
