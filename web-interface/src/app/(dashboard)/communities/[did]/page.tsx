@@ -31,9 +31,9 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { CommunityMember, JoinRequest } from '@/lib/api/types';
 
 export default function CommunityDetailPage() {
-  const params = useParams();
+  const params = useParams<{ did: string }>();
   const router = useRouter();
-  const did = decodeURIComponent(params.did as string);
+  const did = decodeURIComponent(params?.did ?? '');
   const isAdmin = useAuthStore((s) => s.isAdmin);
 
   const [membersPage, setMembersPage] = useState(0);

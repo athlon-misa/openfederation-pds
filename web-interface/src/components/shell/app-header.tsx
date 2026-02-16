@@ -53,7 +53,7 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
 export function AppHeader() {
   const pathname = usePathname();
   const { query } = useKBar();
-  const crumbs = getBreadcrumbs(pathname);
+  const crumbs = getBreadcrumbs(pathname ?? '/');
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
