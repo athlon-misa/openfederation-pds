@@ -5,7 +5,7 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm install --include=dev"]
 
 [phases.build]
-cmds = ["rm -rf .next", "npm run build"]
+cmds = ["rm -rf .next/server .next/static .next/types .next/*.json .next/*.js 2>/dev/null || true", "npm run build"]
 
 [start]
 cmd = "npm start"
