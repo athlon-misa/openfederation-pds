@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { createPlcIdentity, createWebIdentity, storeSigningKey } from '../identity/manager.js';
-import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { RepoEngine } from '../repo/repo-engine.js';
+import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { query } from '../db/client.js';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
@@ -117,14 +118,17 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
     // Store signing key (encrypted at rest)
     await storeSigningKey(did, signingKey);
 
-    // 4. Create initial records using the repository engine
-    const engine = new SimpleRepoEngine(did);
+    // 4. Create initial records using the repository engine with real MST
+    const engine = new RepoEngine(did);
+    const keypair = await getKeypairForDid(did);
 
     const now = new Date().toISOString();
     const displayName = input.displayName || input.handle;
     const description = input.description || '';
     const visibility = input.visibility || 'public';
     const joinPolicy = input.joinPolicy || 'open';
+
+    const memberRkey = RepoEngine.generateTid();
 
     const initialRecords = [
       {
@@ -146,18 +150,19 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
           createdAt: now,
         },
       },
+      {
+        collection: 'net.openfederation.community.member',
+        rkey: memberRkey,
+        record: {
+          did: req.auth!.did,
+          handle: req.auth!.handle,
+          role: 'owner',
+          joinedAt: now,
+        },
+      },
     ];
 
-    await engine.createRepo(signingKey, initialRecords);
-
-    // Auto-add creator as first member
-    const memberRkey = SimpleRepoEngine.generateTid();
-    await engine.putRecord(signingKey, 'net.openfederation.community.member', memberRkey, {
-      did: req.auth!.did,
-      handle: req.auth!.handle,
-      role: 'owner',
-      joinedAt: now,
-    });
+    await engine.createRepo(keypair, initialRecords);
 
     await auditLog('community.create', req.auth!.userId, did, {
       handle: input.handle,

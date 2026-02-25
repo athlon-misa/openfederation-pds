@@ -2,7 +2,8 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { RepoEngine } from '../repo/repo-engine.js';
+import { getKeypairForDid } from '../repo/keypair-utils.js';
 
 /**
  * net.openfederation.community.update
@@ -48,14 +49,14 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
       return;
     }
 
-    const engine = new SimpleRepoEngine(did);
-    const signingKey = ''; // SimpleRepoEngine doesn't use the key for writes in MVP
+    const engine = new RepoEngine(did);
+    const keypair = await getKeypairForDid(did);
 
     // Update profile if displayName or description changed
     if (displayName !== undefined || description !== undefined) {
       const existing = await engine.getRecord('net.openfederation.community.profile', 'self');
       const profile = existing?.record || {};
-      await engine.putRecord(signingKey, 'net.openfederation.community.profile', 'self', {
+      await engine.putRecord(keypair, 'net.openfederation.community.profile', 'self', {
         ...profile,
         ...(displayName !== undefined ? { displayName } : {}),
         ...(description !== undefined ? { description } : {}),
@@ -66,7 +67,7 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
     if (visibility !== undefined || joinPolicy !== undefined) {
       const existing = await engine.getRecord('net.openfederation.community.settings', 'self');
       const settings = existing?.record || {};
-      await engine.putRecord(signingKey, 'net.openfederation.community.settings', 'self', {
+      await engine.putRecord(keypair, 'net.openfederation.community.settings', 'self', {
         ...settings,
         ...(visibility !== undefined ? { visibility } : {}),
         ...(joinPolicy !== undefined ? { joinPolicy } : {}),

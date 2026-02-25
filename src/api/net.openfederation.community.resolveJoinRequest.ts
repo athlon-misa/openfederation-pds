@@ -2,7 +2,8 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { RepoEngine } from '../repo/repo-engine.js';
+import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 
 /**
@@ -87,9 +88,10 @@ export default async function resolveJoinRequest(req: AuthRequest, res: Response
       );
       const handle = userResult.rows[0]?.handle || 'unknown';
 
-      const engine = new SimpleRepoEngine(request.community_did);
-      const rkey = SimpleRepoEngine.generateTid();
-      await engine.putRecord('', 'net.openfederation.community.member', rkey, {
+      const engine = new RepoEngine(request.community_did);
+      const keypair = await getKeypairForDid(request.community_did);
+      const rkey = RepoEngine.generateTid();
+      await engine.putRecord(keypair, 'net.openfederation.community.member', rkey, {
         did: request.user_did,
         handle,
         role: 'member',

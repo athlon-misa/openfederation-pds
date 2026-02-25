@@ -54,16 +54,19 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
     // 4. Repo blocks
     await query('DELETE FROM repo_blocks WHERE community_did = $1', [did]);
 
-    // 5. Commits
+    // 5. Repo roots
+    await query('DELETE FROM repo_roots WHERE did = $1', [did]);
+
+    // 6. Commits
     await query('DELETE FROM commits WHERE community_did = $1', [did]);
 
-    // 6. Signing keys
+    // 7. Signing keys
     await query('DELETE FROM signing_keys WHERE community_did = $1', [did]);
 
-    // 7. PLC keys
+    // 8. PLC keys
     await query('DELETE FROM plc_keys WHERE community_did = $1', [did]);
 
-    // 8. Community itself
+    // 9. Community itself
     await query('DELETE FROM communities WHERE did = $1', [did]);
 
     await auditLog('community.delete', req.auth!.userId, did, {

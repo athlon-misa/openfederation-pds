@@ -1,10 +1,10 @@
 /**
- * Simplified Repository Engine for MVP
+ * @deprecated Use RepoEngine from ./repo-engine.ts instead.
  *
- * Uses proper ATProto TID generation and content-addressed CIDs
- * for protocol compatibility. Records are stored in SQL with JSONB.
- *
- * TODO: Replace with full @atproto/repo MST implementation for production
+ * Simplified Repository Engine for MVP — stores records as JSONB only
+ * (no MST, no signed commits, no block storage, no CAR export).
+ * Replaced by RepoEngine which wraps @atproto/repo for real AT Protocol
+ * compliance. Kept for reference during migration.
  */
 
 import { TID } from '@atproto/common-web';

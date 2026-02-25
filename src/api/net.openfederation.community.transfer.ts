@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { RepoEngine } from '../repo/repo-engine.js';
 import { auditLog } from '../db/audit.js';
 
 /**
@@ -73,7 +73,7 @@ export default async function transferCommunity(req: AuthRequest, res: Response)
     }
 
     // Export all records
-    const engine = new SimpleRepoEngine(did);
+    const engine = new RepoEngine(did);
     const records = await engine.exportAllRecords();
 
     // Group records by collection

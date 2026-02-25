@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { RepoEngine } from '../repo/repo-engine.js';
 
 /**
  * com.atproto.repo.getRecord
@@ -40,7 +40,7 @@ export default async function getRecord(req: Request, res: Response): Promise<vo
     }
 
     // Create repository engine for this DID
-    const engine = new SimpleRepoEngine(repo);
+    const engine = new RepoEngine(repo);
 
     // Get the record
     const result = await engine.getRecord(collection, rkey);

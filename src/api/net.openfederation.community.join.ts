@@ -3,7 +3,8 @@ import { randomUUID } from 'crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { RepoEngine } from '../repo/repo-engine.js';
+import { getKeypairForDid } from '../repo/keypair-utils.js';
 
 /**
  * net.openfederation.community.join
@@ -54,9 +55,10 @@ export default async function joinCommunity(req: AuthRequest, res: Response): Pr
 
     if (joinPolicy === 'open') {
       // Direct join
-      const engine = new SimpleRepoEngine(did);
-      const rkey = SimpleRepoEngine.generateTid();
-      await engine.putRecord('', 'net.openfederation.community.member', rkey, {
+      const engine = new RepoEngine(did);
+      const keypair = await getKeypairForDid(did);
+      const rkey = RepoEngine.generateTid();
+      await engine.putRecord(keypair, 'net.openfederation.community.member', rkey, {
         did: auth.did,
         handle: auth.handle,
         role: 'member',

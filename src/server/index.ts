@@ -4,6 +4,12 @@ import { config } from '../config.js';
 import { testConnection } from '../db/client.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
 import getRecord from '../api/com.atproto.repo.getRecord.js';
+import putRecord from '../api/com.atproto.repo.putRecord.js';
+import createRecord from '../api/com.atproto.repo.createRecord.js';
+import deleteRecord from '../api/com.atproto.repo.deleteRecord.js';
+import describeRepo from '../api/com.atproto.repo.describeRepo.js';
+import listRecords from '../api/com.atproto.repo.listRecords.js';
+import syncGetRepo from '../api/com.atproto.sync.getRepo.js';
 import createSession from '../api/com.atproto.server.createSession.js';
 import refreshSession from '../api/com.atproto.server.refreshSession.js';
 import getSession from '../api/com.atproto.server.getSession.js';
@@ -139,18 +145,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'com.atproto.server.getSession': { handler: getSession },
   'com.atproto.server.deleteSession': { handler: deleteSession },
   'com.atproto.repo.getRecord': { handler: getRecord },
-
-  'com.atproto.repo.putRecord': {
-    handler: async (req, res) => {
-      res.status(501).json({ error: 'Not implemented yet' });
-    },
-  },
-
-  'com.atproto.sync.getRepo': {
-    handler: async (req, res) => {
-      res.status(501).json({ error: 'Not implemented yet' });
-    },
-  },
+  'com.atproto.repo.putRecord': { handler: putRecord },
+  'com.atproto.repo.createRecord': { handler: createRecord },
+  'com.atproto.repo.deleteRecord': { handler: deleteRecord },
+  'com.atproto.repo.describeRepo': { handler: describeRepo },
+  'com.atproto.repo.listRecords': { handler: listRecords },
+  'com.atproto.sync.getRepo': { handler: syncGetRepo },
 });
 
 // XRPC Router - supports both GET and POST

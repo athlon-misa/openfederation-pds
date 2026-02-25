@@ -2,7 +2,8 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { SimpleRepoEngine } from '../repo/simple-engine.js';
+import { RepoEngine } from '../repo/repo-engine.js';
+import { getKeypairForDid } from '../repo/keypair-utils.js';
 
 /**
  * net.openfederation.community.leave
@@ -49,15 +50,10 @@ export default async function leaveCommunity(req: AuthRequest, res: Response): P
 
     const rkey = memberResult.rows[0].record_rkey;
 
-    // Delete the member record
-    const engine = new SimpleRepoEngine(did);
-    await engine.deleteRecord('', 'net.openfederation.community.member', rkey);
-
-    // Delete from members_unique
-    await query(
-      'DELETE FROM members_unique WHERE community_did = $1 AND member_did = $2',
-      [did, req.auth.did]
-    );
+    // Delete the member record (also removes from members_unique via RepoEngine)
+    const engine = new RepoEngine(did);
+    const keypair = await getKeypairForDid(did);
+    await engine.deleteRecord(keypair, 'net.openfederation.community.member', rkey);
 
     // Clean up any join requests
     await query(
