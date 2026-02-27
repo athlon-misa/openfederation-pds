@@ -501,11 +501,7 @@ export async function startServer(): Promise<void> {
         console.log('OAuth external login initialized');
       } catch (err) {
         console.error('Failed to initialize OAuth:', err);
-        if (process.env.NODE_ENV === 'production') {
-          process.exit(1);
-        } else {
-          console.warn('OAuth disabled due to initialization error');
-        }
+        console.warn('OAuth disabled due to initialization error — server continues without OAuth');
       }
     }
 
