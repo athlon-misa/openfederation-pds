@@ -122,6 +122,14 @@ const createLimiter = rateLimit({
   message: { error: 'RateLimitExceeded', message: 'Too many creation requests, please try again later' },
 });
 
+const discoveryLimiter = rateLimit({
+  windowMs: 60 * 1000,  // 1 minute
+  max: 60,               // 60 discovery requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'RateLimitExceeded', message: 'Too many discovery requests, please try again later' },
+});
+
 // Apply global rate limiter
 app.use(globalLimiter);
 
@@ -218,7 +226,7 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
 });
 
 // /.well-known/did.json — serves DID documents for did:web communities
-app.get('/.well-known/did.json', async (req: Request, res: Response) => {
+app.get('/.well-known/did.json', discoveryLimiter, async (req: Request, res: Response) => {
   try {
     // Use configured PDS hostname to prevent HTTP host header injection.
     // The Host header can be spoofed; trust only our configuration.
@@ -282,7 +290,7 @@ app.get('/.well-known/did.json', async (req: Request, res: Response) => {
 });
 
 // /.well-known/webfinger — AT Protocol discovery for users and communities
-app.get('/.well-known/webfinger', async (req: Request, res: Response) => {
+app.get('/.well-known/webfinger', discoveryLimiter, async (req: Request, res: Response) => {
   try {
     const resource = req.query.resource as string;
     if (!resource) {
@@ -415,6 +423,23 @@ async function ensureSchema(): Promise<void> {
   }
 }
 
+// Periodic cleanup of expired and revoked sessions
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+let sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+async function cleanupExpiredSessions(): Promise<void> {
+  try {
+    const result = await query(
+      `DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP OR revoked_at IS NOT NULL`
+    );
+    if (result.rowCount && result.rowCount > 0) {
+      console.log(`Session cleanup: removed ${result.rowCount} expired/revoked sessions`);
+    }
+  } catch (err) {
+    console.error('Session cleanup failed:', err);
+  }
+}
+
 // Start the server
 export async function startServer(): Promise<void> {
   // Security check: refuse to start with insecure JWT secret in production
@@ -453,6 +478,11 @@ export async function startServer(): Promise<void> {
     console.log('Database connection successful');
     await ensureSchema();
     await ensureBootstrapAdmin();
+
+    // Schedule periodic session cleanup
+    await cleanupExpiredSessions(); // run once at startup
+    sessionCleanupTimer = setInterval(cleanupExpiredSessions, SESSION_CLEANUP_INTERVAL_MS);
+    sessionCleanupTimer.unref(); // don't prevent process from exiting
   }
 
   return new Promise((resolve) => {
