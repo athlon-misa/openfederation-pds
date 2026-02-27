@@ -1,6 +1,6 @@
 import { Response } from 'express';
-import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import type { AuthRequest, AuthContext } from '../auth/types.js';
+import { requireAuth, requireCommunityRole } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 
@@ -8,7 +8,7 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
  * com.atproto.repo.createRecord
  *
  * Create a new record in a repository with an auto-generated rkey (TID).
- * Requires auth.
+ * Requires auth and write permission on the target repo.
  */
 export default async function createRecord(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -32,6 +32,17 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
         message: 'repo must be a valid DID',
       });
       return;
+    }
+
+    // Authorization: caller must have write access to this repo.
+    // For user repos, the repo DID must match the caller's DID.
+    // For community repos, the caller must be owner/moderator or PDS admin.
+    if (repo !== req.auth!.did) {
+      const role = await requireCommunityRole(
+        req as AuthRequest & { auth: AuthContext },
+        res, repo, ['owner', 'moderator']
+      );
+      if (role === null) return; // response already sent by guard
     }
 
     const engine = new RepoEngine(repo);

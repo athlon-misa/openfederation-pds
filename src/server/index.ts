@@ -50,6 +50,19 @@ import { decryptKeyBytes } from '../auth/encryption.js';
 
 const app = express();
 
+// Security headers middleware
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '0'); // Disabled per OWASP recommendation; use CSP instead
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  }
+  next();
+});
+
 // CORS middleware
 app.use((req, res, next) => {
   const origins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
@@ -207,12 +220,12 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
 // /.well-known/did.json — serves DID documents for did:web communities
 app.get('/.well-known/did.json', async (req: Request, res: Response) => {
   try {
-    // Extract hostname from Host header
-    const host = req.headers.host;
-    if (!host) {
-      return res.status(400).json({ error: 'BadRequest', message: 'Host header required' });
+    // Use configured PDS hostname to prevent HTTP host header injection.
+    // The Host header can be spoofed; trust only our configuration.
+    const hostname = config.pds.hostname;
+    if (!hostname) {
+      return res.status(500).json({ error: 'InternalServerError', message: 'PDS hostname not configured' });
     }
-    const hostname = host.split(':')[0]; // Strip port
 
     // Look up did:web community by hostname
     const did = `did:web:${hostname}`;
@@ -428,7 +441,7 @@ export async function startServer(): Promise<void> {
 
   // Test database connection before starting
   console.log('Testing database connection...');
-  console.log(`Database config: ${config.database.user}@${config.database.host}:${config.database.port}/${config.database.database}`);
+  console.log(`Database config: ${config.database.host}:${config.database.port}/${config.database.database}`);
 
   const dbConnected = await testConnection();
   if (!dbConnected) {

@@ -23,13 +23,16 @@ export function signAccessToken(context: AuthContext): string {
   };
 
   return jwt.sign(payload, config.auth.jwtSecret, {
+    algorithm: 'HS256',
     expiresIn: config.auth.accessTokenTtl,
   } as jwt.SignOptions);
 }
 
 export function verifyAccessToken(token: string): AuthContext | null {
   try {
-    const payload = jwt.verify(token, config.auth.jwtSecret) as AccessTokenPayload;
+    const payload = jwt.verify(token, config.auth.jwtSecret, {
+      algorithms: ['HS256'],
+    }) as AccessTokenPayload;
     if (!payload?.sub || !payload.handle || !payload.email || !payload.did || !payload.roles) {
       return null;
     }

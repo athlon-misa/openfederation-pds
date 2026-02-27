@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
-import { query } from '../db/client.js';
+import { query, getClient } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 
 /**
@@ -9,6 +9,7 @@ import { auditLog } from '../db/audit.js';
  *
  * Delete a community permanently. Only the community owner or PDS admin can delete.
  * Removes all associated data: records, members, keys, join requests.
+ * Uses a database transaction to prevent partial deletes.
  */
 export default async function deleteCommunity(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -41,33 +42,29 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
       return;
     }
 
-    // Delete all associated data in the correct order (foreign key constraints)
-    // 1. Join requests
-    await query('DELETE FROM join_requests WHERE community_did = $1', [did]);
+    // Delete all associated data in a transaction to prevent partial deletes
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
 
-    // 2. Members
-    await query('DELETE FROM members_unique WHERE community_did = $1', [did]);
+      // Delete in correct order (foreign key constraints)
+      await client.query('DELETE FROM join_requests WHERE community_did = $1', [did]);
+      await client.query('DELETE FROM members_unique WHERE community_did = $1', [did]);
+      await client.query('DELETE FROM records_index WHERE community_did = $1', [did]);
+      await client.query('DELETE FROM repo_blocks WHERE community_did = $1', [did]);
+      await client.query('DELETE FROM repo_roots WHERE did = $1', [did]);
+      await client.query('DELETE FROM commits WHERE community_did = $1', [did]);
+      await client.query('DELETE FROM signing_keys WHERE community_did = $1', [did]);
+      await client.query('DELETE FROM plc_keys WHERE community_did = $1', [did]);
+      await client.query('DELETE FROM communities WHERE did = $1', [did]);
 
-    // 3. Records
-    await query('DELETE FROM records_index WHERE community_did = $1', [did]);
-
-    // 4. Repo blocks
-    await query('DELETE FROM repo_blocks WHERE community_did = $1', [did]);
-
-    // 5. Repo roots
-    await query('DELETE FROM repo_roots WHERE did = $1', [did]);
-
-    // 6. Commits
-    await query('DELETE FROM commits WHERE community_did = $1', [did]);
-
-    // 7. Signing keys
-    await query('DELETE FROM signing_keys WHERE community_did = $1', [did]);
-
-    // 8. PLC keys
-    await query('DELETE FROM plc_keys WHERE community_did = $1', [did]);
-
-    // 9. Community itself
-    await query('DELETE FROM communities WHERE did = $1', [did]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     await auditLog('community.delete', req.auth!.userId, did, {
       handle: communityResult.rows[0].handle,

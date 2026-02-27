@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { hashPassword } from './password.js';
-import { createLocalDid, normalizeEmail, normalizeHandle } from './utils.js';
+import { createLocalDid, isStrongPassword, normalizeEmail, normalizeHandle, passwordValidationMessage } from './utils.js';
 import crypto from 'crypto';
 
 export async function ensureBootstrapAdmin(): Promise<void> {
@@ -11,6 +11,14 @@ export async function ensureBootstrapAdmin(): Promise<void> {
 
   if (!email || !handle || !password) {
     return;
+  }
+
+  if (!isStrongPassword(password)) {
+    console.error(`WARNING: Bootstrap admin password does not meet strength requirements. ${passwordValidationMessage()}`);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('FATAL: Refusing to create bootstrap admin with weak password in production.');
+      process.exit(1);
+    }
   }
 
   const normalizedEmail = normalizeEmail(email);
