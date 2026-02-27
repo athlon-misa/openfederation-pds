@@ -21,8 +21,8 @@ PORT=3000                         # Port the server will listen on
 PDS_HOSTNAME=pds.example.com              # Your PDS hostname
 PDS_SERVICE_URL=https://pds.example.com   # Your PDS public URL
 
-# PLC Directory (Optional - uses default if not set)
-PLC_DIRECTORY_URL=https://plc.directory   # PLC directory URL
+# PLC Directory
+PLC_DIRECTORY_URL=https://plc.openfederation.net   # Or https://plc.directory for public
 
 # Handle Suffix (Optional - uses default if not set)
 HANDLE_SUFFIX=.openfederation.net         # Handle suffix for communities
@@ -130,7 +130,7 @@ docker run -d \
 
 For complete Railway deployment instructions (two-service setup, bootstrap admin, HTTPS configuration), see **[RAILWAY.md](./RAILWAY.md)**.
 
-Quick summary: deploy as two Railway services (PDS API + Web UI) from the same repo, each on standard HTTPS. Railway handles TLS and port assignment automatically.
+Quick summary: deploy as three Railway services (PDS API + PLC Directory + Web UI) from the same repo, each on standard HTTPS. Railway handles TLS and port assignment automatically.
 
 ## First Admin Login
 
@@ -227,10 +227,9 @@ If you see: `Database connection failed: connect ECONNREFUSED`
 
 ### Database Schema Not Initialized
 
-If you see errors about missing tables:
+The PDS auto-initializes its schema on first startup. If you see errors about missing tables, check that the database connection is working (the auto-migration only runs when connected). For manual initialization:
 
 ```bash
-# Initialize the schema
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f src/db/schema.sql
 ```
 
@@ -251,8 +250,9 @@ Before going to production:
 - [ ] Set `AUTH_JWT_SECRET` (64-char random hex)
 - [ ] Set `KEY_ENCRYPTION_SECRET` (64-char random hex)
 - [ ] Configure `PDS_HOSTNAME` and `PDS_SERVICE_URL`
+- [ ] Set `PLC_DIRECTORY_URL` to your PLC service URL
 - [ ] Set `CORS_ORIGINS` to your Web UI URL
-- [ ] Initialize database schema
+- [ ] Verify database schema auto-initialized (check logs)
 - [ ] Set up bootstrap admin and verify login
 - [ ] Set up SSL/TLS certificates (Railway provides free SSL)
 - [ ] Set up monitoring and alerting

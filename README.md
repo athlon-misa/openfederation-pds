@@ -58,8 +58,9 @@ See `.env.example` for all options including CORS, token TTLs, and pool tuning.
 
 For Railway deployment (recommended), see **[RAILWAY.md](./RAILWAY.md)**.
 
-The project deploys as two Railway services from the same repo:
+The project deploys as three Railway services from the same repo:
 - **PDS API** (root directory) — Express.js backend on standard HTTPS
+- **PLC Directory** (`plc-server/` directory) — DID PLC resolution service with its own PostgreSQL
 - **Web UI** (`web-interface/` directory) — Next.js dashboard on standard HTTPS
 
 For Docker and other platforms, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
@@ -109,6 +110,12 @@ All endpoints are XRPC methods at `/xrpc/{nsid}`. Formal lexicon schemas for all
 | `com.atproto.server.getSession` | GET | Yes | Get current session |
 | `com.atproto.server.deleteSession` | POST | Yes | Logout |
 | `com.atproto.repo.getRecord` | GET | No | Fetch a record |
+| `com.atproto.repo.putRecord` | POST | Yes | Write a record (real MST signed commit) |
+| `com.atproto.repo.createRecord` | POST | Yes | Create a record with auto-generated TID rkey |
+| `com.atproto.repo.deleteRecord` | POST | Yes | Delete a record (signed commit) |
+| `com.atproto.repo.describeRepo` | GET | No | Repo metadata and available collections |
+| `com.atproto.repo.listRecords` | GET | No | Paginated record listing |
+| `com.atproto.sync.getRepo` | GET | No | Full repo as CAR stream (federation) |
 
 ### Account Management
 
@@ -297,4 +304,5 @@ npm run dev          # Start PDS with ts-node (ESM)
 npm run build        # TypeScript compile
 npm run db:check     # Check database connectivity
 npm run cli:dev      # Run CLI without building
+npm run plc:dev      # Start local PLC directory on port 2582
 ```

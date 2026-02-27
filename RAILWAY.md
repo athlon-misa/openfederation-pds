@@ -1,13 +1,14 @@
 # Railway Deployment Guide
 
-OpenFederation PDS deploys to Railway as **two services** from the same repository:
+OpenFederation PDS deploys to Railway as **three services** from the same repository:
 
-| Service | What it does | Root directory |
-|---------|-------------|----------------|
-| **PDS API** | Express.js backend, XRPC endpoints, PostgreSQL | `/` (repo root) |
-| **Web UI** | Next.js dashboard for managing communities | `/web-interface` |
+| Service | What it does | Root directory | Custom domain |
+|---------|-------------|----------------|---------------|
+| **PDS API** | Express.js backend, XRPC endpoints | `/` (repo root) | `pds.openfederation.net` |
+| **PLC Directory** | DID PLC resolution service | `/plc-server` | `plc.openfederation.net` |
+| **Web UI** | Next.js dashboard for managing communities | `/web-interface` | your choice |
 
-Both services get their own Railway-generated URL on **standard HTTPS (port 443)**. Railway handles TLS termination automatically.
+Each service gets its own Railway-generated URL on **standard HTTPS (port 443)**. Railway handles TLS termination automatically. The PDS and PLC services each have their own PostgreSQL database.
 
 ---
 
@@ -24,12 +25,13 @@ railway init
 
 ---
 
-## 2. Add PostgreSQL
+## 2. Add PostgreSQL (for PDS)
 
 In Railway Dashboard:
 
 1. Click **"+ New"** → **"Database"** → **"Add PostgreSQL"**
 2. Railway auto-configures: `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
+3. This database is for the PDS API service (the PLC directory gets its own database in Step 5)
 
 ---
 
@@ -83,7 +85,7 @@ CORS_ORIGINS=https://your-web-ui.up.railway.app
 
 ```
 HANDLE_SUFFIX=.openfederation.net
-PLC_DIRECTORY_URL=https://plc.directory
+PLC_DIRECTORY_URL=https://plc.openfederation.net  # Your PLC service from Step 5
 INVITE_REQUIRED=true
 ACCESS_TOKEN_TTL=15m
 REFRESH_TOKEN_TTL=30d
@@ -118,22 +120,61 @@ This tells the web UI where the PDS API lives. Use the PDS service's public URL 
 
 ---
 
-## 5. Initialize the Database Schema
+## 5. Add the PLC Directory Service
 
-After both services deploy, run the schema migration:
+The PLC directory resolves `did:plc` identifiers. It needs its own service and database.
 
-```bash
-# Option A: Railway CLI
-railway run psql $DATABASE_URL -f src/db/schema.sql
+### Create the service
 
-# Option B: Connect directly
-railway connect postgres
-# Then paste the contents of src/db/schema.sql
+1. Click **"+ New"** → **"GitHub Repo"** → select the **same repository**
+2. Set **Root Directory:** `plc-server` *(Settings → General → Root Directory)*
+3. Railway detects `plc-server/railway.json` automatically
+
+### Add PostgreSQL for PLC
+
+1. Click **"+ New"** → **"Database"** → **"Add PostgreSQL"**
+2. Link this database to the PLC service (not the PDS service)
+3. The `@did-plc/server` auto-migrates its schema on startup — no manual setup needed
+
+### Variables
+
+```
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+```
+
+**Note:** Do NOT set `PORT` — Railway assigns it automatically. The PLC server reads `PORT` from the environment.
+
+### Custom Domain
+
+Set custom domain `plc.openfederation.net` on the PLC service, then update the PDS service:
+
+```
+PLC_DIRECTORY_URL=https://plc.openfederation.net
 ```
 
 ---
 
-## 6. Verify Deployment
+## 6. Database Schema (Auto-Migration)
+
+The PDS **automatically initializes** its database schema on first startup. When the server detects the `users` table doesn't exist, it executes `src/db/schema.sql`. No manual `psql` runs needed.
+
+For manual migration of an existing database, use the migration scripts in `scripts/`:
+
+```bash
+railway run psql $DATABASE_URL -f scripts/migrate-001-repo-roots.sql
+railway run psql $DATABASE_URL -f scripts/migrate-002-user-signing-keys.sql
+```
+
+---
+
+## 7. Verify Deployment
+
+### Check PLC directory
+
+```bash
+curl https://plc.openfederation.net/
+# 404 on root is expected — the PLC server only responds to DID lookups
+```
 
 ### Check PDS health
 
@@ -156,7 +197,7 @@ Open `https://your-web-ui.up.railway.app` in your browser. You should see the lo
 
 ---
 
-## 7. First Admin Login
+## 8. First Admin Login
 
 1. Open the Web UI: `https://your-web-ui.up.railway.app/login`
 2. Log in with the bootstrap admin credentials you configured:
@@ -211,7 +252,7 @@ After verifying the admin account works, remove the `BOOTSTRAP_ADMIN_*` variable
 ### "Database connection failed"
 - Ensure PostgreSQL service is running (green in Dashboard)
 - Verify `DB_*` variables use Railway reference syntax: `${{Postgres.PGHOST}}`
-- Run the schema: `railway run psql $DATABASE_URL -f src/db/schema.sql`
+- Schema is auto-initialized on first startup — check logs for `Database schema initialized`
 
 ### "CORS error" in browser console
 - Set `CORS_ORIGINS` on the PDS service to the Web UI's exact URL
@@ -246,19 +287,30 @@ After verifying the admin account works, remove the `BOOTSTRAP_ADMIN_*` variable
        │  HTTPS (443)                         │ NEXT_PUBLIC_PDS_URL
        │                                      ▼
        │                             ┌──────────────────┐
-       └───────────────────────────→ │   PDS API (Express)│
-                                     │   Railway auto     │
-                                     │   assigns PORT     │
-                                     └────────┬───────────┘
-                                              │
-                                              ▼
-                                     ┌──────────────────┐
-                                     │   PostgreSQL      │
-                                     │   (Railway DB)    │
-                                     └──────────────────┘
+       └───────────────────────────→ │  PDS API (Express) │
+                                     │  pds.openfederation │
+                                     └───┬──────────┬──────┘
+                                         │          │
+                              PLC_DIRECTORY_URL      │ DB_*
+                                         │          ▼
+                                         │  ┌──────────────┐
+                                         │  │ PostgreSQL    │
+                                         │  │ (PDS DB)     │
+                                         │  └──────────────┘
+                                         ▼
+                                ┌──────────────────┐
+                                │ PLC Directory     │
+                                │ plc.openfederation│
+                                └────────┬─────────┘
+                                         │
+                                         ▼
+                                ┌──────────────┐
+                                │ PostgreSQL    │
+                                │ (PLC DB)     │
+                                └──────────────┘
 ```
 
-Both services are accessible on **standard HTTPS port 443**. Railway handles TLS termination and port routing.
+All three services are accessible on **standard HTTPS port 443**. Railway handles TLS termination and port routing.
 
 ---
 
