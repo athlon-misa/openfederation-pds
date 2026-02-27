@@ -8,14 +8,14 @@
   },
   "main": "dist/src/index.js",
   "bin": {
-    "ofcl": "./dist/cli/pds-cli.js"
+    "ofc": "./dist/cli/ofc.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/src/index.js",
     "dev": "node --loader ts-node/esm src/index.ts",
-    "cli": "node dist/cli/pds-cli.js",
-    "cli:dev": "node --loader ts-node/esm cli/pds-cli.ts",
+    "cli": "node dist/cli/ofc.js",
+    "cli:dev": "node --loader ts-node/esm cli/ofc.ts",
     "db:init": "node --loader ts-node/esm scripts/init-db.ts",
     "db:check": "node --loader ts-node/esm scripts/check-db.ts",
     "plc:dev": "PORT=2582 node node_modules/@did-plc/server/dist/bin.js",

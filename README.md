@@ -268,19 +268,20 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
 | Registration | 5 per hour per IP |
 | Community creation | 10 per hour per IP |
 
-## CLI
+## CLI (`ofc`)
 
-The CLI provides command-line access to all major operations. See `cli/README.md` for full documentation.
+The `ofc` CLI follows [clig.dev](https://clig.dev/) best practices with `ofc <noun> <verb>` subcommands, `--json` output, XDG session storage, and secure password handling (no passwords on the command line). See `cli/README.md` for full documentation.
 
 ```bash
 npm run build
-npm run cli -- login -u admin -p 'password'
-npm run cli -- create-invite
-npm run cli -- list-pending
-npm run cli -- approve-user -h alice
-npm run cli -- create-community -n my-community -d "My Community"
-npm run cli -- whoami
-npm run cli -- logout
+npm run cli -- auth login -u admin          # Prompts for password interactively
+npm run cli -- invite create
+npm run cli -- account list-pending
+npm run cli -- account approve alice
+npm run cli -- community create -n my-community -d "My Community"
+npm run cli -- community list-mine --json   # Machine-readable JSON output
+npm run cli -- auth whoami
+npm run cli -- auth logout
 ```
 
 ## Security

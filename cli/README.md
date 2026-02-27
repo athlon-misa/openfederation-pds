@@ -1,6 +1,6 @@
-# OpenFederation PDS CLI
+# ofc — OpenFederation CLI
 
-Command-line interface for interacting with the OpenFederation Personal Data Server.
+Command-line interface for the OpenFederation Personal Data Server, following [clig.dev](https://clig.dev/) best practices.
 
 ## Quick Start
 
@@ -8,173 +8,209 @@ Command-line interface for interacting with the OpenFederation Personal Data Ser
 # Build (required before first use)
 npm run build
 
-# Run the CLI
+# Run
 npm run cli -- <command>
 
 # Or run in dev mode (no build needed)
 npm run cli:dev -- <command>
 ```
 
-## Prerequisites
-
-- Node.js >= 18.0.0
-- OpenFederation PDS server running (default: http://localhost:3000)
-
 ## Authentication
 
-Most commands require authentication. Log in first:
-
 ```bash
-npm run cli -- login -u admin -p 'your-password'
+# Interactive login (prompts for password)
+npm run cli -- auth login -u admin
+
+# Scripted login (no TTY needed)
+echo "password" | npm run cli -- auth login -u admin --password-stdin
+
+# Check current session
+npm run cli -- auth whoami
+
+# Log out
+npm run cli -- auth logout
 ```
 
-Session credentials are stored locally in `.pds-cli/session.json` (file permissions 0600). To check your current session:
+Session credentials are stored in `~/.config/ofc/session.json` (XDG-compliant, file permissions 0600).
 
-```bash
-npm run cli -- whoami
-```
+Passwords are **never** passed as CLI arguments — they are either prompted interactively or read from stdin via `--password-stdin`.
 
-To log out (clears local session and invalidates server-side token):
+## Output Modes
 
-```bash
-npm run cli -- logout
-```
+- **Human-readable** (default): tables, key-value pairs, colored status messages
+- **JSON** (`--json`): raw JSON to stdout for piping to `jq`, scripts, etc.
+- **No color** (`--no-color` or `NO_COLOR=1`): disables ANSI colors
 
-## Available Commands
-
-### Session Management
-
-| Command | Auth Required | Description |
-|---------|:---:|-------------|
-| `login` | No | Log in and store session credentials |
-| `logout` | Yes | Log out and clear stored session |
-| `whoami` | Yes | Show current logged-in user |
-
-### Server
-
-| Command | Auth Required | Description |
-|---------|:---:|-------------|
-| `health` | No | Check server health status |
-| `info` | No | Get server information |
-
-### User Management (admin/moderator)
-
-| Command | Auth Required | Description |
-|---------|:---:|-------------|
-| `create-invite` | Yes | Create an invite code |
-| `list-pending` | Yes | List pending user registrations |
-| `approve-user` | Yes | Approve a pending user |
-| `reject-user` | Yes | Reject a pending user |
-
-### Communities
-
-| Command | Auth Required | Description |
-|---------|:---:|-------------|
-| `create-community` | Yes | Create a new community |
-| `get-record` | No | Fetch a record from a repository |
-
-## Command Details
-
-### login
-
-```bash
-npm run cli -- login -u <handle-or-email> -p <password>
-```
-
-### create-invite
-
-```bash
-npm run cli -- create-invite [--max-uses <number>] [--expires <iso-date>]
-```
-
-**Options:**
-- `--max-uses <number>` - Maximum number of times the code can be used (default: 1)
-- `--expires <date>` - Expiration date in ISO 8601 format
-
-### approve-user / reject-user
-
-```bash
-npm run cli -- approve-user -h <handle>
-npm run cli -- reject-user -h <handle>
-```
-
-### create-community
-
-```bash
-npm run cli -- create-community -n <handle> -d <display-name> [-m plc|web] [--domain <domain>]
-```
-
-**Options:**
-- `-n, --handle <handle>` - Community handle (required)
-- `-d, --display-name <name>` - Display name (required)
-- `-m, --did-method <method>` - DID method: `plc` or `web` (default: `plc`)
-- `--domain <domain>` - Domain name (required for `did:web`)
-
-**Important:** When creating a `did:plc` community, save the primary rotation key displayed - you won't see it again!
-
-### get-record
-
-```bash
-npm run cli -- get-record -r <did> -c <collection> -k <rkey>
-```
-
-**Options:**
-- `-r, --repo <did>` - Repository DID (required)
-- `-c, --collection <nsid>` - Collection NSID (required)
-- `-k, --rkey <rkey>` - Record key (required)
-
-**Common Collections:**
-- `net.openfederation.community.profile` - Community profile
-- `net.openfederation.community.settings` - Community settings
+Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc community list-mine --json | jq .` works correctly.
 
 ## Global Options
 
-- `-s, --server <url>` - PDS server URL (default: `http://localhost:3000` or `PDS_SERVICE_URL` env var)
-- `--timeout <ms>` - Request timeout in milliseconds (default: 30000)
+| Option | Description |
+|--------|-------------|
+| `-s, --server <url>` | PDS server URL (default: `$PDS_SERVICE_URL` or `http://localhost:8080`) |
+| `--timeout <ms>` | Request timeout in milliseconds (default: 30000) |
+| `--json` | Output raw JSON to stdout |
+| `--no-color` | Disable ANSI colors |
+| `-V, --version` | Show version |
+| `-h, --help` | Show help |
 
-## Example: Full Admin Workflow
+## Commands
+
+### `ofc auth` — Authentication
+
+| Command | Description |
+|---------|-------------|
+| `auth login -u <handle>` | Log in (prompts for password) |
+| `auth logout` | Log out and clear session |
+| `auth whoami` | Show current user |
+
+### `ofc server` — Server Status
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `server health` | No | Check server health |
+| `server info` | Admin | Get server config and stats |
+
+### `ofc account` — Account Management
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `account list [--status X] [--search Q]` | Admin/Mod | List all accounts |
+| `account list-pending` | Admin/Mod | List pending registrations |
+| `account approve <handle>` | Admin/Mod | Approve a pending user |
+| `account reject <handle>` | Admin/Mod | Reject a pending user |
+
+### `ofc invite` — Invite Codes
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `invite create [--max-uses N] [--expires DATE]` | Admin/Mod | Create an invite code |
+| `invite list [--status used\|unused\|expired]` | Admin/Mod | List invite codes |
+
+### `ofc community` — Community Management
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `community create -n <handle> -d <name> [-m plc\|web]` | Approved | Create a community |
+| `community get <did>` | Optional | Get community details |
+| `community list [--mode all]` | Yes | List public communities |
+| `community list-mine` | Yes | List your communities |
+| `community update <did> [--display-name] [--description] [--join-policy]` | Owner | Update settings |
+| `community join <did>` | Approved | Join or request to join |
+| `community leave <did>` | Member | Leave a community |
+| `community members <did>` | Yes | List members |
+| `community join-requests <did>` | Owner/Admin | List pending join requests |
+| `community resolve-request <did> --user <handle> --action approve\|reject` | Owner/Admin | Resolve join request |
+| `community remove-member <did> --user <handle>` | Owner/Admin | Remove a member |
+| `community delete <did>` | Owner/Admin | Delete community and all data |
+| `community export <did>` | Owner/Admin | Export as JSON archive |
+| `community suspend <did> [--reason TEXT]` | PDS Admin | Suspend community |
+| `community unsuspend <did>` | PDS Admin | Unsuspend community |
+| `community takedown <did> [--reason TEXT]` | PDS Admin | Take down (requires prior export) |
+| `community transfer <did>` | Owner | Generate transfer package |
+
+### `ofc record` — Repository Records
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `record get -r <did> -c <collection> -k <rkey>` | No | Fetch a record |
+| `record put -r <did> -c <collection> -k <rkey> --data <json>` | Yes | Write a record |
+| `record create -r <did> -c <collection> --data <json>` | Yes | Create with auto-key |
+| `record delete -r <did> -c <collection> -k <rkey>` | Yes | Delete a record |
+| `record list -r <did> -c <collection> [--limit N] [--cursor C]` | No | List records |
+
+The `--data` flag accepts inline JSON or `@filename` to read from a file:
 
 ```bash
-# 1. Log in as bootstrap admin
-npm run cli -- login -u admin -p 'your-admin-password'
+# Inline JSON
+ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data '{"displayName":"Alice"}'
 
-# 2. Create an invite code
-npm run cli -- create-invite --max-uses 5
+# From file
+ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.json
+```
 
-# 3. (User registers via web UI or curl with the invite code)
+### `ofc repo` — Repository Operations
 
-# 4. List pending registrations
-npm run cli -- list-pending
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `repo describe <did>` | No | Show repo metadata and collections |
 
-# 5. Approve a user
-npm run cli -- approve-user -h alice
+### `ofc audit` — Audit Log
 
-# 6. Create a community
-npm run cli -- create-community -n my-community -d "My Community"
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `audit list [--action X] [--actor Y] [--limit N]` | Admin | List audit log entries |
 
-# 7. Fetch the community profile
-npm run cli -- get-record \
-  -r did:plc:abc123... \
-  -c net.openfederation.community.profile \
-  -k self
+## Example Workflows
+
+### Admin Setup
+
+```bash
+# Log in as bootstrap admin
+ofc auth login -u admin
+
+# Create an invite code
+ofc invite create --max-uses 5
+
+# (User registers via web UI with the invite code)
+
+# List and approve pending users
+ofc account list-pending
+ofc account approve alice
+
+# Check who you're logged in as
+ofc auth whoami
+```
+
+### Community Management
+
+```bash
+# Create a community
+ofc community create -n my-community -d "My Community"
+
+# List your communities
+ofc community list-mine
+
+# View community details
+ofc community get did:plc:abc123
+
+# List members
+ofc community members did:plc:abc123
+
+# Export community data
+ofc community export did:plc:abc123 > backup.json
+```
+
+### Scripted Usage
+
+```bash
+# JSON output for scripting
+ofc community list-mine --json | jq '.[].did'
+
+# Scripted login
+echo "$PDS_PASSWORD" | ofc auth login -u admin --password-stdin
+
+# Different server
+ofc --server https://pds.example.com server health
 ```
 
 ## Using a Different Server
 
 ```bash
-npm run cli -- --server https://pds.example.com health
+ofc --server https://pds.example.com auth login -u admin
 ```
 
 Or set the `PDS_SERVICE_URL` environment variable:
 
 ```bash
 export PDS_SERVICE_URL=https://pds.example.com
-npm run cli -- health
+ofc auth login -u admin
 ```
 
 ## Help
 
 ```bash
-npm run cli -- --help
-npm run cli -- <command> --help
+ofc --help              # Top-level help
+ofc auth --help         # Command group help
+ofc community create --help  # Specific command help
 ```
