@@ -18,6 +18,7 @@
     "cli:dev": "node --loader ts-node/esm cli/pds-cli.ts",
     "db:init": "node --loader ts-node/esm scripts/init-db.ts",
     "db:check": "node --loader ts-node/esm scripts/check-db.ts",
+    "plc:dev": "PORT=2582 node node_modules/@did-plc/server/dist/bin.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -31,6 +32,7 @@
     "@atproto/lexicon": "^0.6.1",
     "@atproto/repo": "^0.8.12",
     "@atproto/xrpc": "^0.7.7",
+    "@did-plc/server": "^0.0.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",

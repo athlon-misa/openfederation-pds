@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import { config } from '../config.js';
 import { testConnection } from '../db/client.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
@@ -41,6 +43,10 @@ import listAudit from '../api/net.openfederation.audit.list.js';
 import getServerConfig from '../api/net.openfederation.server.getConfig.js';
 import { authMiddleware } from '../auth/middleware.js';
 import { ensureBootstrapAdmin } from '../auth/bootstrap.js';
+import { query } from '../db/client.js';
+import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
+import { Secp256k1Keypair } from '@atproto/crypto';
+import { decryptKeyBytes } from '../auth/encryption.js';
 
 const app = express();
 
@@ -198,6 +204,162 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
   }
 });
 
+// /.well-known/did.json — serves DID documents for did:web communities
+app.get('/.well-known/did.json', async (req: Request, res: Response) => {
+  try {
+    // Extract hostname from Host header
+    const host = req.headers.host;
+    if (!host) {
+      return res.status(400).json({ error: 'BadRequest', message: 'Host header required' });
+    }
+    const hostname = host.split(':')[0]; // Strip port
+
+    // Look up did:web community by hostname
+    const did = `did:web:${hostname}`;
+    const result = await query<{ did: string }>(
+      'SELECT did FROM communities WHERE did = $1',
+      [did]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NotFound', message: 'No did:web identity for this domain' });
+    }
+
+    // Load signing key to get public key
+    const keyResult = await query<{ signing_key_bytes: Buffer }>(
+      'SELECT signing_key_bytes FROM signing_keys WHERE community_did = $1',
+      [did]
+    );
+
+    if (keyResult.rows.length === 0) {
+      return res.status(500).json({ error: 'InternalServerError', message: 'Signing key not found' });
+    }
+
+    const decrypted = decryptKeyBytes(keyResult.rows[0].signing_key_bytes);
+    const keypair = await Secp256k1Keypair.import(decrypted, { exportable: false });
+    const publicKeyMultibase = toMultibaseMultikeySecp256k1(keypair.publicKeyBytes());
+
+    const didDocument = {
+      '@context': ['https://www.w3.org/ns/did/v1'],
+      id: did,
+      alsoKnownAs: [`at://${hostname}`],
+      verificationMethod: [
+        {
+          id: `${did}#atproto`,
+          type: 'Multikey',
+          controller: did,
+          publicKeyMultibase,
+        },
+      ],
+      service: [
+        {
+          id: '#atproto_pds',
+          type: 'AtprotoPersonalDataServer',
+          serviceEndpoint: config.pds.serviceUrl,
+        },
+      ],
+    };
+
+    res.setHeader('Content-Type', 'application/did+json');
+    res.json(didDocument);
+  } catch (err) {
+    console.error('Error serving did.json:', err);
+    res.status(500).json({ error: 'InternalServerError', message: 'Failed to serve DID document' });
+  }
+});
+
+// /.well-known/webfinger — AT Protocol discovery for users and communities
+app.get('/.well-known/webfinger', async (req: Request, res: Response) => {
+  try {
+    const resource = req.query.resource as string;
+    if (!resource) {
+      return res.status(400).json({ error: 'BadRequest', message: 'resource query parameter required' });
+    }
+
+    let subject: string;
+    let did: string | null = null;
+
+    if (resource.startsWith('acct:')) {
+      // acct:handle@domain format
+      const acct = resource.substring(5); // strip "acct:"
+      const atIndex = acct.indexOf('@');
+      if (atIndex === -1) {
+        return res.status(400).json({ error: 'BadRequest', message: 'Invalid acct URI format' });
+      }
+      const handle = acct.substring(0, atIndex);
+      subject = resource;
+
+      // Try users first
+      const userResult = await query<{ did: string }>(
+        'SELECT did FROM users WHERE handle = $1',
+        [handle]
+      );
+      if (userResult.rows.length > 0) {
+        did = userResult.rows[0].did;
+      } else {
+        // Try communities
+        const communityResult = await query<{ did: string }>(
+          'SELECT did FROM communities WHERE handle = $1',
+          [handle]
+        );
+        if (communityResult.rows.length > 0) {
+          did = communityResult.rows[0].did;
+        }
+      }
+    } else if (resource.startsWith('at://') || resource.startsWith('did:')) {
+      // Direct DID or AT URI
+      const lookupDid = resource.startsWith('at://') ? resource.substring(5) : resource;
+      subject = resource;
+
+      // Try users
+      const userResult = await query<{ did: string }>(
+        'SELECT did FROM users WHERE did = $1',
+        [lookupDid]
+      );
+      if (userResult.rows.length > 0) {
+        did = userResult.rows[0].did;
+      } else {
+        // Try communities
+        const communityResult = await query<{ did: string }>(
+          'SELECT did FROM communities WHERE did = $1',
+          [lookupDid]
+        );
+        if (communityResult.rows.length > 0) {
+          did = communityResult.rows[0].did;
+        }
+      }
+    } else {
+      return res.status(400).json({ error: 'BadRequest', message: 'Unsupported resource URI scheme' });
+    }
+
+    if (!did) {
+      return res.status(404).json({ error: 'NotFound', message: 'Resource not found' });
+    }
+
+    const webfingerResponse = {
+      subject,
+      links: [
+        {
+          rel: 'self',
+          type: 'application/activity+json',
+          href: config.pds.serviceUrl,
+        },
+        {
+          rel: 'self',
+          type: 'application/json',
+          href: did,
+        },
+      ],
+    };
+
+    res.setHeader('Content-Type', 'application/jrd+json');
+    res.json(webfingerResponse);
+  } catch (err) {
+    console.error('Error serving webfinger:', err);
+    res.status(500).json({ error: 'InternalServerError', message: 'Failed to serve WebFinger response' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   const dbStatus = await testConnection();
@@ -216,6 +378,29 @@ app.get('/', (req, res) => {
     description: 'Personal Data Server for OpenFederation communities',
   });
 });
+
+// Auto-migrate schema if needed (for fresh Railway deploys)
+async function ensureSchema(): Promise<void> {
+  const result = await query(
+    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')"
+  );
+  if (!result.rows[0].exists) {
+    console.log('No schema detected, initializing database...');
+    // schema.sql lives in src/db/ — try source first, then project root
+    const candidates = [
+      join(process.cwd(), 'src', 'db', 'schema.sql'),
+      join(process.cwd(), 'schema.sql'),
+    ];
+    const schemaPath = candidates.find(p => existsSync(p));
+    if (!schemaPath) {
+      console.error('FATAL: Could not find schema.sql to initialize database');
+      process.exit(1);
+    }
+    const schema = readFileSync(schemaPath, 'utf-8');
+    await query(schema);
+    console.log('Database schema initialized');
+  }
+}
 
 // Start the server
 export async function startServer(): Promise<void> {
@@ -253,6 +438,7 @@ export async function startServer(): Promise<void> {
     console.error('  DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD');
   } else {
     console.log('Database connection successful');
+    await ensureSchema();
     await ensureBootstrapAdmin();
   }
 

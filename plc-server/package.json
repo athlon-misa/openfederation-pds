@@ -1,0 +1,11 @@
+{
+  "name": "openfederation-plc",
+  "version": "1.0.0",
+  "description": "PLC directory service for OpenFederation PDS",
+  "scripts": {
+    "start": "node node_modules/@did-plc/server/dist/bin.js"
+  },
+  "dependencies": {
+    "@did-plc/server": "^0.0.1"
+  }
+}
