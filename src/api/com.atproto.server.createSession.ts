@@ -30,11 +30,12 @@ export default async function createSession(req: Request, res: Response): Promis
       id: string;
       handle: string;
       email: string;
-      password_hash: string;
+      password_hash: string | null;
       status: string;
       did: string;
+      auth_type: string;
     }>(
-      'SELECT id, handle, email, password_hash, status, did FROM users WHERE handle = $1 OR email = $1',
+      'SELECT id, handle, email, password_hash, status, did, auth_type FROM users WHERE handle = $1 OR email = $1',
       [identifier]
     );
 
@@ -47,6 +48,24 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     const user = userResult.rows[0];
+
+    // External users cannot log in via password — they must use ATProto OAuth
+    if (user.auth_type === 'external') {
+      res.status(400).json({
+        error: 'ExternalAccount',
+        message: 'This account uses ATProto OAuth. Please sign in via your home PDS.',
+      });
+      return;
+    }
+
+    if (!user.password_hash) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid credentials',
+      });
+      return;
+    }
+
     const passwordOk = await verifyPassword(input.password, user.password_hash);
     if (!passwordOk) {
       res.status(401).json({

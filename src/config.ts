@@ -50,4 +50,13 @@ export const config = {
 
   // Key encryption secret for encrypting recovery keys at rest
   keyEncryptionSecret: process.env.KEY_ENCRYPTION_SECRET || '',
+
+  // OAuth configuration
+  oauth: {
+    enabled: process.env.OAUTH_ENABLED !== 'false',
+    dpopSecret: process.env.OAUTH_DPOP_SECRET || '',
+    signingKey: process.env.OAUTH_SIGNING_KEY || '',  // ES256 private key as JWK JSON
+    trustedClients: (process.env.OAUTH_TRUSTED_CLIENTS || '').split(',').filter(Boolean),
+    redisUrl: process.env.REDIS_URL || '',
+  },
 };

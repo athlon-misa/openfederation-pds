@@ -282,6 +282,20 @@ export interface ServerConfigResponse {
   };
 }
 
+// External login types
+export interface ResolveExternalResponse {
+  redirectUrl: string;
+}
+
+export interface ExternalCompleteResponse {
+  did: string;
+  handle: string;
+  email: string;
+  accessJwt: string;
+  refreshJwt: string;
+  active: boolean;
+}
+
 // API error type
 export interface ApiError {
   error: string;

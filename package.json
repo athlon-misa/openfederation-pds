@@ -31,6 +31,8 @@
     "@atproto/crypto": "^0.4.5",
     "@atproto/identity": "^0.4.10",
     "@atproto/lexicon": "^0.6.1",
+    "@atproto/oauth-client-node": "^0.3.17",
+    "@atproto/oauth-provider": "^0.15.11",
     "@atproto/repo": "^0.8.12",
     "@atproto/xrpc": "^0.7.7",
     "@did-plc/server": "^0.0.1",
@@ -45,10 +47,13 @@
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
+    "ioredis": "^5.10.0",
+    "jose": "^5.10.0",
     "jsonwebtoken": "^9.0.3",
     "multiformats": "^13.4.2",
     "pg": "^8.18.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "zod": "^3.25.76"
   }
 }

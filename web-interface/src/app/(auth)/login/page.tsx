@@ -22,7 +22,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [externalHandle, setExternalHandle] = useState('');
+  const [externalLoading, setExternalLoading] = useState(false);
+  const [externalError, setExternalError] = useState('');
   const login = useAuthStore((s) => s.login);
+  const externalLogin = useAuthStore((s) => s.externalLogin);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +48,22 @@ export default function LoginPage() {
       }
     }
     setLoading(false);
+  };
+
+  const handleExternalLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setExternalError('');
+    setExternalLoading(true);
+
+    const result = await externalLogin(externalHandle);
+
+    if (result.ok) {
+      // Redirect to the remote PDS for authentication
+      window.location.href = result.redirectUrl;
+    } else {
+      setExternalError(result.message);
+    }
+    setExternalLoading(false);
   };
 
   return (
@@ -102,6 +122,46 @@ export default function LoginPage() {
               Register
             </Link>
           </p>
+        </CardFooter>
+      </form>
+
+      <div className="relative my-4">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-card px-2 text-muted-foreground">
+            Or sign in with ATProto
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleExternalLogin}>
+        <CardContent className="space-y-4 pt-0">
+          {externalError && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {externalError}
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="externalHandle">ATProto handle</Label>
+            <Input
+              id="externalHandle"
+              type="text"
+              placeholder="alice.bsky.social"
+              value={externalHandle}
+              onChange={(e) => setExternalHandle(e.target.value)}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Sign in with your existing Bluesky or ATProto account
+            </p>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" variant="outline" className="w-full" disabled={externalLoading}>
+            {externalLoading ? 'Redirecting...' : 'Sign in with ATProto'}
+          </Button>
         </CardFooter>
       </form>
     </Card>

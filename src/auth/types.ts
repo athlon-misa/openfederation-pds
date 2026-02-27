@@ -12,6 +12,7 @@ export interface AuthContext {
   did: string;
   status: UserStatus;
   roles: UserRole[];
+  authMethod?: 'local' | 'oauth';
 }
 
 export interface AuthRequest extends Request {

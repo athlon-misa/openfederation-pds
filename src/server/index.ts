@@ -41,9 +41,14 @@ import listAccounts from '../api/net.openfederation.account.list.js';
 import listInvites from '../api/net.openfederation.invite.list.js';
 import listAudit from '../api/net.openfederation.audit.list.js';
 import getServerConfig from '../api/net.openfederation.server.getConfig.js';
-import { authMiddleware } from '../auth/middleware.js';
+import { authMiddleware, setOAuthVerifier } from '../auth/middleware.js';
 import { ensureBootstrapAdmin } from '../auth/bootstrap.js';
 import { query } from '../db/client.js';
+import { createOAuthProvider } from '../oauth/oauth-setup.js';
+import { createOAuthRouter } from '../oauth/oauth-routes.js';
+import { createExternalOAuthClient } from '../oauth/external-client.js';
+import { createExternalOAuthRouter } from '../oauth/external-routes.js';
+import resolveExternal from '../api/net.openfederation.account.resolveExternal.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { decryptKeyBytes } from '../auth/encryption.js';
@@ -74,7 +79,8 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, DPoP');
+  res.setHeader('Access-Control-Expose-Headers', 'DPoP-Nonce, WWW-Authenticate');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   next();
 });
@@ -149,6 +155,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.invite.list': { handler: listInvites },
   'net.openfederation.audit.list': { handler: listAudit },
   'net.openfederation.server.getConfig': { handler: getServerConfig },
+  'net.openfederation.account.resolveExternal': { handler: resolveExternal },
   'net.openfederation.community.listMine': { handler: listMyCommunities },
   'net.openfederation.community.get': { handler: getCommunity },
   'net.openfederation.community.listAll': { handler: listAllCommunities },
@@ -478,6 +485,29 @@ export async function startServer(): Promise<void> {
     console.log('Database connection successful');
     await ensureSchema();
     await ensureBootstrapAdmin();
+
+    // Initialize OAuth provider if enabled
+    if (config.oauth.enabled) {
+      try {
+        // Phase 1: Authorization Server — third-party apps can authenticate local users
+        const oauthProvider = await createOAuthProvider();
+        app.use(createOAuthRouter(oauthProvider));
+        setOAuthVerifier(oauthProvider);
+        console.log('OAuth authorization server initialized');
+
+        // Phase 2: External User Login — users from other PDSes can log in
+        createExternalOAuthClient();
+        app.use(createExternalOAuthRouter());
+        console.log('OAuth external login initialized');
+      } catch (err) {
+        console.error('Failed to initialize OAuth:', err);
+        if (process.env.NODE_ENV === 'production') {
+          process.exit(1);
+        } else {
+          console.warn('OAuth disabled due to initialization error');
+        }
+      }
+    }
 
     // Schedule periodic session cleanup
     await cleanupExpiredSessions(); // run once at startup
