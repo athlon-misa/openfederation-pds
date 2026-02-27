@@ -489,16 +489,17 @@ export async function startServer(): Promise<void> {
     // Initialize OAuth provider if enabled
     if (config.oauth.enabled) {
       try {
+        // Phase 2 routes first: external login routes must be mounted before
+        // the OAuth provider middleware (which catches all /oauth/* paths)
+        createExternalOAuthClient();
+        app.use(createExternalOAuthRouter());
+        console.log('OAuth external login initialized');
+
         // Phase 1: Authorization Server — third-party apps can authenticate local users
         const oauthProvider = await createOAuthProvider();
         app.use(createOAuthRouter(oauthProvider));
         setOAuthVerifier(oauthProvider);
         console.log('OAuth authorization server initialized');
-
-        // Phase 2: External User Login — users from other PDSes can log in
-        createExternalOAuthClient();
-        app.use(createExternalOAuthRouter());
-        console.log('OAuth external login initialized');
       } catch (err) {
         console.error('Failed to initialize OAuth:', err);
         console.warn('OAuth disabled due to initialization error — server continues without OAuth');
