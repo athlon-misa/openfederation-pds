@@ -19,7 +19,7 @@ import { getExternalOAuthClient, getClientMetadata } from './external-client.js'
 import { query } from '../db/client.js';
 import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
 import type { UserRole, UserStatus } from '../auth/types.js';
-import { config } from '../config.js';
+import { DidResolver } from '@atproto/identity';
 
 // Temporary code store for the OAuth callback → frontend handoff.
 // Codes expire after 60 seconds — this is an in-memory store since codes
@@ -143,11 +143,19 @@ async function ensureExternalUser(
     handle = user.handle;
     email = user.email || '';
     status = user.status as UserStatus;
+
+    // Update handle from DID document if it was a DID-derived placeholder
+    if (handle.startsWith('plc-') || handle.startsWith('web-')) {
+      const resolvedHandle = await resolveHandleFromDid(did);
+      if (resolvedHandle && resolvedHandle !== handle) {
+        handle = resolvedHandle;
+        await query('UPDATE users SET handle = $1 WHERE id = $2', [handle, userId]);
+      }
+    }
   } else {
-    // Create new external user
+    // Create new external user — resolve handle from DID document
     userId = crypto.randomUUID();
-    // Use DID as initial handle (will be resolved later from DID document)
-    handle = did.replace(/^did:/, '').replace(/:/g, '-');
+    handle = await resolveHandleFromDid(did) || did.replace(/^did:/, '').replace(/:/g, '-');
     email = '';
     status = 'approved'; // External users are auto-approved at PDS level
 
@@ -195,4 +203,28 @@ async function ensureExternalUser(
   );
 
   return { did, handle, email, accessJwt, refreshJwt };
+}
+
+/**
+ * Resolve the handle (alsoKnownAs) from a DID document.
+ * Returns the handle string (without at:// prefix) or null if resolution fails.
+ */
+async function resolveHandleFromDid(did: string): Promise<string | null> {
+  try {
+    // Use default PLC directory (https://plc.directory) for resolving external DIDs
+    // rather than our own PLC directory which only has local DIDs
+    const resolver = new DidResolver({});
+    const doc = await resolver.resolve(did);
+    if (doc?.alsoKnownAs) {
+      for (const aka of doc.alsoKnownAs) {
+        if (aka.startsWith('at://')) {
+          return aka.slice('at://'.length);
+        }
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn(`Failed to resolve handle for ${did}:`, err);
+    return null;
+  }
 }

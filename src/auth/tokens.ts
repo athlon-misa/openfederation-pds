@@ -33,7 +33,7 @@ export function verifyAccessToken(token: string): AuthContext | null {
     const payload = jwt.verify(token, config.auth.jwtSecret, {
       algorithms: ['HS256'],
     }) as AccessTokenPayload;
-    if (!payload?.sub || !payload.handle || !payload.email || !payload.did || !payload.roles) {
+    if (!payload?.sub || !payload.handle || payload.email == null || !payload.did || !payload.roles) {
       return null;
     }
 
