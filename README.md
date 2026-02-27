@@ -163,6 +163,17 @@ Communities follow the AT Protocol "free to go" principle:
 - Transfer generates a package with migration instructions for did:plc or did:web
 - **Transfer is owner-only** per AT Protocol — the DID holder initiates migration, not the PDS admin
 
+### Partner API (Third-Party Registration)
+
+| NSID | Method | Auth | Description |
+|------|:---:|:---:|-------------|
+| `net.openfederation.partner.register` | POST | X-Partner-Key | Register user (no invite, auto-approved, returns tokens) |
+| `net.openfederation.partner.createKey` | POST | PDS Admin | Generate a new partner API key (shown once) |
+| `net.openfederation.partner.listKeys` | GET | PDS Admin | List all partner keys with stats |
+| `net.openfederation.partner.revokeKey` | POST | PDS Admin | Revoke a partner key |
+
+Partner keys allow trusted third-party apps (e.g., game platforms) to register users directly — no invite code, no approval wait. See [SDK Integration Guide](./docs/sdk-integration-guide.md) for full documentation.
+
 ### Administration
 
 | NSID | Method | Auth | Description |
@@ -245,6 +256,24 @@ curl -X POST http://localhost:8080/xrpc/net.openfederation.community.create \
   }'
 ```
 
+Create a partner API key (admin):
+```bash
+curl -X POST http://localhost:8080/xrpc/net.openfederation.partner.createKey \
+  -H "Authorization: Bearer <accessJwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"My App","partnerName":"myapp.com","allowedOrigins":["https://myapp.com"]}'
+# Returns raw key ONCE — save it immediately
+```
+
+Register via partner key (no invite needed):
+```bash
+curl -X POST http://localhost:8080/xrpc/net.openfederation.partner.register \
+  -H "X-Partner-Key: ofp_abc123..." \
+  -H "Content-Type: application/json" \
+  -d '{"handle":"alice","email":"alice@example.com","password":"MyStr0ng!Pass"}'
+# Returns user info + access/refresh tokens (user is auto-approved)
+```
+
 Export community (owner):
 ```bash
 curl 'http://localhost:8080/xrpc/net.openfederation.community.export?did=did:plc:abc123' \
@@ -259,6 +288,34 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
   -d '{"refreshJwt":"<refreshJwt>"}'
 ```
 
+## JavaScript SDK (`@openfederation/sdk`)
+
+A zero-dependency browser SDK for third-party apps to register and log in users. Available via npm or as a `<script>` tag served from the PDS.
+
+**Script tag** (2.5KB gzipped):
+```html
+<script src="https://pds.openfederation.net/sdk/v1.js"></script>
+<script>
+  const ofd = OpenFederation.createClient({
+    serverUrl: 'https://pds.openfederation.net',
+    partnerKey: 'ofp_your_key_here',
+  });
+  const user = await ofd.register({ handle: 'alice', email: 'a@b.com', password: 'Str0ng!Pass1' });
+  console.log(user.did); // "did:plc:..."
+</script>
+```
+
+**npm**:
+```bash
+npm install @openfederation/sdk
+```
+```typescript
+import { createClient } from '@openfederation/sdk';
+const ofd = createClient({ serverUrl: '...', partnerKey: '...' });
+```
+
+See [SDK Integration Guide](./docs/sdk-integration-guide.md) for complete API reference, error handling, and full examples.
+
 ## Rate Limits
 
 | Scope | Limit |
@@ -267,6 +324,7 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
 | Authentication | 20 attempts per 15 minutes per IP |
 | Registration | 5 per hour per IP |
 | Community creation | 10 per hour per IP |
+| Partner registration | Configurable per key (default 100/hour) |
 
 ## CLI (`ofc`)
 
@@ -284,6 +342,11 @@ npm run cli -- auth whoami
 npm run cli -- auth logout
 ```
 
+## Third-Party Integration
+
+- **[SDK Integration Guide](./docs/sdk-integration-guide.md)** — Register and log in users from your website using the JS SDK and partner API keys. Best for game platforms and apps creating new accounts.
+- **[OAuth Integration Guide](./docs/third-party-oauth-integration.md)** — "Sign in with OpenFederation" using ATProto OAuth. Best for authenticating existing ATProto users.
+
 ## Security
 
 - JWT access tokens with configurable TTL. Refresh token rotation with reuse detection.
@@ -293,6 +356,7 @@ npm run cli -- auth logout
 - Audit logging for all admin, moderation, and security-relevant actions.
 - Community moderation follows AT Protocol composable moderation: suspend (reversible) and takedown (requires prior export).
 - Approve/reject endpoints guard against re-processing already-resolved users.
+- Partner API keys are hashed (SHA-256) in the database and never stored in plaintext. Origin validation and per-key rate limiting protect against abuse.
 
 ## Lexicon Schemas
 
@@ -302,7 +366,8 @@ AT Protocol lexicon definitions for all 26 custom `net.openfederation.*` endpoin
 
 ```bash
 npm run dev          # Start PDS with ts-node (ESM)
-npm run build        # TypeScript compile
+npm run build        # TypeScript compile + SDK build
+npm run build:sdk    # Build SDK only (packages/openfederation-sdk)
 npm run db:check     # Check database connectivity
 npm run cli:dev      # Run CLI without building
 npm run plc:dev      # Start local PLC directory on port 2582

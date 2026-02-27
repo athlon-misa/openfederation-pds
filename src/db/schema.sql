@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS users (
     did VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     approved_at TIMESTAMP WITH TIME ZONE,
-    approved_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL
+    approved_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    created_by_partner VARCHAR(36)
+    -- FK to partner_keys(id) added after partner_keys table creation
 );
 
 CREATE INDEX idx_users_status ON users(status);
@@ -193,3 +195,25 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_actor ON audit_log(actor_id);
 CREATE INDEX idx_audit_log_created ON audit_log(created_at);
+
+-- Partner API keys: allows trusted partners to register users directly
+CREATE TABLE IF NOT EXISTS partner_keys (
+    id VARCHAR(36) PRIMARY KEY,
+    key_hash VARCHAR(128) NOT NULL UNIQUE,
+    key_prefix VARCHAR(12) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    partner_name VARCHAR(255) NOT NULL,
+    created_by VARCHAR(36) REFERENCES users(id),
+    permissions JSONB NOT NULL DEFAULT '["register"]',
+    allowed_origins JSONB DEFAULT NULL,
+    rate_limit_per_hour INTEGER NOT NULL DEFAULT 100,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+    revoked_at TIMESTAMPTZ,
+    revoked_by VARCHAR(36) REFERENCES users(id),
+    last_used_at TIMESTAMPTZ,
+    total_registrations INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_partner_keys_status ON partner_keys(status);
+CREATE INDEX idx_partner_keys_hash ON partner_keys(key_hash);

@@ -258,6 +258,8 @@ Before going to production:
 - [ ] Set up monitoring and alerting
 - [ ] Configure backups for PostgreSQL
 - [ ] Remove `BOOTSTRAP_ADMIN_*` variables after first login
+- [ ] Create partner API keys for third-party integrations (if needed)
+- [ ] Configure `PARTNER_API_ENABLED=true` and `PARTNER_DEFAULT_RATE_LIMIT` (if using partner registration)
 
 ## Monitoring
 

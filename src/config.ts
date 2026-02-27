@@ -51,6 +51,12 @@ export const config = {
   // Key encryption secret for encrypting recovery keys at rest
   keyEncryptionSecret: process.env.KEY_ENCRYPTION_SECRET || '',
 
+  // Partner API configuration
+  partners: {
+    enabled: process.env.PARTNER_API_ENABLED !== 'false',
+    defaultRateLimit: parseInt(process.env.PARTNER_DEFAULT_RATE_LIMIT || '100', 10),
+  },
+
   // OAuth configuration
   oauth: {
     enabled: process.env.OAUTH_ENABLED !== 'false',

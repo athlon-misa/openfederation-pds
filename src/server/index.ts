@@ -49,6 +49,11 @@ import { createOAuthRouter } from '../oauth/oauth-routes.js';
 import { createExternalOAuthClient } from '../oauth/external-client.js';
 import { createExternalOAuthRouter } from '../oauth/external-routes.js';
 import resolveExternal from '../api/net.openfederation.account.resolveExternal.js';
+import partnerRegister from '../api/net.openfederation.partner.register.js';
+import createPartnerKey from '../api/net.openfederation.partner.createKey.js';
+import listPartnerKeys from '../api/net.openfederation.partner.listKeys.js';
+import revokePartnerKey from '../api/net.openfederation.partner.revokeKey.js';
+import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { decryptKeyBytes } from '../auth/encryption.js';
@@ -68,18 +73,26 @@ app.use((_req, res, next) => {
   next();
 });
 
-// CORS middleware
-app.use((req, res, next) => {
-  const origins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
+// CORS middleware (supports static origins + dynamic partner origins)
+app.use(async (req, res, next) => {
+  const staticOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
     .split(',')
     .map(o => o.trim())
     .filter(Boolean);
   const origin = req.headers.origin;
-  if (origin && origins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
+  if (origin) {
+    if (staticOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else if (req.headers['x-partner-key']) {
+      // Dynamic: check if origin is in any active partner's allowed_origins
+      const partnerOrigins = await getCachedPartnerOrigins();
+      if (partnerOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      }
+    }
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, DPoP');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, DPoP, X-Partner-Key');
   res.setHeader('Access-Control-Expose-Headers', 'DPoP-Nonce, WWW-Authenticate');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   next();
@@ -172,6 +185,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.community.transfer': { handler: transferCommunity },
   'net.openfederation.community.removeMember': { handler: removeMember },
   'net.openfederation.community.delete': { handler: deleteCommunity },
+
+  // Partner API endpoints
+  'net.openfederation.partner.register': { handler: partnerRegister, limiter: registrationLimiter },
+  'net.openfederation.partner.createKey': { handler: createPartnerKey },
+  'net.openfederation.partner.listKeys': { handler: listPartnerKeys },
+  'net.openfederation.partner.revokeKey': { handler: revokePartnerKey },
 
   // Standard ATProto endpoints
   'com.atproto.server.createSession': { handler: createSession, limiter: authLimiter },
@@ -386,6 +405,25 @@ app.get('/.well-known/webfinger', discoveryLimiter, async (req: Request, res: Re
     console.error('Error serving webfinger:', err);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to serve WebFinger response' });
   }
+});
+
+// SDK — serve the IIFE bundle for <script> tag usage
+app.get('/sdk/v1.js', (req: Request, res: Response) => {
+  // Look for the SDK bundle in several locations (dev vs production)
+  const candidates = [
+    join(process.cwd(), 'packages', 'openfederation-sdk', 'dist', 'index.global.js'),
+    join(process.cwd(), 'dist', 'sdk', 'v1.js'),
+  ];
+  const sdkPath = candidates.find(p => existsSync(p));
+  if (!sdkPath) {
+    res.status(404).json({ error: 'NotFound', message: 'SDK bundle not found. Run: cd packages/openfederation-sdk && npm run build' });
+    return;
+  }
+  const js = readFileSync(sdkPath, 'utf-8');
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.send(js);
 });
 
 // Health check endpoint

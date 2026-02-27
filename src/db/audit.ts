@@ -20,7 +20,10 @@ export type AuditAction =
   | 'community.removeMember'
   | 'community.delete'
   | 'join_request.approve'
-  | 'join_request.reject';
+  | 'join_request.reject'
+  | 'partner.register'
+  | 'partner.key.create'
+  | 'partner.key.revoke';
 
 export async function auditLog(
   action: AuditAction,
