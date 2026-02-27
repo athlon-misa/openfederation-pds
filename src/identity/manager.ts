@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
 import { isValidDomain } from '../auth/utils.js';
-import crypto from 'crypto';
+import { registerDidPlc } from './plc-client.js';
 
 /**
  * Result of creating a did:plc identity
@@ -32,6 +32,8 @@ export interface WebIdentityResult {
  * - Primary rotation key: given to community (NOT stored by server)
  * - Secondary recovery key: stored by server (encrypted at rest)
  * - Signing key: stored for repo operations
+ *
+ * Registers the DID with the configured PLC directory.
  */
 export async function createPlcIdentity(handle: string): Promise<PlcIdentityResult> {
   // 1. Generate keys
@@ -39,27 +41,15 @@ export async function createPlcIdentity(handle: string): Promise<PlcIdentityResu
   const recoveryKey = await Secp256k1Keypair.create({ exportable: true });
   const signingKey = await Secp256k1Keypair.create({ exportable: true });
 
-  // 2. Construct the genesis operation for PLC
+  // 2. Register with PLC directory
   const fullHandle = `${handle}${config.handleSuffix}`;
 
-  const genesis = {
-    type: 'plc_operation',
-    rotationKeys: [primaryRotationKey.did(), recoveryKey.did()],
-    verificationMethods: {
-      atproto: signingKey.did(),
-    },
-    alsoKnownAs: [`at://${fullHandle}`],
-    services: {
-      atproto_pds: {
-        type: 'AtprotoPersonalDataServer',
-        endpoint: config.pds.serviceUrl,
-      },
-    },
-  };
-
-  // Generate a deterministic DID based on the genesis operation
-  // In production, this would come from the PLC directory
-  const did = await generatePlcDid(genesis);
+  const did = await registerDidPlc({
+    signingKey,
+    rotationKeys: [primaryRotationKey, recoveryKey],
+    handle: fullHandle,
+    pdsEndpoint: config.pds.serviceUrl,
+  });
 
   // 3. Export keys
   const primaryKeyExport = await primaryRotationKey.export();
@@ -80,22 +70,6 @@ export async function createPlcIdentity(handle: string): Promise<PlcIdentityResu
 }
 
 /**
- * Generates a did:plc identifier from a genesis operation.
- * Uses SHA-256 hash with base32-lower encoding to match PLC directory format.
- * In production, this should post to the PLC directory and receive the DID.
- */
-async function generatePlcDid(genesis: any): Promise<string> {
-  // Use deterministic CBOR-like serialization: sorted keys JSON
-  const genesisStr = JSON.stringify(genesis, Object.keys(genesis).sort());
-  const hash = crypto.createHash('sha256').update(genesisStr).digest();
-
-  // base32-lower encoding (matching PLC directory format), truncated to 24 chars
-  const b32 = base32Encode(hash).substring(0, 24);
-
-  return `did:plc:${b32}`;
-}
-
-/**
  * Validate a domain for did:web before constructing identity.
  * Throws if invalid.
  */
@@ -109,9 +83,10 @@ export function validateWebDomain(domain: string): void {
 }
 
 /**
- * Helper to convert secp256k1 public key to multibase multikey format
+ * Helper to convert secp256k1 public key to multibase multikey format.
+ * Used by did:web DID document construction and /.well-known/did.json endpoint.
  */
-function toMultibaseMultikeySecp256k1(publicKey: Uint8Array): string {
+export function toMultibaseMultikeySecp256k1(publicKey: Uint8Array): string {
   // multicodec secp256k1-pub = 0xE7 (varint-encoded as 0xE7 0x01)
   const prefix = Uint8Array.from([0xe7, 0x01]);
   const bytes = new Uint8Array(prefix.length + publicKey.length);
@@ -207,24 +182,3 @@ export async function getRecoveryKey(communityDid: string): Promise<Secp256k1Key
   return Secp256k1Keypair.import(decrypted, { exportable: true });
 }
 
-function base32Encode(buffer: Buffer): string {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
-  let bits = 0;
-  let value = 0;
-  let result = '';
-
-  for (const byte of buffer) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      bits -= 5;
-      result += alphabet[(value >>> bits) & 0x1f];
-    }
-  }
-
-  if (bits > 0) {
-    result += alphabet[(value << (5 - bits)) & 0x1f];
-  }
-
-  return result;
-}

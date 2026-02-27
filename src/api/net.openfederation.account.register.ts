@@ -3,7 +3,6 @@ import { config } from '../config.js';
 import { getClient } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import {
-  createAccountDid,
   isStrongPassword,
   isValidEmail,
   isValidHandle,
@@ -11,6 +10,9 @@ import {
   normalizeHandle,
   passwordValidationMessage,
 } from '../auth/utils.js';
+import { createUserIdentity, storeUserSigningKey } from '../identity/user-identity.js';
+import { RepoEngine } from '../repo/repo-engine.js';
+import { getKeypairForDid } from '../repo/keypair-utils.js';
 import crypto from 'crypto';
 
 interface RegisterInput {
@@ -132,14 +134,27 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
     }
 
+    // Create real did:plc identity with signing key (registered with PLC directory)
+    let identity;
+    try {
+      identity = await createUserIdentity(handle);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('Error creating user identity:', err);
+      res.status(500).json({
+        error: 'IdentityCreationFailed',
+        message: 'Failed to create user identity. Please try again.',
+      });
+      return;
+    }
+
     const userId = crypto.randomUUID();
-    const did = createAccountDid();
     const passwordHash = await hashPassword(input.password);
 
     await client.query(
       `INSERT INTO users (id, handle, email, password_hash, status, did)
        VALUES ($1, $2, $3, $4, 'pending', $5)`,
-      [userId, handle, email, passwordHash, did]
+      [userId, handle, email, passwordHash, identity.did]
     );
 
     await client.query(
@@ -162,9 +177,29 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
     await client.query('COMMIT');
 
+    // Store signing key and create user repo (outside transaction - identity already registered)
+    try {
+      await storeUserSigningKey(identity.did, identity.signingKeyBase64);
+
+      const engine = new RepoEngine(identity.did);
+      const keypair = await getKeypairForDid(identity.did);
+      await engine.createRepo(keypair, [
+        {
+          collection: 'app.bsky.actor.profile',
+          rkey: 'self',
+          record: { displayName: handle },
+        },
+      ]);
+    } catch (err) {
+      // Log but don't fail registration — the user account is created,
+      // repo can be initialized later if needed
+      console.error('Warning: failed to create user repo (account still created):', err);
+    }
+
     res.status(201).json({
       id: userId,
       handle,
+      did: identity.did,
       email,
       status: 'pending',
     });

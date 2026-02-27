@@ -30,7 +30,7 @@ export const config = {
 
   // PLC directory
   plc: {
-    directoryUrl: process.env.PLC_DIRECTORY_URL || 'https://plc.directory',
+    directoryUrl: process.env.PLC_DIRECTORY_URL || 'http://localhost:2582',
   },
 
   // Handle suffix for did:plc communities

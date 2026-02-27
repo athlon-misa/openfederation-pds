@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { hashPassword } from './password.js';
-import { createAccountDid, normalizeEmail, normalizeHandle } from './utils.js';
+import { createLocalDid, normalizeEmail, normalizeHandle } from './utils.js';
 import crypto from 'crypto';
 
 export async function ensureBootstrapAdmin(): Promise<void> {
@@ -49,7 +49,7 @@ export async function ensureBootstrapAdmin(): Promise<void> {
 
   const userId = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
-  const did = createAccountDid();
+  const did = createLocalDid();
 
   await query(
     `INSERT INTO users (id, handle, email, password_hash, status, did, approved_at)

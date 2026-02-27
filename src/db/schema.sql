@@ -83,22 +83,34 @@ CREATE TABLE IF NOT EXISTS plc_keys (
 );
 
 -- Repository Blocks table: stores raw blocks (authoritative storage)
--- This is the source of truth for all repository data
+-- This is the source of truth for all repository data.
+-- No FK to communities — blocks can belong to both community and user repos.
 CREATE TABLE IF NOT EXISTS repo_blocks (
-    community_did VARCHAR(255) NOT NULL REFERENCES communities(did) ON DELETE CASCADE,
+    community_did VARCHAR(255) NOT NULL,
     cid VARCHAR(255) NOT NULL,
     block_bytes BYTEA NOT NULL,
+    rev TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (community_did, cid)
 );
 
 CREATE INDEX idx_repo_blocks_community ON repo_blocks(community_did);
+CREATE INDEX IF NOT EXISTS idx_repo_blocks_rev ON repo_blocks(community_did, rev);
+
+-- Repo roots table: tracks root CID and current revision per DID
+CREATE TABLE IF NOT EXISTS repo_roots (
+    did TEXT PRIMARY KEY,
+    root_cid TEXT NOT NULL,
+    rev TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Records Index table: provides fast lookup of current records
--- This is a convenience index; repo_blocks is authoritative
+-- This is a convenience index; repo_blocks is authoritative.
+-- No FK to communities — records can belong to both community and user repos.
 CREATE TABLE IF NOT EXISTS records_index (
     id SERIAL PRIMARY KEY,
-    community_did VARCHAR(255) NOT NULL REFERENCES communities(did) ON DELETE CASCADE,
+    community_did VARCHAR(255) NOT NULL,
     collection VARCHAR(255) NOT NULL,
     rkey VARCHAR(255) NOT NULL,
     cid VARCHAR(255) NOT NULL,
@@ -156,6 +168,14 @@ CREATE INDEX idx_join_requests_status ON join_requests(community_did, status);
 -- Signing keys table: stores encrypted signing keys for community repos
 CREATE TABLE IF NOT EXISTS signing_keys (
     community_did VARCHAR(255) PRIMARY KEY REFERENCES communities(did) ON DELETE CASCADE,
+    signing_key_bytes BYTEA NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User signing keys table: stores encrypted signing keys for user repos
+-- Separate from signing_keys (which FKs to communities.did)
+CREATE TABLE IF NOT EXISTS user_signing_keys (
+    user_did TEXT PRIMARY KEY,
     signing_key_bytes BYTEA NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

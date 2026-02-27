@@ -18,21 +18,32 @@ export default async function describeRepo(req: Request, res: Response): Promise
       return;
     }
 
-    // Look up community by DID
+    // Look up by DID — check communities first, then users
+    let repoOwner: { did: string; handle: string } | null = null;
+
     const communityResult = await query<{ did: string; handle: string }>(
       'SELECT did, handle FROM communities WHERE did = $1',
       [repo]
     );
+    if (communityResult.rows.length > 0) {
+      repoOwner = communityResult.rows[0];
+    } else {
+      const userResult = await query<{ did: string; handle: string }>(
+        'SELECT did, handle FROM users WHERE did = $1',
+        [repo]
+      );
+      if (userResult.rows.length > 0) {
+        repoOwner = userResult.rows[0];
+      }
+    }
 
-    if (communityResult.rows.length === 0) {
+    if (!repoOwner) {
       res.status(404).json({
         error: 'RepoNotFound',
         message: `Repository not found for DID: ${repo}`,
       });
       return;
     }
-
-    const community = communityResult.rows[0];
 
     // Get distinct collections in this repo
     const collectionsResult = await query<{ collection: string }>(
@@ -43,8 +54,8 @@ export default async function describeRepo(req: Request, res: Response): Promise
     const collections = collectionsResult.rows.map(r => r.collection);
 
     res.status(200).json({
-      handle: community.handle,
-      did: community.did,
+      handle: repoOwner.handle,
+      did: repoOwner.did,
       didDoc: {}, // TODO: build from PLC/web identity
       collections,
       handleIsCorrect: true,

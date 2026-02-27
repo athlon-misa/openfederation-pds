@@ -42,10 +42,12 @@ export function passwordValidationMessage(): string {
 }
 
 /**
- * Generate a PLC-format DID for user accounts.
- * Uses base32-lower encoding matching ATProto PLC DID format.
+ * Generate a local-only PLC-format DID (not registered with any directory).
+ * Used only for the bootstrap admin account which is a PDS operator,
+ * not an AT Protocol participant. All real users get registered DIDs
+ * via createUserIdentity().
  */
-export function createAccountDid(): string {
+export function createLocalDid(): string {
   const rand = crypto.randomBytes(16);
   return `did:plc:${base32Encode(rand).substring(0, 24)}`;
 }
