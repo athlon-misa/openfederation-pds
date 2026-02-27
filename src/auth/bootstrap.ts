@@ -13,17 +13,11 @@ export async function ensureBootstrapAdmin(): Promise<void> {
     return;
   }
 
-  if (!isStrongPassword(password)) {
-    console.error(`WARNING: Bootstrap admin password does not meet strength requirements. ${passwordValidationMessage()}`);
-    if (process.env.NODE_ENV === 'production') {
-      console.error('FATAL: Refusing to create bootstrap admin with weak password in production.');
-      process.exit(1);
-    }
-  }
-
   const normalizedEmail = normalizeEmail(email);
   const normalizedHandle = normalizeHandle(handle);
 
+  // Check if admin already exists BEFORE validating password
+  // (password is only needed for initial creation)
   const existing = await query<{ id: string; status: string }>(
     'SELECT id, status FROM users WHERE email = $1 OR handle = $2',
     [normalizedEmail, normalizedHandle]
@@ -53,6 +47,15 @@ export async function ensureBootstrapAdmin(): Promise<void> {
       [userId]
     );
     return;
+  }
+
+  // Only validate password strength when creating a new admin
+  if (!isStrongPassword(password)) {
+    console.error(`WARNING: Bootstrap admin password does not meet strength requirements. ${passwordValidationMessage()}`);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('Skipping bootstrap admin creation due to weak password in production.');
+      return;
+    }
   }
 
   const userId = crypto.randomUUID();
