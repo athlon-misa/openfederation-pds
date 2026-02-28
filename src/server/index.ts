@@ -53,10 +53,15 @@ import partnerRegister from '../api/net.openfederation.partner.register.js';
 import createPartnerKey from '../api/net.openfederation.partner.createKey.js';
 import listPartnerKeys from '../api/net.openfederation.partner.listKeys.js';
 import revokePartnerKey from '../api/net.openfederation.partner.revokeKey.js';
+import linkApplication from '../api/net.openfederation.community.linkApplication.js';
+import unlinkApplication from '../api/net.openfederation.community.unlinkApplication.js';
+import listApplications from '../api/net.openfederation.community.listApplications.js';
+import verifyMembership from '../api/net.openfederation.community.verifyMembership.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { decryptKeyBytes } from '../auth/encryption.js';
+import { apRouter } from '../activitypub/ap-routes.js';
 
 const app = express();
 
@@ -185,6 +190,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.community.transfer': { handler: transferCommunity },
   'net.openfederation.community.removeMember': { handler: removeMember },
   'net.openfederation.community.delete': { handler: deleteCommunity },
+
+  // ActivityPub integration endpoints
+  'net.openfederation.community.linkApplication': { handler: linkApplication },
+  'net.openfederation.community.unlinkApplication': { handler: unlinkApplication },
+  'net.openfederation.community.listApplications': { handler: listApplications },
+  'net.openfederation.community.verifyMembership': { handler: verifyMembership },
 
   // Partner API endpoints
   'net.openfederation.partner.register': { handler: partnerRegister, limiter: registrationLimiter },
@@ -383,21 +394,41 @@ app.get('/.well-known/webfinger', discoveryLimiter, async (req: Request, res: Re
       return res.status(404).json({ error: 'NotFound', message: 'Resource not found' });
     }
 
-    const webfingerResponse = {
-      subject,
-      links: [
-        {
-          rel: 'self',
-          type: 'application/activity+json',
-          href: config.pds.serviceUrl,
-        },
-        {
-          rel: 'self',
-          type: 'application/json',
-          href: did,
-        },
-      ],
-    };
+    // Check if this DID is a community with linked AP applications
+    let apActorUrl = config.pds.serviceUrl; // default: generic PDS URL
+    const links: Array<{ rel: string; type: string; href: string }> = [];
+
+    if (config.activitypub.enabled) {
+      const apAppResult = await query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM records_index
+         WHERE community_did = $1 AND collection = 'net.openfederation.community.application'`,
+        [did]
+      );
+      if (parseInt(apAppResult.rows[0]?.count || '0', 10) > 0) {
+        // Community has linked AP apps — point to the real AP actor
+        apActorUrl = `${config.pds.serviceUrl}/ap/actor/${did}`;
+        links.push({
+          rel: 'http://webfinger.net/rel/profile-page',
+          type: 'text/html',
+          href: `${config.pds.serviceUrl}/communities/${did}`,
+        });
+      }
+    }
+
+    links.unshift(
+      {
+        rel: 'self',
+        type: 'application/activity+json',
+        href: apActorUrl,
+      },
+      {
+        rel: 'self',
+        type: 'application/json',
+        href: did,
+      },
+    );
+
+    const webfingerResponse = { subject, links };
 
     res.setHeader('Content-Type', 'application/jrd+json');
     res.json(webfingerResponse);
@@ -542,6 +573,12 @@ export async function startServer(): Promise<void> {
         console.error('Failed to initialize OAuth:', err);
         console.warn('OAuth disabled due to initialization error — server continues without OAuth');
       }
+    }
+
+    // Mount ActivityPub routes if enabled
+    if (config.activitypub.enabled) {
+      app.use(apRouter);
+      console.log('ActivityPub discovery endpoints enabled');
     }
 
     // Schedule periodic session cleanup

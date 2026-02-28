@@ -57,6 +57,11 @@ export const config = {
     defaultRateLimit: parseInt(process.env.PARTNER_DEFAULT_RATE_LIMIT || '100', 10),
   },
 
+  // ActivityPub configuration
+  activitypub: {
+    enabled: process.env.ACTIVITYPUB_ENABLED !== 'false',
+  },
+
   // OAuth configuration
   oauth: {
     enabled: process.env.OAUTH_ENABLED !== 'false',

@@ -21,6 +21,8 @@ export type AuditAction =
   | 'community.delete'
   | 'join_request.approve'
   | 'join_request.reject'
+  | 'community.linkApplication'
+  | 'community.unlinkApplication'
   | 'partner.register'
   | 'partner.key.create'
   | 'partner.key.revoke';

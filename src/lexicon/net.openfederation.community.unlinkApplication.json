@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.unlinkApplication",
+  "description": "Remove a linked application from a community.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Unlink an application from a community by deleting its repo record. Only community owner or PDS admin.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "communityDid": { "type": "string", "description": "DID of the community." },
+            "rkey": { "type": "string", "description": "Record key (TID) of the application record to remove." }
+          },
+          "required": ["communityDid", "rkey"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "boolean", "description": "Whether the unlink was successful." }
+          },
+          "required": ["success"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields." },
+        { "name": "NotFound", "description": "Community or application record not found." },
+        { "name": "Forbidden", "description": "Insufficient privileges (owner or admin required)." }
+      ]
+    }
+  }
+}
