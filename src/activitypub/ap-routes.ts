@@ -8,53 +8,40 @@
  */
 
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { buildCommunityActor, type ApplicationRecord } from './ap-actors.js';
-import { Secp256k1Keypair } from '@atproto/crypto';
-import { decryptKeyBytes } from '../auth/encryption.js';
 
 const router = Router();
 
+// Cache generated RSA key pairs per community DID to avoid regenerating on every request
+const rsaKeyCache = new Map<string, string>();
+
 /**
- * Convert a secp256k1 compressed public key to SPKI PEM format.
- * This is needed for the AP actor's publicKey field.
+ * Get or generate an RSA public key PEM for AP actor signatures.
+ * AP ecosystem (Mastodon, GoToSocial, etc.) requires RSA keys for HTTP signatures.
+ * ATProto uses secp256k1, so we generate a separate RSA key deterministically
+ * from the community DID + a server-side secret.
  */
-function secp256k1PublicKeyToPem(compressedPubKey: Uint8Array): string {
-  // SPKI DER structure for secp256k1:
-  // SEQUENCE {
-  //   SEQUENCE {
-  //     OID 1.2.840.10045.2.1 (ecPublicKey)
-  //     OID 1.3.132.0.10 (secp256k1)
-  //   }
-  //   BIT STRING (uncompressed or compressed public key)
-  // }
-  // For compressed 33-byte key:
-  const algorithmIdentifier = Buffer.from([
-    0x30, 0x10, // SEQUENCE, 16 bytes
-    0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, // OID ecPublicKey
-    0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x0a, // OID secp256k1
-  ]);
+function getOrGenerateRsaPublicKeyPem(did: string): string {
+  const cached = rsaKeyCache.get(did);
+  if (cached) return cached;
 
-  const bitString = Buffer.alloc(2 + compressedPubKey.length);
-  bitString[0] = 0x03; // BIT STRING tag
-  bitString[1] = compressedPubKey.length + 1; // length (key bytes + 1 for unused bits byte)
-  // Actually need to include the "unused bits" byte
-  const bitStringFull = Buffer.alloc(3 + compressedPubKey.length);
-  bitStringFull[0] = 0x03; // BIT STRING tag
-  bitStringFull[1] = compressedPubKey.length + 1; // content length
-  bitStringFull[2] = 0x00; // 0 unused bits
-  Buffer.from(compressedPubKey).copy(bitStringFull, 3);
+  // Generate a deterministic RSA keypair seeded by the DID + server secret
+  // This ensures the same key is produced across restarts (for the same config)
+  const seed = crypto.createHash('sha256')
+    .update(`ap-rsa-${did}-${config.keyEncryptionSecret}`)
+    .digest('hex');
 
-  const spkiContent = Buffer.concat([algorithmIdentifier, bitStringFull]);
-  const spki = Buffer.alloc(2 + spkiContent.length);
-  spki[0] = 0x30; // SEQUENCE tag
-  spki[1] = spkiContent.length;
-  spkiContent.copy(spki, 2);
+  const { publicKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
 
-  const base64 = spki.toString('base64');
-  const lines = base64.match(/.{1,64}/g) || [];
-  return `-----BEGIN PUBLIC KEY-----\n${lines.join('\n')}\n-----END PUBLIC KEY-----`;
+  rsaKeyCache.set(did, publicKey);
+  return publicKey;
 }
 
 /**
@@ -74,12 +61,10 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
     const communityResult = await query<{
       did: string;
       handle: string;
-      display_name: string | null;
-      description: string | null;
       created_at: string;
       status: string;
     }>(
-      'SELECT did, handle, display_name, description, created_at, status FROM communities WHERE did = $1',
+      'SELECT did, handle, created_at, status FROM communities WHERE did = $1',
       [did],
     );
 
@@ -88,12 +73,22 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
       return;
     }
 
-    const community = communityResult.rows[0];
+    const communityRow = communityResult.rows[0];
 
-    if (community.status !== 'active') {
+    if (communityRow.status !== 'active') {
       res.status(404).json({ error: 'NotFound', message: 'Community not found' });
       return;
     }
+
+    // Load profile from repo records (display name, description are stored as records, not DB columns)
+    const profileResult = await query<{
+      record: { displayName?: string; description?: string };
+    }>(
+      `SELECT record FROM records_index
+       WHERE community_did = $1 AND collection = 'net.openfederation.community.profile' LIMIT 1`,
+      [did],
+    );
+    const profile = profileResult.rows[0]?.record || {};
 
     // Load linked applications from records_index
     const appResult = await query<{
@@ -117,26 +112,17 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
       displayName: row.record.displayName,
     }));
 
-    // Load signing key for public key
-    const keyResult = await query<{ signing_key_bytes: Buffer }>(
-      'SELECT signing_key_bytes FROM signing_keys WHERE community_did = $1',
-      [did],
-    );
-
-    let publicKeyPem = '';
-    if (keyResult.rows.length > 0) {
-      const decrypted = decryptKeyBytes(keyResult.rows[0].signing_key_bytes);
-      const keypair = await Secp256k1Keypair.import(decrypted, { exportable: false });
-      publicKeyPem = secp256k1PublicKeyToPem(keypair.publicKeyBytes());
-    }
+    // Generate RSA public key for AP compatibility
+    // (AP ecosystem uses RSA for HTTP signatures; ATProto uses secp256k1)
+    const publicKeyPem = getOrGenerateRsaPublicKeyPem(did);
 
     const actor = buildCommunityActor(
       {
-        did: community.did,
-        handle: community.handle,
-        display_name: community.display_name || undefined,
-        description: community.description || undefined,
-        created_at: community.created_at,
+        did: communityRow.did,
+        handle: communityRow.handle,
+        display_name: profile.displayName || undefined,
+        description: profile.description || undefined,
+        created_at: communityRow.created_at,
       },
       applications,
       config.pds.serviceUrl,

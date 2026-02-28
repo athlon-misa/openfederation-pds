@@ -32,3 +32,6 @@ CLAUDE.md
 # Railway
 .railway/
 railway.json.backup
+
+# GoToSocial local testing
+gotosocial/
