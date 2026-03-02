@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { registerAccount } from '@/lib/api/auth';
-import { isValidHandle, isValidEmail, isStrongPassword } from '@/lib/validators';
+import { isValidHandle, isValidEmail, isStrongPassword, passwordValidationMessage } from '@/lib/validators';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,13 +37,16 @@ export default function RegisterPage() {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!isValidHandle(handle)) {
-      errors.handle = 'Handle must be 3-255 characters: lowercase letters, numbers, hyphens.';
+      errors.handle = 'Handle must be 3-30 characters: lowercase letters, numbers, hyphens.';
     }
     if (!isValidEmail(email)) {
       errors.email = 'Please enter a valid email address.';
     }
     if (!isStrongPassword(password)) {
-      errors.password = 'Password must be at least 8 characters.';
+      errors.password = passwordValidationMessage();
+    }
+    if (!inviteCode.trim()) {
+      errors.inviteCode = 'An invite code is required to register.';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -138,19 +141,26 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <p className="text-xs text-muted-foreground">
+              10-128 characters, must include at least 3 of: lowercase, uppercase, digit, special character.
+            </p>
             {fieldErrors.password && (
               <p className="text-xs text-destructive">{fieldErrors.password}</p>
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="inviteCode">Invite code (optional)</Label>
+            <Label htmlFor="inviteCode">Invite code</Label>
             <Input
               id="inviteCode"
               type="text"
               placeholder="abc123"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
+              required
             />
+            {fieldErrors.inviteCode && (
+              <p className="text-xs text-destructive">{fieldErrors.inviteCode}</p>
+            )}
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
