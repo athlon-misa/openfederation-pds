@@ -10,6 +10,7 @@ export {
   ForbiddenError,
 } from './errors.js';
 export type {
+  ATProtoLoginOptions,
   AuthProvider,
   ClientConfig,
   User,

@@ -71,6 +71,23 @@ export function isValidDomain(domain: string): boolean {
   );
 }
 
+/**
+ * Parse a Cookie header string into a key-value map.
+ * No external dependency — handles standard cookie format.
+ */
+export function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+  for (const pair of cookieHeader.split(';')) {
+    const eqIdx = pair.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = pair.substring(0, eqIdx).trim();
+    const val = pair.substring(eqIdx + 1).trim();
+    if (key) cookies[key] = decodeURIComponent(val);
+  }
+  return cookies;
+}
+
 function base32Encode(buffer: Buffer): string {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
   let bits = 0;

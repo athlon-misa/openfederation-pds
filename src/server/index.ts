@@ -105,7 +105,9 @@ app.use(async (req, res, next) => {
     if (origin) {
       if (staticOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
-      } else if (req.headers['x-partner-key']) {
+      } else if (req.headers['x-partner-key'] || req.path === '/oauth/external/complete') {
+        // Allow partner origins for X-Partner-Key requests and for
+        // /oauth/external/complete (SDK apps exchanging temp codes for tokens)
         const partnerOrigins = await getCachedPartnerOrigins();
         if (partnerOrigins.includes(origin)) {
           res.setHeader('Access-Control-Allow-Origin', origin);

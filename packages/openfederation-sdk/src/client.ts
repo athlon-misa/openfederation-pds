@@ -1,4 +1,4 @@
-import type { ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions, SessionResponse, AuthProvider } from './types.js';
+import type { ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions, SessionResponse, AuthProvider, ATProtoLoginOptions } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
 import { displayHandle as displayHandleUtil, xrpcUrl } from './utils.js';
@@ -176,43 +176,51 @@ export class OpenFederationClient implements AuthProvider {
   }
 
   /**
-   * Initiate ATProto OAuth login by redirecting to the PDS authorization endpoint.
+   * Initiate ATProto OAuth login by redirecting to the PDS `/auth/atproto` endpoint.
    * For existing Bluesky/ATProto users who want to log in with their home PDS.
+   *
+   * Accepts a handle string (backwards compatible) or an options object.
+   * This is synchronous — it navigates the browser, no fetch needed.
    */
-  async loginWithATProto(handle: string): Promise<void> {
-    const url = xrpcUrl(this.serverUrl, 'net.openfederation.account.resolveExternal', {
-      handle,
-    });
+  loginWithATProto(handleOrOpts: string | ATProtoLoginOptions): void {
+    const opts: ATProtoLoginOptions = typeof handleOrOpts === 'string'
+      ? { handle: handleOrOpts }
+      : handleOrOpts;
 
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const redirectUri = opts.redirectUri || window.location.href;
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw errorFromResponse(res.status, body);
+    const url = new URL(`${this.serverUrl}/auth/atproto`);
+    url.searchParams.set('handle', opts.handle);
+    url.searchParams.set('redirect_uri', redirectUri);
+    if (opts.state) {
+      url.searchParams.set('state', opts.state);
     }
 
-    const data: { authUrl: string } = await res.json();
-    window.location.href = data.authUrl;
+    window.location.href = url.toString();
   }
 
   /**
    * Handle the OAuth callback after ATProto login redirect.
    * Call this on the callback page to complete the login flow.
+   *
+   * Exchanges the temporary code (from query params) for local JWT tokens
+   * via POST /oauth/external/complete.
    */
   async handleOAuthCallback(): Promise<User> {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
 
+    // Check for error from failed OAuth callback
+    const error = params.get('error');
+    if (error) {
+      throw new AuthenticationError(`ATProto login failed: ${error}`);
+    }
+
+    const code = params.get('code');
     if (!code) {
       throw new AuthenticationError('No authorization code in callback URL');
     }
 
-    const url = xrpcUrl(this.serverUrl, 'net.openfederation.account.resolveExternal', {
-      code,
-    });
+    const url = `${this.serverUrl}/oauth/external/complete`;
 
     const res = await fetch(url, {
       method: 'POST',

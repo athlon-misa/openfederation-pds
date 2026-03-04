@@ -4,22 +4,36 @@
  * Handles the OAuth callback from remote ATProto PDSes and exchanges
  * the authorization code for local JWT tokens.
  *
- * Flow:
+ * Flow (web-interface):
  *   1. Frontend calls resolveExternal XRPC → backend calls client.authorize(handle)
  *   2. User redirected to remote PDS consent page
  *   3. Remote PDS redirects to /oauth/external/callback
  *   4. Backend processes callback → creates/finds local user → issues temp code
  *   5. Backend redirects to frontend /callback?code={temp}
  *   6. Frontend calls POST /oauth/external/complete → gets local JWT tokens
+ *
+ * Flow (client-side SDK apps):
+ *   1. SDK redirects to GET /auth/atproto?handle=...&redirect_uri=...
+ *   2. PDS validates redirect_uri, sets cookie, calls client.authorize(handle)
+ *   3. User redirected to remote PDS consent page
+ *   4. Remote PDS redirects to /oauth/external/callback
+ *   5. Backend reads cookie → redirects to client app /callback?code={temp}
+ *   6. SDK calls POST /oauth/external/complete → gets local JWT tokens
  */
 
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { getExternalOAuthClient, getClientMetadata } from './external-client.js';
 import { query } from '../db/client.js';
 import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
 import type { UserRole, UserStatus } from '../auth/types.js';
+import { parseCookies } from '../auth/utils.js';
+import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { DidResolver } from '@atproto/identity';
+
+// Cookie name for tracking client-app redirects through the OAuth flow
+const REDIRECT_COOKIE = 'ofd_auth_redirect';
 
 // Temporary code store for the OAuth callback → frontend handoff.
 // Codes expire after 60 seconds — this is an in-memory store since codes
@@ -42,6 +56,41 @@ setInterval(() => {
   }
 }, 30_000).unref();
 
+// Rate limiter for the /auth/atproto initiation endpoint
+const atprotoAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'RateLimitExceeded', message: 'Too many ATProto auth requests, please try again later' },
+});
+
+/**
+ * Validate that a redirect_uri's origin is in our allowed list
+ * (CORS_ORIGINS + partner origins).
+ */
+async function isAllowedRedirectOrigin(redirectUri: string): Promise<boolean> {
+  let origin: string;
+  try {
+    const url = new URL(redirectUri);
+    origin = url.origin;
+  } catch {
+    return false;
+  }
+
+  // Check static CORS origins
+  const staticOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
+  if (staticOrigins.includes(origin)) return true;
+
+  // Check partner origins
+  const partnerOrigins = await getCachedPartnerOrigins();
+  return partnerOrigins.includes(origin);
+}
+
 export function createExternalOAuthRouter(): Router {
   const router = Router();
 
@@ -52,11 +101,81 @@ export function createExternalOAuthRouter(): Router {
     res.json(getClientMetadata());
   });
 
+  // ── New: PDS-hosted ATProto OAuth initiation for client-side apps ──
+  // SDK redirects here; no CORS needed (full page navigation).
+  router.get('/auth/atproto', atprotoAuthLimiter, async (req: Request, res: Response) => {
+    const handle = req.query.handle as string | undefined;
+    const redirectUri = req.query.redirect_uri as string | undefined;
+    const state = req.query.state as string | undefined;
+
+    if (!handle || typeof handle !== 'string') {
+      return res.status(400).json({ error: 'InvalidRequest', message: 'handle query parameter is required' });
+    }
+    if (!redirectUri || typeof redirectUri !== 'string') {
+      return res.status(400).json({ error: 'InvalidRequest', message: 'redirect_uri query parameter is required' });
+    }
+
+    // Validate redirect_uri origin against allowlist (open redirect prevention)
+    const allowed = await isAllowedRedirectOrigin(redirectUri);
+    if (!allowed) {
+      return res.status(400).json({ error: 'InvalidRequest', message: 'redirect_uri origin is not allowed' });
+    }
+
+    const client = getExternalOAuthClient();
+    if (!client) {
+      return res.status(503).json({ error: 'ServiceUnavailable', message: 'External OAuth login is not available' });
+    }
+
+    try {
+      // Set cookie so we know where to redirect after the OAuth callback
+      const cookieValue = JSON.stringify({ redirectUri, state: state || '' });
+      const isProduction = process.env.NODE_ENV === 'production';
+      res.setHeader('Set-Cookie', [
+        `${REDIRECT_COOKIE}=${encodeURIComponent(cookieValue)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600${isProduction ? '; Secure' : ''}`,
+      ]);
+
+      // Initiate the OAuth flow with the remote PDS
+      const authUrl = await client.authorize(handle.trim(), {
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      res.redirect(authUrl.toString());
+    } catch (err) {
+      console.error('ATProto auth initiation error:', err);
+      // Redirect back to client app with error
+      try {
+        const errorUrl = new URL(redirectUri);
+        errorUrl.searchParams.set('error', 'auth_initiation_failed');
+        if (state) errorUrl.searchParams.set('state', state);
+        res.redirect(errorUrl.toString());
+      } catch {
+        res.status(500).json({ error: 'InternalServerError', message: 'Failed to initiate ATProto login' });
+      }
+    }
+  });
+
   // OAuth callback from remote PDS
   router.get('/oauth/external/callback', async (req: Request, res: Response) => {
     const client = getExternalOAuthClient();
     if (!client) {
       return res.status(503).json({ error: 'ServiceUnavailable', message: 'OAuth client not initialized' });
+    }
+
+    // Check for the redirect cookie (client-side SDK flow)
+    const cookies = parseCookies(req.headers.cookie);
+    const redirectCookie = cookies[REDIRECT_COOKIE];
+    let clientRedirect: { redirectUri: string; state: string } | null = null;
+
+    if (redirectCookie) {
+      try {
+        clientRedirect = JSON.parse(redirectCookie);
+      } catch {
+        // Invalid cookie — fall through to web-interface flow
+      }
+      // Clear the cookie regardless
+      res.setHeader('Set-Cookie', [
+        `${REDIRECT_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
+      ]);
     }
 
     try {
@@ -74,18 +193,43 @@ export function createExternalOAuthRouter(): Router {
         expiresAt: Date.now() + 60_000, // 60 seconds
       });
 
-      // Determine frontend URL for redirect
-      const frontendUrl = (process.env.CORS_ORIGINS || 'http://localhost:3001').split(',')[0].trim();
-      const redirectUrl = new URL('/callback', frontendUrl);
-      redirectUrl.searchParams.set('code', tempCode);
-
-      res.redirect(redirectUrl.toString());
+      if (clientRedirect?.redirectUri) {
+        // SDK flow: redirect to the client app's callback URL
+        const redirectUrl = new URL(clientRedirect.redirectUri);
+        redirectUrl.searchParams.set('code', tempCode);
+        if (clientRedirect.state) {
+          redirectUrl.searchParams.set('state', clientRedirect.state);
+        }
+        res.redirect(redirectUrl.toString());
+      } else {
+        // Web-interface flow: redirect to the web UI callback page
+        const frontendUrl = (process.env.CORS_ORIGINS || 'http://localhost:3001').split(',')[0].trim();
+        const redirectUrl = new URL('/callback', frontendUrl);
+        redirectUrl.searchParams.set('code', tempCode);
+        res.redirect(redirectUrl.toString());
+      }
     } catch (err) {
       console.error('External OAuth callback error:', err);
-      const frontendUrl = (process.env.CORS_ORIGINS || 'http://localhost:3001').split(',')[0].trim();
-      const errorUrl = new URL('/callback', frontendUrl);
-      errorUrl.searchParams.set('error', 'oauth_callback_failed');
-      res.redirect(errorUrl.toString());
+
+      if (clientRedirect?.redirectUri) {
+        // SDK flow: redirect to client app with error
+        try {
+          const errorUrl = new URL(clientRedirect.redirectUri);
+          errorUrl.searchParams.set('error', 'oauth_callback_failed');
+          if (clientRedirect.state) {
+            errorUrl.searchParams.set('state', clientRedirect.state);
+          }
+          res.redirect(errorUrl.toString());
+        } catch {
+          res.status(500).json({ error: 'InternalServerError', message: 'OAuth callback failed' });
+        }
+      } else {
+        // Web-interface flow: redirect to web UI with error
+        const frontendUrl = (process.env.CORS_ORIGINS || 'http://localhost:3001').split(',')[0].trim();
+        const errorUrl = new URL('/callback', frontendUrl);
+        errorUrl.searchParams.set('error', 'oauth_callback_failed');
+        res.redirect(errorUrl.toString());
+      }
     }
   });
 

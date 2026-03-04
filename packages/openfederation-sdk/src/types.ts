@@ -59,6 +59,15 @@ export interface AuthProvider {
   onAuthChange(callback: (user: User | null) => void): () => void;
 }
 
+export interface ATProtoLoginOptions {
+  /** ATProto handle (e.g. "alice.bsky.social") */
+  handle: string;
+  /** Where to redirect after auth. Defaults to current page URL. */
+  redirectUri?: string;
+  /** Opaque state for CSRF protection — passed through the OAuth flow. */
+  state?: string;
+}
+
 /** Internal: shape of the register/login response from the PDS */
 export interface SessionResponse {
   id?: string;
