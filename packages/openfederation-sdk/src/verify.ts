@@ -4,7 +4,13 @@ export interface VerifiedSession {
 }
 
 export interface VerifyPdsTokenOptions {
-  /** PLC directory URL (default: https://plc.openfederation.net) */
+  /**
+   * PDS URL to verify the token against directly.
+   * When set, skips DID-based PDS discovery entirely.
+   * Use this when you know which PDS issued the token (most common case).
+   */
+  pdsUrl?: string;
+  /** PLC directory URL for DID-based PDS discovery (default: https://plc.openfederation.net) */
   plcDirectoryUrl?: string;
   /** If set, verification fails when the token's DID doesn't match */
   expectedDid?: string;
@@ -31,14 +37,48 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
 }
 
 /**
- * Verify a PDS access token by resolving the user's DID to their PDS
- * and calling `com.atproto.server.getSession`.
+ * Extract the DID from a JWT payload.
+ * Checks the `did` claim first (OpenFederation PDS tokens use this),
+ * then falls back to `sub` (standard ATProto tokens put the DID there).
+ */
+function extractDid(payload: Record<string, unknown>): string | null {
+  // OpenFederation PDS: sub=UUID, did=DID
+  if (typeof payload.did === 'string' && payload.did.startsWith('did:')) {
+    return payload.did;
+  }
+  // Standard ATProto: sub=DID
+  if (typeof payload.sub === 'string' && payload.sub.startsWith('did:')) {
+    return payload.sub;
+  }
+  return null;
+}
+
+/**
+ * Verify a PDS access token by calling `com.atproto.server.getSession`.
  *
- * Flow:
- * 1. Decode the JWT to extract the `sub` (DID) claim
- * 2. Resolve the DID document from the PLC directory to find the PDS endpoint
- * 3. Call `getSession` on the resolved PDS with the bearer token
- * 4. Verify the returned DID matches the token's `sub` claim
+ * Two modes of operation:
+ *
+ * **Known PDS** (recommended for most apps):
+ * Pass `pdsUrl` to verify directly against a known PDS. This works for
+ * all users (local and external/federated) because the issuing PDS can
+ * verify any token it created.
+ *
+ * ```ts
+ * const session = await verifyPdsToken(token, {
+ *   pdsUrl: 'https://pds.openfederation.net',
+ * });
+ * ```
+ *
+ * **DID-based discovery** (for multi-PDS environments):
+ * Omit `pdsUrl` to resolve the user's PDS from the PLC directory.
+ * Note: this won't work for federated/external users whose DID points
+ * to a different PDS than the one that issued the token.
+ *
+ * ```ts
+ * const session = await verifyPdsToken(token, {
+ *   plcDirectoryUrl: 'https://plc.openfederation.net',
+ * });
+ * ```
  *
  * @returns `{ did, handle }` on success, `null` on any failure
  */
@@ -46,39 +86,48 @@ export async function verifyPdsToken(
   accessToken: string,
   options?: VerifyPdsTokenOptions,
 ): Promise<VerifiedSession | null> {
-  const plcUrl = (options?.plcDirectoryUrl || DEFAULT_PLC_URL).replace(/\/$/, '');
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT;
 
-  // 1. Decode JWT to get the DID (sub claim)
+  // 1. Decode JWT to extract the DID
   const payload = decodeJwtPayload(accessToken);
-  if (!payload || typeof payload.sub !== 'string') return null;
-  const did = payload.sub as string;
+  if (!payload) return null;
+
+  const did = extractDid(payload);
+  if (!did) return null;
 
   // Optional: check expected DID early
   if (options?.expectedDid && did !== options.expectedDid) return null;
 
-  // 2. Resolve DID document from PLC directory
+  // 2. Determine the PDS endpoint
   let pdsEndpoint: string;
-  try {
-    const didRes = await fetch(`${plcUrl}/${encodeURIComponent(did)}`, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!didRes.ok) return null;
 
-    const didDoc = await didRes.json() as {
-      service?: Array<{ id: string; type: string; serviceEndpoint: string }>;
-    };
+  if (options?.pdsUrl) {
+    // Known PDS — skip DID resolution
+    pdsEndpoint = options.pdsUrl.replace(/\/$/, '');
+  } else {
+    // DID-based discovery via PLC directory
+    const plcUrl = (options?.plcDirectoryUrl || DEFAULT_PLC_URL).replace(/\/$/, '');
+    try {
+      const didRes = await fetch(`${plcUrl}/${encodeURIComponent(did)}`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!didRes.ok) return null;
 
-    const pdsService = didDoc.service?.find(
-      (s) => s.id === '#atproto_pds' || s.type === 'AtprotoPersonalDataServer',
-    );
-    if (!pdsService?.serviceEndpoint) return null;
-    pdsEndpoint = pdsService.serviceEndpoint.replace(/\/$/, '');
-  } catch {
-    return null;
+      const didDoc = await didRes.json() as {
+        service?: Array<{ id: string; type: string; serviceEndpoint: string }>;
+      };
+
+      const pdsService = didDoc.service?.find(
+        (s) => s.id === '#atproto_pds' || s.type === 'AtprotoPersonalDataServer',
+      );
+      if (!pdsService?.serviceEndpoint) return null;
+      pdsEndpoint = pdsService.serviceEndpoint.replace(/\/$/, '');
+    } catch {
+      return null;
+    }
   }
 
-  // 3. Verify token by calling getSession on the resolved PDS
+  // 3. Verify token by calling getSession on the PDS
   try {
     const sessionRes = await fetch(
       `${pdsEndpoint}/xrpc/com.atproto.server.getSession`,
@@ -91,7 +140,7 @@ export async function verifyPdsToken(
 
     const session = await sessionRes.json() as { did?: string; handle?: string };
 
-    // 4. Verify returned DID matches the token's sub claim
+    // 4. Verify returned DID matches the token's DID claim
     if (!session.did || !session.handle || session.did !== did) return null;
 
     return { did: session.did, handle: session.handle };
