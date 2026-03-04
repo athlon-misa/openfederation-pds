@@ -1,4 +1,4 @@
-import type { ClientConfig, User, RegisterOptions, LoginOptions, FetchOptions, SessionResponse } from './types.js';
+import type { ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions, SessionResponse } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
 import { displayHandle as displayHandleUtil, xrpcUrl } from './utils.js';
@@ -108,6 +108,24 @@ export class OpenFederationClient {
    */
   isAuthenticated(): boolean {
     return this.tokens.hasTokens();
+  }
+
+  /**
+   * Get the current access JWT, or null if not authenticated.
+   */
+  getAccessToken(): string | null {
+    return this.tokens.getAccessJwt();
+  }
+
+  /**
+   * Get the full session (tokens + user), or null if not authenticated.
+   */
+  getSession(): Session | null {
+    const accessJwt = this.tokens.getAccessJwt();
+    const refreshJwt = this.tokens.getRefreshJwt();
+    const user = this.tokens.getUser();
+    if (!accessJwt || !refreshJwt || !user) return null;
+    return { accessJwt, refreshJwt, user };
   }
 
   /**

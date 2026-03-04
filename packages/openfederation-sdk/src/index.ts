@@ -11,6 +11,7 @@ export {
 export type {
   ClientConfig,
   User,
+  Session,
   RegisterOptions,
   LoginOptions,
   FetchOptions,

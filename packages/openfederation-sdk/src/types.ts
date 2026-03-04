@@ -37,6 +37,12 @@ export interface FetchOptions {
   params?: Record<string, string>;
 }
 
+export interface Session {
+  accessJwt: string;
+  refreshJwt: string;
+  user: User;
+}
+
 /** Internal: shape of the register/login response from the PDS */
 export interface SessionResponse {
   id?: string;
