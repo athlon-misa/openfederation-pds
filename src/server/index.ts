@@ -84,21 +84,28 @@ app.use((_req, res, next) => {
   next();
 });
 
-// CORS middleware (supports static origins + dynamic partner origins)
+// CORS middleware
+// XRPC endpoints use Access-Control-Allow-Origin: * (ATProto standard — auth
+// is via bearer tokens, not cookies, so wildcard is safe). Non-XRPC paths
+// (web UI, OAuth) use origin-specific CORS from CORS_ORIGINS + partner origins.
 app.use(async (req, res, next) => {
-  const staticOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
-    .split(',')
-    .map(o => o.trim())
-    .filter(Boolean);
-  const origin = req.headers.origin;
-  if (origin) {
-    if (staticOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    } else if (req.headers['x-partner-key']) {
-      // Dynamic: check if origin is in any active partner's allowed_origins
-      const partnerOrigins = await getCachedPartnerOrigins();
-      if (partnerOrigins.includes(origin)) {
+  const isXrpc = req.path.startsWith('/xrpc/');
+  if (isXrpc) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    const staticOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
+      .split(',')
+      .map(o => o.trim())
+      .filter(Boolean);
+    const origin = req.headers.origin;
+    if (origin) {
+      if (staticOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
+      } else if (req.headers['x-partner-key']) {
+        const partnerOrigins = await getCachedPartnerOrigins();
+        if (partnerOrigins.includes(origin)) {
+          res.setHeader('Access-Control-Allow-Origin', origin);
+        }
       }
     }
   }
