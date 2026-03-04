@@ -8,12 +8,16 @@ CREATE TABLE IF NOT EXISTS users (
     handle VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'disabled')),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'disabled', 'suspended', 'takendown', 'deactivated')),
     did VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     approved_at TIMESTAMP WITH TIME ZONE,
     approved_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
-    created_by_partner VARCHAR(36)
+    created_by_partner VARCHAR(36),
+    status_changed_at TIMESTAMP WITH TIME ZONE,
+    status_changed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    status_reason TEXT,
+    exported_at TIMESTAMP WITH TIME ZONE
     -- FK to partner_keys(id) added after partner_keys table creation
 );
 

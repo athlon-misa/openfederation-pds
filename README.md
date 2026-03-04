@@ -80,6 +80,16 @@ For Docker and other platforms, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 | `approved` | Active account, can log in and use the system. |
 | `rejected` | Registration denied by admin/moderator. |
 | `disabled` | Previously approved account disabled by admin. |
+| `suspended` | Admin-suspended (reversible). User cannot log in or refresh tokens. |
+| `takendown` | Admin takedown (requires prior export per AT Protocol "free to go" principle). |
+| `deactivated` | User self-deactivated. Can reactivate via `activateAccount`. |
+
+```
+pending → approved → suspended → approved     (admin suspend/unsuspend)
+                   → deactivated → approved   (user self-deactivate/reactivate)
+                   → suspended → takendown    (admin escalation, requires export)
+                   → takendown → approved     (admin reversal)
+```
 
 ### Typical Flow
 
@@ -116,6 +126,11 @@ All endpoints are XRPC methods at `/xrpc/{nsid}`. Formal lexicon schemas for all
 | `com.atproto.repo.describeRepo` | GET | No | Repo metadata and available collections |
 | `com.atproto.repo.listRecords` | GET | No | Paginated record listing |
 | `com.atproto.sync.getRepo` | GET | No | Full repo as CAR stream (federation) |
+| `com.atproto.admin.updateSubjectStatus` | POST | Admin | Suspend/unsuspend or takedown/reverse-takedown a user by DID |
+| `com.atproto.admin.getSubjectStatus` | GET | Admin | Check moderation status of an account by DID |
+| `com.atproto.admin.deleteAccount` | POST | Admin | Permanently delete a user account and all repo data |
+| `com.atproto.server.deactivateAccount` | POST | Yes | User deactivates own account (self-service) |
+| `com.atproto.server.activateAccount` | POST | Yes | User reactivates own account after self-deactivation |
 
 ### Account Management
 
@@ -128,6 +143,7 @@ All endpoints are XRPC methods at `/xrpc/{nsid}`. Formal lexicon schemas for all
 | `net.openfederation.account.reject` | POST | Admin/Mod | Reject user |
 | `net.openfederation.invite.create` | POST | Admin/Mod | Create invite code |
 | `net.openfederation.invite.list` | GET | Admin/Mod | List invite codes (filter by status) |
+| `net.openfederation.account.export` | GET | Self/Admin | Export user repo data as JSON (AT Protocol "free to go") |
 
 ### Community Management
 
@@ -156,12 +172,15 @@ All endpoints are XRPC methods at `/xrpc/{nsid}`. Formal lexicon schemas for all
 | `net.openfederation.community.takedown` | POST | PDS Admin | Take down a community (requires prior export) |
 | `net.openfederation.community.transfer` | POST | Owner | Initiate transfer to another PDS |
 
-Communities follow the AT Protocol "free to go" principle:
-- Owners can always export their community data
-- Suspended communities remain readable by owners for export
+Both communities and user accounts follow the AT Protocol "free to go" principle:
+- Owners/users can always export their data
+- Suspended communities/accounts remain readable for export purposes
 - Takedown requires that an export has been performed first
 - Transfer generates a package with migration instructions for did:plc or did:web
 - **Transfer is owner-only** per AT Protocol — the DID holder initiates migration, not the PDS admin
+- Users can self-deactivate and later reactivate without admin involvement
+- Admin-suspended accounts cannot be reactivated by the user — only admins can unsuspend
+- All moderation actions (suspend, unsuspend, takedown, delete) are recorded in the audit log
 
 ### Partner API (Third-Party Registration)
 
@@ -280,6 +299,54 @@ curl 'http://localhost:8080/xrpc/net.openfederation.community.export?did=did:plc
   -H "Authorization: Bearer <accessJwt>"
 ```
 
+Suspend a user account (admin):
+```bash
+curl -X POST http://localhost:8080/xrpc/com.atproto.admin.updateSubjectStatus \
+  -H "Authorization: Bearer <accessJwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"subject":{"did":"did:plc:user123"},"deactivated":{"applied":true,"ref":"Violation of ToS"}}'
+```
+
+Unsuspend a user (admin):
+```bash
+curl -X POST http://localhost:8080/xrpc/com.atproto.admin.updateSubjectStatus \
+  -H "Authorization: Bearer <accessJwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"subject":{"did":"did:plc:user123"},"deactivated":{"applied":false}}'
+```
+
+Check account moderation status (admin):
+```bash
+curl 'http://localhost:8080/xrpc/com.atproto.admin.getSubjectStatus?did=did:plc:user123' \
+  -H "Authorization: Bearer <accessJwt>"
+```
+
+Export user data (self or admin):
+```bash
+curl 'http://localhost:8080/xrpc/net.openfederation.account.export?did=did:plc:user123' \
+  -H "Authorization: Bearer <accessJwt>"
+```
+
+Deactivate own account (user):
+```bash
+curl -X POST http://localhost:8080/xrpc/com.atproto.server.deactivateAccount \
+  -H "Authorization: Bearer <accessJwt>"
+```
+
+Reactivate own account (user):
+```bash
+curl -X POST http://localhost:8080/xrpc/com.atproto.server.activateAccount \
+  -H "Authorization: Bearer <accessJwt>"
+```
+
+Delete a user account (admin — permanent):
+```bash
+curl -X POST http://localhost:8080/xrpc/com.atproto.admin.deleteAccount \
+  -H "Authorization: Bearer <accessJwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"did":"did:plc:user123"}'
+```
+
 Logout:
 ```bash
 curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
@@ -354,13 +421,13 @@ npm run cli -- auth logout
 - Primary rotation key returned to user once, never stored by the server.
 - Sanitized error messages. Request body limit of 256kb.
 - Audit logging for all admin, moderation, and security-relevant actions.
-- Community moderation follows AT Protocol composable moderation: suspend (reversible) and takedown (requires prior export).
+- Community and account moderation follows AT Protocol composable moderation: suspend (reversible) and takedown (requires prior export). Admin accounts are protected from moderation actions.
 - Approve/reject endpoints guard against re-processing already-resolved users.
 - Partner API keys are hashed (SHA-256) in the database and never stored in plaintext. Origin validation and per-key rate limiting protect against abuse.
 
 ## Lexicon Schemas
 
-AT Protocol lexicon definitions for all 26 custom `net.openfederation.*` endpoints are in `src/lexicon/`. These define the formal request/response schemas following the [AT Protocol Lexicon specification](https://atproto.com/specs/lexicon).
+AT Protocol lexicon definitions for custom `net.openfederation.*` endpoints are in `src/lexicon/`. These define the formal request/response schemas following the [AT Protocol Lexicon specification](https://atproto.com/specs/lexicon).
 
 ## Development
 

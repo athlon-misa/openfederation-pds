@@ -75,6 +75,30 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
+    if (user.status === 'suspended') {
+      res.status(403).json({
+        error: 'AccountSuspended',
+        message: 'Your account has been suspended.',
+      });
+      return;
+    }
+
+    if (user.status === 'takendown') {
+      res.status(410).json({
+        error: 'AccountTakenDown',
+        message: 'Your account has been taken down.',
+      });
+      return;
+    }
+
+    if (user.status === 'deactivated') {
+      res.status(403).json({
+        error: 'AccountDeactivated',
+        message: 'Your account is deactivated. Reactivate it to continue.',
+      });
+      return;
+    }
+
     if (user.status !== 'approved') {
       res.status(403).json({
         error: 'AccountNotApproved',

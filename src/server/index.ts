@@ -57,6 +57,12 @@ import linkApplication from '../api/net.openfederation.community.linkApplication
 import unlinkApplication from '../api/net.openfederation.community.unlinkApplication.js';
 import listApplications from '../api/net.openfederation.community.listApplications.js';
 import verifyMembership from '../api/net.openfederation.community.verifyMembership.js';
+import updateSubjectStatus from '../api/com.atproto.admin.updateSubjectStatus.js';
+import getSubjectStatus from '../api/com.atproto.admin.getSubjectStatus.js';
+import adminDeleteAccount from '../api/com.atproto.admin.deleteAccount.js';
+import deactivateAccount from '../api/com.atproto.server.deactivateAccount.js';
+import activateAccount from '../api/com.atproto.server.activateAccount.js';
+import exportAccount from '../api/net.openfederation.account.export.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -203,7 +209,17 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.partner.listKeys': { handler: listPartnerKeys },
   'net.openfederation.partner.revokeKey': { handler: revokePartnerKey },
 
+  // OpenFederation account lifecycle
+  'net.openfederation.account.export': { handler: exportAccount },
+
+  // Standard ATProto admin endpoints
+  'com.atproto.admin.updateSubjectStatus': { handler: updateSubjectStatus },
+  'com.atproto.admin.getSubjectStatus': { handler: getSubjectStatus },
+  'com.atproto.admin.deleteAccount': { handler: adminDeleteAccount },
+
   // Standard ATProto endpoints
+  'com.atproto.server.deactivateAccount': { handler: deactivateAccount },
+  'com.atproto.server.activateAccount': { handler: activateAccount },
   'com.atproto.server.createSession': { handler: createSession, limiter: authLimiter },
   'com.atproto.server.refreshSession': { handler: refreshSession, limiter: authLimiter },
   'com.atproto.server.getSession': { handler: getSession },

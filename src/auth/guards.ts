@@ -35,6 +35,30 @@ export function requireApprovedUser(req: AuthRequest, res: Response): boolean {
     return false;
   }
 
+  if (req.auth.status === 'suspended') {
+    res.status(403).json({
+      error: 'AccountSuspended',
+      message: 'Your account has been suspended.',
+    });
+    return false;
+  }
+
+  if (req.auth.status === 'takendown') {
+    res.status(410).json({
+      error: 'AccountTakenDown',
+      message: 'Your account has been taken down.',
+    });
+    return false;
+  }
+
+  if (req.auth.status === 'deactivated') {
+    res.status(403).json({
+      error: 'AccountDeactivated',
+      message: 'Your account is deactivated. Reactivate it to continue.',
+    });
+    return false;
+  }
+
   if (req.auth.status !== 'approved') {
     res.status(403).json({
       error: 'AccountNotApproved',

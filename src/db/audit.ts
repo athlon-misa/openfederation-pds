@@ -25,7 +25,14 @@ export type AuditAction =
   | 'community.unlinkApplication'
   | 'partner.register'
   | 'partner.key.create'
-  | 'partner.key.revoke';
+  | 'partner.key.revoke'
+  | 'account.suspend'
+  | 'account.unsuspend'
+  | 'account.takedown'
+  | 'account.deactivate'
+  | 'account.activate'
+  | 'account.delete'
+  | 'account.export';
 
 export async function auditLog(
   action: AuditAction,
