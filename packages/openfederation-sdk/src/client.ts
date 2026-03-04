@@ -1,27 +1,36 @@
-import type { ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions, SessionResponse } from './types.js';
+import type { ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions, SessionResponse, AuthProvider } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
 import { displayHandle as displayHandleUtil, xrpcUrl } from './utils.js';
 import { errorFromResponse, AuthenticationError } from './errors.js';
 
-export class OpenFederationClient {
+export class OpenFederationClient implements AuthProvider {
   private serverUrl: string;
   private partnerKey: string;
   private tokens: TokenManager;
   private autoRefresh: boolean;
-  private onAuthChange?: (user: User | null) => void;
+  private authChangeListeners: Set<(user: User | null) => void> = new Set();
 
   constructor(config: ClientConfig) {
     this.serverUrl = config.serverUrl.replace(/\/$/, '');
     this.partnerKey = config.partnerKey;
     this.autoRefresh = config.autoRefresh !== false;
-    this.onAuthChange = config.onAuthChange;
+
+    if (config.onAuthChange) {
+      this.authChangeListeners.add(config.onAuthChange);
+    }
 
     const storage = createStorage(config.storage || 'local');
     this.tokens = new TokenManager(storage, config.storagePrefix || 'ofd_');
 
     if (this.autoRefresh) {
       this.tokens.setRefreshCallback(() => this.doRefresh());
+    }
+  }
+
+  private notifyAuthChange(user: User | null): void {
+    for (const cb of this.authChangeListeners) {
+      cb(user);
     }
   }
 
@@ -59,7 +68,7 @@ export class OpenFederationClient {
     };
 
     this.tokens.setTokens(data.accessJwt, data.refreshJwt, user);
-    this.onAuthChange?.(user);
+    this.notifyAuthChange(user);
     return user;
   }
 
@@ -92,7 +101,7 @@ export class OpenFederationClient {
     };
 
     this.tokens.setTokens(data.accessJwt, data.refreshJwt, user);
-    this.onAuthChange?.(user);
+    this.notifyAuthChange(user);
     return user;
   }
 
@@ -111,21 +120,37 @@ export class OpenFederationClient {
   }
 
   /**
-   * Get the current access JWT, or null if not authenticated.
+   * Get a valid access JWT, auto-refreshing if expired or about to expire.
+   * Returns null if not authenticated.
    */
-  getAccessToken(): string | null {
+  async getAccessToken(): Promise<string | null> {
+    if (!this.tokens.hasTokens()) return null;
+    if (this.tokens.isTokenExpired(60)) {
+      await this.doRefresh();
+    }
     return this.tokens.getAccessJwt();
   }
 
   /**
-   * Get the full session (tokens + user), or null if not authenticated.
+   * Get the full session (tokens + user), auto-refreshing if needed.
+   * Returns null if not authenticated.
    */
-  getSession(): Session | null {
+  async getSession(): Promise<Session | null> {
+    await this.getAccessToken();
     const accessJwt = this.tokens.getAccessJwt();
     const refreshJwt = this.tokens.getRefreshJwt();
     const user = this.tokens.getUser();
     if (!accessJwt || !refreshJwt || !user) return null;
     return { accessJwt, refreshJwt, user };
+  }
+
+  /**
+   * Subscribe to auth state changes (login, logout, token refresh failure).
+   * Returns an unsubscribe function.
+   */
+  onAuthChange(callback: (user: User | null) => void): () => void {
+    this.authChangeListeners.add(callback);
+    return () => { this.authChangeListeners.delete(callback); };
   }
 
   /**
@@ -147,7 +172,7 @@ export class OpenFederationClient {
     }
 
     this.tokens.clear();
-    this.onAuthChange?.(null);
+    this.notifyAuthChange(null);
   }
 
   /**
@@ -209,7 +234,7 @@ export class OpenFederationClient {
     };
 
     this.tokens.setTokens(data.accessJwt, data.refreshJwt, user);
-    this.onAuthChange?.(user);
+    this.notifyAuthChange(user);
     return user;
   }
 
@@ -274,7 +299,7 @@ export class OpenFederationClient {
    */
   destroy(): void {
     this.tokens.destroy();
-    this.onAuthChange = undefined;
+    this.authChangeListeners.clear();
   }
 
   /** Refresh the access token using the refresh token */
@@ -282,7 +307,7 @@ export class OpenFederationClient {
     const refreshJwt = this.tokens.getRefreshJwt();
     if (!refreshJwt) {
       this.tokens.clear();
-      this.onAuthChange?.(null);
+      this.notifyAuthChange(null);
       return;
     }
 
@@ -295,7 +320,7 @@ export class OpenFederationClient {
 
       if (!res.ok) {
         this.tokens.clear();
-        this.onAuthChange?.(null);
+        this.notifyAuthChange(null);
         return;
       }
 

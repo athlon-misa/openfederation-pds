@@ -71,6 +71,19 @@ export class TokenManager {
     }
   }
 
+  /**
+   * Check whether the current access token is expired or will expire
+   * within `bufferSec` seconds.  Returns true if there is no token.
+   */
+  isTokenExpired(bufferSec = 0): boolean {
+    const jwt = this.getAccessJwt();
+    if (!jwt) return true;
+    const exp = this.getTokenExpiry(jwt);
+    if (!exp) return true;
+    const nowSec = Math.floor(Date.now() / 1000);
+    return exp - nowSec <= bufferSec;
+  }
+
   /** Decode JWT expiry (no verification — just reads the `exp` claim) */
   private getTokenExpiry(jwt: string): number | null {
     try {

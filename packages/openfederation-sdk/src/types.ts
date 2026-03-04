@@ -43,6 +43,22 @@ export interface Session {
   user: User;
 }
 
+/**
+ * Interface for third-party SDKs to consume OpenFederation auth.
+ * The OpenFederationClient implements this — pass it as `authProvider`
+ * to any SDK that needs authenticated requests.
+ */
+export interface AuthProvider {
+  /** Get a valid access token, auto-refreshing if expired. */
+  getAccessToken(): Promise<string | null>;
+  /** Get the current user, or null if not authenticated. */
+  getUser(): Promise<User | null>;
+  /** Synchronous check for whether tokens exist. */
+  isAuthenticated(): boolean;
+  /** Subscribe to auth state changes. Returns an unsubscribe function. */
+  onAuthChange(callback: (user: User | null) => void): () => void;
+}
+
 /** Internal: shape of the register/login response from the PDS */
 export interface SessionResponse {
   id?: string;

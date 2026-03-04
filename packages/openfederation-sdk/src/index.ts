@@ -9,6 +9,7 @@ export {
   ForbiddenError,
 } from './errors.js';
 export type {
+  AuthProvider,
   ClientConfig,
   User,
   Session,
