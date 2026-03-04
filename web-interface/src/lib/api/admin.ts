@@ -76,6 +76,19 @@ export async function takedownAccount(did: string, reason?: string) {
   });
 }
 
+export async function reverseTakedownAccount(did: string) {
+  return xrpc<{ subject: unknown; takedown: unknown; deactivated: unknown }>('com.atproto.admin.updateSubjectStatus', {
+    body: { subject: { did }, takedown: { applied: false } },
+  });
+}
+
+export async function exportAccount(did: string) {
+  return xrpc<unknown>('net.openfederation.account.export', {
+    method: 'GET',
+    params: { did },
+  });
+}
+
 export async function deleteAccount(did: string) {
   return xrpc<{ success: boolean }>('com.atproto.admin.deleteAccount', {
     body: { did },

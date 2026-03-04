@@ -9,6 +9,8 @@ import {
   useSuspendAccountMutation,
   useUnsuspendAccountMutation,
   useTakedownAccountMutation,
+  useReverseTakedownAccountMutation,
+  useExportAccountMutation,
   useDeleteAccountMutation,
 } from '@/hooks/use-admin';
 import { PageHeader } from '@/components/page-header';
@@ -39,7 +41,7 @@ export default function AdminUsersPage() {
 
   const [actionTarget, setActionTarget] = useState<{
     did: string;
-    action: 'suspend' | 'unsuspend' | 'takedown' | 'delete';
+    action: 'suspend' | 'unsuspend' | 'takedown' | 'reverseTakedown' | 'export' | 'delete';
     handle: string;
   } | null>(null);
   const [reason, setReason] = useState('');
@@ -57,6 +59,8 @@ export default function AdminUsersPage() {
   const suspendMutation = useSuspendAccountMutation();
   const unsuspendMutation = useUnsuspendAccountMutation();
   const takedownMutation = useTakedownAccountMutation();
+  const reverseTakedownMutation = useReverseTakedownAccountMutation();
+  const exportMutation = useExportAccountMutation();
   const deleteMutation = useDeleteAccountMutation();
 
   const handleAction = () => {
@@ -77,6 +81,16 @@ export default function AdminUsersPage() {
         onSuccess: () => { toast.success('Account taken down'); setActionTarget(null); setReason(''); },
         onError: (e) => toast.error(e.message),
       });
+    } else if (action === 'reverseTakedown') {
+      reverseTakedownMutation.mutate(did, {
+        onSuccess: () => { toast.success('Takedown reversed'); setActionTarget(null); },
+        onError: (e) => toast.error(e.message),
+      });
+    } else if (action === 'export') {
+      exportMutation.mutate(did, {
+        onSuccess: () => { toast.success('Account exported (exported_at set)'); setActionTarget(null); },
+        onError: (e) => toast.error(e.message),
+      });
     } else if (action === 'delete') {
       deleteMutation.mutate(did, {
         onSuccess: () => { toast.success('Account deleted'); setActionTarget(null); },
@@ -84,6 +98,11 @@ export default function AdminUsersPage() {
       });
     }
   };
+
+  const actionMutationPending =
+    suspendMutation.isPending || unsuspendMutation.isPending ||
+    takedownMutation.isPending || reverseTakedownMutation.isPending ||
+    exportMutation.isPending || deleteMutation.isPending;
 
   const columns: ColumnDef<AccountListItem, unknown>[] = [
     { accessorKey: 'handle', header: 'Handle' },
@@ -164,6 +183,16 @@ export default function AdminUsersPage() {
                 </Button>
               </>
             )}
+            {u.status === 'takendown' && (
+              <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'reverseTakedown', handle: u.handle })}>
+                Reverse Takedown
+              </Button>
+            )}
+            {(u.status !== 'rejected') && (
+              <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'export', handle: u.handle })}>
+                Export
+              </Button>
+            )}
             {(u.status === 'approved' || u.status === 'suspended' || u.status === 'takendown') && (
               <Button size="sm" variant="destructive" onClick={() => setActionTarget({ did: u.did, action: 'delete', handle: u.handle })}>
                 Delete
@@ -174,6 +203,35 @@ export default function AdminUsersPage() {
       },
     },
   ];
+
+  const getDialogProps = () => {
+    if (!actionTarget) return { title: '', description: '', variant: 'default' as const };
+    const { action, handle } = actionTarget;
+    switch (action) {
+      case 'suspend':
+        return { title: 'Suspend account', description: `Suspend @${handle}? Their sessions will be revoked.`, variant: 'default' as const };
+      case 'unsuspend':
+        return { title: 'Unsuspend account', description: `Unsuspend @${handle}?`, variant: 'default' as const };
+      case 'takedown':
+        return { title: 'Take down account', description: `Take down @${handle}? This requires a prior data export.`, variant: 'destructive' as const };
+      case 'reverseTakedown':
+        return { title: 'Reverse takedown', description: `Reverse takedown for @${handle}? Account will be restored to approved.`, variant: 'default' as const };
+      case 'export':
+        return { title: 'Export account', description: `Export all repo data for @${handle}? This sets exported_at (required before takedown).`, variant: 'default' as const };
+      case 'delete':
+        return { title: 'Delete account', description: `Permanently delete @${handle} and all their data? This cannot be undone.`, variant: 'destructive' as const };
+    }
+  };
+
+  const dialogProps = getDialogProps();
+  const confirmLabels: Record<string, string> = {
+    suspend: 'Suspend',
+    unsuspend: 'Unsuspend',
+    takedown: 'Take Down',
+    reverseTakedown: 'Reverse Takedown',
+    export: 'Export',
+    delete: 'Delete',
+  };
 
   return (
     <div>
@@ -228,17 +286,11 @@ export default function AdminUsersPage() {
         <ConfirmDialog
           open={!!actionTarget}
           onOpenChange={(open) => { if (!open) { setActionTarget(null); setReason(''); } }}
-          title={`${actionTarget.action.charAt(0).toUpperCase() + actionTarget.action.slice(1)} account`}
-          description={
-            actionTarget.action === 'unsuspend'
-              ? `Unsuspend @${actionTarget.handle}?`
-              : actionTarget.action === 'delete'
-              ? `Permanently delete @${actionTarget.handle} and all their data? This cannot be undone.`
-              : `${actionTarget.action === 'suspend' ? 'Suspend' : 'Take down'} @${actionTarget.handle}?${actionTarget.action === 'takedown' ? ' This requires a prior data export.' : ''}`
-          }
-          confirmLabel={actionTarget.action.charAt(0).toUpperCase() + actionTarget.action.slice(1)}
-          variant={actionTarget.action === 'takedown' || actionTarget.action === 'delete' ? 'destructive' : 'default'}
-          loading={suspendMutation.isPending || unsuspendMutation.isPending || takedownMutation.isPending || deleteMutation.isPending}
+          title={dialogProps.title}
+          description={dialogProps.description}
+          confirmLabel={confirmLabels[actionTarget.action]}
+          variant={dialogProps.variant}
+          loading={actionMutationPending}
           onConfirm={handleAction}
         >
           {(actionTarget.action === 'suspend' || actionTarget.action === 'takedown') && (

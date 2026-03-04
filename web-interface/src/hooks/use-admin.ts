@@ -8,6 +8,8 @@ import {
   suspendAccount,
   unsuspendAccount,
   takedownAccount,
+  reverseTakedownAccount,
+  exportAccount,
   deleteAccount,
 } from '@/lib/api/admin';
 import { suspendCommunity, unsuspendCommunity, takedownCommunity, deleteCommunity, listAllCommunities } from '@/lib/api/communities';
@@ -126,6 +128,34 @@ export function useTakedownAccountMutation() {
   return useMutation({
     mutationFn: async ({ did, reason }: { did: string; reason?: string }) => {
       const result = await takedownAccount(did, reason);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+}
+
+export function useReverseTakedownAccountMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (did: string) => {
+      const result = await reverseTakedownAccount(did);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+}
+
+export function useExportAccountMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (did: string) => {
+      const result = await exportAccount(did);
       if (!result.ok) throw new Error(result.message);
       return result.data;
     },
