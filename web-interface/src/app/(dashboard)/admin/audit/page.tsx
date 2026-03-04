@@ -36,6 +36,13 @@ const ACTION_TYPES = [
   'community.transfer.initiate',
   'join_request.approve',
   'join_request.reject',
+  'account.suspend',
+  'account.unsuspend',
+  'account.takedown',
+  'account.deactivate',
+  'account.activate',
+  'account.delete',
+  'account.export',
 ];
 
 export default function AdminAuditPage() {

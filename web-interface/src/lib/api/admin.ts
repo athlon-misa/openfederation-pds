@@ -57,3 +57,27 @@ export async function getServerConfig() {
     method: 'GET',
   });
 }
+
+export async function suspendAccount(did: string, reason?: string) {
+  return xrpc<{ subject: unknown; takedown: unknown; deactivated: unknown }>('com.atproto.admin.updateSubjectStatus', {
+    body: { subject: { did }, deactivated: { applied: true, ref: reason } },
+  });
+}
+
+export async function unsuspendAccount(did: string) {
+  return xrpc<{ subject: unknown; takedown: unknown; deactivated: unknown }>('com.atproto.admin.updateSubjectStatus', {
+    body: { subject: { did }, deactivated: { applied: false } },
+  });
+}
+
+export async function takedownAccount(did: string, reason?: string) {
+  return xrpc<{ subject: unknown; takedown: unknown; deactivated: unknown }>('com.atproto.admin.updateSubjectStatus', {
+    body: { subject: { did }, takedown: { applied: true, ref: reason } },
+  });
+}
+
+export async function deleteAccount(did: string) {
+  return xrpc<{ success: boolean }>('com.atproto.admin.deleteAccount', {
+    body: { did },
+  });
+}

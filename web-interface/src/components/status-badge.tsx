@@ -8,6 +8,7 @@ const statusVariants: Record<string, 'default' | 'secondary' | 'destructive' | '
   rejected: 'destructive',
   disabled: 'destructive',
   takendown: 'destructive',
+  deactivated: 'outline',
   expired: 'outline',
   exhausted: 'outline',
 };

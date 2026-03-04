@@ -5,6 +5,10 @@ import {
   approveAccount,
   rejectAccount,
   createInvite,
+  suspendAccount,
+  unsuspendAccount,
+  takedownAccount,
+  deleteAccount,
 } from '@/lib/api/admin';
 import { suspendCommunity, unsuspendCommunity, takedownCommunity, deleteCommunity, listAllCommunities } from '@/lib/api/communities';
 
@@ -85,6 +89,62 @@ export function useCreateInviteMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'invites'] });
+    },
+  });
+}
+
+export function useSuspendAccountMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ did, reason }: { did: string; reason?: string }) => {
+      const result = await suspendAccount(did, reason);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+}
+
+export function useUnsuspendAccountMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (did: string) => {
+      const result = await unsuspendAccount(did);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+}
+
+export function useTakedownAccountMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ did, reason }: { did: string; reason?: string }) => {
+      const result = await takedownAccount(did, reason);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
+    },
+  });
+}
+
+export function useDeleteAccountMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (did: string) => {
+      const result = await deleteAccount(did);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
   });
 }
