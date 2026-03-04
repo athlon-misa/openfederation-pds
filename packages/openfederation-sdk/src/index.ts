@@ -1,4 +1,5 @@
 export { OpenFederationClient } from './client.js';
+export { verifyPdsToken } from './verify.js';
 export { displayHandle } from './utils.js';
 export {
   OpenFederationError,
@@ -17,6 +18,7 @@ export type {
   LoginOptions,
   FetchOptions,
 } from './types.js';
+export type { VerifiedSession, VerifyPdsTokenOptions } from './verify.js';
 
 import { OpenFederationClient } from './client.js';
 import type { ClientConfig } from './types.js';
