@@ -71,6 +71,10 @@ import { apRouter } from '../activitypub/ap-routes.js';
 
 const app = express();
 
+// Trust the first proxy (Railway, Render, etc.) so req.ip uses X-Forwarded-For
+// and express-rate-limit identifies clients correctly.
+app.set('trust proxy', 1);
+
 // Security headers middleware
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
