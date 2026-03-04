@@ -481,7 +481,7 @@ app.get('/sdk/v1.js', (req: Request, res: Response) => {
   }
   const js = readFileSync(sdkPath, 'utf-8');
   res.setHeader('Content-Type', 'application/javascript');
-  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Cache-Control', 'public, max-age=300');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.send(js);
 });
