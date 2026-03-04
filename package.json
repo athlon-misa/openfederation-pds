@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc && npm run build:sdk",
-    "build:sdk": "cd packages/openfederation-sdk && npm install --ignore-scripts && npm run build && mkdir -p ../../dist/sdk && cp dist/index.global.js ../../dist/sdk/v1.js",
+    "build:sdk": "cd packages/openfederation-sdk && NPM_CONFIG_PRODUCTION=false npm install && npm run build && mkdir -p ../../dist/sdk && cp dist/index.global.js ../../dist/sdk/v1.js",
     "start": "node dist/src/index.js",
     "dev": "node --loader ts-node/esm src/index.ts",
     "cli": "node dist/cli/ofc.js",
