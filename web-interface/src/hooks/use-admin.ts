@@ -11,6 +11,9 @@ import {
   reverseTakedownAccount,
   exportAccount,
   deleteAccount,
+  listPartnerKeys,
+  createPartnerKey,
+  revokePartnerKey,
 } from '@/lib/api/admin';
 import { suspendCommunity, unsuspendCommunity, takedownCommunity, deleteCommunity, listAllCommunities } from '@/lib/api/communities';
 
@@ -18,6 +21,7 @@ export const adminKeys = {
   accounts: (params: Record<string, unknown>) => ['admin', 'accounts', params] as const,
   invites: (params: Record<string, unknown>) => ['admin', 'invites', params] as const,
   allCommunities: (limit: number, offset: number) => ['admin', 'communities', { limit, offset }] as const,
+  partnerKeys: () => ['admin', 'partnerKeys'] as const,
 };
 
 export function useAccountsQuery(params: { limit?: number; offset?: number; status?: string; role?: string; q?: string } = {}) {
@@ -220,6 +224,45 @@ export function useTakedownCommunityMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'communities'] });
       queryClient.invalidateQueries({ queryKey: ['communities'] });
+    },
+  });
+}
+
+export function usePartnerKeysQuery() {
+  return useQuery({
+    queryKey: adminKeys.partnerKeys(),
+    queryFn: async () => {
+      const result = await listPartnerKeys();
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+  });
+}
+
+export function useCreatePartnerKeyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof createPartnerKey>[0]) => {
+      const result = await createPartnerKey(input);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'partnerKeys'] });
+    },
+  });
+}
+
+export function useRevokePartnerKeyMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await revokePartnerKey(id);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'partnerKeys'] });
     },
   });
 }

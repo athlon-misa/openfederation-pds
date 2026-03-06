@@ -1,5 +1,5 @@
 import { xrpc } from '../api-client';
-import type { InviteResponse, ListAccountsResponse, ListInvitesResponse, ListAuditResponse, ServerConfigResponse } from './types';
+import type { InviteResponse, ListAccountsResponse, ListInvitesResponse, ListAuditResponse, ServerConfigResponse, ListPartnerKeysResponse, CreatePartnerKeyResponse, RevokePartnerKeyResponse } from './types';
 
 export async function approveAccount(userId: string) {
   return xrpc<{ message: string }>('net.openfederation.account.approve', {
@@ -92,5 +92,29 @@ export async function exportAccount(did: string) {
 export async function deleteAccount(did: string) {
   return xrpc<{ success: boolean }>('com.atproto.admin.deleteAccount', {
     body: { did },
+  });
+}
+
+export async function listPartnerKeys() {
+  return xrpc<ListPartnerKeysResponse>('net.openfederation.partner.listKeys', {
+    method: 'GET',
+  });
+}
+
+export async function createPartnerKey(input: {
+  name: string;
+  partnerName: string;
+  allowedOrigins?: string[];
+  rateLimitPerHour?: number;
+  permissions?: string[];
+}) {
+  return xrpc<CreatePartnerKeyResponse>('net.openfederation.partner.createKey', {
+    body: input,
+  });
+}
+
+export async function revokePartnerKey(id: string) {
+  return xrpc<RevokePartnerKeyResponse>('net.openfederation.partner.revokeKey', {
+    body: { id },
   });
 }

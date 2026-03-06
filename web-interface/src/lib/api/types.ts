@@ -296,6 +296,44 @@ export interface ExternalCompleteResponse {
   active: boolean;
 }
 
+// Partner key types
+export interface PartnerKeyListItem {
+  id: string;
+  keyPrefix: string;
+  name: string;
+  partnerName: string;
+  permissions: string[];
+  allowedOrigins: string[] | null;
+  rateLimitPerHour: number;
+  status: string;
+  lastUsedAt: string | null;
+  totalRegistrations: number;
+  createdAt: string;
+  createdBy: string | null;
+  revokedAt: string | null;
+}
+
+export interface ListPartnerKeysResponse {
+  keys: PartnerKeyListItem[];
+}
+
+export interface CreatePartnerKeyResponse {
+  id: string;
+  key: string;
+  keyPrefix: string;
+  name: string;
+  partnerName: string;
+  permissions: string[];
+  allowedOrigins: string[] | null;
+  rateLimitPerHour: number;
+  status: string;
+}
+
+export interface RevokePartnerKeyResponse {
+  id: string;
+  status: string;
+}
+
 // API error type
 export interface ApiError {
   error: string;

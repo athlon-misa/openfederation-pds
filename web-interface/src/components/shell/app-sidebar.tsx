@@ -8,6 +8,7 @@ import {
   Compass,
   Users,
   Building2,
+  KeyRound,
   Ticket,
   ScrollText,
   Settings,
@@ -45,6 +46,7 @@ const mainNav = [
 const adminNav = [
   { title: 'Users', href: '/admin/users', icon: Users },
   { title: 'Communities', href: '/admin/communities', icon: Building2 },
+  { title: 'Partner Keys', href: '/admin/partner-keys', icon: KeyRound },
   { title: 'Invites', href: '/admin/invites', icon: Ticket },
   { title: 'Audit Log', href: '/admin/audit', icon: ScrollText },
 ];

@@ -736,6 +736,93 @@ community
     }
   }));
 
+// ── ofc partner ────────────────────────────────────────────────────
+
+const partner = program.command('partner').description('Partner key management (admin)');
+
+partner
+  .command('create-key')
+  .description('Create a new partner API key (admin)')
+  .requiredOption('-n, --name <name>', 'Key name (e.g. "FlappySoccer Production")')
+  .requiredOption('-p, --partner-name <name>', 'Partner name (e.g. "games.grvty.tech")')
+  .option('-o, --allowed-origins <origins>', 'Comma-separated allowed origins')
+  .option('-r, --rate-limit <n>', 'Rate limit per hour', '100')
+  .action(run(async () => {
+    const cmd = partner.commands.find(c => c.name() === 'create-key')!;
+    const opts = cmd.opts();
+
+    const body: Record<string, any> = {
+      name: opts.name,
+      partnerName: opts.partnerName,
+      rateLimitPerHour: parseInt(opts.rateLimit, 10),
+    };
+    if (opts.allowedOrigins) {
+      body.allowedOrigins = opts.allowedOrigins.split(',').map((o: string) => o.trim()).filter(Boolean);
+    }
+
+    const c = client();
+    const result = await c.authPost('net.openfederation.partner.createKey', body);
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      success('Partner key created');
+      keyValue([
+        ['ID', result.id],
+        ['Name', result.name],
+        ['Partner', result.partnerName],
+        ['Prefix', result.keyPrefix],
+        ['Rate Limit', `${result.rateLimitPerHour}/hr`],
+      ]);
+      warn('Save the key below! This is the only time you will see it.');
+      process.stdout.write(`\n${result.key}\n`);
+    }
+  }));
+
+partner
+  .command('list-keys')
+  .description('List all partner API keys (admin)')
+  .action(run(async () => {
+    const c = client();
+    const result = await c.authGet('net.openfederation.partner.listKeys');
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      const keys = result.keys || [];
+      if (keys.length === 0) {
+        info('No partner keys found');
+        return;
+      }
+      table(
+        ['Name', 'Partner', 'Prefix', 'Status', 'Rate Limit', 'Registrations', 'Last Used'],
+        keys.map((k: any) => [
+          k.name,
+          k.partnerName,
+          `${k.keyPrefix}...`,
+          k.status,
+          `${k.rateLimitPerHour}/hr`,
+          String(k.totalRegistrations ?? 0),
+          k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : 'Never',
+        ]),
+      );
+    }
+  }));
+
+partner
+  .command('revoke-key')
+  .description('Revoke a partner API key (admin)')
+  .argument('<id>', 'Partner key ID')
+  .action(run(async () => {
+    const cmd = partner.commands.find(c => c.name() === 'revoke-key')!;
+    const id = cmd.args[0];
+    const c = client();
+    await c.authPost('net.openfederation.partner.revokeKey', { id });
+    if (isJsonMode()) {
+      json({ ok: true, id });
+    } else {
+      success('Partner key revoked');
+    }
+  }));
+
 // ── ofc record ──────────────────────────────────────────────────────
 
 const record = program.command('record').description('Repository records');
