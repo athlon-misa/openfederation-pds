@@ -342,9 +342,50 @@ The `Origin` header can be spoofed by non-browser clients (curl, scripts), so ra
 
 ---
 
-## Admin: Creating Partner Keys
+## Admin: Managing Partner Keys
 
-PDS administrators create partner keys via the admin API:
+Partner keys let third-party apps register users on your PDS without invite codes. Each key is scoped to a specific partner, can be restricted to certain origins, and has its own rate limit. The raw key is shown **once** at creation time — save it immediately.
+
+There are three ways to manage partner keys:
+
+### Option 1: Web UI (Recommended)
+
+1. Log in to the admin dashboard at `https://web.openfederation.net`
+2. Navigate to **Admin > Partner Keys** in the sidebar
+3. Click **Create Key** and fill in:
+   - **Key Name** — a label for your reference (e.g., "FlappySoccer Production")
+   - **Partner Name** — the partner's domain or identifier (e.g., "games.grvty.tech")
+   - **Allowed Origins** — comma-separated origins for CORS validation (leave blank to allow any origin)
+   - **Rate Limit** — max registrations per hour for this key (default: 100)
+4. Copy the raw key from the dialog — it won't be shown again
+5. To revoke a key, click the **Revoke** button in the table
+
+### Option 2: CLI
+
+```bash
+# First, log in as an admin
+ofc -s https://pds.openfederation.net auth login -u admin
+
+# Create a partner key
+ofc partner create-key \
+  -n "FlappySoccer Production" \
+  -p "games.grvty.tech" \
+  -o "https://games.grvty.tech" \
+  -r 200
+
+# List all partner keys
+ofc partner list-keys
+
+# Revoke a key by ID
+ofc partner revoke-key <key-uuid>
+```
+
+Set `PDS_SERVICE_URL` to avoid passing `-s` every time:
+```bash
+export PDS_SERVICE_URL=https://pds.openfederation.net
+```
+
+### Option 3: API (curl)
 
 ```bash
 # Create a partner key
@@ -385,6 +426,30 @@ curl -X POST https://pds.openfederation.net/xrpc/net.openfederation.partner.revo
   -H "Content-Type: application/json" \
   -d '{"id": "key-uuid"}'
 ```
+
+### Create Key Options
+
+| Field | Required | Default | Description |
+|-------|:--------:|:-------:|-------------|
+| `name` | Yes | — | Label for identifying the key (e.g., "FlappySoccer Production") |
+| `partnerName` | Yes | — | Partner domain or identifier (e.g., "games.grvty.tech") |
+| `allowedOrigins` | No | Any | Origins allowed to use the key. Leave blank to allow all origins. Set for browser apps to restrict usage to your domain(s). |
+| `rateLimitPerHour` | No | 100 | Max registrations per hour (1–10,000) |
+| `permissions` | No | `["register"]` | Permission scopes granted to this key |
+
+### What Partner Keys Control
+
+Partner keys are specifically for **user registration** by third-party apps. They:
+
+- **Allow** apps to register new users without invite codes (auto-approved)
+- **Restrict** which origins (domains) can make registration requests
+- **Limit** registration rate per key to prevent abuse
+- **Can be revoked** instantly if a key is compromised
+
+Partner keys do **not** control:
+- User login — any registered user can log in normally, no key needed
+- OAuth/SSO — ATProto OAuth is a separate flow for existing users
+- Admin endpoints — those require admin JWT authentication
 
 ---
 
