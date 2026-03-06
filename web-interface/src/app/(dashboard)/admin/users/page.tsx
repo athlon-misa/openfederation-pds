@@ -12,6 +12,7 @@ import {
   useReverseTakedownAccountMutation,
   useExportAccountMutation,
   useDeleteAccountMutation,
+  useUpdateRolesMutation,
 } from '@/hooks/use-admin';
 import { PageHeader } from '@/components/page-header';
 import { DataTable } from '@/components/data-table/data-table';
@@ -21,6 +22,15 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useAuthStore } from '@/store/auth-store';
 import {
   Select,
   SelectContent,
@@ -32,12 +42,14 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { AccountListItem } from '@/lib/api/types';
 
 const PAGE_SIZE = 50;
+const ALL_ROLES = ['admin', 'moderator', 'partner-manager', 'auditor', 'user'] as const;
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState<string>('');
   const [role, setRole] = useState<string>('');
   const [search, setSearch] = useState('');
+  const callerIsAdmin = useAuthStore((s) => s.isAdmin);
 
   const [actionTarget, setActionTarget] = useState<{
     did: string;
@@ -45,6 +57,10 @@ export default function AdminUsersPage() {
     handle: string;
   } | null>(null);
   const [reason, setReason] = useState('');
+
+  // Role management dialog state
+  const [roleTarget, setRoleTarget] = useState<{ did: string; handle: string; roles: string[] } | null>(null);
+  const [editedRoles, setEditedRoles] = useState<Set<string>>(new Set());
 
   const { data, isLoading } = useAccountsQuery({
     limit: PAGE_SIZE,
@@ -62,6 +78,7 @@ export default function AdminUsersPage() {
   const reverseTakedownMutation = useReverseTakedownAccountMutation();
   const exportMutation = useExportAccountMutation();
   const deleteMutation = useDeleteAccountMutation();
+  const updateRolesMutation = useUpdateRolesMutation();
 
   const handleAction = () => {
     if (!actionTarget) return;
@@ -129,7 +146,7 @@ export default function AdminUsersPage() {
       header: 'Actions',
       cell: ({ row }) => {
         const u = row.original;
-        const isAdmin = u.roles.includes('admin');
+        const isTargetAdmin = u.roles.includes('admin');
 
         if (u.status === 'pending') {
           return (
@@ -164,36 +181,46 @@ export default function AdminUsersPage() {
           );
         }
 
-        if (isAdmin) return null;
+        if (isTargetAdmin && !callerIsAdmin) return null;
 
         return (
-          <div className="flex gap-1">
-            {u.status === 'approved' && (
+          <div className="flex gap-1 flex-wrap">
+            {callerIsAdmin && (
+              <Button size="sm" variant="outline" onClick={() => {
+                setRoleTarget({ did: u.did, handle: u.handle, roles: u.roles });
+                setEditedRoles(new Set(u.roles));
+              }}>
+                Roles
+              </Button>
+            )}
+            {u.status === 'approved' && !isTargetAdmin && (
               <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'suspend', handle: u.handle })}>
                 Suspend
               </Button>
             )}
-            {u.status === 'suspended' && (
+            {u.status === 'suspended' && !isTargetAdmin && (
               <>
                 <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'unsuspend', handle: u.handle })}>
                   Unsuspend
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => setActionTarget({ did: u.did, action: 'takedown', handle: u.handle })}>
-                  Takedown
-                </Button>
+                {callerIsAdmin && (
+                  <Button size="sm" variant="destructive" onClick={() => setActionTarget({ did: u.did, action: 'takedown', handle: u.handle })}>
+                    Takedown
+                  </Button>
+                )}
               </>
             )}
-            {u.status === 'takendown' && (
+            {u.status === 'takendown' && callerIsAdmin && (
               <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'reverseTakedown', handle: u.handle })}>
                 Reverse Takedown
               </Button>
             )}
-            {(u.status !== 'rejected') && (
+            {(u.status !== 'rejected') && !isTargetAdmin && (
               <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'export', handle: u.handle })}>
                 Export
               </Button>
             )}
-            {(u.status === 'approved' || u.status === 'suspended' || u.status === 'takendown') && (
+            {callerIsAdmin && !isTargetAdmin && (u.status === 'approved' || u.status === 'suspended' || u.status === 'takendown') && (
               <Button size="sm" variant="destructive" onClick={() => setActionTarget({ did: u.did, action: 'delete', handle: u.handle })}>
                 Delete
               </Button>
@@ -267,6 +294,8 @@ export default function AdminUsersPage() {
             <SelectItem value="all">All roles</SelectItem>
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="moderator">Moderator</SelectItem>
+            <SelectItem value="partner-manager">Partner Manager</SelectItem>
+            <SelectItem value="auditor">Auditor</SelectItem>
             <SelectItem value="user">User</SelectItem>
           </SelectContent>
         </Select>
@@ -281,6 +310,58 @@ export default function AdminUsersPage() {
         onPageChange={setPage}
         isLoading={isLoading}
       />
+
+      {roleTarget && (
+        <Dialog open={!!roleTarget} onOpenChange={(open) => { if (!open) setRoleTarget(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Manage Roles</DialogTitle>
+              <DialogDescription>Update PDS roles for @{roleTarget.handle}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              {ALL_ROLES.map((r) => (
+                <label key={r} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editedRoles.has(r)}
+                    onChange={(e) => {
+                      const next = new Set(editedRoles);
+                      if (e.target.checked) next.add(r); else next.delete(r);
+                      setEditedRoles(next);
+                    }}
+                    className="size-4"
+                  />
+                  <span className="text-sm font-medium">{r}</span>
+                </label>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRoleTarget(null)}>Cancel</Button>
+              <Button
+                disabled={updateRolesMutation.isPending}
+                onClick={() => {
+                  const currentSet = new Set(roleTarget.roles);
+                  const addRoles = [...editedRoles].filter((r) => !currentSet.has(r));
+                  const removeRoles = [...currentSet].filter((r) => !editedRoles.has(r));
+                  if (addRoles.length === 0 && removeRoles.length === 0) {
+                    setRoleTarget(null);
+                    return;
+                  }
+                  updateRolesMutation.mutate(
+                    { did: roleTarget.did, addRoles: addRoles.length > 0 ? addRoles : undefined, removeRoles: removeRoles.length > 0 ? removeRoles : undefined },
+                    {
+                      onSuccess: (data) => { toast.success(`Roles updated for @${data.handle}`); setRoleTarget(null); },
+                      onError: (e) => toast.error(e.message),
+                    }
+                  );
+                }}
+              >
+                {updateRolesMutation.isPending ? 'Saving...' : 'Save'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {actionTarget && (
         <ConfirmDialog

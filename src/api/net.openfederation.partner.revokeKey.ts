@@ -9,7 +9,7 @@ interface RevokeKeyInput {
 }
 
 export default async function revokePartnerKey(req: Request, res: Response): Promise<void> {
-  if (!requireRole(req as AuthRequest, res, ['admin'])) return;
+  if (!requireRole(req as AuthRequest, res, ['admin', 'partner-manager'])) return;
   const auth = (req as AuthRequest).auth!;
 
   const input: RevokeKeyInput = req.body;

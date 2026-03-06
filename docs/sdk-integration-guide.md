@@ -348,6 +348,17 @@ Partner keys let third-party apps register users on your PDS without invite code
 
 There are three ways to manage partner keys:
 
+### Who Can Manage Partner Keys?
+
+Users with the **admin** or **partner-manager** PDS role can create, list, and revoke partner keys. Users with the **auditor** role can view (list) keys but not create or revoke them.
+
+To grant someone the `partner-manager` role without full admin access:
+```bash
+ofc account set-roles <did> --add partner-manager
+```
+
+See [PDS Roles](#pds-roles) below for the full role system.
+
 ### Option 1: Web UI (Recommended)
 
 1. Log in to the admin dashboard at `https://web.openfederation.net`
@@ -458,9 +469,84 @@ Partner keys do **not** control:
 | NSID | Method | Auth | Description |
 |------|:---:|:---:|-------------|
 | `net.openfederation.partner.register` | POST | X-Partner-Key | Register user (no invite, auto-approved, returns tokens) |
-| `net.openfederation.partner.createKey` | POST | Admin JWT | Generate a new partner key (raw key shown once) |
-| `net.openfederation.partner.listKeys` | GET | Admin JWT | List all keys with stats (never shows raw key) |
-| `net.openfederation.partner.revokeKey` | POST | Admin JWT | Revoke a partner key |
+| `net.openfederation.partner.createKey` | POST | Admin or Partner Manager | Generate a new partner key (raw key shown once) |
+| `net.openfederation.partner.listKeys` | GET | Admin, Partner Manager, or Auditor | List all keys with stats (never shows raw key) |
+| `net.openfederation.partner.revokeKey` | POST | Admin or Partner Manager | Revoke a partner key |
+
+---
+
+## PDS Roles
+
+The PDS uses additive (non-hierarchical) roles. A user can hold multiple roles simultaneously.
+
+| Role | Description |
+|------|-------------|
+| **admin** | Full PDS access. Server config, user deletion, community takedown, all other roles' permissions. |
+| **moderator** | User moderation. Approve/reject registrations, suspend/unsuspend users, manage invites. Cannot delete accounts or take down communities. |
+| **partner-manager** | Partner integration management. Create, list, and revoke partner API keys. Cannot moderate users or access server config. |
+| **auditor** | Read-only oversight. Audit logs, server stats, user/invite/partner key lists. Cannot perform any mutations. |
+| **user** | Default role for all accounts. Create/join communities, write records, manage own account. |
+
+### Permission Matrix
+
+| Action | admin | moderator | partner-manager | auditor |
+|--------|:-----:|:---------:|:---------------:|:-------:|
+| Server config & stats | Y | | | Y |
+| Audit log | Y | | | Y |
+| List users & invites | Y | Y | | Y |
+| Approve/reject registrations | Y | Y | | |
+| Create invites | Y | Y | | |
+| Suspend/unsuspend users | Y | Y | | |
+| Takedown/delete users | Y | | | |
+| Create/revoke partner keys | Y | | Y | |
+| List partner keys | Y | | Y | Y |
+| Suspend/takedown communities | Y | | | |
+| View subject status | Y | Y | | Y |
+| Export user data | Y | Y | | |
+
+### Managing Roles
+
+**Web UI:** Admin > Users > click **Roles** button on any user > toggle checkboxes.
+
+**CLI:**
+```bash
+# Promote a user to moderator
+ofc account set-roles <did> --add moderator
+
+# Grant partner management + auditor roles
+ofc account set-roles <did> --add partner-manager,auditor
+
+# Remove a role
+ofc account set-roles <did> --remove moderator
+
+# Combine add and remove
+ofc account set-roles <did> --add partner-manager --remove moderator
+```
+
+**API:**
+```bash
+curl -X POST https://pds.openfederation.net/xrpc/net.openfederation.account.updateRoles \
+  -H "Authorization: Bearer <admin_jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"did": "did:plc:abc123", "addRoles": ["moderator", "partner-manager"]}'
+```
+
+**Safety rules:**
+- Only admins can change roles
+- Cannot remove your own admin role (lockout protection)
+- Cannot remove the last admin from the system
+- Role changes take effect on next token refresh (within 15 minutes)
+
+### PDS Roles vs. Community Roles
+
+These are separate systems:
+
+| Scope | Roles | Stored in | Controls |
+|-------|-------|-----------|----------|
+| **PDS** | admin, moderator, partner-manager, auditor, user | `user_roles` table | Server-wide actions |
+| **Community** | owner, moderator, member | Repo records | Per-community actions |
+
+A PDS moderator can approve registrations server-wide but has no special powers in any community. A community moderator can manage members in their community but cannot approve PDS registrations. A user can hold roles in both systems independently.
 
 ---
 
@@ -489,4 +575,6 @@ CREATE TABLE partner_keys (
 ALTER TABLE users ADD COLUMN created_by_partner VARCHAR(36) REFERENCES partner_keys(id);
 ```
 
-Migration: `scripts/migrate-004-partner-keys.sql`
+Migrations:
+- `scripts/migrate-004-partner-keys.sql` — partner keys table
+- `scripts/migrate-006-rbac-roles.sql` — adds `partner-manager` and `auditor` roles

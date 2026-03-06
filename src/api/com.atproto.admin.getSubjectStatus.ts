@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
+// Accessible by admin, moderator (to check moderation status), and auditor (read-only oversight)
 import { query } from '../db/client.js';
 
 /**
@@ -11,7 +12,7 @@ import { query } from '../db/client.js';
  */
 export default async function getSubjectStatus(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!requireRole(req, res, ['admin'])) {
+    if (!requireRole(req, res, ['admin', 'moderator', 'auditor'])) {
       return;
     }
 

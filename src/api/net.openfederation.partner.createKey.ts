@@ -15,7 +15,7 @@ interface CreateKeyInput {
 }
 
 export default async function createPartnerKey(req: Request, res: Response): Promise<void> {
-  if (!requireRole(req as AuthRequest, res, ['admin'])) return;
+  if (!requireRole(req as AuthRequest, res, ['admin', 'partner-manager'])) return;
   const auth = (req as AuthRequest).auth!;
 
   const input: CreateKeyInput = req.body;

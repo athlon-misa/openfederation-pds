@@ -4,7 +4,7 @@ import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
 
 export default async function listAudit(req: AuthRequest, res: Response): Promise<void> {
-  if (!requireRole(req, res, ['admin'])) {
+  if (!requireRole(req, res, ['admin', 'auditor'])) {
     return;
   }
 

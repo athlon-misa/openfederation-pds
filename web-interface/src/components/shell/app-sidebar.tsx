@@ -43,12 +43,13 @@ const mainNav = [
   { title: 'Explore', href: '/explore', icon: Compass },
 ];
 
+// Each admin nav item specifies which PDS roles can see it
 const adminNav = [
-  { title: 'Users', href: '/admin/users', icon: Users },
-  { title: 'Communities', href: '/admin/communities', icon: Building2 },
-  { title: 'Partner Keys', href: '/admin/partner-keys', icon: KeyRound },
-  { title: 'Invites', href: '/admin/invites', icon: Ticket },
-  { title: 'Audit Log', href: '/admin/audit', icon: ScrollText },
+  { title: 'Users', href: '/admin/users', icon: Users, roles: ['admin', 'moderator', 'auditor'] },
+  { title: 'Communities', href: '/admin/communities', icon: Building2, roles: ['admin'] },
+  { title: 'Partner Keys', href: '/admin/partner-keys', icon: KeyRound, roles: ['admin', 'partner-manager', 'auditor'] },
+  { title: 'Invites', href: '/admin/invites', icon: Ticket, roles: ['admin', 'moderator', 'auditor'] },
+  { title: 'Audit Log', href: '/admin/audit', icon: ScrollText, roles: ['admin', 'auditor'] },
 ];
 
 export function AppSidebar() {
@@ -56,7 +57,8 @@ export function AppSidebar() {
   const router = useRouter();
   const handle = useAuthStore((s) => s.handle);
   const email = useAuthStore((s) => s.email);
-  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const roles = useAuthStore((s) => s.roles);
+  const hasAdminAccess = useAuthStore((s) => s.hasAdminAccess);
   const logout = useAuthStore((s) => s.logout);
 
   const handleLogout = () => {
@@ -112,12 +114,14 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {isAdmin && (
+        {hasAdminAccess && (
           <SidebarGroup>
             <SidebarGroupLabel>Admin</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNav.map((item) => (
+                {adminNav
+                  .filter((item) => item.roles.some((r) => roles.includes(r)))
+                  .map((item) => (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       asChild

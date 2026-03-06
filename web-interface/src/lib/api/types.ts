@@ -14,7 +14,7 @@ export interface GetSessionResponse {
   email: string;
   active: boolean;
   status: 'pending' | 'approved' | 'rejected' | 'disabled';
-  roles: ('admin' | 'moderator' | 'user')[];
+  roles: ('admin' | 'moderator' | 'partner-manager' | 'auditor' | 'user')[];
 }
 
 // Account types

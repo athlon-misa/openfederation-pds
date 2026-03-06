@@ -14,6 +14,7 @@ import {
   listPartnerKeys,
   createPartnerKey,
   revokePartnerKey,
+  updateRoles,
 } from '@/lib/api/admin';
 import { suspendCommunity, unsuspendCommunity, takedownCommunity, deleteCommunity, listAllCommunities } from '@/lib/api/communities';
 
@@ -263,6 +264,20 @@ export function useRevokePartnerKeyMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'partnerKeys'] });
+    },
+  });
+}
+
+export function useUpdateRolesMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ did, addRoles, removeRoles }: { did: string; addRoles?: string[]; removeRoles?: string[] }) => {
+      const result = await updateRoles(did, addRoles, removeRoles);
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
   });
 }

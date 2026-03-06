@@ -32,7 +32,8 @@ export type AuditAction =
   | 'account.deactivate'
   | 'account.activate'
   | 'account.delete'
-  | 'account.export';
+  | 'account.export'
+  | 'account.roles.update';
 
 export async function auditLog(
   action: AuditAction,

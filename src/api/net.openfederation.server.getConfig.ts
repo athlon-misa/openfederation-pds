@@ -5,7 +5,7 @@ import { query } from '../db/client.js';
 import { config } from '../config.js';
 
 export default async function getServerConfig(req: AuthRequest, res: Response): Promise<void> {
-  if (!requireRole(req, res, ['admin'])) {
+  if (!requireRole(req, res, ['admin', 'auditor'])) {
     return;
   }
 

@@ -95,6 +95,12 @@ export async function deleteAccount(did: string) {
   });
 }
 
+export async function updateRoles(did: string, addRoles?: string[], removeRoles?: string[]) {
+  return xrpc<{ did: string; handle: string; roles: string[] }>('net.openfederation.account.updateRoles', {
+    body: { did, addRoles, removeRoles },
+  });
+}
+
 export async function listPartnerKeys() {
   return xrpc<ListPartnerKeysResponse>('net.openfederation.partner.listKeys', {
     method: 'GET',

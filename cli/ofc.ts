@@ -263,6 +263,42 @@ account
     }
   }));
 
+account
+  .command('set-roles')
+  .description('Add or remove PDS roles for a user (admin)')
+  .argument('<did>', 'User DID')
+  .option('--add <roles>', 'Comma-separated roles to add (admin, moderator, partner-manager, auditor, user)')
+  .option('--remove <roles>', 'Comma-separated roles to remove')
+  .action(run(async () => {
+    const cmd = account.commands.find(c => c.name() === 'set-roles')!;
+    const did = cmd.args[0];
+    const opts = cmd.opts();
+
+    const addRoles = opts.add ? opts.add.split(',').map((r: string) => r.trim()).filter(Boolean) : [];
+    const removeRoles = opts.remove ? opts.remove.split(',').map((r: string) => r.trim()).filter(Boolean) : [];
+
+    if (addRoles.length === 0 && removeRoles.length === 0) {
+      throw new Error('Provide --add and/or --remove with comma-separated roles');
+    }
+
+    const c = client();
+    const result = await c.authPost('net.openfederation.account.updateRoles', {
+      did,
+      addRoles: addRoles.length > 0 ? addRoles : undefined,
+      removeRoles: removeRoles.length > 0 ? removeRoles : undefined,
+    });
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      success(`Roles updated for ${result.handle || did}`);
+      keyValue([
+        ['DID', result.did || did],
+        ['Handle', result.handle || '—'],
+        ['Roles', (result.roles || []).join(', ')],
+      ]);
+    }
+  }));
+
 // ── ofc invite ──────────────────────────────────────────────────────
 
 const invite = program.command('invite').description('Invite code management');

@@ -4,7 +4,7 @@ import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
 
 export default async function listAccounts(req: AuthRequest, res: Response): Promise<void> {
-  if (!requireRole(req, res, ['admin', 'moderator'])) {
+  if (!requireRole(req, res, ['admin', 'moderator', 'auditor'])) {
     return;
   }
 
@@ -20,7 +20,7 @@ export default async function listAccounts(req: AuthRequest, res: Response): Pro
     return;
   }
 
-  const validRoles = ['admin', 'moderator', 'user'];
+  const validRoles = ['admin', 'moderator', 'partner-manager', 'auditor', 'user'];
   if (role && !validRoles.includes(role)) {
     res.status(400).json({ error: 'InvalidRequest', message: 'Invalid role filter' });
     return;

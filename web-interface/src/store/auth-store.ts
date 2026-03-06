@@ -13,6 +13,10 @@ interface AuthState {
   status: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isModerator: boolean;
+  isPartnerManager: boolean;
+  isAuditor: boolean;
+  hasAdminAccess: boolean;
   isHydrated: boolean;
 
   login: (identifier: string, password: string) => Promise<{ ok: true } | { ok: false; error: string; message: string }>;
@@ -39,6 +43,10 @@ export const useAuthStore = create<AuthState>()(
         status: null,
         isAuthenticated: false,
         isAdmin: false,
+        isModerator: false,
+        isPartnerManager: false,
+        isAuditor: false,
+        hasAdminAccess: false,
         isHydrated: false,
 
         login: async (identifier, password) => {
@@ -59,10 +67,15 @@ export const useAuthStore = create<AuthState>()(
           // Fetch roles from getSession
           const sessionResult = await getSession();
           if (sessionResult.ok) {
+            const r = sessionResult.data.roles;
             set({
-              roles: sessionResult.data.roles,
+              roles: r,
               status: sessionResult.data.status,
-              isAdmin: sessionResult.data.roles.includes('admin'),
+              isAdmin: r.includes('admin'),
+              isModerator: r.includes('moderator'),
+              isPartnerManager: r.includes('partner-manager'),
+              isAuditor: r.includes('auditor'),
+              hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
             });
           }
 
@@ -95,10 +108,15 @@ export const useAuthStore = create<AuthState>()(
           // Fetch roles from getSession
           const sessionResult = await getSession();
           if (sessionResult.ok) {
+            const r = sessionResult.data.roles;
             set({
-              roles: sessionResult.data.roles,
+              roles: r,
               status: sessionResult.data.status,
-              isAdmin: sessionResult.data.roles.includes('admin'),
+              isAdmin: r.includes('admin'),
+              isModerator: r.includes('moderator'),
+              isPartnerManager: r.includes('partner-manager'),
+              isAuditor: r.includes('auditor'),
+              hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
             });
           }
 
@@ -116,6 +134,10 @@ export const useAuthStore = create<AuthState>()(
             status: null,
             isAuthenticated: false,
             isAdmin: false,
+            isModerator: false,
+            isPartnerManager: false,
+            isAuditor: false,
+            hasAdminAccess: false,
           });
         },
 
@@ -142,10 +164,15 @@ export const useAuthStore = create<AuthState>()(
           // Fetch roles
           const sessionResult = await getSession();
           if (sessionResult.ok) {
+            const r = sessionResult.data.roles;
             set({
-              roles: sessionResult.data.roles,
+              roles: r,
               status: sessionResult.data.status,
-              isAdmin: sessionResult.data.roles.includes('admin'),
+              isAdmin: r.includes('admin'),
+              isModerator: r.includes('moderator'),
+              isPartnerManager: r.includes('partner-manager'),
+              isAuditor: r.includes('auditor'),
+              hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
             });
           }
 

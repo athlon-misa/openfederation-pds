@@ -4,7 +4,7 @@ import { requireRole } from '../auth/guards.js';
 import type { AuthRequest } from '../auth/types.js';
 
 export default async function listPartnerKeys(req: Request, res: Response): Promise<void> {
-  if (!requireRole(req as AuthRequest, res, ['admin'])) return;
+  if (!requireRole(req as AuthRequest, res, ['admin', 'partner-manager', 'auditor'])) return;
 
   try {
     const result = await query<{

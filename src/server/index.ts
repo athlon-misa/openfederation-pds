@@ -63,6 +63,7 @@ import adminDeleteAccount from '../api/com.atproto.admin.deleteAccount.js';
 import deactivateAccount from '../api/com.atproto.server.deactivateAccount.js';
 import activateAccount from '../api/com.atproto.server.activateAccount.js';
 import exportAccount from '../api/net.openfederation.account.export.js';
+import updateRoles from '../api/net.openfederation.account.updateRoles.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -224,6 +225,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
 
   // OpenFederation account lifecycle
   'net.openfederation.account.export': { handler: exportAccount },
+  'net.openfederation.account.updateRoles': { handler: updateRoles },
 
   // Standard ATProto admin endpoints
   'com.atproto.admin.updateSubjectStatus': { handler: updateSubjectStatus },

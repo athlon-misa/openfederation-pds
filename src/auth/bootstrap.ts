@@ -36,13 +36,7 @@ export async function ensureBootstrapAdmin(): Promise<void> {
     }
     await query(
       `INSERT INTO user_roles (user_id, role)
-       VALUES ($1, 'admin')
-       ON CONFLICT DO NOTHING`,
-      [userId]
-    );
-    await query(
-      `INSERT INTO user_roles (user_id, role)
-       VALUES ($1, 'moderator'), ($1, 'user')
+       VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')
        ON CONFLICT DO NOTHING`,
       [userId]
     );
@@ -70,7 +64,7 @@ export async function ensureBootstrapAdmin(): Promise<void> {
 
   await query(
     `INSERT INTO user_roles (user_id, role)
-     VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'user')`,
+     VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')`,
     [userId]
   );
 

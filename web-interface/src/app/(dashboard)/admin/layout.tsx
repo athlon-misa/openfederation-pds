@@ -5,16 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const hasAdminAccess = useAuthStore((s) => s.hasAdminAccess);
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!hasAdminAccess) {
       router.replace('/');
     }
-  }, [isAdmin, router]);
+  }, [hasAdminAccess, router]);
 
-  if (!isAdmin) return null;
+  if (!hasAdminAccess) return null;
 
   return <>{children}</>;
 }

@@ -17,11 +17,17 @@ import { auditLog } from '../db/audit.js';
  */
 export default async function updateSubjectStatus(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!requireRole(req, res, ['admin'])) {
+    if (!requireRole(req, res, ['admin', 'moderator'])) {
       return;
     }
 
     const { subject, takedown, deactivated } = req.body;
+
+    // Takedown/reverse-takedown is admin-only (irreversible moderation action)
+    if (takedown !== undefined && !req.auth!.roles.includes('admin')) {
+      res.status(403).json({ error: 'Forbidden', message: 'Only admins can perform takedown actions' });
+      return;
+    }
 
     if (!subject?.did) {
       res.status(400).json({ error: 'InvalidRequest', message: 'Missing required field: subject.did' });

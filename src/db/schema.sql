@@ -26,7 +26,7 @@ CREATE INDEX idx_users_status ON users(status);
 -- User roles table: admin/moderator/user roles
 CREATE TABLE IF NOT EXISTS user_roles (
     user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'moderator', 'user')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'moderator', 'partner-manager', 'auditor', 'user')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, role)
 );

@@ -49,11 +49,12 @@ export default async function exportAccount(req: AuthRequest, res: Response): Pr
     // Authorization: self or PDS admin
     const isSelf = user.id === req.auth!.userId;
     const isAdmin = req.auth!.roles.includes('admin');
+    const isModerator = req.auth!.roles.includes('moderator');
 
-    if (!isSelf && !isAdmin) {
+    if (!isSelf && !isAdmin && !isModerator) {
       res.status(403).json({
         error: 'Forbidden',
-        message: 'Only the account owner or PDS admin can export account data',
+        message: 'Only the account owner, PDS admin, or moderator can export account data',
       });
       return;
     }
