@@ -11,13 +11,23 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./global": {
+      "types": "./dist/global.d.ts",
+      "default": "./dist/index.global.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": ["./dist/index.d.ts"],
+      "global": ["./dist/global.d.ts"]
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && cp src/global.d.ts dist/global.d.ts",
     "dev": "tsup --watch",
     "clean": "rm -rf dist"
   },

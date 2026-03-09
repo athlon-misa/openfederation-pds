@@ -118,10 +118,14 @@ const ofd = createClient({
 });
 ```
 
-**Storage options:**
-- `'local'` — `localStorage`, persists across tabs and browser restarts
-- `'session'` — `sessionStorage`, cleared when the tab closes
-- `'memory'` — in-memory only, cleared on page refresh (useful for SSR/testing)
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `serverUrl` | `string` | *required* | Full URL of the PDS, e.g. `"https://pds.openfederation.net"`. Trailing slash is stripped automatically. |
+| `partnerKey` | `string` | *required* | Partner API key (`ofp_...`). Used for registration. Login does not require a partner key, but the SDK always needs one at construction time. |
+| `storage` | `'local' \| 'session' \| 'memory'` | `'local'` | Where to store tokens. `'local'` uses `localStorage` (persists across tabs/restarts). `'session'` uses `sessionStorage` (cleared on tab close). `'memory'` stores in-memory only (cleared on page refresh; useful for SSR/testing). |
+| `storagePrefix` | `string` | `'ofd_'` | Prefix for all storage keys. Change this if you run multiple SDK instances on the same origin. |
+| `autoRefresh` | `boolean` | `true` | When `true`, the SDK schedules a token refresh 60 seconds before the access token expires. Set to `false` to manage refresh timing yourself. |
+| `onAuthChange` | `(user: User \| null) => void` | — | Called when auth state changes: after `login()`, `register()`, `logout()`, or when a token refresh fails. You can also subscribe later with `ofd.onAuthChange()`. |
 
 ### `ofd.register({ handle, email, password })`
 
@@ -158,27 +162,93 @@ const user = await ofd.login({
 });
 ```
 
+**Errors:**
+- `AuthenticationError` (401) — invalid credentials
+- `ValidationError` (400) — missing or malformed fields
+- `RateLimitError` (429) — too many login attempts
+
 ### `ofd.getUser()`
 
-Get the current user from local storage, or `null` if not logged in.
+Get the current user from local storage, or `null` if not logged in. This reads from the cached user object in storage — it does not make a network request.
 
 Returns: `Promise<User | null>`
 
 ### `ofd.isAuthenticated()`
 
-Synchronous check for whether tokens are present in storage.
+Synchronous check for whether both access and refresh tokens are present in storage. Does not verify token validity — use `getAccessToken()` for that.
 
 Returns: `boolean`
 
+### `ofd.getAccessToken()`
+
+Get a valid access JWT, auto-refreshing if the current token is expired or will expire within 60 seconds. Returns `null` if not authenticated.
+
+This is the method to use when you need to make your own authenticated requests outside the SDK (e.g., passing the token to a WebSocket connection or a third-party library).
+
+Returns: `Promise<string | null>`
+
+```typescript
+const token = await ofd.getAccessToken();
+if (token) {
+  // Use token in a custom request
+  const res = await fetch('https://my-api.example.com/data', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+```
+
+### `ofd.getSession()`
+
+Get the full session (access token, refresh token, and user object), auto-refreshing if needed. Returns `null` if not authenticated.
+
+Returns: `Promise<Session | null>`
+
+```typescript
+interface Session {
+  accessJwt: string;
+  refreshJwt: string;
+  user: User;
+}
+
+const session = await ofd.getSession();
+if (session) {
+  console.log('DID:', session.user.did);
+  console.log('Token:', session.accessJwt);
+}
+```
+
+### `ofd.onAuthChange(callback)`
+
+Subscribe to auth state changes. The callback fires on login, logout, and token refresh failure. Returns an unsubscribe function.
+
+You can have multiple subscribers. The `onAuthChange` option in `createClient()` is equivalent to calling this method immediately after construction.
+
+Returns: `() => void` (unsubscribe function)
+
+```typescript
+const unsubscribe = ofd.onAuthChange((user) => {
+  if (user) {
+    showDashboard(user);
+  } else {
+    showLoginForm();
+  }
+});
+
+// Later, to stop listening:
+unsubscribe();
+```
+
 ### `ofd.logout()`
 
-Log out, invalidate the session on the server, and clear local tokens.
+Log out, invalidate the session on the server, and clear local tokens. Calls `onAuthChange(null)` after clearing.
+
+Network errors during server-side session invalidation are silently ignored — the local tokens are always cleared regardless.
 
 Returns: `Promise<void>`
 
 ### `ofd.displayHandle(handle)`
 
-Strip the PDS domain suffix for display. `"alice.openfederation.net"` becomes `"alice"`.
+Strip the PDS domain suffix for display. `"alice.openfederation.net"` becomes `"alice"`. If the handle doesn't end with the PDS suffix, it's returned as-is.
 
 Returns: `string`
 
@@ -186,25 +256,142 @@ Returns: `string`
 
 Make an authenticated XRPC request to the PDS. Automatically retries once with a fresh token on 401.
 
-```typescript
-const session = await ofd.fetch('com.atproto.server.getSession');
-```
-
 Returns: `Promise<unknown>`
 
-### `ofd.loginWithATProto(handle)`
+```typescript
+// GET request with query parameters
+const records = await ofd.fetch('com.atproto.repo.listRecords', {
+  method: 'GET',
+  params: { repo: 'did:plc:abc123', collection: 'app.bsky.actor.profile' },
+});
+
+// POST request with body
+await ofd.fetch('com.atproto.repo.putRecord', {
+  method: 'POST',
+  body: {
+    repo: 'did:plc:abc123',
+    collection: 'app.bsky.actor.profile',
+    rkey: 'self',
+    record: { displayName: 'Alice' },
+  },
+});
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `method` | `'GET' \| 'POST'` | `'GET'` | HTTP method |
+| `body` | `Record<string, unknown>` | — | Request body (POST only), serialized as JSON |
+| `params` | `Record<string, string>` | — | Query parameters (GET only) |
+
+**Errors:**
+- `AuthenticationError` (401) — not authenticated, or session expired after retry
+- Any error from the PDS response is mapped to the appropriate error class
+
+### `ofd.loginWithATProto(handle | options)`
 
 Redirect the browser to the PDS OAuth flow for existing ATProto users. Use this alongside `register()` if you want to support both new and existing users.
 
+This is synchronous — it navigates the browser window. No Promise is returned.
+
+Accepts a handle string (simple form) or an options object (advanced form):
+
+```typescript
+// Simple — just a handle
+ofd.loginWithATProto('alice.bsky.social');
+
+// Advanced — with redirect URI and CSRF state
+ofd.loginWithATProto({
+  handle: 'alice.bsky.social',
+  redirectUri: 'https://myapp.com/callback',
+  state: crypto.randomUUID(),  // for CSRF protection
+});
+```
+
+**Options (ATProtoLoginOptions):**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `handle` | `string` | *required* | ATProto handle (e.g. `"alice.bsky.social"`) |
+| `redirectUri` | `string` | `window.location.href` | Where to redirect after auth |
+| `state` | `string` | — | Opaque state for CSRF protection, passed through the OAuth flow |
+
 ### `ofd.handleOAuthCallback()`
 
-Call this on your OAuth callback page to complete the ATProto login flow.
+Call this on your OAuth callback page to complete the ATProto login flow. Reads the `code` parameter from the current URL's query string and exchanges it for local JWT tokens.
 
 Returns: `Promise<User>`
 
+```typescript
+// On your /callback page:
+try {
+  const user = await ofd.handleOAuthCallback();
+  console.log('Logged in via ATProto:', user.did);
+  window.location.href = '/dashboard';
+} catch (err) {
+  console.error('OAuth failed:', err.message);
+}
+```
+
+**Errors:**
+- `AuthenticationError` — if the callback URL contains an `error` parameter or no `code` parameter
+
 ### `ofd.destroy()`
 
-Clean up timers and callbacks. Call this when unmounting or cleaning up.
+Clean up auto-refresh timers and remove all auth change listeners. Call this when unmounting a component or tearing down the SDK instance.
+
+After calling `destroy()`, the client instance should not be reused.
+
+### `verifyPdsToken(accessToken, options?)` (server-side)
+
+Verify a PDS access token by calling `com.atproto.server.getSession` on the issuing PDS. This is a standalone function (not a method on the client) intended for use in your backend.
+
+Returns: `Promise<VerifiedSession | null>` — `{ did, handle }` on success, `null` on any failure.
+
+```typescript
+import { verifyPdsToken } from '@openfederation/sdk';
+
+// Recommended: verify against a known PDS
+const session = await verifyPdsToken(req.headers.authorization?.split(' ')[1], {
+  pdsUrl: 'https://pds.openfederation.net',
+});
+
+if (!session) {
+  res.status(401).json({ error: 'Invalid token' });
+  return;
+}
+
+console.log('Authenticated user:', session.did, session.handle);
+```
+
+**Options (VerifyPdsTokenOptions):**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `pdsUrl` | `string` | — | PDS URL to verify against directly. Skips DID-based discovery. Recommended for most apps. |
+| `plcDirectoryUrl` | `string` | `'https://plc.openfederation.net'` | PLC directory URL for DID-based PDS discovery (used when `pdsUrl` is not set). |
+| `expectedDid` | `string` | — | If set, verification fails when the token's DID doesn't match. |
+| `timeoutMs` | `number` | `5000` | Request timeout in milliseconds. |
+
+### `displayHandle(handle, suffix?)` (standalone)
+
+Standalone version of `ofd.displayHandle()`. Can be imported and used without creating a client instance.
+
+```typescript
+import { displayHandle } from '@openfederation/sdk';
+displayHandle('alice.openfederation.net');  // "alice"
+displayHandle('alice.custom.net', '.custom.net');  // "alice"
+```
+
+### `SDK_VERSION`
+
+The SDK version string (e.g. `"0.1.0"`). Follows semver.
+
+```typescript
+import { SDK_VERSION } from '@openfederation/sdk';
+console.log('SDK version:', SDK_VERSION);
+```
 
 ---
 
@@ -248,6 +435,33 @@ try {
 }
 ```
 
+### Error Classes
+
+| Class | HTTP Status | Code | When |
+|-------|:-----------:|------|------|
+| `OpenFederationError` | any | varies | Base class for all SDK errors |
+| `AuthenticationError` | 401 | `Unauthorized` | Invalid credentials, expired session, invalid partner key |
+| `ValidationError` | 400 | `InvalidRequest` | Malformed input (bad handle, weak password, etc.) |
+| `ConflictError` | 409 | `AccountExists` | Handle or email already in use |
+| `RateLimitError` | 429 | `RateLimitExceeded` | Too many requests (partner rate limit or IP rate limit) |
+| `ForbiddenError` | 403 | `Forbidden` | Origin not allowed for this partner key |
+
+All error classes are available as named exports:
+
+```typescript
+// npm
+import { OpenFederationError, AuthenticationError } from '@openfederation/sdk';
+
+// IIFE (script tag)
+const { OpenFederationError, AuthenticationError } = OpenFederation;
+```
+
+Each error instance has these properties:
+- `message` (string) — human-readable error description from the server
+- `status` (number) — HTTP status code
+- `code` (string) — machine-readable error code
+- `name` (string) — class name (e.g. `"ConflictError"`)
+
 ---
 
 ## Token Management
@@ -263,6 +477,168 @@ Stored keys (with default prefix `ofd_`):
 - `ofd_access_jwt` — current access token
 - `ofd_refresh_jwt` — current refresh token
 - `ofd_user` — cached user object (JSON)
+
+---
+
+## Handling SDK Load Failures
+
+When using the IIFE bundle via a `<script>` tag, the SDK script might fail to load (network error, CDN outage, ad blocker). The SDK provides built-in tools for handling this gracefully.
+
+### The `openfederation:ready` Event
+
+The IIFE bundle dispatches a custom DOM event when it finishes loading:
+
+```javascript
+document.addEventListener('openfederation:ready', (event) => {
+  console.log('SDK loaded, version:', event.detail.version);
+  const ofd = OpenFederation.createClient({ ... });
+});
+```
+
+### `waitForSDK(timeoutMs?)`
+
+If the SDK is already loaded (i.e., you're calling this from within the same bundle or after it loaded synchronously), `waitForSDK()` resolves immediately:
+
+```javascript
+OpenFederation.waitForSDK().then((sdk) => {
+  const ofd = sdk.createClient({ ... });
+});
+```
+
+### Recommended Guard Pattern for `async`/`defer` Scripts
+
+When loading the SDK with `async` or `defer`, you can't assume `OpenFederation` exists when your own code runs. Use this pattern:
+
+```html
+<script src="https://pds.openfederation.net/sdk/v1.js" async></script>
+<script>
+  // Guard: wait for SDK to load, with timeout
+  function whenSDKReady(timeoutMs) {
+    // Already loaded?
+    if (typeof OpenFederation !== 'undefined' && OpenFederation.createClient) {
+      return Promise.resolve(OpenFederation);
+    }
+    // Not yet — listen for the ready event
+    return new Promise(function(resolve, reject) {
+      var timer = setTimeout(function() {
+        reject(new Error('OpenFederation SDK failed to load within ' + timeoutMs + 'ms'));
+      }, timeoutMs || 10000);
+
+      document.addEventListener('openfederation:ready', function() {
+        clearTimeout(timer);
+        resolve(OpenFederation);
+      }, { once: true });
+    });
+  }
+
+  whenSDKReady(10000).then(function(sdk) {
+    var ofd = sdk.createClient({
+      serverUrl: 'https://pds.openfederation.net',
+      partnerKey: 'ofp_your_key_here',
+    });
+    // SDK is ready to use
+  }).catch(function(err) {
+    console.error(err.message);
+    // Show fallback UI or retry
+  });
+</script>
+```
+
+### Synchronous Script (Simple Case)
+
+If you load the SDK without `async`/`defer`, no guard is needed — the script blocks until loaded:
+
+```html
+<script src="https://pds.openfederation.net/sdk/v1.js"></script>
+<script>
+  // OpenFederation is guaranteed to exist here
+  const ofd = OpenFederation.createClient({ ... });
+</script>
+```
+
+---
+
+## TypeScript Support
+
+The SDK ships TypeScript type definitions (`.d.ts`) for all three output formats.
+
+### npm (ESM / CommonJS)
+
+Types are automatically resolved via `package.json` exports. No extra configuration needed:
+
+```typescript
+import { createClient, type User, type ClientConfig } from '@openfederation/sdk';
+```
+
+All types are exported:
+- `ClientConfig`, `User`, `Session`, `RegisterOptions`, `LoginOptions`, `FetchOptions`
+- `AuthProvider`, `ATProtoLoginOptions`
+- `VerifiedSession`, `VerifyPdsTokenOptions`
+
+### IIFE Bundle (script tag)
+
+For TypeScript projects that use the IIFE bundle, add a triple-slash reference to get types for the `OpenFederation` global:
+
+```typescript
+/// <reference types="@openfederation/sdk/global" />
+
+const ofd = OpenFederation.createClient({
+  serverUrl: 'https://pds.openfederation.net',
+  partnerKey: 'ofp_...',
+});
+```
+
+### AuthProvider Interface
+
+The `OpenFederationClient` implements the `AuthProvider` interface, which can be used by other SDKs that need to consume OpenFederation auth:
+
+```typescript
+import type { AuthProvider } from '@openfederation/sdk';
+
+class MyGameClient {
+  constructor(private auth: AuthProvider) {}
+
+  async fetchLeaderboard() {
+    const token = await this.auth.getAccessToken();
+    // ... use token
+  }
+}
+
+// Pass the SDK client as an auth provider
+const ofd = createClient({ ... });
+const game = new MyGameClient(ofd);
+```
+
+---
+
+## SDK Versioning
+
+The SDK follows [Semantic Versioning](https://semver.org/).
+
+### IIFE Bundle Endpoint
+
+The PDS serves the IIFE bundle at `/sdk/v1.js`. The `v1` in the URL is the **API major version**, not the package version. All `0.x` and `1.x` package releases are served through this endpoint.
+
+| Endpoint | Package Versions | Status |
+|----------|-----------------|--------|
+| `/sdk/v1.js` | `0.1.0` through `1.x` | Current |
+
+When a breaking change requires a new major version, a `/sdk/v2.js` endpoint will be introduced. The previous endpoint will continue working for a deprecation period.
+
+### Checking the SDK Version
+
+```javascript
+// IIFE
+console.log(OpenFederation.SDK_VERSION);  // "0.1.0"
+
+// npm
+import { SDK_VERSION } from '@openfederation/sdk';
+console.log(SDK_VERSION);  // "0.1.0"
+```
+
+### Changelog
+
+See [`packages/openfederation-sdk/CHANGELOG.md`](../packages/openfederation-sdk/CHANGELOG.md) for the full release history.
 
 ---
 
