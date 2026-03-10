@@ -299,6 +299,27 @@ account
     }
   }));
 
+account
+  .command('change-password')
+  .description('Change your account password')
+  .requiredOption('--current <password>', 'Current password')
+  .requiredOption('--new <password>', 'New password')
+  .action(run(async () => {
+    const cmd = account.commands.find(c => c.name() === 'change-password')!;
+    const opts = cmd.opts();
+    const c = client();
+    await c.authPost('net.openfederation.account.changePassword', {
+      currentPassword: opts.current,
+      newPassword: opts.new,
+    });
+    if (isJsonMode()) {
+      json({ ok: true });
+    } else {
+      success('Password changed successfully');
+      hint('All sessions have been invalidated. Please log in again with: ofc auth login');
+    }
+  }));
+
 // ── ofc invite ──────────────────────────────────────────────────────
 
 const invite = program.command('invite').description('Invite code management');

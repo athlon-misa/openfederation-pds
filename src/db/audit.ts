@@ -33,7 +33,8 @@ export type AuditAction =
   | 'account.activate'
   | 'account.delete'
   | 'account.export'
-  | 'account.roles.update';
+  | 'account.roles.update'
+  | 'account.password.change';
 
 export async function auditLog(
   action: AuditAction,
