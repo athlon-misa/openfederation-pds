@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Compass, Globe } from 'lucide-react';
+import { Compass, Globe, ExternalLink } from 'lucide-react';
 import { useExploreCommunitiesQuery, usePeerCommunitiesQuery } from '@/hooks/use-communities';
 import { PageHeader } from '@/components/page-header';
 import { ExploreCommunityCard } from '@/components/explore-community-card';
@@ -90,14 +90,29 @@ function LocalTab() {
 }
 
 function PeerCommunityCard({ community }: { community: PeerCommunity }) {
+  const communityUrl = community.webUrl
+    ? `${community.webUrl}/communities/${encodeURIComponent(community.did)}`
+    : null;
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{community.displayName}</CardTitle>
+          {communityUrl ? (
+            <a
+              href={communityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline flex items-center gap-1.5"
+            >
+              <CardTitle className="text-lg">{community.displayName}</CardTitle>
+              <ExternalLink className="size-3.5 text-muted-foreground" />
+            </a>
+          ) : (
+            <CardTitle className="text-lg">{community.displayName}</CardTitle>
+          )}
           <div className="flex gap-1 flex-wrap">
             <Badge variant="secondary">{community.pdsHostname}</Badge>
-            <Badge variant="secondary">{community.didMethod}</Badge>
             {community.joinPolicy === 'approval' && (
               <Badge variant="outline">Approval</Badge>
             )}
@@ -115,9 +130,20 @@ function PeerCommunityCard({ community }: { community: PeerCommunity }) {
             {' · '}
             {community.visibility} · {community.joinPolicy === 'open' ? 'Open' : 'Approval required'}
           </p>
-          <p className="text-xs text-muted-foreground">
-            Hosted on {community.pdsHostname}
-          </p>
+          {communityUrl ? (
+            <a
+              href={communityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              View & Join <ExternalLink className="size-3" />
+            </a>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Hosted on {community.pdsHostname}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

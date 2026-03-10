@@ -71,6 +71,7 @@ export const config = {
       .filter(Boolean)
       .filter(u => u !== (process.env.PDS_SERVICE_URL || '')), // exclude self
     cacheTtlMs: parseInt(process.env.FEDERATION_CACHE_TTL_MS || '300000', 10), // 5 min
+    webUiUrl: process.env.WEB_UI_URL || '',
   },
 
   // OAuth configuration

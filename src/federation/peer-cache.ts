@@ -10,6 +10,7 @@ import { config } from '../config.js';
 export interface PeerInfo {
   hostname: string;
   serviceUrl: string;
+  webUrl: string | null;
   healthy: boolean;
   activeCommunities?: number;
 }
@@ -26,6 +27,7 @@ export interface PeerCommunity {
   createdAt: string;
   pdsUrl: string;
   pdsHostname: string;
+  webUrl: string | null;
 }
 
 // --- Peer communities cache ---
@@ -49,6 +51,13 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
     return { communities: cachedCommunities, cachedAt: communitiesCachedAt };
   }
 
+  // First fetch peer info to get webUrl for each peer
+  const peerInfo = await getCachedPeerInfo();
+  const peerWebUrls = new Map<string, string | null>();
+  for (const p of peerInfo) {
+    peerWebUrls.set(p.serviceUrl, p.webUrl);
+  }
+
   const results = await Promise.allSettled(
     peerUrls.map(async (peerUrl) => {
       const controller = new AbortController();
@@ -69,6 +78,8 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
           peerHostname = peerUrl;
         }
 
+        const webUrl = peerWebUrls.get(peerUrl) || null;
+
         return data.communities.map((c: any): PeerCommunity => ({
           did: c.did,
           handle: c.handle,
@@ -81,6 +92,7 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
           createdAt: c.createdAt,
           pdsUrl: peerUrl,
           pdsHostname: peerHostname,
+          webUrl,
         }));
       } finally {
         clearTimeout(timeout);
@@ -137,23 +149,25 @@ export async function getCachedPeerInfo(): Promise<PeerInfo[]> {
         const url = `${peerUrl}/xrpc/net.openfederation.server.getPublicConfig`;
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
-          return { hostname: peerHostname, serviceUrl: peerUrl, healthy: false };
+          return { hostname: peerHostname, serviceUrl: peerUrl, webUrl: null, healthy: false };
         }
 
         const data = await response.json() as {
           hostname?: string;
           serviceUrl?: string;
+          webUrl?: string | null;
           stats?: { activeCommunities?: number };
         };
 
         return {
           hostname: data.hostname || peerHostname,
           serviceUrl: data.serviceUrl || peerUrl,
+          webUrl: data.webUrl || null,
           healthy: true,
           activeCommunities: data.stats?.activeCommunities,
         };
       } catch {
-        return { hostname: peerHostname, serviceUrl: peerUrl, healthy: false };
+        return { hostname: peerHostname, serviceUrl: peerUrl, webUrl: null, healthy: false };
       } finally {
         clearTimeout(timeout);
       }
@@ -163,7 +177,7 @@ export async function getCachedPeerInfo(): Promise<PeerInfo[]> {
   cachedPeerInfo = results.map((r) =>
     r.status === 'fulfilled'
       ? r.value
-      : { hostname: 'unknown', serviceUrl: 'unknown', healthy: false }
+      : { hostname: 'unknown', serviceUrl: 'unknown', webUrl: null, healthy: false }
   );
   peerInfoCachedAt = Date.now();
   return cachedPeerInfo;

@@ -20,6 +20,7 @@ export default async function getPublicConfig(_req: Request, res: Response): Pro
       version: '1.0.0',
       hostname: config.pds.hostname,
       serviceUrl: config.pds.serviceUrl,
+      webUrl: config.federation.webUiUrl || null,
       stats: {
         activeCommunities: parseInt(activeCommunitiesResult.rows[0].count, 10),
         totalUsers: parseInt(totalUsersResult.rows[0].count, 10),

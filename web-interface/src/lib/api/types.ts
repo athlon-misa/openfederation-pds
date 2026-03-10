@@ -338,6 +338,7 @@ export interface RevokePartnerKeyResponse {
 export interface PeerInfo {
   hostname: string;
   serviceUrl: string;
+  webUrl: string | null;
   healthy: boolean;
   activeCommunities?: number;
 }
@@ -354,6 +355,7 @@ export interface PeerCommunity {
   createdAt: string;
   pdsUrl: string;
   pdsHostname: string;
+  webUrl: string | null;
 }
 
 export interface ListPeerCommunitiesResponse {
