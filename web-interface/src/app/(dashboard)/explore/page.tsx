@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Compass, Globe, ExternalLink } from 'lucide-react';
+import { Compass, Globe } from 'lucide-react';
 import { useExploreCommunitiesQuery, usePeerCommunitiesQuery } from '@/hooks/use-communities';
 import { PageHeader } from '@/components/page-header';
 import { ExploreCommunityCard } from '@/components/explore-community-card';
@@ -94,16 +94,8 @@ function PeerCommunityCard({ community }: { community: PeerCommunity }) {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <a
-            href={`${community.pdsUrl}/communities/${encodeURIComponent(community.did)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline flex items-center gap-1.5"
-          >
-            <CardTitle className="text-lg">{community.displayName}</CardTitle>
-            <ExternalLink className="size-3.5 text-muted-foreground" />
-          </a>
-          <div className="flex gap-1">
+          <CardTitle className="text-lg">{community.displayName}</CardTitle>
+          <div className="flex gap-1 flex-wrap">
             <Badge variant="secondary">{community.pdsHostname}</Badge>
             <Badge variant="secondary">{community.didMethod}</Badge>
             {community.joinPolicy === 'approval' && (
@@ -120,15 +112,12 @@ function PeerCommunityCard({ community }: { community: PeerCommunity }) {
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             {community.memberCount} {community.memberCount === 1 ? 'member' : 'members'}
+            {' · '}
+            {community.visibility} · {community.joinPolicy === 'open' ? 'Open' : 'Approval required'}
           </p>
-          <a
-            href={community.pdsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-muted-foreground hover:underline"
-          >
-            View on {community.pdsHostname}
-          </a>
+          <p className="text-xs text-muted-foreground">
+            Hosted on {community.pdsHostname}
+          </p>
         </div>
       </CardContent>
     </Card>
