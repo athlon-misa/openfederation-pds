@@ -13,6 +13,7 @@ import {
   resolveJoinRequest,
   removeMember,
   deleteCommunity,
+  listPeerCommunities,
 } from '@/lib/api/communities';
 
 export const communityKeys = {
@@ -22,6 +23,7 @@ export const communityKeys = {
   members: (did: string, limit: number, offset: number) => ['communities', 'members', did, { limit, offset }] as const,
   joinRequests: (did: string, limit: number, offset: number) => ['communities', 'joinRequests', did, { limit, offset }] as const,
   explore: (limit: number, offset: number, mode: string) => ['communities', 'explore', { limit, offset, mode }] as const,
+  peerCommunities: ['communities', 'peer'] as const,
 };
 
 export function useMyCommunitiesQuery(limit = 50, offset = 0) {
@@ -186,5 +188,17 @@ export function useDeleteCommunityMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
+  });
+}
+
+export function usePeerCommunitiesQuery() {
+  return useQuery({
+    queryKey: communityKeys.peerCommunities,
+    queryFn: async () => {
+      const result = await listPeerCommunities();
+      if (!result.ok) throw new Error(result.message);
+      return result.data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

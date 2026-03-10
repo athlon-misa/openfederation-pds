@@ -10,6 +10,8 @@ import type {
   ListCommunitiesResponse,
   ListJoinRequestsResponse,
   ListMembersResponse,
+  ListPeerCommunitiesResponse,
+  ListPeersResponse,
   ResolveJoinRequestResponse,
   SuspendCommunityResponse,
   TakedownCommunityResponse,
@@ -140,5 +142,17 @@ export async function removeMember(did: string, memberDid: string) {
 export async function deleteCommunity(did: string) {
   return xrpc<{ success: boolean }>('net.openfederation.community.delete', {
     body: { did },
+  });
+}
+
+export async function listPeerCommunities() {
+  return xrpc<ListPeerCommunitiesResponse>('net.openfederation.federation.listPeerCommunities', {
+    method: 'GET',
+  });
+}
+
+export async function listPeers() {
+  return xrpc<ListPeersResponse>('net.openfederation.federation.listPeers', {
+    method: 'GET',
   });
 }

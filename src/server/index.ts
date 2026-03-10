@@ -65,6 +65,9 @@ import activateAccount from '../api/com.atproto.server.activateAccount.js';
 import exportAccount from '../api/net.openfederation.account.export.js';
 import updateRoles from '../api/net.openfederation.account.updateRoles.js';
 import changePassword from '../api/net.openfederation.account.changePassword.js';
+import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js';
+import listPeers from '../api/net.openfederation.federation.listPeers.js';
+import listPeerCommunities from '../api/net.openfederation.federation.listPeerCommunities.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -194,6 +197,9 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.invite.list': { handler: listInvites },
   'net.openfederation.audit.list': { handler: listAudit },
   'net.openfederation.server.getConfig': { handler: getServerConfig },
+  'net.openfederation.server.getPublicConfig': { handler: getPublicConfig, limiter: discoveryLimiter },
+  'net.openfederation.federation.listPeers': { handler: listPeers, limiter: discoveryLimiter },
+  'net.openfederation.federation.listPeerCommunities': { handler: listPeerCommunities, limiter: discoveryLimiter },
   'net.openfederation.account.resolveExternal': { handler: resolveExternal },
   'net.openfederation.community.listMine': { handler: listMyCommunities },
   'net.openfederation.community.get': { handler: getCommunity },

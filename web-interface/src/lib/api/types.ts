@@ -334,6 +334,39 @@ export interface RevokePartnerKeyResponse {
   status: string;
 }
 
+// Peer / federation types
+export interface PeerInfo {
+  hostname: string;
+  serviceUrl: string;
+  healthy: boolean;
+  activeCommunities?: number;
+}
+
+export interface PeerCommunity {
+  did: string;
+  handle: string;
+  didMethod: 'plc' | 'web';
+  displayName: string;
+  description: string;
+  visibility: 'public' | 'private';
+  joinPolicy: 'open' | 'approval';
+  memberCount: number;
+  createdAt: string;
+  pdsUrl: string;
+  pdsHostname: string;
+}
+
+export interface ListPeerCommunitiesResponse {
+  communities: PeerCommunity[];
+  peers: PeerInfo[];
+  cachedAt: string;
+}
+
+export interface ListPeersResponse {
+  self: { hostname: string; serviceUrl: string };
+  peers: PeerInfo[];
+}
+
 // API error type
 export interface ApiError {
   error: string;

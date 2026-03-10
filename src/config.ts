@@ -62,6 +62,17 @@ export const config = {
     enabled: process.env.ACTIVITYPUB_ENABLED !== 'false',
   },
 
+  // Federation / peer PDS discovery
+  federation: {
+    enabled: process.env.FEDERATION_PEERS_ENABLED !== 'false',
+    peerUrls: (process.env.PEER_PDS_URLS || '')
+      .split(',')
+      .map(u => u.trim())
+      .filter(Boolean)
+      .filter(u => u !== (process.env.PDS_SERVICE_URL || '')), // exclude self
+    cacheTtlMs: parseInt(process.env.FEDERATION_CACHE_TTL_MS || '300000', 10), // 5 min
+  },
+
   // OAuth configuration
   oauth: {
     enabled: process.env.OAUTH_ENABLED !== 'false',

@@ -1,26 +1,27 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 
 /**
  * net.openfederation.community.listAll
  *
- * List public communities (explore) excluding ones the user already joined.
- * Admin can pass mode=all to see all communities (for admin oversight).
+ * List public communities (explore).
+ *
+ * - Unauthenticated: returns only active, public communities (no membership info).
+ * - Authenticated: excludes communities the user already joined; includes join
+ *   request status. Admin can pass mode=all to see all communities.
+ *
  * Uses JOINs to avoid N+1 query patterns.
  */
 export default async function listAllCommunities(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!requireAuth(req, res)) {
-      return;
-    }
-
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
     const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
     const mode = String(req.query.mode || 'public');
+    const visibilityFilter = String(req.query.visibility || '');
 
-    const isAdmin = req.auth.roles.includes('admin');
+    const isAuthenticated = !!req.auth;
+    const isAdmin = isAuthenticated && req.auth!.roles.includes('admin');
     const showAll = mode === 'all' && isAdmin;
 
     let countQuery: string;
@@ -28,8 +29,42 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
     let dataQuery: string;
     let dataParams: any[];
 
-    if (showAll) {
-      // Admin sees all communities including suspended/takendown
+    if (!isAuthenticated) {
+      // --- Unauthenticated: public, active communities only ---
+      const visibilityClause = visibilityFilter === 'public'
+        ? `AND COALESCE(s.record->>'visibility', 'public') = 'public'`
+        : `AND COALESCE(s.record->>'visibility', 'public') = 'public'`; // always public for unauthed
+
+      countQuery = `
+        SELECT COUNT(*) as count FROM communities c
+        LEFT JOIN records_index s ON s.community_did = c.did
+          AND s.collection = 'net.openfederation.community.settings' AND s.rkey = 'self'
+        WHERE c.status = 'active'
+          AND COALESCE(s.record->>'visibility', 'public') = 'public'`;
+      countParams = [];
+
+      dataQuery = `
+        SELECT c.did, c.handle, c.did_method, c.created_at, c.status as community_status,
+               s.record as settings, p.record as profile,
+               COALESCE(mc.member_count, 0) as member_count,
+               false as is_member,
+               NULL as join_request_status
+        FROM communities c
+        LEFT JOIN records_index s ON s.community_did = c.did
+          AND s.collection = 'net.openfederation.community.settings' AND s.rkey = 'self'
+        LEFT JOIN records_index p ON p.community_did = c.did
+          AND p.collection = 'net.openfederation.community.profile' AND p.rkey = 'self'
+        LEFT JOIN (
+          SELECT community_did, COUNT(*)::int as member_count
+          FROM members_unique GROUP BY community_did
+        ) mc ON mc.community_did = c.did
+        WHERE c.status = 'active'
+          AND COALESCE(s.record->>'visibility', 'public') = 'public'
+        ORDER BY c.created_at DESC
+        LIMIT $1 OFFSET $2`;
+      dataParams = [limit, offset];
+    } else if (showAll) {
+      // --- Admin sees all communities including suspended/takendown ---
       countQuery = 'SELECT COUNT(*) as count FROM communities';
       countParams = [];
       dataQuery = `
@@ -52,9 +87,9 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
           AND jr.status = 'pending'
         ORDER BY c.created_at DESC
         LIMIT $1 OFFSET $2`;
-      dataParams = [limit, offset, req.auth.did, req.auth.userId];
+      dataParams = [limit, offset, req.auth!.did, req.auth!.userId];
     } else {
-      // Public view: only active, public communities that user hasn't joined
+      // --- Authenticated public view: active, public communities the user hasn't joined ---
       countQuery = `
         SELECT COUNT(*) as count FROM communities c
         LEFT JOIN records_index s ON s.community_did = c.did
@@ -65,7 +100,7 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
             SELECT 1 FROM members_unique mu
             WHERE mu.community_did = c.did AND mu.member_did = $1
           )`;
-      countParams = [req.auth.did];
+      countParams = [req.auth!.did];
       dataQuery = `
         SELECT c.did, c.handle, c.did_method, c.created_at, c.status as community_status,
                s.record as settings, p.record as profile,
@@ -91,7 +126,7 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
           )
         ORDER BY c.created_at DESC
         LIMIT $1 OFFSET $2`;
-      dataParams = [limit, offset, req.auth.did, req.auth.userId];
+      dataParams = [limit, offset, req.auth!.did, req.auth!.userId];
     }
 
     const [countResult, dataResult] = await Promise.all([
