@@ -1,0 +1,34 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.verifyAttestation",
+  "description": "Verify an attestation exists in a community repo. Record existence = validity.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Check if an attestation record exists and return it with verification metadata.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "communityDid": { "type": "string", "description": "The community DID." },
+          "rkey": { "type": "string", "description": "The attestation record key." }
+        },
+        "required": ["communityDid", "rkey"]
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "valid": { "type": "boolean" },
+            "attestation": { "type": "object" },
+            "communityDid": { "type": "string" },
+            "communityHandle": { "type": "string" },
+            "expired": { "type": "boolean" }
+          },
+          "required": ["valid", "communityDid"]
+        }
+      },
+      "errors": [{ "name": "InvalidRequest", "description": "Missing required parameters." }]
+    }
+  }
+}

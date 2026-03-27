@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.deleteAttestation",
+  "description": "Revoke an attestation by deleting it from the community repo. ATProto-native revocation.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Delete an attestation record. The signed commit proves the revocation.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "communityDid": { "type": "string", "description": "The community DID." },
+            "rkey": { "type": "string", "description": "The attestation record key." },
+            "reason": { "type": "string", "description": "Optional reason for revocation (stored in audit log)." }
+          },
+          "required": ["communityDid", "rkey"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": { "success": { "type": "boolean" } },
+          "required": ["success"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields." },
+        { "name": "AttestationNotFound", "description": "No attestation found with the given rkey." }
+      ]
+    }
+  }
+}
