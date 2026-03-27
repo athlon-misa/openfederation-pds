@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.repo.uploadBlob",
+  "description": "Upload a binary blob (image) and receive a blob reference for use in records.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Upload a blob. Returns a blob ref object with CID, MIME type, and size.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "blob": {
+              "type": "object",
+              "properties": {
+                "$type": { "type": "string" },
+                "ref": { "type": "object", "properties": { "$link": { "type": "string" } }, "required": ["$link"] },
+                "mimeType": { "type": "string" },
+                "size": { "type": "integer" }
+              },
+              "required": ["$type", "ref", "mimeType", "size"]
+            }
+          },
+          "required": ["blob"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid Content-Type." },
+        { "name": "BlobTooLarge", "description": "Blob exceeds the maximum allowed size." },
+        { "name": "InvalidMimeType", "description": "Content-Type is not in the allowed list." }
+      ]
+    }
+  }
+}
