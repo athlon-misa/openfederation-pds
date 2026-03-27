@@ -148,7 +148,7 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: 20,                     // 20 login attempts per 15 min
+  max: parseInt(process.env.AUTH_RATE_LIMIT || '20', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many authentication attempts, please try again later' },
@@ -156,7 +156,7 @@ const authLimiter = rateLimit({
 
 const registrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,  // 1 hour
-  max: 5,                      // 5 registrations per hour per IP
+  max: parseInt(process.env.REGISTRATION_RATE_LIMIT || '5', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many registration attempts, please try again later' },
