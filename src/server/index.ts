@@ -73,6 +73,13 @@ import listExternalKeys from '../api/net.openfederation.identity.listExternalKey
 import getExternalKey from '../api/net.openfederation.identity.getExternalKey.js';
 import deleteExternalKey from '../api/net.openfederation.identity.deleteExternalKey.js';
 import resolveByKeyHandler from '../api/net.openfederation.identity.resolveByKey.js';
+import updateMemberRole from '../api/net.openfederation.community.updateMemberRole.js';
+import issueAttestation from '../api/net.openfederation.community.issueAttestation.js';
+import deleteAttestation from '../api/net.openfederation.community.deleteAttestation.js';
+import listAttestations from '../api/net.openfederation.community.listAttestations.js';
+import verifyAttestation from '../api/net.openfederation.community.verifyAttestation.js';
+import updateProfile from '../api/net.openfederation.account.updateProfile.js';
+import getProfileHandler from '../api/net.openfederation.account.getProfile.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -241,6 +248,19 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.identity.getExternalKey': { handler: getExternalKey, limiter: discoveryLimiter },
   'net.openfederation.identity.deleteExternalKey': { handler: deleteExternalKey },
   'net.openfederation.identity.resolveByKey': { handler: resolveByKeyHandler, limiter: discoveryLimiter },
+
+  // Community role management
+  'net.openfederation.community.updateMemberRole': { handler: updateMemberRole },
+
+  // Community attestation endpoints
+  'net.openfederation.community.issueAttestation': { handler: issueAttestation },
+  'net.openfederation.community.deleteAttestation': { handler: deleteAttestation },
+  'net.openfederation.community.listAttestations': { handler: listAttestations, limiter: discoveryLimiter },
+  'net.openfederation.community.verifyAttestation': { handler: verifyAttestation, limiter: discoveryLimiter },
+
+  // Profile endpoints
+  'net.openfederation.account.updateProfile': { handler: updateProfile },
+  'net.openfederation.account.getProfile': { handler: getProfileHandler, limiter: discoveryLimiter },
 
   // OpenFederation account lifecycle
   'net.openfederation.account.export': { handler: exportAccount },
