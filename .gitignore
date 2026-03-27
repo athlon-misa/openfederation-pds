@@ -35,3 +35,6 @@ railway.json.backup
 
 # GoToSocial local testing
 gotosocial/
+
+# Local roadmap / future feature planning
+roadmap/
