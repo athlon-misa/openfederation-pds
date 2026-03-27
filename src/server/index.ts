@@ -80,6 +80,8 @@ import listAttestations from '../api/net.openfederation.community.listAttestatio
 import verifyAttestation from '../api/net.openfederation.community.verifyAttestation.js';
 import updateProfile from '../api/net.openfederation.account.updateProfile.js';
 import getProfileHandler from '../api/net.openfederation.account.getProfile.js';
+import uploadBlob from '../api/com.atproto.repo.uploadBlob.js';
+import importRepo from '../api/net.openfederation.admin.importRepo.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -286,6 +288,39 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'com.atproto.repo.describeRepo': { handler: describeRepo },
   'com.atproto.repo.listRecords': { handler: listRecords },
   'com.atproto.sync.getRepo': { handler: syncGetRepo },
+  'com.atproto.repo.uploadBlob': { handler: uploadBlob },
+
+  // Admin repo management
+  'net.openfederation.admin.importRepo': { handler: importRepo },
+});
+
+// Blob serve route — serves binary blobs by DID + CID
+app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
+  try {
+    const did = String(req.params.did || '');
+    const cid = String(req.params.cid || '');
+    if (!did || !cid) {
+      return res.status(400).json({ error: 'InvalidRequest', message: 'Missing did or cid' });
+    }
+
+    const { getBlobStore } = await import('../blob/blob-store.js');
+    const store = await getBlobStore();
+    const blob = await store.get(cid);
+
+    if (!blob) {
+      return res.status(404).json({ error: 'BlobNotFound', message: 'Blob not found' });
+    }
+
+    res.setHeader('Content-Type', blob.mimeType);
+    res.setHeader('Content-Length', blob.data.length.toString());
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(blob.data);
+  } catch (error) {
+    console.error('Error serving blob:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'InternalServerError', message: 'Failed to serve blob' });
+    }
+  }
 });
 
 // XRPC Router - supports both GET and POST

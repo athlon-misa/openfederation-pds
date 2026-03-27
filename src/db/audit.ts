@@ -39,7 +39,8 @@ export type AuditAction =
   | 'identity.deleteExternalKey'
   | 'community.updateMemberRole'
   | 'community.issueAttestation'
-  | 'community.deleteAttestation';
+  | 'community.deleteAttestation'
+  | 'admin.importRepo';
 
 export async function auditLog(
   action: AuditAction,

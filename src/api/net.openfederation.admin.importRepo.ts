@@ -99,7 +99,7 @@ export default async function importRepo(req: AuthRequest, res: Response): Promi
         `INSERT INTO records_index (community_did, collection, rkey, record, cid)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (community_did, collection, rkey) DO UPDATE SET record = $4, cid = $5`,
-        [did, record.collection, record.rkey, JSON.stringify(record.value), record.cid || '']
+        [did, record.collection, record.rkey, JSON.stringify(record.record), record.cid || '']
       );
       recordCount++;
     }
