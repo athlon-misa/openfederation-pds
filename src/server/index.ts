@@ -68,6 +68,11 @@ import changePassword from '../api/net.openfederation.account.changePassword.js'
 import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js';
 import listPeers from '../api/net.openfederation.federation.listPeers.js';
 import listPeerCommunities from '../api/net.openfederation.federation.listPeerCommunities.js';
+import setExternalKey from '../api/net.openfederation.identity.setExternalKey.js';
+import listExternalKeys from '../api/net.openfederation.identity.listExternalKeys.js';
+import getExternalKey from '../api/net.openfederation.identity.getExternalKey.js';
+import deleteExternalKey from '../api/net.openfederation.identity.deleteExternalKey.js';
+import resolveByKeyHandler from '../api/net.openfederation.identity.resolveByKey.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -229,6 +234,13 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.partner.createKey': { handler: createPartnerKey },
   'net.openfederation.partner.listKeys': { handler: listPartnerKeys },
   'net.openfederation.partner.revokeKey': { handler: revokePartnerKey },
+
+  // External identity key endpoints
+  'net.openfederation.identity.setExternalKey': { handler: setExternalKey },
+  'net.openfederation.identity.listExternalKeys': { handler: listExternalKeys, limiter: discoveryLimiter },
+  'net.openfederation.identity.getExternalKey': { handler: getExternalKey, limiter: discoveryLimiter },
+  'net.openfederation.identity.deleteExternalKey': { handler: deleteExternalKey },
+  'net.openfederation.identity.resolveByKey': { handler: resolveByKeyHandler, limiter: discoveryLimiter },
 
   // OpenFederation account lifecycle
   'net.openfederation.account.export': { handler: exportAccount },
