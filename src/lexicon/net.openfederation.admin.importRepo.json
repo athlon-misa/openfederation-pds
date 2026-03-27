@@ -1,0 +1,29 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.importRepo",
+  "description": "Import a CAR file to create or restore a repository on this PDS. Admin only.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Import a full repository from a CAR stream. Used for migration and disaster recovery.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string" },
+            "rootCid": { "type": "string" },
+            "blockCount": { "type": "integer" },
+            "recordCount": { "type": "integer" }
+          },
+          "required": ["did", "rootCid", "blockCount", "recordCount"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing DID parameter or invalid CAR data." },
+        { "name": "RepoAlreadyExists", "description": "A repository already exists for this DID." },
+        { "name": "InvalidCar", "description": "CAR data is malformed or cannot be parsed." }
+      ]
+    }
+  }
+}
