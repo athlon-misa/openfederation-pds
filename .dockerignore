@@ -1,0 +1,14 @@
+node_modules
+.git
+.env
+.env.*
+!.env.example
+data/
+dist/
+web-interface/node_modules
+web-interface/.next
+*.md
+tests/
+.claude/
+docs/
+articles/
