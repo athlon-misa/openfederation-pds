@@ -34,7 +34,9 @@ export type AuditAction =
   | 'account.delete'
   | 'account.export'
   | 'account.roles.update'
-  | 'account.password.change';
+  | 'account.password.change'
+  | 'identity.setExternalKey'
+  | 'identity.deleteExternalKey';
 
 export async function auditLog(
   action: AuditAction,
