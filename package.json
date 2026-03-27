@@ -38,6 +38,7 @@
     "@atproto/oauth-provider": "^0.15.11",
     "@atproto/repo": "^0.8.12",
     "@atproto/xrpc": "^0.7.7",
+    "@aws-sdk/client-s3": "^3.1018.0",
     "@did-plc/server": "^0.0.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.6",
