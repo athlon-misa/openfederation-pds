@@ -221,3 +221,14 @@ CREATE TABLE IF NOT EXISTS partner_keys (
 
 CREATE INDEX idx_partner_keys_status ON partner_keys(status);
 CREATE INDEX idx_partner_keys_hash ON partner_keys(key_hash);
+
+-- Blob storage metadata
+CREATE TABLE IF NOT EXISTS blobs (
+    cid TEXT PRIMARY KEY,
+    did TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_blobs_did ON blobs(did);

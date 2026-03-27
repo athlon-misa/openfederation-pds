@@ -74,6 +74,19 @@ export const config = {
     webUiUrl: process.env.WEB_UI_URL || '',
   },
 
+  // Blob storage configuration
+  blob: {
+    storage: (process.env.BLOB_STORAGE || 'local') as 'local' | 's3',
+    localPath: process.env.BLOB_STORAGE_PATH || './data/blobs',
+    maxSize: parseInt(process.env.BLOB_MAX_SIZE || '1048576', 10), // 1MB default
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    s3Bucket: process.env.BLOB_S3_BUCKET || '',
+    s3Region: process.env.BLOB_S3_REGION || 'us-east-1',
+    s3Endpoint: process.env.BLOB_S3_ENDPOINT || '',
+    s3AccessKeyId: process.env.BLOB_S3_ACCESS_KEY_ID || '',
+    s3SecretAccessKey: process.env.BLOB_S3_SECRET_ACCESS_KEY || '',
+  },
+
   // OAuth configuration
   oauth: {
     enabled: process.env.OAUTH_ENABLED !== 'false',
