@@ -23,6 +23,12 @@ export default async function listExternalKeys(req: AuthRequest, res: Response):
     const params: (string | number)[] = [did, EXTERNAL_KEY_COLLECTION];
     let paramIdx = 3;
 
+    if (purpose) {
+      sql += ` AND record->>'purpose' = $${paramIdx}`;
+      params.push(purpose);
+      paramIdx++;
+    }
+
     if (cursor) {
       sql += ` AND rkey > $${paramIdx}`;
       params.push(cursor);
@@ -39,10 +45,6 @@ export default async function listExternalKeys(req: AuthRequest, res: Response):
     if (rows.length > limit) {
       rows = rows.slice(0, limit);
       nextCursor = rows[rows.length - 1].rkey;
-    }
-
-    if (purpose) {
-      rows = rows.filter(r => r.record?.purpose === purpose);
     }
 
     const keys = rows.map(row => ({
