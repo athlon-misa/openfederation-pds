@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.getProfile",
+  "description": "Get a user's profile, including standard ATProto fields and any custom profile collections.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Returns the user's app.bsky.actor.profile and any custom profile collections found in their repo.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "did": { "type": "string", "description": "The user's DID." }
+        },
+        "required": ["did"]
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string" },
+            "handle": { "type": "string" },
+            "profile": { "type": "object", "description": "app.bsky.actor.profile record." },
+            "customProfiles": { "type": "object", "description": "Map of custom collection NSID to record value." }
+          },
+          "required": ["did", "profile"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
+        { "name": "ProfileNotFound", "description": "No profile found for this DID." }
+      ]
+    }
+  }
+}

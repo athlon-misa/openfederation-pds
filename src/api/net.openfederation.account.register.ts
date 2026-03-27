@@ -187,7 +187,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
         {
           collection: 'app.bsky.actor.profile',
           rkey: 'self',
-          record: { displayName: handle },
+          record: { displayName: handle, description: '' },
         },
       ]);
     } catch (err) {

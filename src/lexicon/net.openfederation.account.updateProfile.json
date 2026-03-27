@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.updateProfile",
+  "description": "Update the authenticated user's profile. Supports both standard ATProto profile fields and custom collection data.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Update profile fields in app.bsky.actor.profile or write to a custom profile collection.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "displayName": { "type": "string", "description": "Display name." },
+            "description": { "type": "string", "description": "Bio / description." },
+            "collection": { "type": "string", "description": "Optional custom collection NSID (e.g., app.grvty.actor.profile). Defaults to app.bsky.actor.profile." },
+            "record": { "type": "object", "description": "Full record to write when using a custom collection. Ignored for app.bsky.actor.profile." }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "uri": { "type": "string" },
+            "cid": { "type": "string" }
+          },
+          "required": ["uri", "cid"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Validation failed." }
+      ]
+    }
+  }
+}
