@@ -340,6 +340,63 @@ account
     }
   }));
 
+// ── ofc account sessions ────────────────────────────────────────────
+
+const sessions = account.command('sessions').description('Session management');
+
+sessions
+  .command('list')
+  .description('List your active sessions')
+  .action(run(async () => {
+    const c = client();
+    const result = await c.authGet('net.openfederation.account.listSessions');
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      if (result.sessions.length === 0) {
+        info('No active sessions');
+        return;
+      }
+      table(['ID', 'Created', 'Last Used', 'Expires'],
+        result.sessions.map((s: any) => [
+          s.id,
+          s.createdAt ? new Date(s.createdAt).toLocaleString() : '—',
+          s.lastUsedAt ? new Date(s.lastUsedAt).toLocaleString() : '—',
+          s.expiresAt ? new Date(s.expiresAt).toLocaleString() : '—',
+        ])
+      );
+    }
+  }));
+
+sessions
+  .command('revoke <sessionId>')
+  .description('Revoke a session by ID prefix')
+  .action(run(async () => {
+    const cmd = sessions.commands.find(c => c.name() === 'revoke')!;
+    const sessionId = cmd.args[0];
+    const c = client();
+    const result = await c.authPost('net.openfederation.account.revokeSession', { sessionId });
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      success(`Revoked ${result.revokedCount} session(s)`);
+    }
+  }));
+
+sessions
+  .command('revoke-all')
+  .description('Revoke all sessions (you will need to log in again)')
+  .action(run(async () => {
+    const c = client();
+    const result = await c.authPost('net.openfederation.account.revokeSession', { revokeAll: true });
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      success(`Revoked ${result.revokedCount} session(s)`);
+      hint('Log in again with: ofc auth login');
+    }
+  }));
+
 // ── ofc invite ──────────────────────────────────────────────────────
 
 const invite = program.command('invite').description('Invite code management');
@@ -399,6 +456,101 @@ invite
           inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : 'never',
         ]),
       );
+    }
+  }));
+
+// ── ofc security ────────────────────────────────────────────────────
+
+const security = program.command('security').description('Security diagnostics');
+
+security
+  .command('check-config')
+  .description('Check server configuration for security issues')
+  .action(run(async () => {
+    const c = client();
+    const result = await c.authGet('net.openfederation.server.getConfig');
+
+    const checks: Array<{ label: string; status: 'ok' | 'warn' | 'fail'; detail: string }> = [];
+
+    // Check JWT secret
+    if (result.auth?.jwtSecretIsInsecure) {
+      checks.push({ label: 'AUTH_JWT_SECRET', status: 'fail', detail: 'using default/insecure secret' });
+    } else {
+      checks.push({ label: 'AUTH_JWT_SECRET', status: 'ok', detail: 'secure' });
+    }
+
+    // Check NODE_ENV
+    if (result.environment === 'production') {
+      checks.push({ label: 'NODE_ENV', status: 'ok', detail: 'production' });
+    } else {
+      checks.push({ label: 'NODE_ENV', status: 'warn', detail: result.environment || 'not set' });
+    }
+
+    // Check invite required
+    if (result.auth?.inviteRequired) {
+      checks.push({ label: 'INVITE_REQUIRED', status: 'ok', detail: 'enabled' });
+    } else {
+      checks.push({ label: 'INVITE_REQUIRED', status: 'warn', detail: 'disabled — open registration' });
+    }
+
+    if (isJsonMode()) {
+      json({ checks });
+    } else {
+      for (const check of checks) {
+        const icon = check.status === 'ok' ? '✔' : check.status === 'warn' ? '⚠' : '✘';
+        console.log(`  ${icon} ${check.label}: ${check.detail}`);
+      }
+    }
+  }));
+
+security
+  .command('audit-summary')
+  .description('Show recent security event summary')
+  .option('--days <n>', 'Number of days to look back', '7')
+  .action(run(async () => {
+    const cmd = security.commands.find(c => c.name() === 'audit-summary')!;
+    const opts = cmd.opts();
+    const days = parseInt(opts.days, 10) || 7;
+
+    const c = client();
+    const result = await c.authGet('net.openfederation.audit.list', {
+      limit: '1000',
+    });
+
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const entries = (result.entries || []).filter((e: any) => new Date(e.createdAt) >= since);
+
+    // Count by action
+    const counts: Record<string, number> = {};
+    for (const entry of entries) {
+      counts[entry.action] = (counts[entry.action] || 0) + 1;
+    }
+
+    if (isJsonMode()) {
+      json({ days, since: since.toISOString(), counts, totalEvents: entries.length });
+    } else {
+      console.log(`\n  Security summary for the last ${days} day(s):\n`);
+      const interestingActions = [
+        'session.loginFailed',
+        'session.revoke',
+        'account.roles.update',
+        'partner.key.create',
+        'partner.key.revoke',
+        'community.transfer.initiate',
+        'account.password.change',
+        'account.password.reset.request',
+        'account.password.reset.confirm',
+        'account.takedown',
+        'account.suspend',
+      ];
+      for (const action of interestingActions) {
+        const count = counts[action] || 0;
+        if (count > 0) {
+          console.log(`    ${action.padEnd(40)} ${count}`);
+        }
+      }
+      const total = entries.length;
+      console.log(`\n    Total audit events: ${total}`);
     }
   }));
 
