@@ -53,8 +53,13 @@ jobs:
           AUTH_JWT_SECRET: ci-test-secret-minimum-32-characters-long
           KEY_ENCRYPTION_SECRET: ci-test-encryption-secret-32chars
 
-      - name: Initialize test database schema
-        run: PGPASSWORD=test psql -h localhost -U test -d openfederation_test -f src/db/schema.sql
+      - name: Initialize test database schema and run migrations
+        run: |
+          psql -h localhost -U test -d openfederation_test -f src/db/schema.sql
+          for f in scripts/migrate-*.sql; do
+            echo "Running $f..."
+            psql -h localhost -U test -d openfederation_test -f "$f"
+          done
         env:
           PGPASSWORD: test
 
