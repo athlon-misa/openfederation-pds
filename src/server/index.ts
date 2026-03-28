@@ -91,6 +91,15 @@ import createProposal from '../api/net.openfederation.community.createProposal.j
 import voteOnProposal from '../api/net.openfederation.community.voteOnProposal.js';
 import listProposals from '../api/net.openfederation.community.listProposals.js';
 import getProposalHandler from '../api/net.openfederation.community.getProposal.js';
+import amendProposal from '../api/net.openfederation.community.amendProposal.js';
+import setDelegation from '../api/net.openfederation.community.setDelegation.js';
+import revokeDelegation from '../api/net.openfederation.community.revokeDelegation.js';
+import getDelegationHandler from '../api/net.openfederation.community.getDelegation.js';
+import createExportSchedule from '../api/net.openfederation.admin.createExportSchedule.js';
+import listExportSchedules from '../api/net.openfederation.admin.listExportSchedules.js';
+import deleteExportSchedule from '../api/net.openfederation.admin.deleteExportSchedule.js';
+import listExportSnapshots from '../api/net.openfederation.admin.listExportSnapshots.js';
+import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -275,6 +284,18 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.community.voteOnProposal': { handler: voteOnProposal },
   'net.openfederation.community.listProposals': { handler: listProposals, limiter: discoveryLimiter },
   'net.openfederation.community.getProposal': { handler: getProposalHandler, limiter: discoveryLimiter },
+  'net.openfederation.community.amendProposal': { handler: amendProposal },
+
+  // Delegation
+  'net.openfederation.community.setDelegation': { handler: setDelegation },
+  'net.openfederation.community.revokeDelegation': { handler: revokeDelegation },
+  'net.openfederation.community.getDelegation': { handler: getDelegationHandler, limiter: discoveryLimiter },
+
+  // Export scheduler admin
+  'net.openfederation.admin.createExportSchedule': { handler: createExportSchedule },
+  'net.openfederation.admin.listExportSchedules': { handler: listExportSchedules },
+  'net.openfederation.admin.deleteExportSchedule': { handler: deleteExportSchedule },
+  'net.openfederation.admin.listExportSnapshots': { handler: listExportSnapshots },
 
   // Community attestation endpoints
   'net.openfederation.community.issueAttestation': { handler: issueAttestation },
@@ -721,6 +742,8 @@ export async function startServer(): Promise<void> {
       if (!dbConnected) {
         console.log('WARNING: Running without database connection');
       }
+      // Start export scheduler after server is listening
+      startExportScheduler();
       resolve();
     });
   });
