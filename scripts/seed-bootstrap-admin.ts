@@ -8,12 +8,16 @@
 import { ensureBootstrapAdmin } from '../src/auth/bootstrap.js';
 import { closePool } from '../src/db/client.js';
 
-try {
-  await ensureBootstrapAdmin();
-  console.log('✓ Bootstrap admin seeded');
-} catch (err) {
-  console.error('✗ Failed to seed bootstrap admin:', err);
-  process.exit(1);
-} finally {
-  await closePool();
+async function main() {
+  try {
+    await ensureBootstrapAdmin();
+    console.log('✓ Bootstrap admin seeded');
+  } catch (err) {
+    console.error('✗ Failed to seed bootstrap admin:', err);
+    process.exit(1);
+  } finally {
+    await closePool();
+  }
 }
+
+main();
