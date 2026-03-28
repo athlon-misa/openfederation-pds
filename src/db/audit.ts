@@ -8,6 +8,7 @@ export type AuditAction =
   | 'session.create'
   | 'session.refresh'
   | 'session.delete'
+  | 'session.loginFailed'
   | 'community.create'
   | 'community.update'
   | 'community.join'

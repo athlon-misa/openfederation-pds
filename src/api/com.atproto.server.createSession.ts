@@ -5,6 +5,7 @@ import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tok
 import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
 import type { UserRole, UserStatus } from '../auth/types.js';
 import crypto from 'crypto';
+import { auditLog } from '../db/audit.js';
 
 interface CreateSessionInput {
   identifier: string;
@@ -40,6 +41,9 @@ export default async function createSession(req: Request, res: Response): Promis
     );
 
     if (userResult.rows.length === 0) {
+      await auditLog('session.loginFailed', null, null, {
+        identifier: input.identifier, reason: 'user_not_found', ip: req.ip,
+      });
       res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid credentials',
@@ -51,6 +55,9 @@ export default async function createSession(req: Request, res: Response): Promis
 
     // External users cannot log in via password — they must use ATProto OAuth
     if (user.auth_type === 'external') {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: input.identifier, reason: 'external_account', ip: req.ip,
+      });
       res.status(400).json({
         error: 'ExternalAccount',
         message: 'This account uses ATProto OAuth. Please sign in via your home PDS.',
@@ -59,6 +66,9 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     if (!user.password_hash) {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: input.identifier, reason: 'no_password_hash', ip: req.ip,
+      });
       res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid credentials',
@@ -68,6 +78,9 @@ export default async function createSession(req: Request, res: Response): Promis
 
     const passwordOk = await verifyPassword(input.password, user.password_hash);
     if (!passwordOk) {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: input.identifier, reason: 'wrong_password', ip: req.ip,
+      });
       res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid credentials',
@@ -76,6 +89,9 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     if (user.status === 'suspended') {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: input.identifier, reason: 'account_suspended', ip: req.ip,
+      });
       res.status(403).json({
         error: 'AccountSuspended',
         message: 'Your account has been suspended.',
@@ -84,6 +100,9 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     if (user.status === 'takendown') {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: input.identifier, reason: 'account_takendown', ip: req.ip,
+      });
       res.status(410).json({
         error: 'AccountTakenDown',
         message: 'Your account has been taken down.',
@@ -92,6 +111,9 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     if (user.status === 'deactivated') {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: input.identifier, reason: 'account_deactivated', ip: req.ip,
+      });
       res.status(403).json({
         error: 'AccountDeactivated',
         message: 'Your account is deactivated. Reactivate it to continue.',
@@ -100,6 +122,9 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     if (user.status !== 'approved') {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: input.identifier, reason: 'account_not_approved', ip: req.ip,
+      });
       res.status(403).json({
         error: 'AccountNotApproved',
         message: 'Your account must be approved before logging in.',
