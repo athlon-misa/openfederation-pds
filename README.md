@@ -197,12 +197,64 @@ Both communities and user accounts follow the AT Protocol "free to go" principle
 
 Partner keys allow trusted third-party apps (e.g., game platforms) to register users directly — no invite code, no approval wait. See [SDK Integration Guide](./docs/sdk-integration-guide.md) for full documentation.
 
+### Identity Bridge (Cross-Network Keys)
+
+| NSID | Method | Auth | Description |
+|------|:---:|:---:|-------------|
+| `net.openfederation.identity.setExternalKey` | POST | Yes | Store an external public key (Ed25519, X25519, secp256k1, P256) |
+| `net.openfederation.identity.listExternalKeys` | GET | No | List external keys for a DID |
+| `net.openfederation.identity.getExternalKey` | GET | No | Get a specific external key |
+| `net.openfederation.identity.deleteExternalKey` | POST | Yes | Delete an external key |
+| `net.openfederation.identity.resolveByKey` | GET | No | Reverse lookup: find ATProto DID by external public key |
+
+Enables cross-network identity bridging for Meshtastic, Nostr, WireGuard, SSH, and hardware devices. Keys stored as ATProto repo records in `did:key` multibase format.
+
+### Community Attestations
+
+| NSID | Method | Auth | Description |
+|------|:---:|:---:|-------------|
+| `net.openfederation.community.issueAttestation` | POST | Owner/Mod | Issue a verifiable attestation for a member |
+| `net.openfederation.community.deleteAttestation` | POST | Owner/Mod | Revoke an attestation (delete-as-revoke) |
+| `net.openfederation.community.listAttestations` | GET | No | List attestations by community/subject/type |
+| `net.openfederation.community.verifyAttestation` | GET | No | Verify attestation (supports remote PDS communities) |
+
+### Community Roles & Governance
+
+| NSID | Method | Auth | Description |
+|------|:---:|:---:|-------------|
+| `net.openfederation.community.createRole` | POST | Owner | Create a custom role with permissions |
+| `net.openfederation.community.updateRole` | POST | Owner | Update role permissions |
+| `net.openfederation.community.deleteRole` | POST | Owner | Delete a role (fails if members assigned) |
+| `net.openfederation.community.listRoles` | GET | No | List roles with member counts |
+| `net.openfederation.community.updateMemberRole` | POST | Owner | Assign a member to a role |
+| `net.openfederation.community.setGovernanceModel` | POST | Owner | Switch governance mode (benevolent-dictator / simple-majority) |
+| `net.openfederation.community.createProposal` | POST | Voter | Propose a change to a protected collection |
+| `net.openfederation.community.amendProposal` | POST | Voter | Amend an open proposal (resets votes) |
+| `net.openfederation.community.voteOnProposal` | POST | Voter | Cast vote (supports delegation) |
+| `net.openfederation.community.listProposals` | GET | No | List governance proposals |
+| `net.openfederation.community.getProposal` | GET | No | Get proposal details |
+| `net.openfederation.community.setDelegation` | POST | Voter | Delegate your vote to another member |
+| `net.openfederation.community.revokeDelegation` | POST | Voter | Remove vote delegation |
+| `net.openfederation.community.getDelegation` | GET | No | Check delegation status |
+
+### User Profiles
+
+| NSID | Method | Auth | Description |
+|------|:---:|:---:|-------------|
+| `net.openfederation.account.updateProfile` | POST | Yes | Update standard or custom profile collection |
+| `net.openfederation.account.getProfile` | GET | No | Get profile (standard + custom collections) |
+
 ### Administration
 
 | NSID | Method | Auth | Description |
 |------|:---:|:---:|-------------|
-| `net.openfederation.audit.list` | GET | PDS Admin | List audit log entries (filter by action, actor, target, date range) |
+| `net.openfederation.audit.list` | GET | PDS Admin | List audit log entries |
 | `net.openfederation.server.getConfig` | GET | PDS Admin | Get server config and statistics |
+| `net.openfederation.admin.importRepo` | POST | PDS Admin | Import a CAR file to create/restore a repo |
+| `net.openfederation.admin.createExportSchedule` | POST | PDS Admin | Create automated export schedule |
+| `net.openfederation.admin.listExportSchedules` | GET | PDS Admin | List export schedules with status |
+| `net.openfederation.admin.deleteExportSchedule` | POST | PDS Admin | Remove an export schedule |
+| `net.openfederation.admin.listExportSnapshots` | GET | PDS Admin | List export snapshots for a community |
 
 ## Web Interface
 

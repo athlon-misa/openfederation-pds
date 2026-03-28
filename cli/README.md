@@ -141,6 +141,47 @@ ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.
 |---------|:---:|-------------|
 | `audit list [--action X] [--actor Y] [--limit N]` | Admin | List audit log entries |
 
+### `ofc attestation` — Community Attestations
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `attestation issue --did <communityDid> --subject <did> --subject-handle <handle> --type <type> --claim <json>` | Owner/Mod | Issue an attestation |
+| `attestation verify --did <communityDid> --rkey <rkey>` | No | Verify attestation (supports remote communities) |
+| `attestation list --did <communityDid> [--subject <did>] [--type <type>]` | No | List attestations |
+| `attestation delete --did <communityDid> --rkey <rkey> [--reason <reason>]` | Owner/Mod | Revoke attestation (delete-as-revoke) |
+
+### `ofc identity` — External Identity Keys
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `identity set-key --rkey <rkey> --type <type> --purpose <purpose> --public-key <key>` | Yes | Store an external public key |
+| `identity list-keys --did <did> [--purpose <purpose>]` | No | List external keys for a DID |
+| `identity delete-key --rkey <rkey>` | Yes | Delete an external key |
+| `identity resolve-key --public-key <key> [--purpose <purpose>]` | No | Find ATProto DID by external key |
+
+### `ofc role` — Community Roles
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `role list --did <communityDid>` | No | List roles and member counts |
+| `role create --did <communityDid> --name <name> --permissions <p1,p2,...>` | Owner | Create a custom role |
+
+### `ofc governance` — Community Governance
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `governance set-model --did <communityDid> --model <model> [--quorum <n>] [--voter-role <role>]` | Owner | Switch governance model |
+| `governance propose --did <communityDid> --collection <col> --rkey <rkey> --action <write\|delete> [--record <json>]` | Voter | Create a governance proposal |
+| `governance vote --did <communityDid> --proposal <rkey> --vote <for\|against>` | Voter | Vote on a proposal |
+| `governance list-proposals --did <communityDid> [--status <status>]` | No | List governance proposals |
+
+### `ofc profile` — User Profiles
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `profile get --did <did>` | No | Get user profile (standard + custom collections) |
+| `profile update [--display-name <name>] [--description <desc>]` | Yes | Update your profile |
+
 ## Example Workflows
 
 ### Admin Setup

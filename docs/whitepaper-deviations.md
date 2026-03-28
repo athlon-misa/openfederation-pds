@@ -16,15 +16,24 @@ This document records deliberate deviations from the OpenFederation Technical Wh
 
 **Decision:** Discussed and approved in GitHub issue #12.
 
-## 2. Role Model: String Roles vs Role-Reference Records
+## 2. Role Model: Custom Roles with Permissions (Resolved)
 
-**Whitepaper says (Section 3.1, 3.3):** Member records reference a role TID pointing to a `net.openfederation.community.role` record with a custom permissions array. Communities can define arbitrary roles (e.g., "coach", "physio", "treasurer").
+**Whitepaper says (Section 3.1, 3.3):** Member records reference a role TID pointing to a `net.openfederation.community.role` record with a custom permissions array.
 
-**Implementation:** Roles are stored as string values (`owner`, `moderator`, `member`) directly in the member record. There is no `community.role` collection.
+**Implementation:** Resolved in GitHub issue #17. The `community.role` collection now exists with full CRUD endpoints (`createRole`, `updateRole`, `deleteRole`, `listRoles`). Member records use `roleRkey` to reference role records. 12 permission strings defined. Default roles (owner, moderator, member) created during community creation. The owner role is a regular role record (not hardcoded) with lockout protection on `community.role.write` and `community.settings.write` permissions.
 
-**Rationale:**
-- Simpler for Phase 1. The three-role hierarchy covers all current use cases.
-- Custom roles with permission arrays are tracked in GitHub issue #17 for Phase 2 (Governance Layer).
-- The migration path is straightforward: create default role records, then update member records to reference them by rkey.
+**Status:** Resolved. No longer a deviation.
 
-**Status:** Temporary deviation. Will be resolved by #17.
+## 3. Governance Model: Configurable Protection (Extension)
+
+**Whitepaper says (Section 5.5):** Five collections are protected under on-chain governance.
+
+**Implementation:** Protected collections are configurable per-community via `governanceConfig.protectedCollections`. Communities in simple-majority mode can choose which collections require proposals/votes. `community.settings` and `community.role` are always mandatory (cannot be removed from protection). Default: all 5 collections protected.
+
+**Status:** Extension beyond the whitepaper. Provides more flexibility than the whitepaper's all-or-nothing approach.
+
+## 4. External Identity Keys (Extension)
+
+**Not in whitepaper.** The `net.openfederation.identity.externalKey` collection stores auxiliary cryptographic public keys (Ed25519, X25519, secp256k1, P256) for cross-network identity bridging (Meshtastic, Nostr, WireGuard, SSH, hardware devices). This extends ATProto at the application layer without any protocol changes. Trust derives from repo signing (MST commit chain).
+
+**Status:** New feature beyond whitepaper scope.
