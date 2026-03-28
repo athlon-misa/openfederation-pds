@@ -598,6 +598,86 @@ security
     }
   }));
 
+// ── ofc oracle ──────────────────────────────────────────────────────
+
+const oracle = program.command('oracle').description('Oracle credential management (admin)');
+
+oracle
+  .command('create')
+  .description('Create an Oracle credential for a community')
+  .argument('<communityDid>', 'Community DID')
+  .requiredOption('--name <label>', 'Human-readable label for this credential')
+  .action(run(async () => {
+    const cmd = oracle.commands.find(c => c.name() === 'create')!;
+    const communityDid = cmd.args[0];
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.authPost('net.openfederation.oracle.createCredential', {
+      communityDid,
+      name: opts.name,
+    });
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      success('Oracle credential created');
+      table(['Field', 'Value'], [
+        ['ID', result.id],
+        ['Community', result.communityDid],
+        ['Name', result.name],
+        ['Key Prefix', result.keyPrefix],
+        ['Key', result.key],
+      ]);
+      hint('Save this key now — it will never be shown again.');
+    }
+  }));
+
+oracle
+  .command('list')
+  .description('List Oracle credentials')
+  .option('--community <did>', 'Filter by community DID')
+  .action(run(async () => {
+    const cmd = oracle.commands.find(c => c.name() === 'list')!;
+    const opts = cmd.opts();
+    const c = client();
+    const params: Record<string, string> = {};
+    if (opts.community) params.communityDid = opts.community;
+    const result = await c.authGet('net.openfederation.oracle.listCredentials', params);
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      if (result.credentials.length === 0) {
+        info('No Oracle credentials found');
+        return;
+      }
+      table(['ID', 'Community', 'Name', 'Status', 'Proofs', 'Last Used'],
+        result.credentials.map((cr: any) => [
+          cr.id.substring(0, 8),
+          cr.communityDid.substring(0, 20) + '...',
+          cr.name,
+          cr.status,
+          cr.proofsSubmitted || 0,
+          cr.lastUsedAt ? new Date(cr.lastUsedAt).toLocaleString() : '—',
+        ])
+      );
+    }
+  }));
+
+oracle
+  .command('revoke')
+  .description('Revoke an Oracle credential')
+  .argument('<credentialId>', 'Credential ID to revoke')
+  .action(run(async () => {
+    const cmd = oracle.commands.find(c => c.name() === 'revoke')!;
+    const credentialId = cmd.args[0];
+    const c = client();
+    await c.authPost('net.openfederation.oracle.revokeCredential', { credentialId });
+    if (isJsonMode()) {
+      json({ success: true });
+    } else {
+      success('Oracle credential revoked');
+    }
+  }));
+
 // ── ofc community ───────────────────────────────────────────────────
 
 const community = program.command('community').description('Community management');
