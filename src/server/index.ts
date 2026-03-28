@@ -105,6 +105,9 @@ import deleteExportSchedule from '../api/net.openfederation.admin.deleteExportSc
 import listExportSnapshots from '../api/net.openfederation.admin.listExportSnapshots.js';
 import createVerificationChallenge from '../api/net.openfederation.admin.createVerificationChallenge.js';
 import verifyChallenge from '../api/net.openfederation.admin.verifyChallenge.js';
+import createOracleCredential from '../api/net.openfederation.oracle.createCredential.js';
+import listOracleCredentials from '../api/net.openfederation.oracle.listCredentials.js';
+import revokeOracleCredential from '../api/net.openfederation.oracle.revokeCredential.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
@@ -353,6 +356,11 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   // Admin identity verification challenge
   'net.openfederation.admin.createVerificationChallenge': { handler: createVerificationChallenge },
   'net.openfederation.admin.verifyChallenge': { handler: verifyChallenge },
+
+  // Oracle credential management (admin only)
+  'net.openfederation.oracle.createCredential': { handler: createOracleCredential },
+  'net.openfederation.oracle.listCredentials': { handler: listOracleCredentials },
+  'net.openfederation.oracle.revokeCredential': { handler: revokeOracleCredential },
 });
 
 // Blob serve route — serves binary blobs by DID + CID

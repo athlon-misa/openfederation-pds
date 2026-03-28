@@ -63,7 +63,10 @@ export type AuditAction =
   | 'session.revoke'
   | 'admin.verification.create'
   | 'admin.verification.failed'
-  | 'admin.verification.success';
+  | 'admin.verification.success'
+  | 'oracle.credential.create'
+  | 'oracle.credential.revoke'
+  | 'oracle.proofApplied';
 
 export async function auditLog(
   action: AuditAction,
