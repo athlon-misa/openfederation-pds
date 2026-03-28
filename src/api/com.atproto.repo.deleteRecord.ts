@@ -3,6 +3,7 @@ import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
 
 /**
  * com.atproto.repo.deleteRecord
@@ -40,6 +41,19 @@ export default async function deleteRecord(req: AuthRequest, res: Response): Pro
         res, repo, 'community.member.delete'
       );
       if (!hasPermission) return;
+    }
+
+    // Governance enforcement for community repos
+    if (await isCommunityDid(repo)) {
+      const governance = await enforceGovernance(repo, collection, 'delete');
+      if (!governance.allowed) {
+        res.status(403).json({
+          error: 'GovernanceDenied',
+          message: governance.reason || 'Delete blocked by governance policy',
+          ...(governance.requiresProposal ? { requiresProposal: true } : {}),
+        });
+        return;
+      }
     }
 
     const engine = new RepoEngine(repo);

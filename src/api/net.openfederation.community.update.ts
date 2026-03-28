@@ -4,6 +4,7 @@ import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { enforceGovernance } from '../governance/enforcement.js';
 
 /**
  * net.openfederation.community.update
@@ -46,6 +47,17 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
     }
     if (joinPolicy !== undefined && !['open', 'approval'].includes(joinPolicy)) {
       res.status(400).json({ error: 'InvalidRequest', message: 'joinPolicy must be "open" or "approval"' });
+      return;
+    }
+
+    // Governance enforcement
+    const governance = await enforceGovernance(did, 'net.openfederation.community.settings', 'write');
+    if (!governance.allowed) {
+      res.status(403).json({
+        error: 'GovernanceDenied',
+        message: governance.reason || 'Update blocked by governance policy',
+        ...(governance.requiresProposal ? { requiresProposal: true } : {}),
+      });
       return;
     }
 

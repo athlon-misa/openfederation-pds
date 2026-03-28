@@ -3,6 +3,7 @@ import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
 
 /**
  * com.atproto.repo.putRecord
@@ -41,6 +42,19 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
         res, repo, 'community.member.write'
       );
       if (!hasPermission) return;
+    }
+
+    // Governance enforcement for community repos
+    if (await isCommunityDid(repo)) {
+      const governance = await enforceGovernance(repo, collection, 'write');
+      if (!governance.allowed) {
+        res.status(403).json({
+          error: 'GovernanceDenied',
+          message: governance.reason || 'Write blocked by governance policy',
+          ...(governance.requiresProposal ? { requiresProposal: true } : {}),
+        });
+        return;
+      }
     }
 
     const engine = new RepoEngine(repo);
