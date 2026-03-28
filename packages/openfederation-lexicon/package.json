@@ -1,5 +1,5 @@
 {
-  "name": "@openfederation/lexicon",
+  "name": "@resonator-foundation/lexicon",
   "version": "0.1.0",
   "description": "ATProto Lexicon schemas for the OpenFederation protocol",
   "type": "module",
