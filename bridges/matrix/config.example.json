@@ -1,0 +1,26 @@
+{
+  "pdsUrl": "https://pds.openfederation.net",
+  "pdsAuth": {
+    "handle": "bridge-bot",
+    "password": "change-me"
+  },
+  "mode": "partner-hosted",
+  "matrix": {
+    "homeserverUrl": "https://matrix.grvty.net",
+    "adminToken": "syt_your_admin_token_here",
+    "handleTemplate": "{handle}:grvty.net"
+  },
+  "communityMappings": [
+    {
+      "communityDid": "did:plc:your-community-did",
+      "matrixSpaceId": "!your-space-id:grvty.net",
+      "rolePowerLevels": {
+        "owner": 100,
+        "moderator": 50,
+        "coach": 25,
+        "member": 0
+      }
+    }
+  ],
+  "syncIntervalMs": 60000
+}

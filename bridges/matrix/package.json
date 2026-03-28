@@ -1,0 +1,19 @@
+{
+  "name": "@openfederation/matrix-bridge",
+  "version": "0.1.0",
+  "description": "OpenFederation PDS to Matrix bridge — syncs community membership and roles to Matrix Spaces",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "matrix-js-sdk": "^34.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "tsx": "^4.19.0"
+  }
+}
