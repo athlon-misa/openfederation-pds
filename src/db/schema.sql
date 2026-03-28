@@ -273,3 +273,11 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+
+-- ActivityPub RSA signing keys: persisted per-community DID to survive restarts
+CREATE TABLE IF NOT EXISTS ap_signing_keys (
+    did VARCHAR(255) PRIMARY KEY,
+    public_key_pem TEXT NOT NULL,
+    encrypted_private_key BYTEA NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

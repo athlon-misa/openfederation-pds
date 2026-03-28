@@ -11,37 +11,57 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
+import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
 import { buildCommunityActor, type ApplicationRecord } from './ap-actors.js';
 
 const router = Router();
 
-// Cache generated RSA key pairs per community DID to avoid regenerating on every request
-const rsaKeyCache = new Map<string, string>();
+// In-memory cache for RSA key pairs per community DID (performance — avoids repeated DB lookups)
+const rsaKeyCache = new Map<string, { publicKey: string; privateKey: string }>();
 
 /**
- * Get or generate an RSA public key PEM for AP actor signatures.
+ * Get or create a persisted RSA keypair for AP actor HTTP signatures.
  * AP ecosystem (Mastodon, GoToSocial, etc.) requires RSA keys for HTTP signatures.
- * ATProto uses secp256k1, so we generate a separate RSA key deterministically
- * from the community DID + a server-side secret.
+ * ATProto uses secp256k1, so we generate a separate RSA key for each community DID.
+ * Keys are stored encrypted in the database and survive server restarts.
  */
-function getOrGenerateRsaPublicKeyPem(did: string): string {
+async function getOrCreateApKeys(did: string): Promise<{ publicKey: string; privateKey: string }> {
+  // Check in-memory cache first
   const cached = rsaKeyCache.get(did);
   if (cached) return cached;
 
-  // Generate a deterministic RSA keypair seeded by the DID + server secret
-  // This ensures the same key is produced across restarts (for the same config)
-  const seed = crypto.createHash('sha256')
-    .update(`ap-rsa-${did}-${config.keyEncryptionSecret}`)
-    .digest('hex');
+  // Check database for existing persisted keys
+  const result = await query<{ public_key_pem: string; encrypted_private_key: Buffer }>(
+    'SELECT public_key_pem, encrypted_private_key FROM ap_signing_keys WHERE did = $1',
+    [did],
+  );
 
-  const { publicKey } = crypto.generateKeyPairSync('rsa', {
+  if (result.rows.length > 0) {
+    const row = result.rows[0];
+    const privateKey = (await decryptKeyBytes(row.encrypted_private_key)).toString('utf-8');
+    const keys = { publicKey: row.public_key_pem, privateKey };
+    rsaKeyCache.set(did, keys);
+    return keys;
+  }
+
+  // Generate a new RSA keypair and persist it
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: { type: 'spki', format: 'pem' },
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
   });
 
-  rsaKeyCache.set(did, publicKey);
-  return publicKey;
+  // Encrypt private key before storing
+  const encryptedPrivateKey = await encryptKeyBytes(Buffer.from(privateKey, 'utf-8'));
+
+  await query(
+    'INSERT INTO ap_signing_keys (did, public_key_pem, encrypted_private_key) VALUES ($1, $2, $3) ON CONFLICT (did) DO NOTHING',
+    [did, publicKey, encryptedPrivateKey],
+  );
+
+  const keys = { publicKey: publicKey as string, privateKey: privateKey as string };
+  rsaKeyCache.set(did, keys);
+  return keys;
 }
 
 /**
@@ -112,9 +132,9 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
       displayName: row.record.displayName,
     }));
 
-    // Generate RSA public key for AP compatibility
+    // Load or create persisted RSA keys for AP compatibility
     // (AP ecosystem uses RSA for HTTP signatures; ATProto uses secp256k1)
-    const publicKeyPem = getOrGenerateRsaPublicKeyPem(did);
+    const publicKeyPem = (await getOrCreateApKeys(did)).publicKey;
 
     const actor = buildCommunityActor(
       {
