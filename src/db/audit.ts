@@ -40,7 +40,10 @@ export type AuditAction =
   | 'community.updateMemberRole'
   | 'community.issueAttestation'
   | 'community.deleteAttestation'
-  | 'admin.importRepo';
+  | 'admin.importRepo'
+  | 'community.role.create'
+  | 'community.role.update'
+  | 'community.role.delete';
 
 export async function auditLog(
   action: AuditAction,
