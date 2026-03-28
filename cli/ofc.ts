@@ -1082,6 +1082,356 @@ audit
     }
   }));
 
+// ── ofc attestation ─────────────────────────────────────────────────
+
+const attestation = program.command('attestation').description('Community attestation management');
+
+attestation
+  .command('issue')
+  .description('Issue an attestation for a community member')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .requiredOption('--subject <subjectDid>', 'Subject member DID')
+  .requiredOption('--subject-handle <handle>', 'Subject handle')
+  .requiredOption('--type <type>', 'Attestation type: membership, role, credential')
+  .requiredOption('--claim <json>', 'Claim data as JSON string')
+  .action(run(async () => {
+    const cmd = attestation.commands.find(c => c.name() === 'issue')!;
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.authPost('net.openfederation.community.issueAttestation', {
+      communityDid: opts.did, subjectDid: opts.subject, subjectHandle: opts.subjectHandle,
+      type: opts.type, claim: JSON.parse(opts.claim),
+    });
+    if (isJsonMode()) { json(result); return; }
+    success('Attestation issued');
+    keyValue([['URI', result.uri], ['Rkey', result.rkey]]);
+  }));
+
+attestation
+  .command('verify')
+  .description('Verify an attestation (supports remote communities)')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .requiredOption('--rkey <rkey>', 'Attestation record key')
+  .action(run(async () => {
+    const cmd = attestation.commands.find(c => c.name() === 'verify')!;
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.get('net.openfederation.community.verifyAttestation', {
+      communityDid: opts.did, rkey: opts.rkey,
+    });
+    if (isJsonMode()) { json(result); return; }
+    if (result.valid) {
+      success(`Attestation is VALID${result.remote ? ' (verified remotely from ' + result.pdsUrl + ')' : ''}`);
+      if (result.attestation) {
+        keyValue([
+          ['Subject', result.attestation.subjectHandle || result.attestation.subjectDid],
+          ['Type', result.attestation.type],
+          ['Issued', result.attestation.issuedAt],
+        ]);
+      }
+    } else {
+      warn(`Attestation is INVALID${result.expired ? ' (expired)' : ''}`);
+    }
+  }));
+
+attestation
+  .command('list')
+  .description('List attestations for a community')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .option('--subject <subjectDid>', 'Filter by subject DID')
+  .option('--type <type>', 'Filter by type')
+  .action(run(async () => {
+    const cmd = attestation.commands.find(c => c.name() === 'list')!;
+    const opts = cmd.opts();
+    const c = client();
+    const params: Record<string, string> = { communityDid: opts.did };
+    if (opts.subject) params.subjectDid = opts.subject;
+    if (opts.type) params.type = opts.type;
+    const result = await c.get('net.openfederation.community.listAttestations', params);
+    if (isJsonMode()) { json(result); return; }
+    const atts = result.attestations || [];
+    if (atts.length === 0) { info('No attestations found'); return; }
+    table(
+      ['Rkey', 'Subject', 'Type', 'Issued'],
+      atts.map((a: any) => [a.rkey, a.subjectHandle || a.subjectDid, a.type, a.issuedAt ? new Date(a.issuedAt).toLocaleDateString() : '—']),
+    );
+  }));
+
+attestation
+  .command('delete')
+  .description('Revoke an attestation (delete-as-revoke)')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .requiredOption('--rkey <rkey>', 'Attestation record key')
+  .option('--reason <reason>', 'Reason for revocation')
+  .action(run(async () => {
+    const cmd = attestation.commands.find(c => c.name() === 'delete')!;
+    const opts = cmd.opts();
+    const c = client();
+    await c.authPost('net.openfederation.community.deleteAttestation', {
+      communityDid: opts.did, rkey: opts.rkey, ...(opts.reason ? { reason: opts.reason } : {}),
+    });
+    if (isJsonMode()) { json({ ok: true }); return; }
+    success('Attestation revoked');
+  }));
+
+// ── ofc identity ─────────────────────────────────────────────────────
+
+const identity = program.command('identity').description('External identity key management');
+
+identity
+  .command('set-key')
+  .description('Store an external public key')
+  .requiredOption('--rkey <rkey>', 'Record key (e.g., meshtastic-relay-1)')
+  .requiredOption('--type <type>', 'Key type: ed25519, x25519, secp256k1, p256')
+  .requiredOption('--purpose <purpose>', 'Purpose: meshtastic, nostr, wireguard, ssh, etc.')
+  .requiredOption('--public-key <key>', 'Public key in multibase format (z...)')
+  .option('--label <label>', 'Human-readable label')
+  .action(run(async () => {
+    const cmd = identity.commands.find(c => c.name() === 'set-key')!;
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.authPost('net.openfederation.identity.setExternalKey', {
+      rkey: opts.rkey, type: opts.type, purpose: opts.purpose,
+      publicKey: opts.publicKey, ...(opts.label ? { label: opts.label } : {}),
+    });
+    if (isJsonMode()) { json(result); return; }
+    success('External key stored');
+    keyValue([['URI', result.uri]]);
+  }));
+
+identity
+  .command('list-keys')
+  .description('List external keys for a DID')
+  .requiredOption('--did <did>', 'DID to look up')
+  .option('--purpose <purpose>', 'Filter by purpose')
+  .action(run(async () => {
+    const cmd = identity.commands.find(c => c.name() === 'list-keys')!;
+    const opts = cmd.opts();
+    const c = client();
+    const params: Record<string, string> = { did: opts.did };
+    if (opts.purpose) params.purpose = opts.purpose;
+    const result = await c.get('net.openfederation.identity.listExternalKeys', params);
+    if (isJsonMode()) { json(result); return; }
+    const keys = result.keys || [];
+    if (keys.length === 0) { info('No external keys found'); return; }
+    table(
+      ['Rkey', 'Type', 'Purpose', 'Label'],
+      keys.map((k: any) => [k.rkey, k.type, k.purpose, k.label || '—']),
+    );
+  }));
+
+identity
+  .command('delete-key')
+  .description('Delete an external key')
+  .requiredOption('--rkey <rkey>', 'Record key to delete')
+  .action(run(async () => {
+    const cmd = identity.commands.find(c => c.name() === 'delete-key')!;
+    const opts = cmd.opts();
+    const c = client();
+    await c.authPost('net.openfederation.identity.deleteExternalKey', { rkey: opts.rkey });
+    if (isJsonMode()) { json({ ok: true }); return; }
+    success('External key deleted');
+  }));
+
+identity
+  .command('resolve-key')
+  .description('Find ATProto DID by external public key')
+  .requiredOption('--public-key <key>', 'Public key in multibase format')
+  .option('--purpose <purpose>', 'Filter by purpose')
+  .action(run(async () => {
+    const cmd = identity.commands.find(c => c.name() === 'resolve-key')!;
+    const opts = cmd.opts();
+    const c = client();
+    const params: Record<string, string> = { publicKey: opts.publicKey };
+    if (opts.purpose) params.purpose = opts.purpose;
+    const result = await c.get('net.openfederation.identity.resolveByKey', params);
+    if (isJsonMode()) { json(result); return; }
+    success('Key resolved');
+    keyValue([['DID', result.did], ['Handle', result.handle], ['Type', result.type], ['Purpose', result.purpose]]);
+  }));
+
+// ── ofc role ─────────────────────────────────────────────────────────
+
+const role = program.command('role').description('Community role management');
+
+role
+  .command('list')
+  .description('List roles for a community')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .action(run(async () => {
+    const cmd = role.commands.find(c => c.name() === 'list')!;
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.get('net.openfederation.community.listRoles', { communityDid: opts.did });
+    if (isJsonMode()) { json(result); return; }
+    const roles = result.roles || [];
+    table(
+      ['Rkey', 'Name', 'Members', 'Permissions'],
+      roles.map((r: any) => [r.rkey, r.name, String(r.memberCount), (r.permissions || []).length + ' perms']),
+    );
+  }));
+
+role
+  .command('create')
+  .description('Create a custom role')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .requiredOption('--name <name>', 'Role name')
+  .requiredOption('--permissions <perms>', 'Comma-separated permissions')
+  .option('--description <desc>', 'Role description')
+  .action(run(async () => {
+    const cmd = role.commands.find(c => c.name() === 'create')!;
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.authPost('net.openfederation.community.createRole', {
+      communityDid: opts.did, name: opts.name,
+      permissions: opts.permissions.split(',').map((p: string) => p.trim()),
+      ...(opts.description ? { description: opts.description } : {}),
+    });
+    if (isJsonMode()) { json(result); return; }
+    success(`Role "${opts.name}" created`);
+    keyValue([['Rkey', result.rkey]]);
+  }));
+
+// ── ofc governance ───────────────────────────────────────────────────
+
+const governance = program.command('governance').description('Community governance');
+
+governance
+  .command('set-model')
+  .description('Switch governance model')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .requiredOption('--model <model>', 'Governance model: benevolent-dictator, simple-majority')
+  .option('--quorum <n>', 'Quorum for simple-majority')
+  .option('--voter-role <role>', 'Voter role name for simple-majority')
+  .action(run(async () => {
+    const cmd = governance.commands.find(c => c.name() === 'set-model')!;
+    const opts = cmd.opts();
+    const c = client();
+    const body: Record<string, any> = { communityDid: opts.did, governanceModel: opts.model };
+    if (opts.model === 'simple-majority') {
+      body.governanceConfig = {
+        quorum: parseInt(opts.quorum || '3', 10),
+        voterRole: opts.voterRole || 'moderator',
+      };
+    }
+    const result = await c.authPost('net.openfederation.community.setGovernanceModel', body);
+    if (isJsonMode()) { json(result); return; }
+    success(`Governance model set to: ${result.governanceModel}`);
+  }));
+
+governance
+  .command('propose')
+  .description('Create a governance proposal')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .requiredOption('--collection <collection>', 'Target collection')
+  .requiredOption('--rkey <rkey>', 'Target record key')
+  .requiredOption('--action <action>', 'Action: write or delete')
+  .option('--record <json>', 'Proposed record as JSON (required for write)')
+  .action(run(async () => {
+    const cmd = governance.commands.find(c => c.name() === 'propose')!;
+    const opts = cmd.opts();
+    const c = client();
+    const body: Record<string, any> = {
+      communityDid: opts.did, targetCollection: opts.collection,
+      targetRkey: opts.rkey, action: opts.action,
+    };
+    if (opts.record) body.proposedRecord = JSON.parse(opts.record);
+    const result = await c.authPost('net.openfederation.community.createProposal', body);
+    if (isJsonMode()) { json(result); return; }
+    success('Proposal created');
+    keyValue([['Rkey', result.rkey]]);
+  }));
+
+governance
+  .command('vote')
+  .description('Vote on a governance proposal')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .requiredOption('--proposal <rkey>', 'Proposal record key')
+  .requiredOption('--vote <vote>', 'Vote: for or against')
+  .action(run(async () => {
+    const cmd = governance.commands.find(c => c.name() === 'vote')!;
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.authPost('net.openfederation.community.voteOnProposal', {
+      communityDid: opts.did, proposalRkey: opts.proposal, vote: opts.vote,
+    });
+    if (isJsonMode()) { json(result); return; }
+    success(`Vote recorded. Proposal status: ${result.status}`);
+    if (result.applied) success('Proposed change has been applied!');
+  }));
+
+governance
+  .command('list-proposals')
+  .description('List governance proposals')
+  .requiredOption('--did <communityDid>', 'Community DID')
+  .option('--status <status>', 'Filter: open, approved, rejected, expired')
+  .action(run(async () => {
+    const cmd = governance.commands.find(c => c.name() === 'list-proposals')!;
+    const opts = cmd.opts();
+    const c = client();
+    const params: Record<string, string> = { communityDid: opts.did };
+    if (opts.status) params.status = opts.status;
+    const result = await c.get('net.openfederation.community.listProposals', params);
+    if (isJsonMode()) { json(result); return; }
+    const proposals = result.proposals || [];
+    if (proposals.length === 0) { info('No proposals found'); return; }
+    table(
+      ['Rkey', 'Collection', 'Action', 'Status', 'For', 'Against'],
+      proposals.map((p: any) => [
+        p.rkey, p.targetCollection, p.action, p.status,
+        String((p.votesFor || []).length), String((p.votesAgainst || []).length),
+      ]),
+    );
+  }));
+
+// ── ofc profile ──────────────────────────────────────────────────────
+
+const profileCmd = program.command('profile').description('User profile management');
+
+profileCmd
+  .command('get')
+  .description('Get a user profile')
+  .requiredOption('--did <did>', 'User DID')
+  .action(run(async () => {
+    const cmd = profileCmd.commands.find(c => c.name() === 'get')!;
+    const opts = cmd.opts();
+    const c = client();
+    const result = await c.get('net.openfederation.account.getProfile', { did: opts.did });
+    if (isJsonMode()) { json(result); return; }
+    keyValue([
+      ['DID', result.did],
+      ['Handle', result.handle || '—'],
+      ['Display Name', result.profile?.displayName || '—'],
+      ['Description', result.profile?.description || '—'],
+    ]);
+    if (result.customProfiles) {
+      info('Custom profiles:');
+      for (const [collection, data] of Object.entries(result.customProfiles)) {
+        info(`  ${collection}: ${JSON.stringify(data)}`);
+      }
+    }
+  }));
+
+profileCmd
+  .command('update')
+  .description('Update your profile')
+  .option('--display-name <name>', 'Display name')
+  .option('--description <desc>', 'Bio / description')
+  .action(run(async () => {
+    const cmd = profileCmd.commands.find(c => c.name() === 'update')!;
+    const opts = cmd.opts();
+    if (!opts.displayName && !opts.description) {
+      throw new Error('Provide --display-name and/or --description');
+    }
+    const c = client();
+    const body: Record<string, any> = {};
+    if (opts.displayName) body.displayName = opts.displayName;
+    if (opts.description !== undefined) body.description = opts.description;
+    const result = await c.authPost('net.openfederation.account.updateProfile', body);
+    if (isJsonMode()) { json(result); return; }
+    success('Profile updated');
+  }));
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /** Parse --data argument: inline JSON or @filename. */
