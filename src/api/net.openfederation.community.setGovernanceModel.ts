@@ -6,7 +6,7 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
 
-const VALID_MODELS = ['benevolent-dictator', 'simple-majority'];
+const VALID_MODELS = ['benevolent-dictator', 'simple-majority', 'on-chain'];
 
 export default async function setGovernanceModel(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -22,7 +22,7 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
     if (!VALID_MODELS.includes(governanceModel)) {
       res.status(400).json({
         error: 'InvalidRequest',
-        message: `governanceModel must be one of: ${VALID_MODELS.join(', ')}. on-chain is not yet available.`,
+        message: `governanceModel must be one of: ${VALID_MODELS.join(', ')}`,
       });
       return;
     }
@@ -63,6 +63,53 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
           if (!normalized.includes(m)) {
             normalized.push(m);
           }
+        }
+        governanceConfig.protectedCollections = normalized;
+      }
+    }
+
+    if (governanceModel === 'on-chain') {
+      if (!governanceConfig || typeof governanceConfig !== 'object') {
+        res.status(400).json({
+          error: 'InvalidRequest',
+          message: 'governanceConfig is required for on-chain (chainId, contractAddress)',
+        });
+        return;
+      }
+      if (!governanceConfig.chainId || typeof governanceConfig.chainId !== 'string') {
+        res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.chainId is required' });
+        return;
+      }
+      if (!governanceConfig.contractAddress || typeof governanceConfig.contractAddress !== 'string') {
+        res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.contractAddress is required' });
+        return;
+      }
+
+      // Verify an active Oracle credential exists for this community
+      const oracleResult = await query(
+        `SELECT 1 FROM oracle_credentials WHERE community_did = $1 AND status = 'active'`,
+        [communityDid]
+      );
+      if (oracleResult.rows.length === 0) {
+        res.status(400).json({
+          error: 'InvalidRequest',
+          message: 'An active Oracle credential must exist for this community before enabling on-chain governance. Create one first.',
+        });
+        return;
+      }
+
+      // Normalize protectedCollections (same logic as simple-majority)
+      if (governanceConfig.protectedCollections) {
+        if (!Array.isArray(governanceConfig.protectedCollections)) {
+          res.status(400).json({ error: 'InvalidRequest', message: 'protectedCollections must be an array' });
+          return;
+        }
+        const mandatory = ['net.openfederation.community.settings', 'net.openfederation.community.role'];
+        const normalized = governanceConfig.protectedCollections.map((c: string) =>
+          c.startsWith('net.openfederation.community.') ? c : `net.openfederation.community.${c}`
+        );
+        for (const m of mandatory) {
+          if (!normalized.includes(m)) normalized.push(m);
         }
         governanceConfig.protectedCollections = normalized;
       }
