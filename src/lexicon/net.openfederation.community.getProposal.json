@@ -16,21 +16,30 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "uri": { "type": "string" }, "rkey": { "type": "string" },
-            "targetCollection": { "type": "string" }, "targetRkey": { "type": "string" },
-            "action": { "type": "string" }, "proposedRecord": { "type": "object" },
-            "proposedBy": { "type": "string" }, "status": { "type": "string" },
-            "votesFor": { "type": "array", "items": { "type": "string" } },
-            "votesAgainst": { "type": "array", "items": { "type": "string" } },
-            "createdAt": { "type": "string" }, "expiresAt": { "type": "string" },
-            "resolvedAt": { "type": "string" }
-          },
-          "required": ["uri", "rkey", "targetCollection", "action", "status"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [{ "name": "ProposalNotFound", "description": "No proposal with given rkey." }]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "uri": { "type": "string" },
+        "rkey": { "type": "string" },
+        "targetCollection": { "type": "string" },
+        "targetRkey": { "type": "string" },
+        "action": { "type": "string" },
+        "proposedRecord": { "type": "unknown" },
+        "proposedBy": { "type": "string" },
+        "status": { "type": "string" },
+        "votesFor": { "type": "array", "items": { "type": "string" } },
+        "votesAgainst": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "resolvedAt": { "type": "string" }
+      },
+      "required": ["uri", "rkey", "targetCollection", "action", "status"]
     }
   }
 }

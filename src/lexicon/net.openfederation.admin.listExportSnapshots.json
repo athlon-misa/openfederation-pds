@@ -1,1 +1,31 @@
-{"lexicon":1,"id":"net.openfederation.admin.listExportSnapshots","description":"List export snapshots for a community.","defs":{"main":{"type":"query","parameters":{"type":"params","properties":{"communityDid":{"type":"string"}},"required":["communityDid"]},"output":{"encoding":"application/json","schema":{"type":"object","properties":{"snapshots":{"type":"array","items":{"type":"object"}}},"required":["snapshots"]}}}}}
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.listExportSnapshots",
+  "description": "List export snapshots for a community.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "communityDid": { "type": "string" }
+        },
+        "required": ["communityDid"]
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "snapshots": { "type": "array", "items": { "type": "unknown" } }
+      },
+      "required": ["snapshots"]
+    }
+  }
+}

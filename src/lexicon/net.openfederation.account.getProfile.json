@@ -16,20 +16,24 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "did": { "type": "string" },
-            "handle": { "type": "string" },
-            "profile": { "type": "object", "description": "app.bsky.actor.profile record." },
-            "customProfiles": { "type": "object", "description": "Map of custom collection NSID to record value." }
-          },
-          "required": ["did", "profile"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
         { "name": "InvalidRequest", "description": "Missing or invalid DID." },
         { "name": "ProfileNotFound", "description": "No profile found for this DID." }
       ]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "did": { "type": "string" },
+        "handle": { "type": "string" },
+        "profile": { "type": "unknown", "description": "app.bsky.actor.profile record." },
+        "customProfiles": { "type": "unknown", "description": "Map of custom collection NSID to record value." }
+      },
+      "required": ["did", "profile"]
     }
   }
 }

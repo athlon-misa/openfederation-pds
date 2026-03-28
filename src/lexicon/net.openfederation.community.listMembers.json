@@ -18,26 +18,8 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "members": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "did": { "type": "string", "description": "The member's DID." },
-                  "handle": { "type": "string", "description": "The member's handle." },
-                  "role": { "type": "string", "description": "The member's role in the community." },
-                  "joinedAt": { "type": "string", "format": "datetime", "description": "When the member joined the community." }
-                },
-                "required": ["did", "handle", "role", "joinedAt"]
-              }
-            },
-            "total": { "type": "integer", "description": "Total number of members in the community." },
-            "limit": { "type": "integer" },
-            "offset": { "type": "integer" }
-          },
-          "required": ["members", "total", "limit", "offset"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
@@ -45,6 +27,26 @@
         { "name": "NotFound", "description": "Community not found." },
         { "name": "Forbidden", "description": "Private community access restricted to members, owner, or admin." }
       ]
+    },
+    "member": {
+      "type": "object",
+      "properties": {
+        "did": { "type": "string", "description": "The member's DID." },
+        "handle": { "type": "string", "description": "The member's handle." },
+        "role": { "type": "string", "description": "The member's role in the community." },
+        "joinedAt": { "type": "string", "format": "datetime", "description": "When the member joined the community." }
+      },
+      "required": ["did", "handle", "role", "joinedAt"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "members": { "type": "array", "items": { "type": "ref", "ref": "#member" } },
+        "total": { "type": "integer", "description": "Total number of members in the community." },
+        "limit": { "type": "integer" },
+        "offset": { "type": "integer" }
+      },
+      "required": ["members", "total", "limit", "offset"]
     }
   }
 }

@@ -1,1 +1,24 @@
-{"lexicon":1,"id":"net.openfederation.admin.listExportSchedules","description":"List all export schedules.","defs":{"main":{"type":"query","output":{"encoding":"application/json","schema":{"type":"object","properties":{"schedules":{"type":"array","items":{"type":"object"}}},"required":["schedules"]}}}}}
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.listExportSchedules",
+  "description": "List all export schedules.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "schedules": { "type": "array", "items": { "type": "unknown" } }
+      },
+      "required": ["schedules"]
+    }
+  }
+}

@@ -17,18 +17,22 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "valid": { "type": "boolean" },
-            "attestation": { "type": "object" },
-            "communityDid": { "type": "string" },
-            "communityHandle": { "type": "string" },
-            "expired": { "type": "boolean" }
-          },
-          "required": ["valid", "communityDid"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [{ "name": "InvalidRequest", "description": "Missing required parameters." }]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "valid": { "type": "boolean" },
+        "attestation": { "type": "unknown" },
+        "communityDid": { "type": "string" },
+        "communityHandle": { "type": "string" },
+        "expired": { "type": "boolean" }
+      },
+      "required": ["valid", "communityDid"]
     }
   }
 }

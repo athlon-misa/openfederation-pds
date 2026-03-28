@@ -18,28 +18,8 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "requests": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": { "type": "string", "description": "The join request ID." },
-                  "userId": { "type": "string", "description": "The requesting user's internal ID." },
-                  "userDid": { "type": "string", "description": "The requesting user's DID." },
-                  "handle": { "type": "string", "description": "The requesting user's handle." },
-                  "status": { "type": "string", "description": "Request status (pending, approved, rejected)." },
-                  "createdAt": { "type": "string", "format": "datetime", "description": "When the join request was submitted." }
-                },
-                "required": ["id", "userId", "userDid", "handle", "status", "createdAt"]
-              }
-            },
-            "total": { "type": "integer", "description": "Total number of join requests." },
-            "limit": { "type": "integer" },
-            "offset": { "type": "integer" }
-          },
-          "required": ["requests", "total", "limit", "offset"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
@@ -47,6 +27,28 @@
         { "name": "NotFound", "description": "Community not found." },
         { "name": "Forbidden", "description": "Only the community owner or an admin can list join requests." }
       ]
+    },
+    "joinRequest": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The join request ID." },
+        "userId": { "type": "string", "description": "The requesting user's internal ID." },
+        "userDid": { "type": "string", "description": "The requesting user's DID." },
+        "handle": { "type": "string", "description": "The requesting user's handle." },
+        "status": { "type": "string", "description": "Request status (pending, approved, rejected)." },
+        "createdAt": { "type": "string", "format": "datetime", "description": "When the join request was submitted." }
+      },
+      "required": ["id", "userId", "userDid", "handle", "status", "createdAt"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "requests": { "type": "array", "items": { "type": "ref", "ref": "#joinRequest" } },
+        "total": { "type": "integer", "description": "Total number of join requests." },
+        "limit": { "type": "integer" },
+        "offset": { "type": "integer" }
+      },
+      "required": ["requests", "total", "limit", "offset"]
     }
   }
 }

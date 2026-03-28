@@ -9,39 +9,47 @@
       "input": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "handle": { "type": "string", "description": "Community handle (3-30 chars, lowercase alphanumeric + hyphens)." },
-            "didMethod": { "type": "string", "enum": ["plc", "web"], "description": "DID method to use for the community identity." },
-            "domain": { "type": "string", "description": "Domain for did:web communities. Required when didMethod is 'web'." },
-            "displayName": { "type": "string", "description": "Optional display name for the community." },
-            "description": { "type": "string", "description": "Optional description of the community." },
-            "visibility": { "type": "string", "enum": ["public", "private"], "description": "Community visibility. Defaults to 'public'." },
-            "joinPolicy": { "type": "string", "enum": ["open", "approval"], "description": "Join policy. Defaults to 'open'." }
-          },
-          "required": ["handle", "didMethod"]
+          "type": "ref",
+          "ref": "#input"
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "did": { "type": "string", "description": "The DID assigned to the new community." },
-            "handle": { "type": "string", "description": "The community handle." },
-            "didMethod": { "type": "string", "description": "The DID method used." },
-            "primaryRotationKey": { "type": "string", "description": "Primary rotation key (did:plc only). Returned once and never stored." },
-            "message": { "type": "string", "description": "Optional status message." },
-            "didDocument": { "type": "object", "description": "DID document (did:web only)." },
-            "instructions": { "type": "string", "description": "Setup instructions (did:web only)." }
-          },
-          "required": ["did", "handle", "didMethod"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
         { "name": "InvalidRequest", "description": "Missing required fields or validation failed." },
         { "name": "HandleTaken", "description": "The requested handle is already in use." }
       ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "handle": { "type": "string", "description": "Community handle (3-30 chars, lowercase alphanumeric + hyphens)." },
+        "didMethod": { "type": "string", "description": "DID method to use for the community identity (plc or web)." },
+        "domain": { "type": "string", "description": "Domain for did:web communities. Required when didMethod is 'web'." },
+        "displayName": { "type": "string", "description": "Optional display name for the community." },
+        "description": { "type": "string", "description": "Optional description of the community." },
+        "visibility": { "type": "string", "description": "Community visibility: public or private. Defaults to 'public'." },
+        "joinPolicy": { "type": "string", "description": "Join policy: open or approval. Defaults to 'open'." }
+      },
+      "required": ["handle", "didMethod"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "did": { "type": "string", "description": "The DID assigned to the new community." },
+        "handle": { "type": "string", "description": "The community handle." },
+        "didMethod": { "type": "string", "description": "The DID method used." },
+        "primaryRotationKey": { "type": "string", "description": "Primary rotation key (did:plc only). Returned once and never stored." },
+        "message": { "type": "string", "description": "Optional status message." },
+        "didDocument": { "type": "unknown", "description": "DID document (did:web only)." },
+        "instructions": { "type": "string", "description": "Setup instructions (did:web only)." }
+      },
+      "required": ["did", "handle", "didMethod"]
     }
   }
 }

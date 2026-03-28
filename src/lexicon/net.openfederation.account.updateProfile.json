@@ -9,29 +9,37 @@
       "input": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "displayName": { "type": "string", "description": "Display name." },
-            "description": { "type": "string", "description": "Bio / description." },
-            "collection": { "type": "string", "description": "Optional custom collection NSID (e.g., app.grvty.actor.profile). Defaults to app.bsky.actor.profile." },
-            "record": { "type": "object", "description": "Full record to write when using a custom collection. Ignored for app.bsky.actor.profile." }
-          }
+          "type": "ref",
+          "ref": "#input"
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "uri": { "type": "string" },
-            "cid": { "type": "string" }
-          },
-          "required": ["uri", "cid"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
         { "name": "InvalidRequest", "description": "Validation failed." }
       ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string", "description": "Display name." },
+        "description": { "type": "string", "description": "Bio / description." },
+        "collection": { "type": "string", "description": "Optional custom collection NSID (e.g., app.grvty.actor.profile). Defaults to app.bsky.actor.profile." },
+        "record": { "type": "unknown", "description": "Full record to write when using a custom collection. Ignored for app.bsky.actor.profile." }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "uri": { "type": "string" },
+        "cid": { "type": "string" }
+      },
+      "required": ["uri", "cid"]
     }
   }
 }

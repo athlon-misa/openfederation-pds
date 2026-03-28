@@ -20,27 +20,33 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "attestations": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "uri": { "type": "string" }, "rkey": { "type": "string" },
-                  "subjectDid": { "type": "string" }, "subjectHandle": { "type": "string" },
-                  "type": { "type": "string" }, "claim": { "type": "object" },
-                  "issuedAt": { "type": "string" }, "expiresAt": { "type": "string" }
-                },
-                "required": ["uri", "rkey", "subjectDid", "subjectHandle", "type", "claim", "issuedAt"]
-              }
-            },
-            "cursor": { "type": "string" }
-          },
-          "required": ["attestations"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [{ "name": "InvalidRequest", "description": "Missing communityDid." }]
+    },
+    "attestationItem": {
+      "type": "object",
+      "properties": {
+        "uri": { "type": "string" },
+        "rkey": { "type": "string" },
+        "subjectDid": { "type": "string" },
+        "subjectHandle": { "type": "string" },
+        "type": { "type": "string" },
+        "claim": { "type": "unknown" },
+        "issuedAt": { "type": "string" },
+        "expiresAt": { "type": "string" }
+      },
+      "required": ["uri", "rkey", "subjectDid", "subjectHandle", "type", "claim", "issuedAt"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "attestations": { "type": "array", "items": { "type": "ref", "ref": "#attestationItem" } },
+        "cursor": { "type": "string" }
+      },
+      "required": ["attestations"]
     }
   }
 }

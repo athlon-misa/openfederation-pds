@@ -18,14 +18,18 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "proposals": { "type": "array", "items": { "type": "object" } },
-            "cursor": { "type": "string" }
-          },
-          "required": ["proposals"]
+          "type": "ref",
+          "ref": "#output"
         }
       }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "proposals": { "type": "array", "items": { "type": "unknown" } },
+        "cursor": { "type": "string" }
+      },
+      "required": ["proposals"]
     }
   }
 }

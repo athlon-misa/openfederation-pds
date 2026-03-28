@@ -19,38 +19,37 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "users": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": { "type": "string" },
-                  "handle": { "type": "string" },
-                  "email": { "type": "string" },
-                  "did": { "type": "string" },
-                  "status": { "type": "string" },
-                  "roles": {
-                    "type": "array",
-                    "items": { "type": "string" }
-                  },
-                  "createdAt": { "type": "string", "format": "datetime" },
-                  "approvedAt": { "type": "string", "format": "datetime", "description": "Timestamp when the account was approved. Null if not yet approved." }
-                },
-                "required": ["id", "handle", "email", "did", "status", "roles", "createdAt"]
-              }
-            },
-            "total": { "type": "integer", "description": "Total number of users matching the filters." },
-            "limit": { "type": "integer" },
-            "offset": { "type": "integer" }
-          },
-          "required": ["users", "total", "limit", "offset"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
         { "name": "InvalidRequest", "description": "Invalid filter parameters provided." }
       ]
+    },
+    "accountItem": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "handle": { "type": "string" },
+        "email": { "type": "string" },
+        "did": { "type": "string" },
+        "status": { "type": "string" },
+        "roles": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "datetime" },
+        "approvedAt": { "type": "string", "format": "datetime", "description": "Timestamp when the account was approved. Null if not yet approved." }
+      },
+      "required": ["id", "handle", "email", "did", "status", "roles", "createdAt"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "users": { "type": "array", "items": { "type": "ref", "ref": "#accountItem" } },
+        "total": { "type": "integer", "description": "Total number of users matching the filters." },
+        "limit": { "type": "integer" },
+        "offset": { "type": "integer" }
+      },
+      "required": ["users", "total", "limit", "offset"]
     }
   }
 }

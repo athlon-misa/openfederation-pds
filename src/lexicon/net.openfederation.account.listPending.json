@@ -16,27 +16,29 @@
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "users": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": { "type": "string" },
-                  "handle": { "type": "string" },
-                  "email": { "type": "string" },
-                  "createdAt": { "type": "string", "format": "datetime" }
-                },
-                "required": ["id", "handle", "email", "createdAt"]
-              }
-            },
-            "limit": { "type": "integer" },
-            "offset": { "type": "integer" }
-          },
-          "required": ["users", "limit", "offset"]
+          "type": "ref",
+          "ref": "#output"
         }
       }
+    },
+    "pendingUser": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "handle": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "string", "format": "datetime" }
+      },
+      "required": ["id", "handle", "email", "createdAt"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "users": { "type": "array", "items": { "type": "ref", "ref": "#pendingUser" } },
+        "limit": { "type": "integer" },
+        "offset": { "type": "integer" }
+      },
+      "required": ["users", "limit", "offset"]
     }
   }
 }

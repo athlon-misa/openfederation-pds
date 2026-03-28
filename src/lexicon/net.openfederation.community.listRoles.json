@@ -7,32 +7,38 @@
       "type": "query",
       "parameters": {
         "type": "params",
-        "properties": { "communityDid": { "type": "string" } },
+        "properties": {
+          "communityDid": { "type": "string" }
+        },
         "required": ["communityDid"]
       },
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "roles": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "uri": { "type": "string" }, "rkey": { "type": "string" },
-                  "name": { "type": "string" }, "description": { "type": "string" },
-                  "permissions": { "type": "array", "items": { "type": "string" } },
-                  "memberCount": { "type": "integer" }
-                },
-                "required": ["uri", "rkey", "name", "permissions", "memberCount"]
-              }
-            }
-          },
-          "required": ["roles"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [{ "name": "InvalidRequest", "description": "Missing communityDid." }]
+    },
+    "roleItem": {
+      "type": "object",
+      "properties": {
+        "uri": { "type": "string" },
+        "rkey": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissions": { "type": "array", "items": { "type": "string" } },
+        "memberCount": { "type": "integer" }
+      },
+      "required": ["uri", "rkey", "name", "permissions", "memberCount"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "roles": { "type": "array", "items": { "type": "ref", "ref": "#roleItem" } }
+      },
+      "required": ["roles"]
     }
   }
 }

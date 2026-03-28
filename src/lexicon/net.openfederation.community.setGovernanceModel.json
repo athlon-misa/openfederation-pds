@@ -8,27 +8,38 @@
       "input": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "communityDid": { "type": "string" },
-            "governanceModel": { "type": "string", "enum": ["benevolent-dictator", "simple-majority"], "description": "Target governance model. on-chain not yet available." },
-            "governanceConfig": { "type": "object", "description": "Config for the target model (quorum, voterRole, proposalTtlDays)." }
-          },
-          "required": ["communityDid", "governanceModel"]
+          "type": "ref",
+          "ref": "#input"
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": { "success": { "type": "boolean" }, "governanceModel": { "type": "string" } },
-          "required": ["success", "governanceModel"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
         { "name": "InvalidRequest", "description": "Invalid model or missing config." },
         { "name": "GovernanceDowngradeBlocked", "description": "Cannot downgrade from on-chain without admin override." }
       ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "communityDid": { "type": "string" },
+        "governanceModel": { "type": "string", "description": "Target governance model: benevolent-dictator or simple-majority. on-chain not yet available." },
+        "governanceConfig": { "type": "unknown", "description": "Config for the target model (quorum, voterRole, proposalTtlDays)." }
+      },
+      "required": ["communityDid", "governanceModel"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "governanceModel": { "type": "string" }
+      },
+      "required": ["success", "governanceModel"]
     }
   }
 }

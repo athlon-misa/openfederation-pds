@@ -9,34 +9,42 @@
       "input": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "communityDid": { "type": "string", "description": "The community DID issuing the attestation." },
-            "subjectDid": { "type": "string", "description": "The DID of the person being attested." },
-            "subjectHandle": { "type": "string", "description": "Handle of the subject (for display)." },
-            "type": { "type": "string", "enum": ["membership", "role", "credential"], "description": "Attestation type." },
-            "claim": { "type": "object", "description": "Arbitrary claim data (role, position, status, etc.)." },
-            "expiresAt": { "type": "string", "description": "Optional ISO 8601 expiration timestamp." }
-          },
-          "required": ["communityDid", "subjectDid", "subjectHandle", "type", "claim"]
+          "type": "ref",
+          "ref": "#input"
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
-          "type": "object",
-          "properties": {
-            "uri": { "type": "string" },
-            "cid": { "type": "string" },
-            "rkey": { "type": "string" }
-          },
-          "required": ["uri", "cid", "rkey"]
+          "type": "ref",
+          "ref": "#output"
         }
       },
       "errors": [
         { "name": "InvalidRequest", "description": "Missing required fields." },
         { "name": "NotMember", "description": "Subject is not a member of this community." }
       ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "communityDid": { "type": "string", "description": "The community DID issuing the attestation." },
+        "subjectDid": { "type": "string", "description": "The DID of the person being attested." },
+        "subjectHandle": { "type": "string", "description": "Handle of the subject (for display)." },
+        "type": { "type": "string", "description": "Attestation type: membership, role, or credential." },
+        "claim": { "type": "unknown", "description": "Arbitrary claim data (role, position, status, etc.)." },
+        "expiresAt": { "type": "string", "description": "Optional ISO 8601 expiration timestamp." }
+      },
+      "required": ["communityDid", "subjectDid", "subjectHandle", "type", "claim"]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "uri": { "type": "string" },
+        "cid": { "type": "string" },
+        "rkey": { "type": "string" }
+      },
+      "required": ["uri", "cid", "rkey"]
     }
   }
 }
