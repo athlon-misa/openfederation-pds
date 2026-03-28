@@ -112,6 +112,17 @@ export const config = {
     redisUrl: process.env.REDIS_URL || '',
   },
 
+  // Email configuration
+  email: {
+    enabled: process.env.SMTP_HOST ? true : false,
+    host: process.env.SMTP_HOST || '',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
+    from: process.env.SMTP_FROM || 'noreply@openfederation.net',
+  },
+
   // Express trust proxy configuration (for rate limiting and req.ip with proxies)
   trustProxy: parseTrustProxy(process.env.EXPRESS_TRUST_PROXY),
 };
