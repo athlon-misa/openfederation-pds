@@ -4,6 +4,9 @@ const RESERVED_HANDLES = new Set([
   'admin', 'administrator', 'root', 'system', 'moderator', 'mod',
   'null', 'undefined', 'api', 'xrpc', 'health', 'status',
   'openfederation', 'atproto', 'bluesky', 'support', 'help',
+  'official', 'security', 'staff', 'team', 'ops', 'operations',
+  'abuse', 'contact', 'info', 'news', 'legal', 'privacy', 'tos',
+  'trust', 'safety', 'bot', 'service', 'noreply', 'no-reply',
 ]);
 
 export function normalizeEmail(email: string): string {
