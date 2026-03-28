@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
-import { requireAuth, requireCommunityRole } from '../auth/guards.js';
+import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
@@ -39,11 +39,11 @@ export default async function issueAttestation(req: AuthRequest, res: Response):
       return;
     }
 
-    const callerRole = await requireCommunityRole(
+    const hasPermission = await requireCommunityPermission(
       req as AuthRequest & { auth: AuthContext },
-      res, communityDid, ['owner', 'moderator']
+      res, communityDid, 'community.attestation.write'
     );
-    if (callerRole === null) return;
+    if (!hasPermission) return;
 
     const memberResult = await query(
       'SELECT 1 FROM members_unique WHERE community_did = $1 AND member_did = $2',

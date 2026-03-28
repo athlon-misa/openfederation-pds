@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
-import { requireAuth, requireCommunityRole } from '../auth/guards.js';
+import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 
@@ -38,11 +38,11 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
     // For user repos, the repo DID must match the caller's DID.
     // For community repos, the caller must be owner/moderator or PDS admin.
     if (repo !== req.auth!.did) {
-      const role = await requireCommunityRole(
+      const hasPermission = await requireCommunityPermission(
         req as AuthRequest & { auth: AuthContext },
-        res, repo, ['owner', 'moderator']
+        res, repo, 'community.member.write'
       );
-      if (role === null) return; // response already sent by guard
+      if (!hasPermission) return; // response already sent by guard
     }
 
     const engine = new RepoEngine(repo);

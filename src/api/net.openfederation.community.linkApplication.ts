@@ -1,6 +1,6 @@
 import { Response } from 'express';
-import type { AuthRequest } from '../auth/types.js';
-import { requireAuth, requireApprovedUser, requireActiveCommunity, requireCommunityRole } from '../auth/guards.js';
+import type { AuthRequest, AuthContext } from '../auth/types.js';
+import { requireAuth, requireApprovedUser, requireActiveCommunity, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
@@ -63,8 +63,11 @@ export default async function linkApplication(req: AuthRequest, res: Response): 
     if (!community) return;
 
     // Require owner role
-    const role = await requireCommunityRole(req, res, communityDid, ['owner']);
-    if (!role) return;
+    const hasPermission = await requireCommunityPermission(
+      req as AuthRequest & { auth: AuthContext },
+      res, communityDid, 'community.application.write'
+    );
+    if (!hasPermission) return;
 
     const engine = new RepoEngine(communityDid);
 

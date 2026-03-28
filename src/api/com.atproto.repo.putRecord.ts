@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
-import { requireAuth, requireCommunityRole } from '../auth/guards.js';
+import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 
@@ -36,11 +36,11 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
 
     // Authorization: caller must have write access to this repo.
     if (repo !== req.auth!.did) {
-      const role = await requireCommunityRole(
+      const hasPermission = await requireCommunityPermission(
         req as AuthRequest & { auth: AuthContext },
-        res, repo, ['owner', 'moderator']
+        res, repo, 'community.member.write'
       );
-      if (role === null) return;
+      if (!hasPermission) return;
     }
 
     const engine = new RepoEngine(repo);
