@@ -43,7 +43,13 @@ export type AuditAction =
   | 'admin.importRepo'
   | 'community.role.create'
   | 'community.role.update'
-  | 'community.role.delete';
+  | 'community.role.delete'
+  | 'community.governance.setModel'
+  | 'community.proposal.create'
+  | 'community.proposal.vote'
+  | 'community.proposal.approve'
+  | 'community.proposal.reject'
+  | 'community.proposal.expire';
 
 export async function auditLog(
   action: AuditAction,

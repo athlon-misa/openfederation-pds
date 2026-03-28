@@ -1,0 +1,34 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.setGovernanceModel",
+  "description": "Switch a community's governance model.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "communityDid": { "type": "string" },
+            "governanceModel": { "type": "string", "enum": ["benevolent-dictator", "simple-majority"], "description": "Target governance model. on-chain not yet available." },
+            "governanceConfig": { "type": "object", "description": "Config for the target model (quorum, voterRole, proposalTtlDays)." }
+          },
+          "required": ["communityDid", "governanceModel"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": { "success": { "type": "boolean" }, "governanceModel": { "type": "string" } },
+          "required": ["success", "governanceModel"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Invalid model or missing config." },
+        { "name": "GovernanceDowngradeBlocked", "description": "Cannot downgrade from on-chain without admin override." }
+      ]
+    }
+  }
+}

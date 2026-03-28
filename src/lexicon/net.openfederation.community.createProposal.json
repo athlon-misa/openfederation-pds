@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.createProposal",
+  "description": "Propose a change to a protected collection in a simple-majority governed community.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "communityDid": { "type": "string" },
+            "targetCollection": { "type": "string", "description": "The protected collection to modify." },
+            "targetRkey": { "type": "string", "description": "The record key (use 'self' for singletons)." },
+            "action": { "type": "string", "enum": ["write", "delete"] },
+            "proposedRecord": { "type": "object", "description": "The record to write (required for write action)." }
+          },
+          "required": ["communityDid", "targetCollection", "targetRkey", "action"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": { "uri": { "type": "string" }, "cid": { "type": "string" }, "rkey": { "type": "string" } },
+          "required": ["uri", "cid", "rkey"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Validation failed." },
+        { "name": "GovernanceNotActive", "description": "Community is not using simple-majority governance." }
+      ]
+    }
+  }
+}

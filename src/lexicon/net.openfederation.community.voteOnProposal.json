@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.voteOnProposal",
+  "description": "Cast a vote on a governance proposal.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "communityDid": { "type": "string" },
+            "proposalRkey": { "type": "string" },
+            "vote": { "type": "string", "enum": ["for", "against"] }
+          },
+          "required": ["communityDid", "proposalRkey", "vote"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "recorded": { "type": "boolean" },
+            "status": { "type": "string", "description": "Proposal status after vote." },
+            "applied": { "type": "boolean", "description": "Whether the proposed change was auto-applied." }
+          },
+          "required": ["recorded", "status"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing fields." },
+        { "name": "ProposalNotFound", "description": "No proposal with given rkey." },
+        { "name": "ProposalClosed", "description": "Proposal is no longer open." },
+        { "name": "AlreadyVoted", "description": "You have already voted on this proposal." }
+      ]
+    }
+  }
+}
