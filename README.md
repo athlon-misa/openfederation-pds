@@ -13,7 +13,7 @@ OpenFederation PDS is a self-hostable identity and community server built on the
 
 Users get real `did:plc` decentralized identifiers with signed data repositories they can export or migrate at any time. Communities get their own DID, member management, role-based governance with voting and delegation, and cryptographically signed attestations. Everything is stored in AT Protocol-native Merkle Search Trees, so repos are interoperable with Bluesky and other ATProto services out of the box.
 
-The server includes invite-only registration, an admin dashboard, a partner API for third-party apps to register users directly, a JavaScript SDK, cross-network identity bridging (Meshtastic, Nostr, WireGuard, SSH), and full AT Protocol compliance for moderation, portability, and federation.
+The server includes configurable registration (open or invite-only), an admin dashboard, a partner API for third-party apps to register users directly, a JavaScript SDK, cross-network identity bridging (Meshtastic, Nostr, WireGuard, SSH), and full AT Protocol compliance for moderation, portability, and federation.
 
 ## Setup
 
