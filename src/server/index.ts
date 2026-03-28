@@ -103,6 +103,8 @@ import createExportSchedule from '../api/net.openfederation.admin.createExportSc
 import listExportSchedules from '../api/net.openfederation.admin.listExportSchedules.js';
 import deleteExportSchedule from '../api/net.openfederation.admin.deleteExportSchedule.js';
 import listExportSnapshots from '../api/net.openfederation.admin.listExportSnapshots.js';
+import createVerificationChallenge from '../api/net.openfederation.admin.createVerificationChallenge.js';
+import verifyChallenge from '../api/net.openfederation.admin.verifyChallenge.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
@@ -347,6 +349,10 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
 
   // Admin repo management
   'net.openfederation.admin.importRepo': { handler: importRepo },
+
+  // Admin identity verification challenge
+  'net.openfederation.admin.createVerificationChallenge': { handler: createVerificationChallenge },
+  'net.openfederation.admin.verifyChallenge': { handler: verifyChallenge },
 });
 
 // Blob serve route — serves binary blobs by DID + CID

@@ -60,7 +60,10 @@ export type AuditAction =
   | 'community.proposal.amend'
   | 'community.delegation.set'
   | 'community.delegation.revoke'
-  | 'session.revoke';
+  | 'session.revoke'
+  | 'admin.verification.create'
+  | 'admin.verification.failed'
+  | 'admin.verification.success';
 
 export async function auditLog(
   action: AuditAction,

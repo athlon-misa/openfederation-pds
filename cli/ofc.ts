@@ -300,6 +300,44 @@ account
   }));
 
 account
+  .command('verify')
+  .description('Send identity verification challenge to a user (admin)')
+  .argument('<handle>', 'Handle of the user to verify')
+  .action(run(async () => {
+    const cmd = account.commands.find(c => c.name() === 'verify')!;
+    const handle = cmd.args[0];
+    const c = client();
+    // First resolve handle to DID
+    const profile = await c.get('net.openfederation.account.getProfile', { handle });
+    const result = await c.authPost('net.openfederation.admin.createVerificationChallenge', { did: profile.did });
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      success(result.message);
+      info('After the user provides the code, run:');
+      hint(`ofc account verify-confirm ${profile.did} <nonce>`);
+    }
+  }));
+
+account
+  .command('verify-confirm')
+  .description('Confirm identity verification with nonce from user (admin)')
+  .argument('<did>', 'User DID')
+  .argument('<nonce>', 'Nonce provided by the user')
+  .action(run(async () => {
+    const cmd = account.commands.find(c => c.name() === 'verify-confirm')!;
+    const did = cmd.args[0];
+    const nonce = cmd.args[1];
+    const c = client();
+    const result = await c.authPost('net.openfederation.admin.verifyChallenge', { did, nonce });
+    if (isJsonMode()) {
+      json(result);
+    } else {
+      success(result.message);
+    }
+  }));
+
+account
   .command('change-password')
   .description('Change your account password')
   .option('--password-stdin', 'Read passwords from stdin (format: current\\nnew)')
