@@ -182,6 +182,37 @@ ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.
 | `profile get --did <did>` | No | Get user profile (standard + custom collections) |
 | `profile update [--display-name <name>] [--description <desc>]` | Yes | Update your profile |
 
+### `ofc account sessions` — Session Management
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `account sessions list` | Yes | List all active sessions |
+| `account sessions revoke <id>` | Yes | Revoke a specific session by ID prefix |
+| `account sessions revoke-all` | Yes | Revoke all sessions (requires re-login) |
+
+### `ofc security` — Security Diagnostics
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `security check-config` | Admin | Check server config for security issues |
+| `security audit-summary [--days N]` | Admin | Summarize recent security events (default: 7 days) |
+
+### `ofc oracle` — Oracle Credential Management
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `oracle create <communityDid> --name <label>` | Admin | Create Oracle credential for a community |
+| `oracle list [--community <did>]` | Admin | List Oracle credentials |
+| `oracle revoke <credentialId>` | Admin | Revoke an Oracle credential |
+
+### Additional Account Commands
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `account change-password` | Yes | Change password (interactive prompts) |
+| `account verify <handle>` | Admin | Send identity verification challenge |
+| `account verify-confirm <did> <nonce>` | Admin | Verify identity with nonce |
+
 ## Example Workflows
 
 ### Admin Setup
