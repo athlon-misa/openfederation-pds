@@ -302,15 +302,35 @@ account
 account
   .command('change-password')
   .description('Change your account password')
-  .requiredOption('--current <password>', 'Current password')
-  .requiredOption('--new <password>', 'New password')
+  .option('--password-stdin', 'Read passwords from stdin (format: current\\nnew)')
   .action(run(async () => {
     const cmd = account.commands.find(c => c.name() === 'change-password')!;
     const opts = cmd.opts();
+
+    let currentPassword: string;
+    let newPassword: string;
+
+    if (opts.passwordStdin) {
+      const input = await readPasswordStdin();
+      const lines = input.trim().split('\n');
+      if (lines.length < 2) {
+        throw new Error('--password-stdin expects two lines: current password then new password');
+      }
+      currentPassword = lines[0];
+      newPassword = lines[1];
+    } else {
+      currentPassword = await promptPassword('Current password: ');
+      newPassword = await promptPassword('New password: ');
+      const confirm = await promptPassword('Confirm new password: ');
+      if (newPassword !== confirm) {
+        throw new Error('New passwords do not match');
+      }
+    }
+
     const c = client();
     await c.authPost('net.openfederation.account.changePassword', {
-      currentPassword: opts.current,
-      newPassword: opts.new,
+      currentPassword,
+      newPassword,
     });
     if (isJsonMode()) {
       json({ ok: true });
