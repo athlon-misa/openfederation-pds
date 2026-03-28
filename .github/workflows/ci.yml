@@ -47,6 +47,9 @@ jobs:
       - name: Build SDK
         run: npm run build:sdk
 
+      - name: Validate lexicon schemas
+        run: npm run validate:lexicon
+
       - name: Run unit tests
         run: npm run test:unit
         env:
