@@ -57,7 +57,8 @@ export type AuditAction =
   | 'admin.export.snapshot.failed'
   | 'community.proposal.amend'
   | 'community.delegation.set'
-  | 'community.delegation.revoke';
+  | 'community.delegation.revoke'
+  | 'session.revoke';
 
 export async function auditLog(
   action: AuditAction,
