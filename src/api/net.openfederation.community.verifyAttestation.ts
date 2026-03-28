@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { resolveDidToPds, fetchRemoteRecord } from '../federation/remote-verify.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 
@@ -29,10 +30,64 @@ export default async function verifyAttestation(req: AuthRequest, res: Response)
     );
 
     if (result.rows.length === 0) {
+      const isLocal = communityResult.rows.length > 0;
+
+      if (isLocal) {
+        res.status(200).json({
+          valid: false,
+          communityDid,
+          communityHandle: communityHandle || null,
+        });
+        return;
+      }
+
+      const pdsUrl = await resolveDidToPds(communityDid);
+      if (!pdsUrl) {
+        res.status(200).json({
+          valid: false,
+          communityDid,
+          communityHandle: null,
+          remote: true,
+          error: 'Could not resolve community DID to a PDS',
+        });
+        return;
+      }
+
+      const remoteRecord = await fetchRemoteRecord(
+        pdsUrl, communityDid, ATTESTATION_COLLECTION, rkey
+      );
+
+      if (!remoteRecord || !remoteRecord.value) {
+        res.status(200).json({
+          valid: false,
+          communityDid,
+          communityHandle: null,
+          remote: true,
+          pdsUrl,
+        });
+        return;
+      }
+
+      const remoteData = remoteRecord.value;
+      const remoteExpired = remoteData?.expiresAt ? new Date(remoteData.expiresAt) < new Date() : false;
+
       res.status(200).json({
-        valid: false,
+        valid: !remoteExpired,
+        remote: true,
+        pdsUrl,
+        attestation: {
+          uri: remoteRecord.uri,
+          rkey,
+          subjectDid: remoteData?.subjectDid,
+          subjectHandle: remoteData?.subjectHandle,
+          type: remoteData?.type,
+          claim: remoteData?.claim,
+          issuedAt: remoteData?.issuedAt,
+          expiresAt: remoteData?.expiresAt,
+        },
         communityDid,
-        communityHandle: communityHandle || null,
+        communityHandle: null,
+        expired: remoteExpired,
       });
       return;
     }
