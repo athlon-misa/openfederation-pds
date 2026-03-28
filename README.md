@@ -5,6 +5,8 @@
 
 Personal Data Server (PDS) for OpenFederation communities, built on the AT Protocol.
 
+**Website:** [openfederation.net](https://www.openfederation.net/)
+
 ## Setup
 
 ```bash
