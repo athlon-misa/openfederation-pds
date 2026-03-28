@@ -86,6 +86,11 @@ import createRole from '../api/net.openfederation.community.createRole.js';
 import updateRole from '../api/net.openfederation.community.updateRole.js';
 import deleteRole from '../api/net.openfederation.community.deleteRole.js';
 import listRolesHandler from '../api/net.openfederation.community.listRoles.js';
+import setGovernanceModel from '../api/net.openfederation.community.setGovernanceModel.js';
+import createProposal from '../api/net.openfederation.community.createProposal.js';
+import voteOnProposal from '../api/net.openfederation.community.voteOnProposal.js';
+import listProposals from '../api/net.openfederation.community.listProposals.js';
+import getProposalHandler from '../api/net.openfederation.community.getProposal.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -263,6 +268,13 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.community.updateRole': { handler: updateRole },
   'net.openfederation.community.deleteRole': { handler: deleteRole },
   'net.openfederation.community.listRoles': { handler: listRolesHandler, limiter: discoveryLimiter },
+
+  // Governance model and voting
+  'net.openfederation.community.setGovernanceModel': { handler: setGovernanceModel },
+  'net.openfederation.community.createProposal': { handler: createProposal },
+  'net.openfederation.community.voteOnProposal': { handler: voteOnProposal },
+  'net.openfederation.community.listProposals': { handler: listProposals, limiter: discoveryLimiter },
+  'net.openfederation.community.getProposal': { handler: getProposalHandler, limiter: discoveryLimiter },
 
   // Community attestation endpoints
   'net.openfederation.community.issueAttestation': { handler: issueAttestation },
