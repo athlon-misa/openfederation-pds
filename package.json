@@ -19,6 +19,7 @@
     "cli:dev": "node --loader ts-node/esm cli/ofc.ts",
     "db:init": "node --loader ts-node/esm scripts/init-db.ts",
     "db:check": "node --loader ts-node/esm scripts/check-db.ts",
+    "db:seed-admin": "node --loader ts-node/esm scripts/seed-bootstrap-admin.ts",
     "plc:dev": "PORT=2582 node node_modules/@did-plc/server/dist/bin.js",
     "test": "node --loader ts-node/esm --test tests/security-*.test.ts",
     "test:unit": "node --loader ts-node/esm --test tests/security-validation.test.ts tests/security-jwt.test.ts tests/security-encryption.test.ts tests/security-guards.test.ts tests/security-middleware.test.ts",

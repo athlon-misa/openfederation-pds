@@ -64,9 +64,7 @@ jobs:
           PGPASSWORD: test
 
       - name: Seed bootstrap admin for integration tests
-        run: node dist/index.js &
-          sleep 3
-          kill %1 2>/dev/null || true
+        run: node --loader ts-node/esm scripts/seed-bootstrap-admin.ts
         env:
           DB_HOST: localhost
           DB_PORT: "5432"
@@ -78,9 +76,6 @@ jobs:
           BOOTSTRAP_ADMIN_HANDLE: admin
           BOOTSTRAP_ADMIN_EMAIL: admin@test.local
           BOOTSTRAP_ADMIN_PASSWORD: AdminPass1234
-          PDS_HOSTNAME: localhost
-          PDS_SERVICE_URL: http://localhost:8080
-          EXPORT_SCHEDULER_ENABLED: "false"
 
       - name: Run integration tests
         run: npm run test:api
