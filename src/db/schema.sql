@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS invites (
     used_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
     max_uses INTEGER NOT NULL DEFAULT 1,
-    uses_count INTEGER NOT NULL DEFAULT 0
+    uses_count INTEGER NOT NULL DEFAULT 0,
+    bound_to VARCHAR(255),
+    note TEXT
 );
 
 CREATE INDEX idx_invites_expires_at ON invites(expires_at);

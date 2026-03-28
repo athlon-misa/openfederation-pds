@@ -8,6 +8,8 @@ import { auditLog } from '../db/audit.js';
 interface InviteInput {
   maxUses?: number;
   expiresAt?: string;
+  boundTo?: string;
+  note?: string;
 }
 
 export default async function createInvite(req: AuthRequest, res: Response): Promise<void> {
@@ -40,18 +42,22 @@ export default async function createInvite(req: AuthRequest, res: Response): Pro
   }
 
   const code = generateInviteCode();
+  const boundTo = input.boundTo || null;
+  const note = input.note || null;
 
   await query(
-    `INSERT INTO invites (code, created_by, max_uses, expires_at)
-     VALUES ($1, $2, $3, $4)`,
-    [code, req.auth!.userId, maxUses, expiresAt]
+    `INSERT INTO invites (code, created_by, max_uses, expires_at, bound_to, note)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [code, req.auth!.userId, maxUses, expiresAt, boundTo, note]
   );
 
-  await auditLog('invite.create', req.auth!.userId, null, { maxUses, expiresAt });
+  await auditLog('invite.create', req.auth!.userId, null, { maxUses, expiresAt, boundTo, note });
 
   res.status(201).json({
     code,
     maxUses,
     expiresAt,
+    ...(boundTo ? { boundTo } : {}),
+    ...(note ? { note } : {}),
   });
 }

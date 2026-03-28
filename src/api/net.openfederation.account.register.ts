@@ -94,8 +94,9 @@ export default async function registerAccount(req: Request, res: Response): Prom
         max_uses: number;
         uses_count: number;
         expires_at: string | null;
+        bound_to: string | null;
       }>(
-        `SELECT code, max_uses, uses_count, expires_at
+        `SELECT code, max_uses, uses_count, expires_at, bound_to
          FROM invites
          WHERE code = $1
          FOR UPDATE`,
@@ -130,6 +131,20 @@ export default async function registerAccount(req: Request, res: Response): Prom
           message: 'Invite code has already been used',
         });
         return;
+      }
+
+      // Check email binding
+      if (invite.bound_to) {
+        const normalizedBound = invite.bound_to.toLowerCase().trim();
+        const normalizedEmail = input.email.toLowerCase().trim();
+        if (normalizedBound !== normalizedEmail) {
+          await client.query('ROLLBACK');
+          res.status(403).json({
+            error: 'InviteBound',
+            message: 'This invite code is bound to a specific email address.',
+          });
+          return;
+        }
       }
 
     }

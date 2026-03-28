@@ -444,11 +444,15 @@ invite
   .description('Create an invite code (admin/mod)')
   .option('--max-uses <n>', 'Maximum uses', '1')
   .option('--expires <date>', 'Expiration date (ISO 8601)')
+  .option('--bound-to <email>', 'Bind invite to specific email address')
+  .option('--note <text>', 'Note about who this invite is for')
   .action(run(async () => {
     const cmd = invite.commands.find(c => c.name() === 'create')!;
     const opts = cmd.opts();
     const body: Record<string, any> = { maxUses: parseInt(opts.maxUses, 10) };
     if (opts.expires) body.expiresAt = opts.expires;
+    if (opts.boundTo) body.boundTo = opts.boundTo;
+    if (opts.note) body.note = opts.note;
 
     const c = client();
     const result = await c.authPost('net.openfederation.invite.create', body);
@@ -460,6 +464,8 @@ invite
         ['Code', result.code],
         ['Max uses', String(result.maxUses)],
         ...(result.expiresAt ? [['Expires', result.expiresAt] as [string, string]] : []),
+        ...(result.boundTo ? [['Bound to', result.boundTo] as [string, string]] : []),
+        ...(result.note ? [['Note', result.note] as [string, string]] : []),
       ]);
     }
   }));
