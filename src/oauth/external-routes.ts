@@ -40,6 +40,16 @@ const REDIRECT_COOKIE = 'ofd_auth_redirect';
 // are consumed immediately by the frontend callback page.
 const pendingCodes = new Map<string, { tokens: LocalTokens; expiresAt: number }>();
 
+const MAX_PENDING_CODES = 10_000;
+
+function addPendingCode(code: string, entry: { tokens: LocalTokens; expiresAt: number }): void {
+  if (pendingCodes.size >= MAX_PENDING_CODES) {
+    const oldest = pendingCodes.keys().next().value;
+    if (oldest) pendingCodes.delete(oldest);
+  }
+  pendingCodes.set(code, entry);
+}
+
 interface LocalTokens {
   did: string;
   handle: string;
@@ -188,7 +198,7 @@ export function createExternalOAuthRouter(): Router {
 
       // Generate a temporary code for the frontend to exchange
       const tempCode = crypto.randomBytes(32).toString('hex');
-      pendingCodes.set(tempCode, {
+      addPendingCode(tempCode, {
         tokens: localTokens,
         expiresAt: Date.now() + 60_000, // 60 seconds
       });
