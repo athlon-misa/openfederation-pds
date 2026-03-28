@@ -48,3 +48,6 @@ articles/
 
 # Multi-repo manifest (Grvty-specific project topology)
 .multi-repo-manifest.json
+
+# Generated docs site (built by scripts/build-lexicon-docs.ts)
+docs-site/
