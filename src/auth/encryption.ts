@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { promisify } from 'util';
 import { config } from '../config.js';
 
 const ALGORITHM = 'aes-256-gcm';
@@ -8,22 +9,24 @@ const SALT_LENGTH = 32;
 const KEY_LENGTH = 32;
 const ITERATIONS = 100000;
 
-function deriveKey(secret: string, salt: Buffer): Buffer {
-  return crypto.pbkdf2Sync(secret, salt, ITERATIONS, KEY_LENGTH, 'sha512');
+const pbkdf2 = promisify(crypto.pbkdf2);
+
+async function deriveKey(secret: string, salt: Buffer): Promise<Buffer> {
+  return pbkdf2(secret, salt, ITERATIONS, KEY_LENGTH, 'sha512');
 }
 
 /**
  * Encrypt data using AES-256-GCM with a derived key from KEY_ENCRYPTION_SECRET.
  * Returns a buffer: [salt (32)] [iv (16)] [authTag (16)] [ciphertext (...)]
  */
-export function encryptKeyBytes(plaintext: Buffer): Buffer {
+export async function encryptKeyBytes(plaintext: Buffer): Promise<Buffer> {
   const secret = config.keyEncryptionSecret;
   if (!secret) {
     throw new Error('KEY_ENCRYPTION_SECRET must be set to encrypt keys at rest');
   }
 
   const salt = crypto.randomBytes(SALT_LENGTH);
-  const key = deriveKey(secret, salt);
+  const key = await deriveKey(secret, salt);
   const iv = crypto.randomBytes(IV_LENGTH);
 
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -36,7 +39,7 @@ export function encryptKeyBytes(plaintext: Buffer): Buffer {
 /**
  * Decrypt data that was encrypted with encryptKeyBytes.
  */
-export function decryptKeyBytes(cipherBundle: Buffer): Buffer {
+export async function decryptKeyBytes(cipherBundle: Buffer): Promise<Buffer> {
   const secret = config.keyEncryptionSecret;
   if (!secret) {
     throw new Error('KEY_ENCRYPTION_SECRET must be set to decrypt keys at rest');
@@ -47,7 +50,7 @@ export function decryptKeyBytes(cipherBundle: Buffer): Buffer {
   const authTag = cipherBundle.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
   const encrypted = cipherBundle.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
 
-  const key = deriveKey(secret, salt);
+  const key = await deriveKey(secret, salt);
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
 

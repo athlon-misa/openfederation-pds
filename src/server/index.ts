@@ -442,7 +442,7 @@ app.get('/.well-known/did.json', discoveryLimiter, async (req: Request, res: Res
       return res.status(500).json({ error: 'InternalServerError', message: 'Signing key not found' });
     }
 
-    const decrypted = decryptKeyBytes(keyResult.rows[0].signing_key_bytes);
+    const decrypted = await decryptKeyBytes(keyResult.rows[0].signing_key_bytes);
     const keypair = await Secp256k1Keypair.import(decrypted, { exportable: false });
     const publicKeyMultibase = toMultibaseMultikeySecp256k1(keypair.publicKeyBytes());
 
