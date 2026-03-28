@@ -4,6 +4,9 @@ import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
+import { validateOracleKey } from '../auth/oracle-guard.js';
+import type { OracleContext } from '../auth/oracle-guard.js';
+import { auditLog } from '../db/audit.js';
 
 /**
  * com.atproto.repo.deleteRecord
@@ -43,9 +46,15 @@ export default async function deleteRecord(req: AuthRequest, res: Response): Pro
       if (!hasPermission) return;
     }
 
+    // Check for Oracle authentication
+    let oracleContext: OracleContext | null = null;
+    if (req.headers['x-oracle-key']) {
+      oracleContext = await validateOracleKey(req);
+    }
+
     // Governance enforcement for community repos
     if (await isCommunityDid(repo)) {
-      const governance = await enforceGovernance(repo, collection, 'delete');
+      const governance = await enforceGovernance(repo, collection, 'delete', oracleContext);
       if (!governance.allowed) {
         res.status(403).json({
           error: 'GovernanceDenied',
@@ -60,6 +69,14 @@ export default async function deleteRecord(req: AuthRequest, res: Response): Pro
     const keypair = await getKeypairForDid(repo);
 
     await engine.deleteRecord(keypair, collection, rkey);
+
+    // Log governance proof if Oracle-submitted
+    if (oracleContext && req.body.governanceProof) {
+      await auditLog('oracle.proofApplied', oracleContext.credentialId, repo, {
+        collection, rkey, action: 'delete',
+        proof: req.body.governanceProof,
+      });
+    }
 
     res.status(200).json({});
   } catch (error) {

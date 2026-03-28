@@ -1,4 +1,5 @@
 import { query } from '../db/client.js';
+import type { OracleContext } from '../auth/oracle-guard.js';
 
 /** Collections that MUST always be protected — cannot be removed from governance */
 const MANDATORY_PROTECTED = [
@@ -34,6 +35,7 @@ export async function enforceGovernance(
   communityDid: string,
   collection: string,
   action: 'write' | 'delete',
+  oracleContext?: OracleContext | null,
 ): Promise<GovernanceResult> {
   // Fetch settings once (used for both protection check and governance model)
   const settingsResult = await query<{ record: any }>(
@@ -81,6 +83,9 @@ export async function enforceGovernance(
       };
 
     case 'on-chain':
+      if (oracleContext && oracleContext.communityDid === communityDid) {
+        return { allowed: true, governanceModel };
+      }
       return {
         allowed: false,
         reason: 'GovernanceRequired: on-chain governance is active. Writes to protected collections must come via an authorized Oracle service.',
