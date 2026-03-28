@@ -36,6 +36,8 @@ export type AuditAction =
   | 'account.export'
   | 'account.roles.update'
   | 'account.password.change'
+  | 'account.password.reset.request'
+  | 'account.password.reset.confirm'
   | 'identity.setExternalKey'
   | 'identity.deleteExternalKey'
   | 'community.updateMemberRole'

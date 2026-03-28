@@ -67,6 +67,8 @@ import updateRoles from '../api/net.openfederation.account.updateRoles.js';
 import changePassword from '../api/net.openfederation.account.changePassword.js';
 import listSessions from '../api/net.openfederation.account.listSessions.js';
 import revokeSession from '../api/net.openfederation.account.revokeSession.js';
+import requestPasswordReset from '../api/net.openfederation.account.requestPasswordReset.js';
+import confirmPasswordReset from '../api/net.openfederation.account.confirmPasswordReset.js';
 import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js';
 import listPeers from '../api/net.openfederation.federation.listPeers.js';
 import listPeerCommunities from '../api/net.openfederation.federation.listPeerCommunities.js';
@@ -319,6 +321,8 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.account.changePassword': { handler: changePassword, limiter: authLimiter },
   'net.openfederation.account.listSessions': { handler: listSessions },
   'net.openfederation.account.revokeSession': { handler: revokeSession },
+  'net.openfederation.account.requestPasswordReset': { handler: requestPasswordReset, limiter: authLimiter },
+  'net.openfederation.account.confirmPasswordReset': { handler: confirmPasswordReset, limiter: authLimiter },
 
   // Standard ATProto admin endpoints
   'com.atproto.admin.updateSubjectStatus': { handler: updateSubjectStatus },
