@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { isPrivateHost } from './remote-verify.js';
 
 /**
  * In-memory TTL cache for peer PDS data.
@@ -143,6 +144,11 @@ export async function getCachedPeerInfo(): Promise<PeerInfo[]> {
         peerHostname = new URL(peerUrl).hostname;
       } catch {
         peerHostname = peerUrl;
+      }
+
+      if (isPrivateHost(peerHostname)) {
+        console.warn(`Skipping peer ${peerUrl}: private/internal host`);
+        return { hostname: peerHostname, serviceUrl: peerUrl, webUrl: null, healthy: false };
       }
 
       try {

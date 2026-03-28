@@ -32,7 +32,7 @@ function setCache(key: string, result: RemoteRecord | null): void {
  * Returns true if the hostname/IP resolves to a private, loopback, or link-local
  * address that must not be fetched as part of federation (SSRF guard).
  */
-function isPrivateHost(hostname: string): boolean {
+export function isPrivateHost(hostname: string): boolean {
   // Strip brackets from IPv6 addresses (e.g., [::1] → ::1)
   const lc = hostname.toLowerCase().replace(/^\[|\]$/g, '');
 
