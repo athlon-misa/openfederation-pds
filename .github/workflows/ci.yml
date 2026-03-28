@@ -49,6 +49,9 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit
+        env:
+          AUTH_JWT_SECRET: ci-test-secret-minimum-32-characters-long
+          KEY_ENCRYPTION_SECRET: ci-test-encryption-secret-32chars
 
       - name: Run integration tests
         run: npm run test:api
