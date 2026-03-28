@@ -43,7 +43,8 @@ export function RotationKeyModal({ open, rotationKey, onClose }: RotationKeyModa
           <DialogTitle>Save your rotation key</DialogTitle>
           <DialogDescription className="text-destructive font-medium">
             This is the only time you will see this key. It grants full control over your
-            community identity. Back it up securely now.
+            community identity. Back it up securely now. OpenFederation and PDS operators
+            will NEVER ask you for this key. Any request for it is a phishing attempt.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

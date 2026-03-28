@@ -179,7 +179,9 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
       response.message =
         'IMPORTANT: Please back up your primaryRotationKey immediately. ' +
         'This is the only time you will see it. It grants full control over your identity. ' +
-        'Without it, you cannot migrate your community to a different server.';
+        'Without it, you cannot migrate your community to a different server. ' +
+        'OpenFederation and PDS operators will NEVER ask you for this key. ' +
+        'Any request for it is a phishing attempt.';
     } else {
       response.didDocument = didDocument;
       response.instructions = instructions;
