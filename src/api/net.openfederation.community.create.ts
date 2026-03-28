@@ -7,6 +7,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { isValidHandle } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
+import { getDefaultRoleRecords, ROLE_COLLECTION } from '../auth/permissions.js';
 
 interface CreateCommunityInput {
   handle: string;
@@ -129,36 +130,33 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
     const joinPolicy = input.joinPolicy || 'open';
 
     const memberRkey = RepoEngine.generateTid();
+    const defaultRoles = getDefaultRoleRecords();
+    const ownerRoleRkey = RepoEngine.generateTid();
+    const modRoleRkey = RepoEngine.generateTid();
+    const memberRoleRkey = RepoEngine.generateTid();
 
     const initialRecords = [
+      // Role records
+      { collection: ROLE_COLLECTION, rkey: ownerRoleRkey, record: defaultRoles[0].record },
+      { collection: ROLE_COLLECTION, rkey: modRoleRkey, record: defaultRoles[1].record },
+      { collection: ROLE_COLLECTION, rkey: memberRoleRkey, record: defaultRoles[2].record },
+      // Settings
       {
         collection: 'net.openfederation.community.settings',
         rkey: 'self',
-        record: {
-          didMethod: input.didMethod,
-          governanceModel: 'benevolent-dictator',
-          visibility,
-          joinPolicy,
-        },
+        record: { didMethod: input.didMethod, governanceModel: 'benevolent-dictator', visibility, joinPolicy },
       },
+      // Profile
       {
         collection: 'net.openfederation.community.profile',
         rkey: 'self',
-        record: {
-          displayName,
-          description,
-          createdAt: now,
-        },
+        record: { displayName, description, createdAt: now },
       },
+      // Owner member record with roleRkey
       {
         collection: 'net.openfederation.community.member',
         rkey: memberRkey,
-        record: {
-          did: req.auth!.did,
-          handle: req.auth!.handle,
-          role: 'owner',
-          joinedAt: now,
-        },
+        record: { did: req.auth!.did, handle: req.auth!.handle, roleRkey: ownerRoleRkey, joinedAt: now },
       },
     ];
 

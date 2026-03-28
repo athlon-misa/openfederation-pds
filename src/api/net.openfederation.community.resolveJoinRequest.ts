@@ -5,6 +5,7 @@ import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
+import { findRoleRkeyByName } from '../auth/permissions.js';
 
 /**
  * net.openfederation.community.resolveJoinRequest
@@ -91,10 +92,11 @@ export default async function resolveJoinRequest(req: AuthRequest, res: Response
       const engine = new RepoEngine(request.community_did);
       const keypair = await getKeypairForDid(request.community_did);
       const rkey = RepoEngine.generateTid();
+      const memberRoleRkey = await findRoleRkeyByName(request.community_did, 'member', query);
       await engine.putRecord(keypair, 'net.openfederation.community.member', rkey, {
         did: request.user_did,
         handle,
-        role: 'member',
+        ...(memberRoleRkey ? { roleRkey: memberRoleRkey } : { role: 'member' }),
         joinedAt: new Date().toISOString(),
       });
     }
