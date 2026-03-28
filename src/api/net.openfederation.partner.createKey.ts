@@ -9,7 +9,7 @@ import crypto from 'crypto';
 interface CreateKeyInput {
   name: string;
   partnerName: string;
-  allowedOrigins?: string[];
+  allowedOrigins: string[];
   rateLimitPerHour?: number;
   permissions?: string[];
 }
@@ -36,8 +36,29 @@ export default async function createPartnerKey(req: Request, res: Response): Pro
     return;
   }
 
+  if (!input.allowedOrigins || input.allowedOrigins.length === 0) {
+    res.status(400).json({
+      error: 'InvalidRequest',
+      message: 'allowedOrigins is required. Provide at least one allowed origin URL.',
+    });
+    return;
+  }
+
+  // Validate origins are valid URLs
+  for (const origin of input.allowedOrigins) {
+    try {
+      new URL(origin);
+    } catch {
+      res.status(400).json({
+        error: 'InvalidRequest',
+        message: `Invalid origin URL: ${origin}`,
+      });
+      return;
+    }
+  }
+
   const permissions = input.permissions || ['register'];
-  const allowedOrigins = input.allowedOrigins || null;
+  const allowedOrigins = input.allowedOrigins;
   const rateLimitPerHour = input.rateLimitPerHour || 100;
 
   if (rateLimitPerHour < 1 || rateLimitPerHour > 10000) {
@@ -63,7 +84,7 @@ export default async function createPartnerKey(req: Request, res: Response): Pro
         input.partnerName,
         auth.userId,
         JSON.stringify(permissions),
-        allowedOrigins ? JSON.stringify(allowedOrigins) : null,
+        JSON.stringify(allowedOrigins),
         rateLimitPerHour,
       ]
     );
