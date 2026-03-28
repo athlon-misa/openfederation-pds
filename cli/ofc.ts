@@ -952,12 +952,23 @@ community
   .command('transfer')
   .description('Generate transfer package for migration (owner)')
   .argument('<did>', 'Community DID')
+  .option('--confirm', 'Confirm the transfer (required)')
   .action(run(async () => {
     const cmd = community.commands.find(c => c.name() === 'transfer')!;
     const did = cmd.args[0];
+    const opts = cmd.opts();
+
+    if (!opts.confirm) {
+      console.error('This will generate a transfer package for community ' + did);
+      console.error('This is a sensitive operation that prepares your community for migration.');
+      console.error('Pass --confirm to proceed.');
+      process.exit(1);
+    }
+
+    const password = await promptPassword('Enter your password to confirm: ');
+
     const c = client();
-    const result = await c.authPost('net.openfederation.community.transfer', { did });
-    // Transfer package is always JSON
+    const result = await c.authPost('net.openfederation.community.transfer', { did, password });
     json(result);
     if (!isJsonMode()) {
       success('Transfer package generated');

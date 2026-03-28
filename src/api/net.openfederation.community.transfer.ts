@@ -5,6 +5,7 @@ import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { auditLog } from '../db/audit.js';
+import { verifyPassword } from '../auth/password.js';
 
 /**
  * net.openfederation.community.transfer.initiate
@@ -60,6 +61,28 @@ export default async function transferCommunity(req: AuthRequest, res: Response)
       res.status(403).json({
         error: 'Forbidden',
         message: 'Only the community owner can initiate a transfer',
+      });
+      return;
+    }
+
+    // Require password re-authentication for this sensitive operation
+    const { password } = req.body || {};
+    if (!password) {
+      res.status(400).json({
+        error: 'InvalidRequest',
+        message: 'Password is required to confirm transfer. Provide "password" in the request body.',
+      });
+      return;
+    }
+
+    const userResult = await query<{ password_hash: string | null }>(
+      'SELECT password_hash FROM users WHERE id = $1',
+      [req.auth!.userId]
+    );
+    if (!userResult.rows[0]?.password_hash || !(await verifyPassword(password, userResult.rows[0].password_hash))) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid password.',
       });
       return;
     }
