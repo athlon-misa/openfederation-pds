@@ -40,6 +40,10 @@ export async function ensureBootstrapAdmin(): Promise<void> {
        ON CONFLICT DO NOTHING`,
       [userId]
     );
+    console.warn(
+      'WARNING: BOOTSTRAP_ADMIN_PASSWORD is still set in your environment. ' +
+      'The admin account already exists — remove this variable to reduce your attack surface.'
+    );
     return;
   }
 
