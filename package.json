@@ -25,10 +25,26 @@
     "test:api": "vitest run",
     "test:api:watch": "vitest"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "atproto",
+    "decentralized",
+    "did",
+    "federation",
+    "identity",
+    "pds",
+    "personal-data-server"
+  ],
+  "author": "OpenFederation Contributors",
   "license": "MIT OR Apache-2.0",
-  "description": "",
+  "description": "Personal Data Server (PDS) for OpenFederation communities, built on the AT Protocol",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/athlon-misa/openfederation-pds.git"
+  },
+  "homepage": "https://github.com/athlon-misa/openfederation-pds",
+  "bugs": {
+    "url": "https://github.com/athlon-misa/openfederation-pds/issues"
+  },
   "dependencies": {
     "@atproto/api": "^0.18.20",
     "@atproto/crypto": "^0.4.5",

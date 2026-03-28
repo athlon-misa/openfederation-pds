@@ -24,7 +24,6 @@ npm-debug.log*
 
 # Documentation (kept locally, not in repo)
 Documentation/
-CLAUDE.md
 
 # CLI session storage
 .pds-cli/
@@ -38,3 +37,9 @@ gotosocial/
 
 # Local roadmap / future feature planning
 roadmap/
+
+# Claude Code local config
+.claude/
+
+# Internal planning docs
+docs/superpowers/

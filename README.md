@@ -1,4 +1,8 @@
 # openfederation-pds
+
+[![License: MIT/Apache-2.0](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](./LICENSE)
+[![CI](https://github.com/athlon-misa/openfederation-pds/actions/workflows/ci.yml/badge.svg)](https://github.com/athlon-misa/openfederation-pds/actions/workflows/ci.yml)
+
 Personal Data Server (PDS) for OpenFederation communities, built on the AT Protocol.
 
 ## Setup
