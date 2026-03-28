@@ -53,6 +53,11 @@ jobs:
           AUTH_JWT_SECRET: ci-test-secret-minimum-32-characters-long
           KEY_ENCRYPTION_SECRET: ci-test-encryption-secret-32chars
 
+      - name: Initialize test database schema
+        run: PGPASSWORD=test psql -h localhost -U test -d openfederation_test -f src/db/schema.sql
+        env:
+          PGPASSWORD: test
+
       - name: Run integration tests
         run: npm run test:api
         env:
