@@ -6,6 +6,9 @@ node_modules/
 # Documentation
 Documentation/
 CLAUDE.md
+articles/
+docs/superpowers/
+.multi-repo-manifest.json
 *.md
 !README.md
 !DEPLOYMENT.md

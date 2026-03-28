@@ -40,6 +40,11 @@ roadmap/
 
 # Claude Code local config
 .claude/
+CLAUDE.md
 
-# Internal planning docs
+# Internal planning docs and articles (kept locally)
 docs/superpowers/
+articles/
+
+# Multi-repo manifest (Grvty-specific project topology)
+.multi-repo-manifest.json

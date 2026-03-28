@@ -7,8 +7,11 @@ data/
 dist/
 web-interface/node_modules
 web-interface/.next
-*.md
 tests/
 .claude/
-docs/
+CLAUDE.md
+docs/superpowers/
 articles/
+.multi-repo-manifest.json
+.DS_Store
+*.swp
