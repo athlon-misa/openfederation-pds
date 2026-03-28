@@ -101,6 +101,61 @@ async function isAllowedRedirectOrigin(redirectUri: string): Promise<boolean> {
   return partnerOrigins.includes(origin);
 }
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderRedirectConfirmation(res: Response, authUrl: string, handle: string, pdsUrl: string): void {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirm External Login — OpenFederation</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: #f8f9fa; color: #1a1a2e; display: flex; justify-content: center;
+           align-items: center; min-height: 100vh; margin: 0; }
+    .card { background: #fff; border-radius: 8px; padding: 2rem; max-width: 480px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+    h2 { margin: 0 0 1rem; }
+    .pds-url { background: #e9ecef; padding: 0.75rem; border-radius: 4px; font-family: monospace;
+               font-size: 0.9rem; word-break: break-all; margin: 1rem 0; }
+    .warning { color: #856404; background: #fff3cd; padding: 0.75rem; border-radius: 4px;
+               margin: 1rem 0; font-size: 0.9rem; }
+    .actions { margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; }
+    .btn { padding: 0.75rem 1.5rem; border-radius: 4px; border: none; cursor: pointer;
+           font-size: 1rem; text-decoration: none; }
+    .btn-primary { background: #0f3460; color: #fff; }
+    .btn-secondary { background: #e9ecef; color: #1a1a2e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>External Login</h2>
+    <p>You are signing in as <strong>${escapeHtml(handle)}</strong></p>
+    <p>You will be redirected to your home PDS:</p>
+    <div class="pds-url">${escapeHtml(pdsUrl)}</div>
+    <div class="warning">
+      Verify this is your home PDS before continuing. If you don't recognise this URL, do not proceed.
+    </div>
+    <div class="actions">
+      <a href="${escapeHtml(authUrl)}" class="btn btn-primary">Continue</a>
+      <a href="/" class="btn btn-secondary">Cancel</a>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  res.setHeader('Content-Type', 'text/html');
+  res.status(200).send(html);
+}
+
 export function createExternalOAuthRouter(): Router {
   const router = Router();
 
@@ -149,7 +204,16 @@ export function createExternalOAuthRouter(): Router {
         signal: AbortSignal.timeout(30_000),
       });
 
-      res.redirect(authUrl.toString());
+      // Resolve the base PDS URL (origin only) to show the user before redirecting
+      let pdsServiceUrl: string;
+      try {
+        pdsServiceUrl = new URL(authUrl.toString()).origin;
+      } catch {
+        pdsServiceUrl = authUrl.toString();
+      }
+
+      // Show a confirmation page before redirecting to the external PDS
+      renderRedirectConfirmation(res, authUrl.toString(), handle.trim(), pdsServiceUrl);
     } catch (err) {
       console.error('ATProto auth initiation error:', err);
       // Redirect back to client app with error
