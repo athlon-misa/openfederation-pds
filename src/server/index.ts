@@ -82,6 +82,10 @@ import updateProfile from '../api/net.openfederation.account.updateProfile.js';
 import getProfileHandler from '../api/net.openfederation.account.getProfile.js';
 import uploadBlob from '../api/com.atproto.repo.uploadBlob.js';
 import importRepo from '../api/net.openfederation.admin.importRepo.js';
+import createRole from '../api/net.openfederation.community.createRole.js';
+import updateRole from '../api/net.openfederation.community.updateRole.js';
+import deleteRole from '../api/net.openfederation.community.deleteRole.js';
+import listRolesHandler from '../api/net.openfederation.community.listRoles.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -253,6 +257,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
 
   // Community role management
   'net.openfederation.community.updateMemberRole': { handler: updateMemberRole },
+
+  // Community role CRUD
+  'net.openfederation.community.createRole': { handler: createRole },
+  'net.openfederation.community.updateRole': { handler: updateRole },
+  'net.openfederation.community.deleteRole': { handler: deleteRole },
+  'net.openfederation.community.listRoles': { handler: listRolesHandler, limiter: discoveryLimiter },
 
   // Community attestation endpoints
   'net.openfederation.community.issueAttestation': { handler: issueAttestation },

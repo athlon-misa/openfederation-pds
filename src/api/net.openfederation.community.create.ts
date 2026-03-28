@@ -137,9 +137,9 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
 
     const initialRecords = [
       // Role records
-      { collection: ROLE_COLLECTION, rkey: ownerRoleRkey, record: defaultRoles[0].record },
-      { collection: ROLE_COLLECTION, rkey: modRoleRkey, record: defaultRoles[1].record },
-      { collection: ROLE_COLLECTION, rkey: memberRoleRkey, record: defaultRoles[2].record },
+      { collection: ROLE_COLLECTION, rkey: ownerRoleRkey, record: { ...defaultRoles[0].record } },
+      { collection: ROLE_COLLECTION, rkey: modRoleRkey, record: { ...defaultRoles[1].record } },
+      { collection: ROLE_COLLECTION, rkey: memberRoleRkey, record: { ...defaultRoles[2].record } },
       // Settings
       {
         collection: 'net.openfederation.community.settings',
