@@ -1,0 +1,46 @@
+{
+  "name": "@openfederation/lexicon",
+  "version": "0.1.0",
+  "description": "ATProto Lexicon schemas for the OpenFederation protocol",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "schemas"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "@atproto/lexicon": ">=0.4.0"
+  },
+  "devDependencies": {
+    "@atproto/lexicon": "^0.6.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  },
+  "keywords": [
+    "openfederation",
+    "atproto",
+    "lexicon",
+    "did",
+    "federation",
+    "schema"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/athlon-misa/openfederation-pds",
+    "directory": "packages/openfederation-lexicon"
+  }
+}
