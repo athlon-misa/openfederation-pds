@@ -1,5 +1,6 @@
 name: Create Security Issues
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - 'copilot/deep-dive-security-exploits'
