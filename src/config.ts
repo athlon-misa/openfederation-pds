@@ -87,6 +87,12 @@ export const config = {
     s3SecretAccessKey: process.env.BLOB_S3_SECRET_ACCESS_KEY || '',
   },
 
+  // Export scheduler configuration
+  exportScheduler: {
+    enabled: process.env.EXPORT_SCHEDULER_ENABLED === 'true',
+    checkIntervalMs: parseInt(process.env.EXPORT_CHECK_INTERVAL_MS || '300000', 10), // 5 min
+  },
+
   // OAuth configuration
   oauth: {
     enabled: process.env.OAUTH_ENABLED !== 'false',

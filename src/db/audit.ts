@@ -49,7 +49,14 @@ export type AuditAction =
   | 'community.proposal.vote'
   | 'community.proposal.approve'
   | 'community.proposal.reject'
-  | 'community.proposal.expire';
+  | 'community.proposal.expire'
+  | 'admin.export.schedule.create'
+  | 'admin.export.schedule.delete'
+  | 'admin.export.snapshot.success'
+  | 'admin.export.snapshot.failed'
+  | 'community.proposal.amend'
+  | 'community.delegation.set'
+  | 'community.delegation.revoke';
 
 export async function auditLog(
   action: AuditAction,

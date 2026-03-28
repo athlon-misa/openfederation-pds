@@ -48,6 +48,24 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
         res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.voterRole is required' });
         return;
       }
+
+      // Validate protectedCollections if provided
+      if (governanceConfig.protectedCollections) {
+        if (!Array.isArray(governanceConfig.protectedCollections)) {
+          res.status(400).json({ error: 'InvalidRequest', message: 'protectedCollections must be an array' });
+          return;
+        }
+        const mandatory = ['net.openfederation.community.settings', 'net.openfederation.community.role'];
+        const normalized = governanceConfig.protectedCollections.map((c: string) =>
+          c.startsWith('net.openfederation.community.') ? c : `net.openfederation.community.${c}`
+        );
+        for (const m of mandatory) {
+          if (!normalized.includes(m)) {
+            normalized.push(m);
+          }
+        }
+        governanceConfig.protectedCollections = normalized;
+      }
     }
 
     const settingsResult = await query<{ record: any }>(
