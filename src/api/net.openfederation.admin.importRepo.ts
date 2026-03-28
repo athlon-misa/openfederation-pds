@@ -32,9 +32,19 @@ export default async function importRepo(req: AuthRequest, res: Response): Promi
       return;
     }
 
-    // Collect raw CAR body
+    // Collect raw CAR body (100 MB hard limit to prevent DoS via memory exhaustion)
+    const MAX_CAR_SIZE = 100 * 1024 * 1024;
     const chunks: Buffer[] = [];
+    let totalSize = 0;
     for await (const chunk of req) {
+      totalSize += chunk.length;
+      if (totalSize > MAX_CAR_SIZE) {
+        res.status(413).json({
+          error: 'PayloadTooLarge',
+          message: 'CAR body exceeds maximum size of 100 MB',
+        });
+        return;
+      }
       chunks.push(Buffer.from(chunk));
     }
     const carBytes = Buffer.concat(chunks);
