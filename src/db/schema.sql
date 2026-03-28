@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
     status_changed_at TIMESTAMP WITH TIME ZONE,
     status_changed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
     status_reason TEXT,
-    exported_at TIMESTAMP WITH TIME ZONE
+    exported_at TIMESTAMP WITH TIME ZONE,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMP WITH TIME ZONE
     -- FK to partner_keys(id) added after partner_keys table creation
 );
 

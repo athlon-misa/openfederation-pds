@@ -35,8 +35,10 @@ export default async function createSession(req: Request, res: Response): Promis
       status: string;
       did: string;
       auth_type: string;
+      failed_login_attempts: number;
+      locked_until: string | null;
     }>(
-      'SELECT id, handle, email, password_hash, status, did, auth_type FROM users WHERE handle = $1 OR email = $1',
+      'SELECT id, handle, email, password_hash, status, did, auth_type, failed_login_attempts, locked_until FROM users WHERE handle = $1 OR email = $1',
       [identifier]
     );
 
@@ -52,6 +54,24 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     const user = userResult.rows[0];
+
+    // Check if account is locked
+    if (user.locked_until) {
+      const lockExpiry = new Date(user.locked_until);
+      if (lockExpiry > new Date()) {
+        const remainingSec = Math.ceil((lockExpiry.getTime() - Date.now()) / 1000);
+        await auditLog('session.loginFailed', null, user.id, {
+          identifier: input.identifier, reason: 'account_locked', ip: req.ip,
+          lockedUntil: user.locked_until,
+        });
+        res.status(429).json({
+          error: 'AccountLocked',
+          message: `Too many failed attempts. Try again in ${remainingSec} seconds.`,
+          retryAfter: remainingSec,
+        });
+        return;
+      }
+    }
 
     // External users cannot log in via password — they must use ATProto OAuth
     if (user.auth_type === 'external') {
@@ -78,14 +98,38 @@ export default async function createSession(req: Request, res: Response): Promis
 
     const passwordOk = await verifyPassword(input.password, user.password_hash);
     if (!passwordOk) {
+      const attempts = user.failed_login_attempts + 1;
+      // Exponential backoff: 1min, 5min, 30min, 2hr after 5, 10, 15, 20 failures
+      let lockDurationMs: number | null = null;
+      if (attempts >= 20) lockDurationMs = 2 * 60 * 60 * 1000;
+      else if (attempts >= 15) lockDurationMs = 30 * 60 * 1000;
+      else if (attempts >= 10) lockDurationMs = 5 * 60 * 1000;
+      else if (attempts >= 5) lockDurationMs = 60 * 1000;
+
+      const lockedUntil = lockDurationMs ? new Date(Date.now() + lockDurationMs).toISOString() : null;
+
+      await query(
+        'UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3',
+        [attempts, lockedUntil, user.id]
+      );
+
       await auditLog('session.loginFailed', null, user.id, {
         identifier: input.identifier, reason: 'wrong_password', ip: req.ip,
+        attempts,
       });
       res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid credentials',
       });
       return;
+    }
+
+    // Reset failed login counter on successful auth
+    if (user.failed_login_attempts > 0) {
+      await query(
+        'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1',
+        [user.id]
+      );
     }
 
     if (user.status === 'suspended') {
