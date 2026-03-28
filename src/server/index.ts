@@ -228,7 +228,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.account.approve': { handler: approveAccount },
   'net.openfederation.account.reject': { handler: rejectAccount },
   'net.openfederation.account.listPending': { handler: listPendingAccounts },
-  'net.openfederation.invite.create': { handler: createInvite },
+  'net.openfederation.invite.create': { handler: createInvite, limiter: createLimiter },
   'net.openfederation.account.list': { handler: listAccounts },
   'net.openfederation.invite.list': { handler: listInvites },
   'net.openfederation.audit.list': { handler: listAudit },
