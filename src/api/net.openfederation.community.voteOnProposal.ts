@@ -7,6 +7,7 @@ import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
+const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
 
 export default async function voteOnProposal(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -69,6 +70,26 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       updatedProposal.votesFor = [...(proposal.votesFor || []), voterDid];
     } else {
       updatedProposal.votesAgainst = [...(proposal.votesAgainst || []), voterDid];
+    }
+
+    // Delegation counting: find members who delegated to this voter
+    const delegations = await query<{ record: any }>(
+      `SELECT record FROM records_index
+       WHERE community_did = $1 AND collection = $2 AND record->>'delegateDid' = $3`,
+      [communityDid, DELEGATION_COLLECTION, voterDid]
+    );
+
+    for (const del of delegations.rows) {
+      const delegatorDid = del.record?.delegatorDid;
+      if (!delegatorDid) continue;
+      // Skip if delegator already voted directly on this proposal
+      if (updatedProposal.votesFor.includes(delegatorDid) || updatedProposal.votesAgainst.includes(delegatorDid)) continue;
+      // Add delegator's vote in same direction as delegate
+      if (vote === 'for') {
+        updatedProposal.votesFor.push(delegatorDid);
+      } else {
+        updatedProposal.votesAgainst.push(delegatorDid);
+      }
     }
 
     const settingsResult = await query<{ record: any }>(
