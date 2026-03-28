@@ -6,6 +6,15 @@ const INSECURE_JWT_DEFAULTS = ['dev-secret-change-me', 'change_me', ''];
 
 const jwtSecret = process.env.AUTH_JWT_SECRET || '';
 
+function parseTrustProxy(val: string | undefined): string | number | boolean {
+  if (!val) return 1;
+  if (val === 'true') return true;
+  if (val === 'false') return false;
+  const num = parseInt(val, 10);
+  if (!isNaN(num)) return num;
+  return val;
+}
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
 
@@ -102,4 +111,7 @@ export const config = {
     trustedClients: (process.env.OAUTH_TRUSTED_CLIENTS || '').split(',').filter(Boolean),
     redisUrl: process.env.REDIS_URL || '',
   },
+
+  // Express trust proxy configuration (for rate limiting and req.ip with proxies)
+  trustProxy: parseTrustProxy(process.env.EXPRESS_TRUST_PROXY),
 };

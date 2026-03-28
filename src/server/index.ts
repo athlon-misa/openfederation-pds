@@ -110,7 +110,7 @@ const app = express();
 
 // Trust the first proxy (Railway, Render, etc.) so req.ip uses X-Forwarded-For
 // and express-rate-limit identifies clients correctly.
-app.set('trust proxy', 1);
+app.set('trust proxy', config.trustProxy);
 
 // Security headers middleware
 app.use((_req, res, next) => {
