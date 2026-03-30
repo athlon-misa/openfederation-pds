@@ -6,9 +6,9 @@
  * Pure unit tests — no database or network dependencies.
  */
 
-import { describe, it, before } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import jwt from 'jsonwebtoken';
+import { SignJWT } from 'jose';
 
 // Set required env vars before importing config-dependent modules
 process.env.AUTH_JWT_SECRET = 'test-secret-at-least-32-characters-long!!';
@@ -31,23 +31,48 @@ const testContext: AuthContext = {
   status: 'approved',
 };
 
+/** Decode a JWT header without verifying (base64url parse) */
+function decodeHeader(token: string): Record<string, unknown> {
+  const part = token.split('.')[0];
+  return JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
+}
+
+/** Decode a JWT payload without verifying (base64url parse) */
+function decodePayload(token: string): Record<string, unknown> {
+  const part = token.split('.')[1];
+  return JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
+}
+
+/** Sign a token with a given secret and options using jose */
+async function signWith(
+  payload: Record<string, unknown>,
+  secret: string,
+  opts: { algorithm: string; expiresIn: string }
+): Promise<string> {
+  const { sub, ...rest } = payload;
+  const builder = new SignJWT(rest as Record<string, unknown>)
+    .setProtectedHeader({ alg: opts.algorithm })
+    .setExpirationTime(opts.expiresIn);
+  if (typeof sub === 'string') builder.setSubject(sub);
+  return builder.sign(new TextEncoder().encode(secret));
+}
+
 describe('Access token signing', () => {
-  it('produces a valid JWT string', () => {
-    const token = signAccessToken(testContext);
+  it('produces a valid JWT string', async () => {
+    const token = await signAccessToken(testContext);
     assert.ok(typeof token === 'string');
     assert.ok(token.split('.').length === 3, 'JWT should have 3 parts');
   });
 
-  it('uses HS256 algorithm', () => {
-    const token = signAccessToken(testContext);
-    const decoded = jwt.decode(token, { complete: true });
-    assert.ok(decoded);
-    assert.equal(decoded.header.alg, 'HS256');
+  it('uses HS256 algorithm', async () => {
+    const token = await signAccessToken(testContext);
+    const header = decodeHeader(token);
+    assert.equal(header.alg, 'HS256');
   });
 
-  it('includes correct payload fields', () => {
-    const token = signAccessToken(testContext);
-    const decoded = jwt.decode(token) as any;
+  it('includes correct payload fields', async () => {
+    const token = await signAccessToken(testContext);
+    const decoded = decodePayload(token);
     assert.equal(decoded.sub, testContext.userId);
     assert.equal(decoded.handle, testContext.handle);
     assert.equal(decoded.email, testContext.email);
@@ -56,18 +81,18 @@ describe('Access token signing', () => {
     assert.equal(decoded.status, testContext.status);
   });
 
-  it('sets an expiration time', () => {
-    const token = signAccessToken(testContext);
-    const decoded = jwt.decode(token) as any;
+  it('sets an expiration time', async () => {
+    const token = await signAccessToken(testContext);
+    const decoded = decodePayload(token);
     assert.ok(decoded.exp, 'Token should have an expiration');
-    assert.ok(decoded.exp > Date.now() / 1000, 'Expiration should be in the future');
+    assert.ok((decoded.exp as number) > Date.now() / 1000, 'Expiration should be in the future');
   });
 });
 
 describe('Access token verification', () => {
-  it('verifies a valid token and returns AuthContext', () => {
-    const token = signAccessToken(testContext);
-    const result = verifyAccessToken(token);
+  it('verifies a valid token and returns AuthContext', async () => {
+    const token = await signAccessToken(testContext);
+    const result = await verifyAccessToken(token);
     assert.ok(result);
     assert.equal(result.userId, testContext.userId);
     assert.equal(result.handle, testContext.handle);
@@ -77,44 +102,43 @@ describe('Access token verification', () => {
     assert.equal(result.status, testContext.status);
   });
 
-  it('returns null for an expired token', () => {
-    const token = jwt.sign(
+  it('returns null for an expired token', async () => {
+    const token = await signWith(
       { sub: 'user', handle: 'h', email: 'e', did: 'd', roles: ['user'], status: 'approved' },
       process.env.AUTH_JWT_SECRET!,
       { algorithm: 'HS256', expiresIn: '0s' }
     );
-    // Wait a tiny bit for expiration
-    const result = verifyAccessToken(token);
+    const result = await verifyAccessToken(token);
     assert.equal(result, null);
   });
 
-  it('returns null for a token signed with wrong secret', () => {
-    const token = jwt.sign(
+  it('returns null for a token signed with wrong secret', async () => {
+    const token = await signWith(
       { sub: 'user', handle: 'h', email: 'e', did: 'd', roles: ['user'], status: 'approved' },
       'wrong-secret-that-is-different!!',
       { algorithm: 'HS256', expiresIn: '1h' }
     );
-    const result = verifyAccessToken(token);
+    const result = await verifyAccessToken(token);
     assert.equal(result, null);
   });
 
-  it('returns null for a malformed token', () => {
-    assert.equal(verifyAccessToken('not.a.jwt'), null);
-    assert.equal(verifyAccessToken(''), null);
-    assert.equal(verifyAccessToken('garbage'), null);
+  it('returns null for a malformed token', async () => {
+    assert.equal(await verifyAccessToken('not.a.jwt'), null);
+    assert.equal(await verifyAccessToken(''), null);
+    assert.equal(await verifyAccessToken('garbage'), null);
   });
 
-  it('returns null for a token missing required fields', () => {
-    const token = jwt.sign(
+  it('returns null for a token missing required fields', async () => {
+    const token = await signWith(
       { sub: 'user' }, // missing handle, email, did, roles
       process.env.AUTH_JWT_SECRET!,
       { algorithm: 'HS256', expiresIn: '1h' }
     );
-    const result = verifyAccessToken(token);
+    const result = await verifyAccessToken(token);
     assert.equal(result, null);
   });
 
-  it('rejects tokens signed with algorithm "none"', () => {
+  it('rejects tokens signed with algorithm "none"', async () => {
     // Craft a token with alg: none (algorithm confusion attack)
     const payload = {
       sub: 'admin-user',
@@ -128,17 +152,17 @@ describe('Access token verification', () => {
     const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
     const noneToken = `${header}.${body}.`;
 
-    const result = verifyAccessToken(noneToken);
+    const result = await verifyAccessToken(noneToken);
     assert.equal(result, null, 'Token with alg:none must be rejected');
   });
 
-  it('rejects tokens signed with HS384 (wrong algorithm)', () => {
-    const token = jwt.sign(
+  it('rejects tokens signed with HS384 (wrong algorithm)', async () => {
+    const token = await signWith(
       { sub: 'user', handle: 'h', email: 'e', did: 'd', roles: ['user'], status: 'approved' },
       process.env.AUTH_JWT_SECRET!,
       { algorithm: 'HS384', expiresIn: '1h' }
     );
-    const result = verifyAccessToken(token);
+    const result = await verifyAccessToken(token);
     assert.equal(result, null, 'Token with wrong algorithm must be rejected');
   });
 });

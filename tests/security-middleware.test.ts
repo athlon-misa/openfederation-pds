@@ -34,12 +34,12 @@ function mockRes(): any {
 }
 
 describe('authMiddleware', () => {
-  it('populates req.auth for a valid Bearer token', () => {
-    const token = signAccessToken(testContext);
+  it('populates req.auth for a valid Bearer token', async () => {
+    const token = await signAccessToken(testContext);
     const req = mockReq({ authorization: `Bearer ${token}` });
     let called = false;
 
-    authMiddleware(req, mockRes(), () => { called = true; });
+    await authMiddleware(req, mockRes(), () => { called = true; });
 
     assert.ok(called, 'next() should be called');
     assert.ok(req.auth, 'req.auth should be set');
@@ -49,61 +49,62 @@ describe('authMiddleware', () => {
     assert.equal(req.authError, undefined);
   });
 
-  it('sets authError to "missing" when no Authorization header', () => {
+  it('sets authError to "missing" when no Authorization header', async () => {
     const req = mockReq();
     let called = false;
 
-    authMiddleware(req, mockRes(), () => { called = true; });
+    await authMiddleware(req, mockRes(), () => { called = true; });
 
     assert.ok(called, 'next() should be called');
     assert.equal(req.auth, undefined);
     assert.equal(req.authError, 'missing');
   });
 
-  it('sets authError to "invalid" when Authorization is not Bearer scheme', () => {
+  it('sets authError to "invalid" when Authorization is not Bearer scheme', async () => {
     const req = mockReq({ authorization: 'Basic dXNlcjpwYXNz' });
     let called = false;
 
-    authMiddleware(req, mockRes(), () => { called = true; });
+    await authMiddleware(req, mockRes(), () => { called = true; });
 
     assert.ok(called, 'next() should be called');
     assert.equal(req.auth, undefined);
     assert.equal(req.authError, 'invalid');
   });
 
-  it('sets authError to "missing" when Bearer token is empty', () => {
+  it('sets authError to "missing" when Bearer token is empty', async () => {
     const req = mockReq({ authorization: 'Bearer ' });
     let called = false;
 
-    authMiddleware(req, mockRes(), () => { called = true; });
+    await authMiddleware(req, mockRes(), () => { called = true; });
 
     assert.ok(called, 'next() should be called');
     assert.equal(req.auth, undefined);
     assert.equal(req.authError, 'missing');
   });
 
-  it('sets authError to "invalid" for a malformed token', () => {
+  it('sets authError to "invalid" for a malformed token', async () => {
     const req = mockReq({ authorization: 'Bearer not-a-valid-jwt' });
     let called = false;
 
-    authMiddleware(req, mockRes(), () => { called = true; });
+    await authMiddleware(req, mockRes(), () => { called = true; });
 
     assert.ok(called, 'next() should be called');
     assert.equal(req.auth, undefined);
     assert.equal(req.authError, 'invalid');
   });
 
-  it('always calls next() regardless of auth outcome', () => {
+  it('always calls next() regardless of auth outcome', async () => {
+    const validToken = await signAccessToken(testContext);
     const cases = [
-      mockReq(),                                    // no header
-      mockReq({ authorization: 'Basic abc' }),       // wrong scheme
-      mockReq({ authorization: 'Bearer garbage' }),  // bad token
-      mockReq({ authorization: `Bearer ${signAccessToken(testContext)}` }), // valid
+      mockReq(),                                         // no header
+      mockReq({ authorization: 'Basic abc' }),           // wrong scheme
+      mockReq({ authorization: 'Bearer garbage' }),      // bad token
+      mockReq({ authorization: `Bearer ${validToken}` }), // valid
     ];
 
     for (const req of cases) {
       let called = false;
-      authMiddleware(req, mockRes(), () => { called = true; });
+      await authMiddleware(req, mockRes(), () => { called = true; });
       assert.ok(called, 'next() must always be called');
     }
   });
