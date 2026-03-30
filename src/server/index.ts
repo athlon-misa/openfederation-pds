@@ -151,6 +151,7 @@ import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { setSecurityHeaders } from './security-headers.js';
 import { isAllowedStaticOrigin } from './cors-config.js';
+import { getBlobStore } from '../blob/blob-store.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { decryptKeyBytes } from '../auth/encryption.js';
@@ -161,6 +162,18 @@ const app = express();
 // Trust the first proxy (Railway, Render, etc.) so req.ip uses X-Forwarded-For
 // and express-rate-limit identifies clients correctly.
 app.set('trust proxy', config.trustProxy);
+
+// Health check — exempt from rate limiting/auth/body parsing. Hot path
+// for Railway/uptime checks, so security headers are applied inline.
+app.get('/health', async (_req, res) => {
+  setSecurityHeaders(res);
+  const dbStatus = await testConnection();
+  res.json({
+    status: dbStatus ? 'ok' : 'degraded',
+    database: dbStatus ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Security headers middleware (pre-computed at startup)
 app.use((_req, res, next) => {
@@ -198,8 +211,14 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// Middleware - explicit body size limit
-app.use(express.json({ limit: '256kb' }));
+// Body parsing — only needed for methods with request bodies
+app.use((req, res, next) => {
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+    express.json({ limit: '256kb' })(req, res, next);
+  } else {
+    next();
+  }
+});
 app.use(authMiddleware);
 
 // Request logging middleware (redact query string to prevent leaking sensitive data)
@@ -262,6 +281,16 @@ const walletSignLimiter = rateLimit({
 
 // Apply global rate limiter
 app.use(globalLimiter);
+
+// Root endpoint — service discovery. Receives full middleware chain
+// (security headers, CORS, rate limiting) like any other request.
+app.get('/', (_req, res) => {
+  res.json({
+    service: 'OpenFederation PDS',
+    version: '1.0.0',
+    description: 'Personal Data Server for OpenFederation communities',
+  });
+});
 
 // XRPC Handler type
 export type XRPCHandler = (req: Request, res: Response) => Promise<void> | void;
@@ -466,7 +495,6 @@ app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'InvalidRequest', message: 'Missing did or cid' });
     }
 
-    const { getBlobStore } = await import('../blob/blob-store.js');
     const store = await getBlobStore();
     const blob = await store.get(cid);
 
@@ -774,43 +802,27 @@ app.get('/.well-known/webfinger', discoveryLimiter, async (req: Request, res: Re
   }
 });
 
-// SDK — serve the IIFE bundle for <script> tag usage
-app.get('/sdk/v1.js', (req: Request, res: Response) => {
-  // Look for the SDK bundle in several locations (dev vs production)
-  const candidates = [
-    join(process.cwd(), 'packages', 'openfederation-sdk', 'dist', 'index.global.js'),
-    join(process.cwd(), 'dist', 'sdk', 'v1.js'),
-  ];
-  const sdkPath = candidates.find(p => existsSync(p));
-  if (!sdkPath) {
-    res.status(404).json({ error: 'NotFound', message: 'SDK bundle not found. Run: cd packages/openfederation-sdk && npm run build' });
-    return;
+// SDK — serve the IIFE bundle (cached in memory after first read)
+let cachedSdkBundle: string | null = null;
+app.get('/sdk/v1.js', (_req: Request, res: Response) => {
+  if (!cachedSdkBundle) {
+    const candidates = [
+      join(process.cwd(), 'packages', 'openfederation-sdk', 'dist', 'index.global.js'),
+      join(process.cwd(), 'dist', 'sdk', 'v1.js'),
+    ];
+    const sdkPath = candidates.find(p => existsSync(p));
+    if (!sdkPath) {
+      res.status(404).json({ error: 'NotFound', message: 'SDK bundle not found. Run: cd packages/openfederation-sdk && npm run build' });
+      return;
+    }
+    cachedSdkBundle = readFileSync(sdkPath, 'utf-8');
   }
-  const js = readFileSync(sdkPath, 'utf-8');
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'public, max-age=300');
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.send(js);
+  res.send(cachedSdkBundle);
 });
 
-// Health check endpoint
-app.get('/health', async (req, res) => {
-  const dbStatus = await testConnection();
-  res.json({
-    status: dbStatus ? 'ok' : 'degraded',
-    database: dbStatus ? 'connected' : 'disconnected',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    service: 'OpenFederation PDS',
-    version: '1.0.0',
-    description: 'Personal Data Server for OpenFederation communities',
-  });
-});
 
 // Auto-migrate schema if needed (for fresh Railway deploys)
 async function ensureSchema(): Promise<void> {
