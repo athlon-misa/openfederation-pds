@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Secp256k1Keypair } from '@atproto/crypto';
 import { config } from '../config.js';
 import { getClient } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
@@ -12,7 +13,6 @@ import {
 } from '../auth/utils.js';
 import { createUserIdentity, storeUserSigningKey } from '../identity/user-identity.js';
 import { RepoEngine } from '../repo/repo-engine.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
 import crypto from 'crypto';
 
 interface RegisterInput {
@@ -196,8 +196,12 @@ export default async function registerAccount(req: Request, res: Response): Prom
     try {
       await storeUserSigningKey(identity.did, identity.signingKeyBase64);
 
+      // Build keypair directly from the raw key bytes instead of
+      // encrypt-then-decrypt (saves ~200ms of redundant PBKDF2)
+      const keyBytes = Buffer.from(identity.signingKeyBase64, 'base64');
+      const keypair = await Secp256k1Keypair.import(keyBytes, { exportable: false });
+
       const engine = new RepoEngine(identity.did);
-      const keypair = await getKeypairForDid(identity.did);
       await engine.createRepo(keypair, [
         {
           collection: 'app.bsky.actor.profile',
