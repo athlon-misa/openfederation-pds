@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX idx_sessions_previous_hash ON sessions(previous_token_hash);
+CREATE INDEX idx_sessions_refresh_hash ON sessions(refresh_token_hash);
 
 -- Communities table: stores basic community information
 CREATE TABLE IF NOT EXISTS communities (
