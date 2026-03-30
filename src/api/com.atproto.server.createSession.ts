@@ -124,13 +124,14 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    // Reset failed login counter on successful auth
-    if (user.failed_login_attempts > 0) {
-      await query(
-        'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1',
-        [user.id]
-      );
-    }
+    // Reset failed login counter and fetch roles in parallel (independent operations)
+    const [, rolesResult] = await Promise.all([
+      user.failed_login_attempts > 0
+        ? query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id])
+        : Promise.resolve(undefined),
+      query<{ role: UserRole }>('SELECT role FROM user_roles WHERE user_id = $1', [user.id]),
+    ]);
+    const roles = rolesResult.rows.map((row) => row.role);
 
     if (user.status === 'suspended') {
       await auditLog('session.loginFailed', null, user.id, {
@@ -176,12 +177,6 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    const rolesResult = await query<{ role: UserRole }>(
-      'SELECT role FROM user_roles WHERE user_id = $1',
-      [user.id]
-    );
-    const roles = rolesResult.rows.map((row) => row.role);
-
     const accessJwt = signAccessToken({
       userId: user.id,
       handle: user.handle,
@@ -208,6 +203,7 @@ export default async function createSession(req: Request, res: Response): Promis
       accessJwt,
       refreshJwt,
       active: true,
+      roles,
     });
   } catch (error) {
     console.error('Error creating session:', error);
