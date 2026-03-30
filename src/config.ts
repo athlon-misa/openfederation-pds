@@ -44,6 +44,7 @@ export const config = {
     maxPoolSize: parseInt(process.env.DB_MAX_POOL_SIZE || '20', 10),
     idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
     connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '5000', 10),
+    statementTimeoutMs: parseInt(process.env.DB_STATEMENT_TIMEOUT_MS || '60000', 10),
   },
 
   // PDS configuration
