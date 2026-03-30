@@ -102,3 +102,21 @@ export async function auditLog(
     console.error('Failed to write audit log:', err);
   }
 }
+
+/**
+ * Fire-and-forget variant of auditLog. Does not await the INSERT.
+ * Use for non-security-critical paths where response speed matters
+ * more than guaranteed audit delivery.
+ *
+ * IMPORTANT: Do NOT use for security-critical events like failed logins,
+ * session revocations, or password changes — those must use the awaited
+ * `auditLog()` to ensure the audit trail is written before responding.
+ */
+export function auditLogAsync(
+  action: AuditAction,
+  actorId: string | null,
+  targetId: string | null,
+  meta?: Record<string, unknown>
+): void {
+  auditLog(action, actorId, targetId, meta);
+}
