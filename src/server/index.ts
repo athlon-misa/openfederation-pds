@@ -149,6 +149,8 @@ import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
+import { setSecurityHeaders } from './security-headers.js';
+import { isAllowedStaticOrigin } from './cors-config.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { decryptKeyBytes } from '../auth/encryption.js';
@@ -160,20 +162,9 @@ const app = express();
 // and express-rate-limit identifies clients correctly.
 app.set('trust proxy', config.trustProxy);
 
-// Security headers middleware
+// Security headers middleware (pre-computed at startup)
 app.use((_req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '0'); // Disabled per OWASP recommendation; use CSP instead
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  if (process.env.NODE_ENV === 'production') {
-    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
-  }
-  res.setHeader(
-    'Content-Security-Policy',
-    "default-src 'none'; script-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
-  );
+  setSecurityHeaders(res);
   next();
 });
 
@@ -186,13 +177,9 @@ app.use(async (req, res, next) => {
   if (isXrpc) {
     res.setHeader('Access-Control-Allow-Origin', '*');
   } else {
-    const staticOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
-      .split(',')
-      .map(o => o.trim())
-      .filter(Boolean);
     const origin = req.headers.origin;
     if (origin) {
-      if (staticOrigins.includes(origin)) {
+      if (isAllowedStaticOrigin(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
       } else if (req.headers['x-partner-key'] || req.path === '/oauth/external/complete') {
         // Allow partner origins for X-Partner-Key requests and for
