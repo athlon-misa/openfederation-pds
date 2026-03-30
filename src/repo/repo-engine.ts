@@ -68,20 +68,25 @@ export class RepoEngine {
   ): Promise<{ cid: string; uri: string }> {
     const repo = await Repo.load(this.storage);
 
-    // Check if record exists to decide create vs update
-    const existing = await repo.getRecord(collection, rkey);
-    const action = existing ? WriteOpAction.Update : WriteOpAction.Create;
+    // Check if record exists using records_index (fast SQL lookup)
+    // instead of loading the MST, which avoids an expensive tree traversal
+    const existingResult = await query<{ cid: string }>(
+      'SELECT cid FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
+      [this.did, collection, rkey]
+    );
+    const action = existingResult.rows.length > 0 ? WriteOpAction.Update : WriteOpAction.Create;
+
+    // Compute CID once, before the commit
+    const recordCid = await cidForRecord(record);
+    const cidStr = recordCid.toString();
 
     const writeOp: RecordWriteOp = { action, collection, rkey, record };
     await repo.applyWrites(writeOp, keypair);
 
-    // Compute CID for the record
-    const recordCid = await cidForRecord(record);
-    const cidStr = recordCid.toString();
     const uri = `at://${this.did}/${collection}/${rkey}`;
 
-    // Sync records_index cache
-    await this.syncRecordsIndex([{ action, collection, rkey, record }]);
+    // Pass pre-computed CID to avoid recomputation in syncRecordsIndex
+    await this.syncRecordsIndex([{ action, collection, rkey, record, cid: cidStr }]);
 
     return { cid: cidStr, uri };
   }
@@ -231,7 +236,7 @@ export class RepoEngine {
    * The MST is the source of truth; records_index is a denormalized read cache.
    */
   private async syncRecordsIndex(
-    ops: Array<{ action: string; collection: string; rkey: string; record?: Record<string, unknown> }>
+    ops: Array<{ action: string; collection: string; rkey: string; record?: Record<string, unknown>; cid?: string }>
   ): Promise<void> {
     const client = await getClient();
     try {
@@ -244,8 +249,8 @@ export class RepoEngine {
             [this.did, op.collection, op.rkey]
           );
         } else if (op.record) {
-          const recordCid = await cidForRecord(op.record);
-          const cidStr = recordCid.toString();
+          // Use pre-computed CID if available, otherwise compute
+          const cidStr = op.cid || (await cidForRecord(op.record)).toString();
 
           await client.query(
             `INSERT INTO records_index (community_did, collection, rkey, cid, record, updated_at)
