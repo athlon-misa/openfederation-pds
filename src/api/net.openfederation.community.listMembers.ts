@@ -54,23 +54,24 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
       }
     }
 
-    // Fetch members from records_index
-    const membersResult = await query<{
-      rkey: string;
-      record: { did: string; handle: string; role: string; joinedAt: string };
-    }>(
-      `SELECT rkey, record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.member'
-       ORDER BY created_at ASC
-       LIMIT $2 OFFSET $3`,
-      [did, limit, offset]
-    );
-
-    const countResult = await query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.member'`,
-      [did]
-    );
+    // Fetch members and total count in parallel (independent queries)
+    const [membersResult, countResult] = await Promise.all([
+      query<{
+        rkey: string;
+        record: { did: string; handle: string; role: string; joinedAt: string };
+      }>(
+        `SELECT rkey, record FROM records_index
+         WHERE community_did = $1 AND collection = 'net.openfederation.community.member'
+         ORDER BY created_at ASC
+         LIMIT $2 OFFSET $3`,
+        [did, limit, offset]
+      ),
+      query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM records_index
+         WHERE community_did = $1 AND collection = 'net.openfederation.community.member'`,
+        [did]
+      ),
+    ]);
 
     const members = membersResult.rows.map((row) => ({
       did: row.record.did,
