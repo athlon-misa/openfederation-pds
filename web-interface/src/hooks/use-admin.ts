@@ -33,6 +33,7 @@ export function useAccountsQuery(params: { limit?: number; offset?: number; stat
       if (!result.ok) throw new Error(result.message);
       return result.data;
     },
+    staleTime: 2 * 60 * 1000, // 2 minutes — admin data doesn't change rapidly
   });
 }
 
@@ -44,6 +45,7 @@ export function useInvitesQuery(params: { limit?: number; offset?: number; statu
       if (!result.ok) throw new Error(result.message);
       return result.data;
     },
+    staleTime: 2 * 60 * 1000, // 2 minutes — admin data doesn't change rapidly
   });
 }
 
@@ -55,6 +57,7 @@ export function useAdminCommunitiesQuery(limit = 50, offset = 0) {
       if (!result.ok) throw new Error(result.message);
       return result.data;
     },
+    staleTime: 2 * 60 * 1000, // 2 minutes — admin data doesn't change rapidly
   });
 }
 

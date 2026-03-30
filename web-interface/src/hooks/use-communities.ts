@@ -45,6 +45,7 @@ export function useCommunityDetailQuery(did: string) {
       if (!result.ok) throw new Error(result.message);
       return result.data;
     },
+    staleTime: 60 * 1000, // 1 minute
   });
 }
 
@@ -56,6 +57,7 @@ export function useMembersQuery(did: string, limit = 50, offset = 0) {
       if (!result.ok) throw new Error(result.message);
       return result.data;
     },
+    staleTime: 60 * 1000, // 1 minute
   });
 }
 
@@ -67,6 +69,7 @@ export function useJoinRequestsQuery(did: string, limit = 50, offset = 0) {
       if (!result.ok) throw new Error(result.message);
       return result.data;
     },
+    staleTime: 60 * 1000, // 1 minute
   });
 }
 

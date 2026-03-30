@@ -2,6 +2,7 @@
 
 import { AuthGuard } from '@/components/auth-guard';
 import { AppShell } from '@/components/shell/app-shell';
+import { CommandPaletteProvider } from '@/providers/command-palette-provider';
 
 export default function DashboardLayout({
   children,
@@ -10,7 +11,9 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <AppShell>{children}</AppShell>
+      <CommandPaletteProvider>
+        <AppShell>{children}</AppShell>
+      </CommandPaletteProvider>
     </AuthGuard>
   );
 }
