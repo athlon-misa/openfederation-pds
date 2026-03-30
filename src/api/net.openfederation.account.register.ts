@@ -149,10 +149,14 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
     }
 
-    // Create real did:plc identity with signing key (registered with PLC directory)
+    // Create identity and hash password in parallel (independent operations)
     let identity;
+    let passwordHash: string;
     try {
-      identity = await createUserIdentity(handle);
+      [identity, passwordHash] = await Promise.all([
+        createUserIdentity(handle),
+        hashPassword(input.password),
+      ]);
     } catch (err) {
       await client.query('ROLLBACK');
       console.error('Error creating user identity:', err);
@@ -164,7 +168,6 @@ export default async function registerAccount(req: Request, res: Response): Prom
     }
 
     const userId = crypto.randomUUID();
-    const passwordHash = await hashPassword(input.password);
 
     await client.query(
       `INSERT INTO users (id, handle, email, password_hash, status, did)

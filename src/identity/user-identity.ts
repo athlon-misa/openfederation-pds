@@ -32,8 +32,11 @@ export interface UserIdentityResult {
  */
 export async function createUserIdentity(handle: string): Promise<UserIdentityResult> {
   // Generate keys
-  const signingKey = await Secp256k1Keypair.create({ exportable: true });
-  const rotationKey = await Secp256k1Keypair.create({ exportable: true });
+  // Generate keys in parallel
+  const [signingKey, rotationKey] = await Promise.all([
+    Secp256k1Keypair.create({ exportable: true }),
+    Secp256k1Keypair.create({ exportable: true }),
+  ]);
 
   // Build full handle with suffix
   const fullHandle = `${handle}${config.handleSuffix}`;
