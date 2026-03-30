@@ -46,29 +46,27 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       }
     }
 
-    // Fetch profile
-    const profileResult = await query<{ record: { displayName?: string; description?: string } }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.profile' AND rkey = 'self'`,
-      [did]
-    );
+    // Fetch profile, settings, and member count in parallel (independent queries)
+    const [profileResult, settingsResult, countResult] = await Promise.all([
+      query<{ record: { displayName?: string; description?: string } }>(
+        `SELECT record FROM records_index
+         WHERE community_did = $1 AND collection = 'net.openfederation.community.profile' AND rkey = 'self'`,
+        [did]
+      ),
+      query<{ record: { visibility?: string; joinPolicy?: string; didMethod?: string } }>(
+        `SELECT record FROM records_index
+         WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
+        [did]
+      ),
+      query<{ count: string }>(
+        'SELECT COUNT(*) as count FROM members_unique WHERE community_did = $1',
+        [did]
+      ),
+    ]);
     const profile = profileResult.rows[0]?.record;
-
-    // Fetch settings
-    const settingsResult = await query<{ record: { visibility?: string; joinPolicy?: string; didMethod?: string } }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
-      [did]
-    );
     const settings = settingsResult.rows[0]?.record;
     const visibility = settings?.visibility || 'public';
     const joinPolicy = settings?.joinPolicy || 'open';
-
-    // Member count
-    const countResult = await query<{ count: string }>(
-      'SELECT COUNT(*) as count FROM members_unique WHERE community_did = $1',
-      [did]
-    );
     const memberCount = parseInt(countResult.rows[0].count, 10);
 
     // Caller-specific info
@@ -96,17 +94,18 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
     let joinRequestStatus: string | null = null;
 
     if (userId) {
-      const memberResult = await query(
-        'SELECT 1 FROM members_unique WHERE community_did = $1 AND member_did = $2',
-        [did, req.auth!.did]
-      );
-      isMember = memberResult.rows.length > 0;
-
-      if (!isMember) {
-        const requestResult = await query<{ status: string }>(
+      const [memberResult, requestResult] = await Promise.all([
+        query(
+          'SELECT 1 FROM members_unique WHERE community_did = $1 AND member_did = $2',
+          [did, req.auth!.did]
+        ),
+        query<{ status: string }>(
           'SELECT status FROM join_requests WHERE community_did = $1 AND user_id = $2',
           [did, userId]
-        );
+        ),
+      ]);
+      isMember = memberResult.rows.length > 0;
+      if (!isMember) {
         joinRequestStatus = requestResult.rows[0]?.status || null;
       }
     }
