@@ -10,27 +10,32 @@ export default async function getServerConfig(req: AuthRequest, res: Response): 
   }
 
   try {
-    const [
-      totalUsersResult,
-      pendingUsersResult,
-      approvedUsersResult,
-      totalCommunitiesResult,
-      activeCommunitiesResult,
-      suspendedCommunitiesResult,
-      totalInvitesResult,
-      activeInvitesResult,
-    ] = await Promise.all([
-      query<{ count: string }>('SELECT COUNT(*) as count FROM users'),
-      query<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE status = 'pending'"),
-      query<{ count: string }>("SELECT COUNT(*) as count FROM users WHERE status = 'approved'"),
-      query<{ count: string }>('SELECT COUNT(*) as count FROM communities'),
-      query<{ count: string }>("SELECT COUNT(*) as count FROM communities WHERE status = 'active'"),
-      query<{ count: string }>("SELECT COUNT(*) as count FROM communities WHERE status = 'suspended'"),
-      query<{ count: string }>('SELECT COUNT(*) as count FROM invites'),
-      query<{ count: string }>(
-        "SELECT COUNT(*) as count FROM invites WHERE uses_count < max_uses AND (expires_at IS NULL OR expires_at > NOW())"
+    const [usersResult, communitiesResult, invitesResult] = await Promise.all([
+      query<{ total: string; pending: string; approved: string }>(
+        `SELECT
+           COUNT(*)::text as total,
+           COUNT(*) FILTER (WHERE status = 'pending')::text as pending,
+           COUNT(*) FILTER (WHERE status = 'approved')::text as approved
+         FROM users`
+      ),
+      query<{ total: string; active: string; suspended: string }>(
+        `SELECT
+           COUNT(*)::text as total,
+           COUNT(*) FILTER (WHERE status = 'active')::text as active,
+           COUNT(*) FILTER (WHERE status = 'suspended')::text as suspended
+         FROM communities`
+      ),
+      query<{ total: string; active: string }>(
+        `SELECT
+           COUNT(*)::text as total,
+           COUNT(*) FILTER (WHERE uses_count < max_uses AND (expires_at IS NULL OR expires_at > NOW()))::text as active
+         FROM invites`
       ),
     ]);
+
+    const users = usersResult.rows[0];
+    const communities = communitiesResult.rows[0];
+    const invites = invitesResult.rows[0];
 
     res.status(200).json({
       service: 'OpenFederation PDS',
@@ -38,14 +43,14 @@ export default async function getServerConfig(req: AuthRequest, res: Response): 
       hostname: config.pds.hostname,
       inviteRequired: config.auth.inviteRequired,
       stats: {
-        totalUsers: parseInt(totalUsersResult.rows[0].count, 10),
-        pendingUsers: parseInt(pendingUsersResult.rows[0].count, 10),
-        approvedUsers: parseInt(approvedUsersResult.rows[0].count, 10),
-        totalCommunities: parseInt(totalCommunitiesResult.rows[0].count, 10),
-        activeCommunities: parseInt(activeCommunitiesResult.rows[0].count, 10),
-        suspendedCommunities: parseInt(suspendedCommunitiesResult.rows[0].count, 10),
-        totalInvites: parseInt(totalInvitesResult.rows[0].count, 10),
-        activeInvites: parseInt(activeInvitesResult.rows[0].count, 10),
+        totalUsers: parseInt(users.total, 10),
+        pendingUsers: parseInt(users.pending, 10),
+        approvedUsers: parseInt(users.approved, 10),
+        totalCommunities: parseInt(communities.total, 10),
+        activeCommunities: parseInt(communities.active, 10),
+        suspendedCommunities: parseInt(communities.suspended, 10),
+        totalInvites: parseInt(invites.total, 10),
+        activeInvites: parseInt(invites.active, 10),
       },
     });
   } catch (error) {
