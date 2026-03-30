@@ -6,6 +6,9 @@ export interface SessionResponse {
   accessJwt: string;
   refreshJwt: string;
   active: boolean;
+  // Included by server optimization — avoids a follow-up getSession call
+  roles?: ('admin' | 'moderator' | 'partner-manager' | 'auditor' | 'user')[];
+  status?: 'pending' | 'approved' | 'rejected' | 'disabled';
 }
 
 export interface GetSessionResponse {
@@ -294,6 +297,9 @@ export interface ExternalCompleteResponse {
   accessJwt: string;
   refreshJwt: string;
   active: boolean;
+  // Included by server optimization — avoids a follow-up getSession call
+  roles?: ('admin' | 'moderator' | 'partner-manager' | 'auditor' | 'user')[];
+  status?: 'pending' | 'approved' | 'rejected' | 'disabled';
 }
 
 // Partner key types

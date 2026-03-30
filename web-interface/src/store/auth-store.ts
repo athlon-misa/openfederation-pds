@@ -64,19 +64,32 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
 
-          // Fetch roles from getSession
-          const sessionResult = await getSession();
-          if (sessionResult.ok) {
-            const r = sessionResult.data.roles;
+          // Use roles from response if available (server optimization), fallback to getSession
+          const r = result.data.roles || [];
+          if (result.data.roles) {
             set({
               roles: r,
-              status: sessionResult.data.status,
+              status: result.data.status || 'approved',
               isAdmin: r.includes('admin'),
               isModerator: r.includes('moderator'),
               isPartnerManager: r.includes('partner-manager'),
               isAuditor: r.includes('auditor'),
               hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
             });
+          } else {
+            const sessionResult = await getSession();
+            if (sessionResult.ok) {
+              const sr = sessionResult.data.roles;
+              set({
+                roles: sr,
+                status: sessionResult.data.status,
+                isAdmin: sr.includes('admin'),
+                isModerator: sr.includes('moderator'),
+                isPartnerManager: sr.includes('partner-manager'),
+                isAuditor: sr.includes('auditor'),
+                hasAdminAccess: sr.includes('admin') || sr.includes('moderator') || sr.includes('partner-manager') || sr.includes('auditor'),
+              });
+            }
           }
 
           return { ok: true };
@@ -105,19 +118,32 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
 
-          // Fetch roles from getSession
-          const sessionResult = await getSession();
-          if (sessionResult.ok) {
-            const r = sessionResult.data.roles;
+          // Use roles from response if available (server optimization), fallback to getSession
+          const r = result.data.roles || [];
+          if (result.data.roles) {
             set({
               roles: r,
-              status: sessionResult.data.status,
+              status: result.data.status || 'approved',
               isAdmin: r.includes('admin'),
               isModerator: r.includes('moderator'),
               isPartnerManager: r.includes('partner-manager'),
               isAuditor: r.includes('auditor'),
               hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
             });
+          } else {
+            const sessionResult = await getSession();
+            if (sessionResult.ok) {
+              const sr = sessionResult.data.roles;
+              set({
+                roles: sr,
+                status: sessionResult.data.status,
+                isAdmin: sr.includes('admin'),
+                isModerator: sr.includes('moderator'),
+                isPartnerManager: sr.includes('partner-manager'),
+                isAuditor: sr.includes('auditor'),
+                hasAdminAccess: sr.includes('admin') || sr.includes('moderator') || sr.includes('partner-manager') || sr.includes('auditor'),
+              });
+            }
           }
 
           return { ok: true };
@@ -161,19 +187,32 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
 
-          // Fetch roles
-          const sessionResult = await getSession();
-          if (sessionResult.ok) {
-            const r = sessionResult.data.roles;
+          // Use roles from response if available (server optimization), fallback to getSession
+          const r = result.data.roles || [];
+          if (result.data.roles) {
             set({
               roles: r,
-              status: sessionResult.data.status,
+              status: result.data.status || 'approved',
               isAdmin: r.includes('admin'),
               isModerator: r.includes('moderator'),
               isPartnerManager: r.includes('partner-manager'),
               isAuditor: r.includes('auditor'),
               hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
             });
+          } else {
+            const sessionResult = await getSession();
+            if (sessionResult.ok) {
+              const sr = sessionResult.data.roles;
+              set({
+                roles: sr,
+                status: sessionResult.data.status,
+                isAdmin: sr.includes('admin'),
+                isModerator: sr.includes('moderator'),
+                isPartnerManager: sr.includes('partner-manager'),
+                isAuditor: sr.includes('auditor'),
+                hasAdminAccess: sr.includes('admin') || sr.includes('moderator') || sr.includes('partner-manager') || sr.includes('auditor'),
+              });
+            }
           }
 
           return true;
