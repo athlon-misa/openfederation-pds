@@ -71,13 +71,23 @@ export default async function refreshSession(req: Request, res: Response): Promi
       return;
     }
 
+    // Fetch user and roles in a single query
     const userResult = await query<{
       id: string;
       handle: string;
       email: string;
       status: string;
       did: string;
-    }>('SELECT id, handle, email, status, did FROM users WHERE id = $1', [session.user_id]);
+      roles: string[];
+    }>(
+      `SELECT u.id, u.handle, u.email, u.status, u.did,
+              COALESCE(array_agg(r.role) FILTER (WHERE r.role IS NOT NULL), '{}') as roles
+       FROM users u
+       LEFT JOIN user_roles r ON r.user_id = u.id
+       WHERE u.id = $1
+       GROUP BY u.id`,
+      [session.user_id]
+    );
 
     if (userResult.rows.length === 0) {
       res.status(401).json({
@@ -120,12 +130,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
       return;
     }
 
-    // Re-fetch roles from DB (ensures revoked roles take effect immediately)
-    const rolesResult = await query<{ role: UserRole }>(
-      'SELECT role FROM user_roles WHERE user_id = $1',
-      [user.id]
-    );
-    const roles = rolesResult.rows.map((row) => row.role);
+    const roles = user.roles as UserRole[];
 
     const accessJwt = signAccessToken({
       userId: user.id,
@@ -159,6 +164,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
       accessJwt,
       refreshJwt: newRefreshJwt,
       active: true,
+      roles,
     });
   } catch (error) {
     console.error('Error refreshing session:', error);
