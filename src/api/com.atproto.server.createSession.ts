@@ -177,7 +177,7 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    const accessJwt = signAccessToken({
+    const accessJwt = await signAccessToken({
       userId: user.id,
       handle: user.handle,
       email: user.email,

@@ -1,9 +1,9 @@
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { config } from '../config.js';
 import type { AuthContext, UserRole, UserStatus } from './types.js';
 
-interface AccessTokenPayload {
+interface AccessTokenPayload extends JWTPayload {
   sub: string;
   handle: string;
   email: string;
@@ -12,38 +12,41 @@ interface AccessTokenPayload {
   status: UserStatus;
 }
 
-export function signAccessToken(context: AuthContext): string {
-  const payload: AccessTokenPayload = {
-    sub: context.userId,
+// Pre-encode the secret once at module load (jose requires Uint8Array)
+const encodedSecret = new TextEncoder().encode(config.auth.jwtSecret);
+
+export async function signAccessToken(context: AuthContext): Promise<string> {
+  return new SignJWT({
     handle: context.handle,
     email: context.email,
     did: context.did,
     roles: context.roles,
     status: context.status,
-  };
-
-  return jwt.sign(payload, config.auth.jwtSecret, {
-    algorithm: 'HS256',
-    expiresIn: config.auth.accessTokenTtl,
-  } as jwt.SignOptions);
+  } as Record<string, unknown>)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(context.userId)
+    .setExpirationTime(config.auth.accessTokenTtl)
+    .sign(encodedSecret);
 }
 
-export function verifyAccessToken(token: string): AuthContext | null {
+export async function verifyAccessToken(token: string): Promise<AuthContext | null> {
   try {
-    const payload = jwt.verify(token, config.auth.jwtSecret, {
+    const { payload } = await jwtVerify(token, encodedSecret, {
       algorithms: ['HS256'],
-    }) as AccessTokenPayload;
-    if (!payload?.sub || !payload.handle || payload.email == null || !payload.did || !payload.roles) {
+    });
+
+    const p = payload as AccessTokenPayload;
+    if (!p?.sub || !p.handle || p.email == null || !p.did || !p.roles) {
       return null;
     }
 
     return {
-      userId: payload.sub,
-      handle: payload.handle,
-      email: payload.email,
-      did: payload.did,
-      roles: payload.roles,
-      status: payload.status,
+      userId: p.sub,
+      handle: p.handle,
+      email: p.email,
+      did: p.did,
+      roles: p.roles,
+      status: p.status,
     };
   } catch {
     return null;

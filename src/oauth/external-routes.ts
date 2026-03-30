@@ -401,7 +401,7 @@ async function ensureExternalUser(
   const roles = rolesResult.rows.map(r => r.role) as UserRole[];
 
   // Issue local JWT tokens
-  const accessJwt = signAccessToken({
+  const accessJwt = await signAccessToken({
     userId,
     handle,
     email,

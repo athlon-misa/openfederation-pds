@@ -174,7 +174,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     return;
   }
 
-  const auth = verifyAccessToken(token);
+  const auth = await verifyAccessToken(token);
   if (!auth) {
     req.authError = 'invalid';
     next();

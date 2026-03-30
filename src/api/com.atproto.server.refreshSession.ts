@@ -132,7 +132,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
 
     const roles = user.roles as UserRole[];
 
-    const accessJwt = signAccessToken({
+    const accessJwt = await signAccessToken({
       userId: user.id,
       handle: user.handle,
       email: user.email,

@@ -156,7 +156,7 @@ export default async function partnerRegister(req: Request, res: Response): Prom
     }
 
     // Create session and issue tokens
-    const accessJwt = signAccessToken({
+    const accessJwt = await signAccessToken({
       userId,
       handle,
       email,
