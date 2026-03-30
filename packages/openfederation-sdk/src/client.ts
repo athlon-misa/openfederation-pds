@@ -31,6 +31,7 @@ export class OpenFederationClient implements AuthProvider {
   private tokens: TokenManager;
   private autoRefresh: boolean;
   private authChangeListeners: Set<(user: User | null) => void> = new Set();
+  private refreshPromise: Promise<void> | null = null;
 
   constructor(config: ClientConfig) {
     this.serverUrl = config.serverUrl.replace(/\/$/, '');
@@ -962,6 +963,19 @@ export class OpenFederationClient implements AuthProvider {
 
   /** Refresh the access token using the refresh token */
   private async doRefresh(): Promise<void> {
+    // Deduplicate concurrent refresh calls to prevent token reuse detection
+    // from revoking all sessions (the PDS rotates refresh tokens on each use)
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = this.executeRefresh();
+    try {
+      await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  private async executeRefresh(): Promise<void> {
     const refreshJwt = this.tokens.getRefreshJwt();
     if (!refreshJwt) {
       this.tokens.clear();
