@@ -83,15 +83,32 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      for (const [cid, bytes] of blocks) {
-        const cidStr = cid.toString();
+
+      // Batch blocks into multi-row INSERTs (max 100 per statement to stay
+      // well under PostgreSQL's ~65535 parameter limit: 100 rows * 4 params = 400)
+      const entries = Array.from(blocks);
+      const BATCH_SIZE = 100;
+
+      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        const batch = entries.slice(i, i + BATCH_SIZE);
+        const values: unknown[] = [];
+        const placeholders: string[] = [];
+
+        for (let j = 0; j < batch.length; j++) {
+          const [cid, bytes] = batch[j];
+          const offset = j * 4;
+          placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
+          values.push(this.did, cid.toString(), Buffer.from(bytes), rev);
+        }
+
         await client.query(
           `INSERT INTO repo_blocks (community_did, cid, block_bytes, rev)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (community_did, cid) DO UPDATE SET block_bytes = $3, rev = $4`,
-          [this.did, cidStr, Buffer.from(bytes), rev]
+           VALUES ${placeholders.join(', ')}
+           ON CONFLICT (community_did, cid) DO UPDATE SET block_bytes = EXCLUDED.block_bytes, rev = EXCLUDED.rev`,
+          values
         );
       }
+
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -116,14 +133,27 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
     try {
       await client.query('BEGIN');
 
-      // Write new blocks
-      for (const [cid, bytes] of commit.newBlocks) {
-        const cidStr = cid.toString();
+      // Batch-insert new blocks
+      const newEntries = Array.from(commit.newBlocks);
+      const BATCH_SIZE = 100;
+
+      for (let i = 0; i < newEntries.length; i += BATCH_SIZE) {
+        const batch = newEntries.slice(i, i + BATCH_SIZE);
+        const values: unknown[] = [];
+        const placeholders: string[] = [];
+
+        for (let j = 0; j < batch.length; j++) {
+          const [cid, bytes] = batch[j];
+          const offset = j * 4;
+          placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
+          values.push(this.did, cid.toString(), Buffer.from(bytes), commit.rev);
+        }
+
         await client.query(
           `INSERT INTO repo_blocks (community_did, cid, block_bytes, rev)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (community_did, cid) DO UPDATE SET block_bytes = $3, rev = $4`,
-          [this.did, cidStr, Buffer.from(bytes), commit.rev]
+           VALUES ${placeholders.join(', ')}
+           ON CONFLICT (community_did, cid) DO UPDATE SET block_bytes = EXCLUDED.block_bytes, rev = EXCLUDED.rev`,
+          values
         );
       }
 
