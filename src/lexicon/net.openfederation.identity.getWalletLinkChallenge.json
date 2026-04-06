@@ -1,0 +1,59 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.getWalletLinkChallenge",
+  "revision": 1,
+  "description": "Generate a challenge string for linking a blockchain wallet to the authenticated user's DID.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Returns a time-limited challenge that the user must sign with their wallet to prove ownership.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "chain": {
+            "type": "string",
+            "description": "Blockchain network identifier (ethereum, solana)."
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "The wallet address to link."
+          }
+        },
+        "required": [
+          "chain",
+          "walletAddress"
+        ]
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "challenge": {
+              "type": "string",
+              "description": "The challenge string to sign."
+            },
+            "expiresAt": {
+              "type": "string",
+              "description": "ISO 8601 timestamp when the challenge expires."
+            }
+          },
+          "required": [
+            "challenge",
+            "expiresAt"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required parameters."
+        },
+        {
+          "name": "UnsupportedChain",
+          "description": "The specified chain is not supported."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.linkWallet",
+  "revision": 1,
+  "description": "Link a blockchain wallet to the authenticated user's DID after verifying a signed challenge.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Verifies the wallet signature against the challenge and creates a wallet link record.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "chain": {
+              "type": "string",
+              "description": "Blockchain network identifier (ethereum, solana)."
+            },
+            "walletAddress": {
+              "type": "string",
+              "description": "The wallet address to link."
+            },
+            "challenge": {
+              "type": "string",
+              "description": "The challenge string that was signed."
+            },
+            "signature": {
+              "type": "string",
+              "description": "The wallet's signature over the challenge."
+            },
+            "label": {
+              "type": "string",
+              "description": "Optional human-readable label (max 64 chars). Must be unique per user."
+            }
+          },
+          "required": [
+            "chain",
+            "walletAddress",
+            "challenge",
+            "signature"
+          ]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "chain": {
+              "type": "string"
+            },
+            "walletAddress": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "success",
+            "chain",
+            "walletAddress"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields or invalid label."
+        },
+        {
+          "name": "UnsupportedChain",
+          "description": "The specified chain is not supported."
+        },
+        {
+          "name": "LinkFailed",
+          "description": "Challenge not found, expired, signature invalid, or wallet already linked."
+        }
+      ]
+    }
+  }
+}

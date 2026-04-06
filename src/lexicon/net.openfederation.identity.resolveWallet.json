@@ -1,0 +1,61 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.resolveWallet",
+  "revision": 1,
+  "description": "Reverse lookup: resolve a blockchain wallet address to its linked ATProto DID.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Find the ATProto identity linked to a given wallet address. No authentication required.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "chain": {
+            "type": "string",
+            "description": "Blockchain network identifier (ethereum, solana)."
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "The wallet address to look up."
+          }
+        },
+        "required": [
+          "chain",
+          "walletAddress"
+        ]
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "did",
+            "handle"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required parameters."
+        },
+        {
+          "name": "UnsupportedChain",
+          "description": "The specified chain is not supported."
+        },
+        {
+          "name": "WalletNotFound",
+          "description": "No identity linked to this wallet address."
+        }
+      ]
+    }
+  }
+}

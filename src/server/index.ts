@@ -77,6 +77,10 @@ import listExternalKeys from '../api/net.openfederation.identity.listExternalKey
 import getExternalKey from '../api/net.openfederation.identity.getExternalKey.js';
 import deleteExternalKey from '../api/net.openfederation.identity.deleteExternalKey.js';
 import resolveByKeyHandler from '../api/net.openfederation.identity.resolveByKey.js';
+import getWalletLinkChallenge from '../api/net.openfederation.identity.getWalletLinkChallenge.js';
+import linkWallet from '../api/net.openfederation.identity.linkWallet.js';
+import unlinkWalletHandler from '../api/net.openfederation.identity.unlinkWallet.js';
+import resolveWalletHandler from '../api/net.openfederation.identity.resolveWallet.js';
 import updateMemberRole from '../api/net.openfederation.community.updateMemberRole.js';
 import issueAttestation from '../api/net.openfederation.community.issueAttestation.js';
 import deleteAttestation from '../api/net.openfederation.community.deleteAttestation.js';
@@ -284,6 +288,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.identity.getExternalKey': { handler: getExternalKey, limiter: discoveryLimiter },
   'net.openfederation.identity.deleteExternalKey': { handler: deleteExternalKey },
   'net.openfederation.identity.resolveByKey': { handler: resolveByKeyHandler, limiter: discoveryLimiter },
+
+  // Wallet linking endpoints
+  'net.openfederation.identity.getWalletLinkChallenge': { handler: getWalletLinkChallenge },
+  'net.openfederation.identity.linkWallet': { handler: linkWallet },
+  'net.openfederation.identity.unlinkWallet': { handler: unlinkWalletHandler },
+  'net.openfederation.identity.resolveWallet': { handler: resolveWalletHandler, limiter: discoveryLimiter },
 
   // Community role management
   'net.openfederation.community.updateMemberRole': { handler: updateMemberRole },

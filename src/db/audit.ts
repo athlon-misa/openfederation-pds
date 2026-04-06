@@ -66,7 +66,9 @@ export type AuditAction =
   | 'admin.verification.success'
   | 'oracle.credential.create'
   | 'oracle.credential.revoke'
-  | 'oracle.proofApplied';
+  | 'oracle.proofApplied'
+  | 'identity.linkWallet'
+  | 'identity.unlinkWallet';
 
 export async function auditLog(
   action: AuditAction,

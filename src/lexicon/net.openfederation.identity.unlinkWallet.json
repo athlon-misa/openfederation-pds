@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.unlinkWallet",
+  "revision": 1,
+  "description": "Remove a linked wallet from the authenticated user's DID.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Deletes the wallet link identified by its label.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "description": "The label of the wallet link to remove."
+            }
+          },
+          "required": [
+            "label"
+          ]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "success"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required field: label."
+        },
+        {
+          "name": "NotFound",
+          "description": "No wallet link found with that label."
+        }
+      ]
+    }
+  }
+}
