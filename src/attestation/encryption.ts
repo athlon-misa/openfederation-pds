@@ -46,11 +46,24 @@ export function decryptClaim(
 }
 
 /**
+ * Recursively sort all object keys for deterministic JSON serialization.
+ */
+function canonicalize(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(canonicalize);
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    sorted[key] = canonicalize((value as Record<string, unknown>)[key]);
+  }
+  return sorted;
+}
+
+/**
  * Create a deterministic commitment hash of a claim object.
- * Keys are sorted for canonical JSON representation.
+ * Keys are recursively sorted for canonical JSON representation.
  */
 export function createCommitment(claim: Record<string, unknown>): { hash: string } {
-  const canonical = JSON.stringify(claim, Object.keys(claim).sort());
+  const canonical = JSON.stringify(canonicalize(claim));
   const hash = crypto.createHash('sha256').update(canonical).digest('hex');
   return { hash };
 }
