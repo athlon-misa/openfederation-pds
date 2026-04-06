@@ -768,7 +768,9 @@ export async function startServer(): Promise<void> {
         // Derive a human-readable name from the CAIP-2 chain ID
         const name = `EVM ${chainId}`;
         registerAdapter(createEvmAdapter(chainId, name, rpcUrl));
-        console.log(`Registered chain adapter: ${name} (${rpcUrl})`);
+        // Mask RPC URL to avoid leaking API keys in logs
+        const maskedUrl = new URL(rpcUrl).hostname;
+        console.log(`Registered chain adapter: ${name} (${maskedUrl})`);
       }
     }
 

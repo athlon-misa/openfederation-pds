@@ -26,6 +26,23 @@ export default async function submitProof(req: Request, res: Response): Promise<
       return;
     }
 
+    // Input length bounds (DB columns are VARCHAR(64) and VARCHAR(255))
+    if (chainId.length > 64) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'chainId exceeds maximum length (64).' });
+      return;
+    }
+    if (transactionHash.length > 255) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'transactionHash exceeds maximum length (255).' });
+      return;
+    }
+    if (blockNumber !== undefined) {
+      const bn = Number(blockNumber);
+      if (!Number.isInteger(bn) || bn < 0) {
+        res.status(400).json({ error: 'InvalidRequest', message: 'blockNumber must be a non-negative integer.' });
+        return;
+      }
+    }
+
     // 3. Check cache first
     const cached = await getCachedVerification(chainId, transactionHash);
     if (cached) {
@@ -54,8 +71,8 @@ export default async function submitProof(req: Request, res: Response): Promise<
 
     if (!adapter) {
       // Graceful fallback: trust the Oracle, log as unverified
-      await cacheVerification(oracle.communityDid, proof, { verified: true }, oracle.credentialId);
-
+      // NOTE: Do NOT cache oracle-trust results — if an adapter is registered later,
+      // the same proof should be verified on-chain rather than served from a stale cache.
       await auditLog('oracle.proofApplied', oracle.credentialId, oracle.communityDid, {
         chainId,
         transactionHash,
