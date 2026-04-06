@@ -53,7 +53,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 
 **Completed:**
 - Project structure and TypeScript ESM configuration
-- PostgreSQL database schema (23 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials, proof_verifications)
+- PostgreSQL database schema (25 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials, proof_verifications, wallet_links, wallet_link_challenges)
 - Express server with XRPC routing and frozen handler registry
 - Identity Manager supporting both `did:plc` and `did:web` with domain validation
 - Real MST Repository Engine wrapping `@atproto/repo` with signed commits, CAR export, and ATProto-compliant TID generation
@@ -109,6 +109,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Lexicon registry: `@resonator-foundation/lexicon` npm package, schema validation in CI, GitHub Pages docs
 - Lexicon per-schema revision tracking: `"revision"` integer field on all lexicon JSONs, CI validation, docs generation
 - Chain-specific proof verification: `ChainAdapter` interface, EVM adapter (ethers v6), proof caching, `submitProof` endpoint with Oracle auth, graceful fallback for unregistered chains
+- DID-to-wallet linking: challenge-response Ethereum (EIP-191) and Solana (Ed25519) signature verification, reverse wallet-to-DID resolution, transaction-safe linking
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -292,6 +293,11 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | GET  | `net.openfederation.identity.getExternalKey` | No | Get a specific external key by DID + rkey |
 | POST | `net.openfederation.identity.deleteExternalKey` | Yes | Delete an external key (revocation) |
 | GET  | `net.openfederation.identity.resolveByKey` | No | Reverse lookup: find ATProto DID by external public key |
+| GET  | `net.openfederation.identity.getWalletLinkChallenge` | Yes | Generate challenge for wallet linking |
+| POST | `net.openfederation.identity.linkWallet` | Yes | Link wallet with signed challenge |
+| POST | `net.openfederation.identity.unlinkWallet` | Yes | Unlink a wallet by label |
+| GET  | `net.openfederation.identity.listWalletLinks` | Yes | List user's linked wallets |
+| GET  | `net.openfederation.identity.resolveWallet` | No | Reverse lookup: find ATProto DID by wallet address |
 
 ### OpenFederation Partner API
 
@@ -342,12 +348,14 @@ See `src/db/schema.sql` for the full schema. Key tables (22 total):
 | `ap_signing_keys` | Persisted RSA signing keys for ActivityPub actors |
 | `oracle_credentials` | Oracle API credentials for on-chain governance (per-community scoped) |
 | `proof_verifications` | Cached on-chain governance proof verification results |
+| `wallet_links` | Cryptographically verified wallet-to-DID bindings |
+| `wallet_link_challenges` | Ephemeral wallet link challenges (5-min TTL) |
 
 ### Migration Scripts
 
 Schema is auto-initialized on first startup. Incremental migrations are applied manually:
 
-`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`
+`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`
 
 ---
 
