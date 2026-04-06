@@ -53,7 +53,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 
 **Completed:**
 - Project structure and TypeScript ESM configuration
-- PostgreSQL database schema (31 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials, proof_verifications, wallet_links, wallet_link_challenges, vault_shares, vault_audit_log, escrow_providers, recovery_attempts, attestation_encryption, viewing_grants)
+- PostgreSQL database schema (33 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials, proof_verifications, wallet_links, wallet_link_challenges, vault_shares, vault_audit_log, escrow_providers, recovery_attempts, attestation_encryption, viewing_grants, disclosure_sessions, disclosure_audit_log)
 - Express server with XRPC routing and frozen handler registry
 - Identity Manager supporting both `did:plc` and `did:web` with domain validation
 - Real MST Repository Engine wrapping `@atproto/repo` with signed commits, CAR export, and ATProto-compliant TID generation
@@ -113,6 +113,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Vault Service: Shamir 2-of-3 threshold key splitting for recovery keys, encrypted share storage, vault audit log, escrow provider registration, key export for self-custody
 - Identity Recovery Tiers: Tier 1 (email recovery), Tier 2 (2-of-3 escrow), Tier 3 (self-custodial), security level endpoint, recovery initiation/completion flow
 - Encrypted Attestations: private attestations with AES-256-GCM DEK encryption, commitment hashes, policy-based disclosure (Mode 1), time-limited viewing grants (Mode 2)
+- Disclosure Proxy: time-limited grant redemption with session-scoped re-encryption, JSON watermarking for forensic traceability, disclosure audit logging
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -284,6 +285,15 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | POST | `net.openfederation.attestation.createViewingGrant` | Yes | Create time-limited viewing grant (subject-only) |
 | GET  | `net.openfederation.attestation.verifyCommitment` | No | Verify commitment hash without revealing content |
 
+### OpenFederation Disclosure Proxy
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| POST | `net.openfederation.disclosure.redeemGrant` | Yes | Redeem viewing grant (decrypt + watermark + re-encrypt) |
+| GET  | `net.openfederation.disclosure.grantStatus` | Yes | Check grant status and access count |
+| POST | `net.openfederation.disclosure.revokeGrant` | Yes | Revoke a viewing grant early (subject-only) |
+| GET  | `net.openfederation.disclosure.auditLog` | Yes | View disclosure audit trail |
+
 ### OpenFederation Oracle Management
 
 | Method | NSID | Auth | Description |
@@ -374,12 +384,14 @@ See `src/db/schema.sql` for the full schema. Key tables (22 total):
 | `recovery_attempts` | Identity recovery attempt tracking (token-based, time-limited) |
 | `attestation_encryption` | Private attestation DEK metadata and access policies |
 | `viewing_grants` | Time-limited disclosure grants for private attestations |
+| `disclosure_sessions` | Active grant redemption sessions with session key hashes |
+| `disclosure_audit_log` | Forensic audit trail for all disclosure events |
 
 ### Migration Scripts
 
 Schema is auto-initialized on first startup. Incremental migrations are applied manually:
 
-`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`
+`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`
 
 ---
 
