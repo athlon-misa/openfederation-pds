@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.vault.requestShareRelease",
+  "revision": 1,
+  "description": "Release the PDS-held vault share to the authenticated user after identity verification.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Releases the vault share (Share 2) to the authenticated user. Requires recent identity verification or a verificationToken.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "verificationToken": {
+              "type": "string",
+              "description": "Optional verification token from admin.verifyChallenge."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "share"
+          ],
+          "properties": {
+            "share": {
+              "type": "string",
+              "description": "The decrypted vault share (hex-encoded Shamir share)."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "VerificationRequired",
+          "description": "Identity verification required before share release."
+        },
+        {
+          "name": "ShareNotFound",
+          "description": "No vault share found for this account."
+        }
+      ]
+    }
+  }
+}

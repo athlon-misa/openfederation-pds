@@ -80,6 +80,7 @@
     "multiformats": "^13.4.2",
     "nodemailer": "^8.0.4",
     "pg": "^8.18.0",
+    "secrets.js-grempe": "^2.0.0",
     "ts-node": "^10.9.2",
     "tweetnacl": "^1.0.3",
     "typescript": "^5.9.3",

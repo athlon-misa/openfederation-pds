@@ -1,0 +1,64 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.vault.exportRecoveryKey",
+  "revision": 1,
+  "description": "Export the vault share for self-custodial key reconstruction.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Returns Share 2 (vault share) for the user to combine with their device Share 1. Requires elevated verification. Upgrades recovery tier to 3.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "verificationToken"
+          ],
+          "properties": {
+            "verificationToken": {
+              "type": "string",
+              "description": "Verification token from admin.verifyChallenge."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "share",
+            "recoveryTier"
+          ],
+          "properties": {
+            "share": {
+              "type": "string",
+              "description": "The decrypted vault share (hex-encoded Shamir share)."
+            },
+            "recoveryTier": {
+              "type": "integer",
+              "description": "Updated recovery tier (3 = self-custodial)."
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "VerificationRequired",
+          "description": "A verificationToken is required for key export."
+        },
+        {
+          "name": "VerificationFailed",
+          "description": "Invalid or expired verification token."
+        },
+        {
+          "name": "ShareNotFound",
+          "description": "No vault share found for this account."
+        }
+      ]
+    }
+  }
+}

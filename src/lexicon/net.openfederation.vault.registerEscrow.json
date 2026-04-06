@@ -1,0 +1,75 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.vault.registerEscrow",
+  "revision": 1,
+  "description": "Register an external escrow provider for the user's Share 3.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Assigns Share 3 to an external escrow provider and upgrades recovery tier to 2.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "escrowProviderDid",
+            "escrowProviderName"
+          ],
+          "properties": {
+            "escrowProviderDid": {
+              "type": "string",
+              "description": "DID of the escrow provider."
+            },
+            "escrowProviderName": {
+              "type": "string",
+              "description": "Human-readable name for the escrow provider."
+            },
+            "verificationUrl": {
+              "type": "string",
+              "description": "Optional URL for escrow provider verification."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "success",
+            "recoveryTier",
+            "escrowProviderDid"
+          ],
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "recoveryTier": {
+              "type": "integer"
+            },
+            "escrowProviderDid": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields."
+        },
+        {
+          "name": "ShareNotFound",
+          "description": "No Share 3 found for this account."
+        },
+        {
+          "name": "EscrowAlreadyRegistered",
+          "description": "Share 3 is already assigned to an escrow provider."
+        }
+      ]
+    }
+  }
+}

@@ -114,6 +114,10 @@ import createOracleCredential from '../api/net.openfederation.oracle.createCrede
 import listOracleCredentials from '../api/net.openfederation.oracle.listCredentials.js';
 import revokeOracleCredential from '../api/net.openfederation.oracle.revokeCredential.js';
 import submitProof from '../api/net.openfederation.oracle.submitProof.js';
+import vaultRequestShareRelease from '../api/net.openfederation.vault.requestShareRelease.js';
+import vaultRegisterEscrow from '../api/net.openfederation.vault.registerEscrow.js';
+import vaultExportRecoveryKey from '../api/net.openfederation.vault.exportRecoveryKey.js';
+import vaultAuditLog from '../api/net.openfederation.vault.auditLog.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -379,6 +383,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
 
   // Oracle proof verification
   'net.openfederation.oracle.submitProof': { handler: submitProof },
+
+  // Vault service — threshold key custody
+  'net.openfederation.vault.requestShareRelease': { handler: vaultRequestShareRelease, limiter: authLimiter },
+  'net.openfederation.vault.registerEscrow': { handler: vaultRegisterEscrow },
+  'net.openfederation.vault.exportRecoveryKey': { handler: vaultExportRecoveryKey, limiter: authLimiter },
+  'net.openfederation.vault.auditLog': { handler: vaultAuditLog },
 });
 
 // Blob serve route — serves binary blobs by DID + CID

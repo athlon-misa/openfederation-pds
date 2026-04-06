@@ -12,10 +12,13 @@ import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
 import { registerDidPlc } from './plc-client.js';
+import { splitSecret } from '../vault/shamir.js';
+import { storeShare, logVaultAudit } from '../vault/vault-store.js';
 
 export interface UserIdentityResult {
   did: string;
   signingKeyBase64: string; // For encrypted storage in user_signing_keys
+  deviceShare?: string; // Shamir share 1 — returned to caller for device storage
 }
 
 /**
@@ -47,7 +50,34 @@ export async function createUserIdentity(handle: string): Promise<UserIdentityRe
   const signingKeyExport = await signingKey.export();
   const signingKeyBase64 = Buffer.from(signingKeyExport).toString('base64');
 
-  return { did, signingKeyBase64 };
+  // Split rotation key into 2-of-3 Shamir shares for threshold custody
+  let deviceShare: string | undefined;
+  try {
+    const rotationKeyExport = await rotationKey.export();
+    const rotationKeyBuf = Buffer.from(rotationKeyExport);
+    const shares = splitSecret(rotationKeyBuf, 3, 2);
+
+    // Share 1 = device share (returned to caller)
+    deviceShare = shares[0];
+
+    // Share 2 = vault share (PDS holds)
+    await storeShare(did, 2, shares[1], 'vault');
+
+    // Share 3 = vault share initially (PDS holds until escrow registered)
+    await storeShare(did, 3, shares[2], 'vault');
+
+    // Audit: log share creation
+    await logVaultAudit(did, 'shares.created', did, undefined, {
+      numShares: 3,
+      threshold: 2,
+      holders: { 1: 'device', 2: 'vault', 3: 'vault' },
+    });
+  } catch (err) {
+    // Log but don't fail identity creation — vault is an enhancement
+    console.error('Warning: failed to create Shamir shares for vault (identity still created):', err);
+  }
+
+  return { did, signingKeyBase64, deviceShare };
 }
 
 /**
