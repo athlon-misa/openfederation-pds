@@ -80,6 +80,7 @@ import resolveByKeyHandler from '../api/net.openfederation.identity.resolveByKey
 import getWalletLinkChallenge from '../api/net.openfederation.identity.getWalletLinkChallenge.js';
 import linkWallet from '../api/net.openfederation.identity.linkWallet.js';
 import unlinkWalletHandler from '../api/net.openfederation.identity.unlinkWallet.js';
+import listWalletLinksHandler from '../api/net.openfederation.identity.listWalletLinks.js';
 import resolveWalletHandler from '../api/net.openfederation.identity.resolveWallet.js';
 import updateMemberRole from '../api/net.openfederation.community.updateMemberRole.js';
 import issueAttestation from '../api/net.openfederation.community.issueAttestation.js';
@@ -290,9 +291,10 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.identity.resolveByKey': { handler: resolveByKeyHandler, limiter: discoveryLimiter },
 
   // Wallet linking endpoints
-  'net.openfederation.identity.getWalletLinkChallenge': { handler: getWalletLinkChallenge },
-  'net.openfederation.identity.linkWallet': { handler: linkWallet },
+  'net.openfederation.identity.getWalletLinkChallenge': { handler: getWalletLinkChallenge, limiter: createLimiter },
+  'net.openfederation.identity.linkWallet': { handler: linkWallet, limiter: createLimiter },
   'net.openfederation.identity.unlinkWallet': { handler: unlinkWalletHandler },
+  'net.openfederation.identity.listWalletLinks': { handler: listWalletLinksHandler },
   'net.openfederation.identity.resolveWallet': { handler: resolveWalletHandler, limiter: discoveryLimiter },
 
   // Community role management
@@ -701,6 +703,13 @@ async function cleanupExpiredSessions(): Promise<void> {
     );
     if (result.rowCount && result.rowCount > 0) {
       console.log(`Session cleanup: removed ${result.rowCount} expired/revoked sessions`);
+    }
+    // Also clean up expired wallet link challenges
+    const challengeResult = await query(
+      `DELETE FROM wallet_link_challenges WHERE expires_at < CURRENT_TIMESTAMP`
+    );
+    if (challengeResult.rowCount && challengeResult.rowCount > 0) {
+      console.log(`Challenge cleanup: removed ${challengeResult.rowCount} expired wallet link challenges`);
     }
   } catch (err) {
     console.error('Session cleanup failed:', err);

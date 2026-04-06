@@ -26,6 +26,16 @@ export default async function linkWallet(req: AuthRequest, res: Response): Promi
       return;
     }
 
+    if (typeof walletAddress !== 'string' || walletAddress.length > 255) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'walletAddress must be at most 255 characters' });
+      return;
+    }
+
+    if (typeof signature !== 'string' || signature.length > 512) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'signature must be at most 512 characters' });
+      return;
+    }
+
     if (label && (typeof label !== 'string' || label.length > 64)) {
       res.status(400).json({
         error: 'InvalidRequest',

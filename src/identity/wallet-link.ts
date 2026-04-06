@@ -6,9 +6,19 @@
  */
 
 import { randomUUID, randomBytes } from 'crypto';
-import { query } from '../db/client.js';
+import { query, getClient } from '../db/client.js';
 import { verifyEthereumSignature } from './adapters/ethereum-verifier.js';
 import { verifySolanaSignature } from './adapters/solana-verifier.js';
+
+/**
+ * Normalize a wallet address for consistent storage and comparison.
+ * Ethereum: lowercase (EIP-55 mixed-case is display-only).
+ * Solana: case-sensitive base58 (no transformation).
+ */
+function normalizeAddress(chain: string, address: string): string {
+  if (chain === 'ethereum') return address.toLowerCase();
+  return address;
+}
 
 // ── Supported chains ────────────────────────────────────────────
 
@@ -28,16 +38,17 @@ export async function createChallenge(
   chain: string,
   walletAddress: string
 ): Promise<{ challenge: string; expiresAt: string }> {
+  const normalizedAddress = normalizeAddress(chain, walletAddress);
   const id = randomUUID();
   const nonce = randomBytes(32).toString('hex');
   const timestamp = new Date().toISOString();
-  const challenge = `OpenFederation Wallet Link\n\nDID: ${userDid}\nChain: ${chain}\nWallet: ${walletAddress}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
+  const challenge = `OpenFederation Wallet Link\n\nDID: ${userDid}\nChain: ${chain}\nWallet: ${normalizedAddress}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
   const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
 
   await query(
     `INSERT INTO wallet_link_challenges (id, user_did, chain, wallet_address, challenge, expires_at)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-    [id, userDid, chain, walletAddress, challenge, expiresAt.toISOString()]
+    [id, userDid, chain, normalizedAddress, challenge, expiresAt.toISOString()]
   );
 
   return { challenge, expiresAt: expiresAt.toISOString() };
@@ -58,78 +69,103 @@ export async function verifyAndLink(
   signature: string,
   label?: string
 ): Promise<LinkResult> {
-  // 1. Find the matching challenge
-  const challengeResult = await query<{
-    id: string;
-    expires_at: Date;
-  }>(
-    `SELECT id, expires_at FROM wallet_link_challenges
-     WHERE user_did = $1 AND chain = $2 AND wallet_address = $3 AND challenge = $4`,
-    [userDid, chain, walletAddress, challenge]
-  );
+  const normalizedAddress = normalizeAddress(chain, walletAddress);
 
-  if (challengeResult.rows.length === 0) {
-    return { success: false, error: 'Challenge not found or does not match' };
-  }
-
-  const row = challengeResult.rows[0];
-  if (new Date(row.expires_at) < new Date()) {
-    // Clean up expired challenge
-    await query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
-    return { success: false, error: 'Challenge has expired' };
-  }
-
-  // 2. Verify the signature
+  // 1. Verify the signature first (no DB transaction needed for this)
   let valid = false;
   if (chain === 'ethereum') {
-    valid = await verifyEthereumSignature(challenge, signature, walletAddress);
+    valid = await verifyEthereumSignature(challenge, signature, normalizedAddress);
   } else if (chain === 'solana') {
-    valid = await verifySolanaSignature(challenge, signature, walletAddress);
+    valid = await verifySolanaSignature(challenge, signature, normalizedAddress);
   }
 
   if (!valid) {
     return { success: false, error: 'Signature verification failed' };
   }
 
-  // 3. Check wallet is not already linked to a different DID
-  const existingLink = await query<{ user_did: string }>(
-    `SELECT user_did FROM wallet_links WHERE chain = $1 AND wallet_address = $2`,
-    [chain, walletAddress]
-  );
+  // 2. Use a transaction for all DB operations to prevent TOCTOU races
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
 
-  if (existingLink.rows.length > 0 && existingLink.rows[0].user_did !== userDid) {
-    return { success: false, error: 'Wallet is already linked to a different identity' };
-  }
-
-  // 4. Check label uniqueness for this user (if label provided)
-  if (label) {
-    const existingLabel = await query<{ id: string }>(
-      `SELECT id FROM wallet_links WHERE user_did = $1 AND label = $2`,
-      [userDid, label]
+    // Lock the challenge row to serialize concurrent attempts
+    const challengeResult = await client.query<{
+      id: string;
+      expires_at: Date;
+    }>(
+      `SELECT id, expires_at FROM wallet_link_challenges
+       WHERE user_did = $1 AND chain = $2 AND wallet_address = $3 AND challenge = $4
+       FOR UPDATE`,
+      [userDid, chain, normalizedAddress, challenge]
     );
-    if (existingLabel.rows.length > 0) {
-      return { success: false, error: 'Label already in use for this identity' };
+
+    if (challengeResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Challenge not found or does not match' };
     }
+
+    const row = challengeResult.rows[0];
+    if (new Date(row.expires_at) < new Date()) {
+      await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
+      await client.query('COMMIT');
+      return { success: false, error: 'Challenge has expired' };
+    }
+
+    // Check wallet is not already linked to a different DID
+    const existingLink = await client.query<{ user_did: string }>(
+      `SELECT user_did FROM wallet_links WHERE chain = $1 AND wallet_address = $2 FOR UPDATE`,
+      [chain, normalizedAddress]
+    );
+
+    if (existingLink.rows.length > 0 && existingLink.rows[0].user_did !== userDid) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Wallet is already linked to a different identity' };
+    }
+
+    // Check label uniqueness for this user (if label provided)
+    if (label) {
+      const existingLabel = await client.query<{ id: string; chain: string; wallet_address: string }>(
+        `SELECT id, chain, wallet_address FROM wallet_links WHERE user_did = $1 AND label = $2`,
+        [userDid, label]
+      );
+      // Allow re-linking the same wallet with same label, reject different wallet with same label
+      if (existingLabel.rows.length > 0) {
+        const existing = existingLabel.rows[0];
+        if (existing.chain !== chain || existing.wallet_address !== normalizedAddress) {
+          await client.query('ROLLBACK');
+          return { success: false, error: 'Label already in use for a different wallet' };
+        }
+      }
+    }
+
+    // Create the link (upsert by chain+wallet_address)
+    const id = randomUUID();
+    await client.query(
+      `INSERT INTO wallet_links (id, user_did, chain, wallet_address, label, challenge, signature)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (chain, wallet_address) DO UPDATE SET
+         label = EXCLUDED.label,
+         challenge = EXCLUDED.challenge,
+         signature = EXCLUDED.signature,
+         linked_at = CURRENT_TIMESTAMP`,
+      [id, userDid, chain, normalizedAddress, label || null, challenge, signature]
+    );
+
+    // Clean up the challenge
+    await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
+
+    await client.query('COMMIT');
+    return { success: true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    // Handle unique constraint violations gracefully
+    if ((err as any)?.code === '23505') {
+      return { success: false, error: 'Wallet link conflict — please retry' };
+    }
+    throw err;
+  } finally {
+    client.release();
   }
-
-  // 5. Create the link (upsert by chain+wallet_address)
-  const id = randomUUID();
-  await query(
-    `INSERT INTO wallet_links (id, user_did, chain, wallet_address, label, challenge, signature)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (chain, wallet_address) DO UPDATE SET
-       user_did = EXCLUDED.user_did,
-       label = EXCLUDED.label,
-       challenge = EXCLUDED.challenge,
-       signature = EXCLUDED.signature,
-       linked_at = CURRENT_TIMESTAMP`,
-    [id, userDid, chain, walletAddress, label || null, challenge, signature]
-  );
-
-  // 6. Clean up the challenge
-  await query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
-
-  return { success: true };
 }
 
 // ── Unlink ──────────────────────────────────────────────────────
@@ -182,12 +218,13 @@ export async function resolveWallet(
   chain: string,
   walletAddress: string
 ): Promise<WalletResolution | null> {
+  const normalizedAddress = normalizeAddress(chain, walletAddress);
   const result = await query<{ user_did: string; handle: string }>(
     `SELECT wl.user_did, u.handle
      FROM wallet_links wl
      JOIN users u ON u.did = wl.user_did
      WHERE wl.chain = $1 AND wl.wallet_address = $2`,
-    [chain, walletAddress]
+    [chain, normalizedAddress]
   );
 
   if (result.rows.length === 0) return null;
