@@ -50,6 +50,9 @@ jobs:
       - name: Validate lexicon schemas
         run: npm run validate:lexicon
 
+      - name: Validate lexicon revision fields
+        run: npm run lexicon:validate
+
       - name: Run unit tests
         run: npm run test:unit
         env:

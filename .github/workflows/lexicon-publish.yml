@@ -28,6 +28,9 @@ jobs:
       - name: Validate schemas
         run: npm run validate:lexicon
 
+      - name: Validate lexicon revision fields
+        run: npm run lexicon:validate
+
       - name: Build lexicon package
         run: npm run build:lexicon
 
