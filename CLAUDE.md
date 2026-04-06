@@ -29,6 +29,11 @@ npm start
 
 # CLI (build first)
 npm run cli -- <command>
+
+# Run tests
+npm test              # Security tests
+npm run test:api      # Integration + unit tests
+npm run test:e2e      # E2E journey tests (requires PLC: npm run plc:dev)
 ```
 
 ### Required Environment Variables
@@ -94,7 +99,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Community attestations: issue, verify, list, and revoke (delete-as-revoke, ATProto-native) cryptographically signed credentials
 - User profile endpoints: update standard `app.bsky.actor.profile` and custom collections (e.g., `app.grvty.actor.profile`)
 - Profile aggregation: `getProfile` returns standard + all custom `*.actor.profile` collections
-- Integration test suite: 77 tests across 7 test files (vitest)
+- Test suite: 37 test files — 17 integration (API), 5 unit, 9 E2E journeys, 6 security (vitest + node:test)
 - Email service: Nodemailer-based with SMTP transport, console fallback for development
 - Per-account brute-force protection: failed login tracking with exponential lockout (5 failures: 1min, 10: 5min, 15: 30min, 20+: 2hr)
 - Session management: list active sessions, revoke by ID or revoke-all, email notifications
@@ -127,6 +132,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - **Security:** Recovery keys and signing keys are encrypted at rest using AES-256-GCM with PBKDF2-derived keys. The `KEY_ENCRYPTION_SECRET` environment variable must be set before creating communities.
 - **Token Security:** Refresh token rotation with reuse detection. If a previously-rotated token is reused, all sessions for that user are automatically revoked (compromise response).
 - **Auto-Schema Migration:** The PDS automatically initializes the database schema on first startup if the `users` table doesn't exist. No manual `psql` runs needed for fresh deploys.
+- **E2E Tests:** Require PLC directory running (`npm run plc:dev`) and a seeded database. See `tests/README.md` for full setup guide.
 
 ### Lexicon Revision Policy
 
