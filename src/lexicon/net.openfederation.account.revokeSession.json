@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.revokeSession",
+  "revision": 1,
   "description": "Revoke one or all sessions for the authenticated user.",
   "defs": {
     "main": {
@@ -11,9 +12,18 @@
         "schema": {
           "type": "object",
           "properties": {
-            "sessionId": { "type": "string", "description": "Session ID prefix (first 8 chars) to revoke. Mutually exclusive with revokeAll." },
-            "revokeAll": { "type": "boolean", "description": "If true, revoke all sessions except the current one." },
-            "did": { "type": "string", "description": "DID of user to revoke sessions for (admin only)." }
+            "sessionId": {
+              "type": "string",
+              "description": "Session ID prefix (first 8 chars) to revoke. Mutually exclusive with revokeAll."
+            },
+            "revokeAll": {
+              "type": "boolean",
+              "description": "If true, revoke all sessions except the current one."
+            },
+            "did": {
+              "type": "string",
+              "description": "DID of user to revoke sessions for (admin only)."
+            }
           }
         }
       },
@@ -21,15 +31,26 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["revokedCount"],
+          "required": [
+            "revokedCount"
+          ],
           "properties": {
-            "revokedCount": { "type": "integer", "description": "Number of sessions revoked." }
+            "revokedCount": {
+              "type": "integer",
+              "description": "Number of sessions revoked."
+            }
           }
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Must provide either sessionId or revokeAll." },
-        { "name": "NotFound", "description": "Session not found." }
+        {
+          "name": "InvalidRequest",
+          "description": "Must provide either sessionId or revokeAll."
+        },
+        {
+          "name": "NotFound",
+          "description": "Session not found."
+        }
       ]
     }
   }

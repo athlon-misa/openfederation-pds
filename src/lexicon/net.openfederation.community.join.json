@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.join",
+  "revision": 1,
   "description": "Join a community or submit a join request. Requires an approved user account.",
   "defs": {
     "main": {
@@ -11,9 +12,14 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "The DID of the community to join." }
+            "did": {
+              "type": "string",
+              "description": "The DID of the community to join."
+            }
           },
-          "required": ["did"]
+          "required": [
+            "did"
+          ]
         }
       },
       "output": {
@@ -21,16 +27,33 @@
         "schema": {
           "type": "object",
           "properties": {
-            "status": { "type": "string", "description": "Result status: 'joined' if immediately joined, 'pending' if join request submitted." }
+            "status": {
+              "type": "string",
+              "description": "Result status: 'joined' if immediately joined, 'pending' if join request submitted."
+            }
           },
-          "required": ["status"]
+          "required": [
+            "status"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
-        { "name": "NotFound", "description": "Community not found." },
-        { "name": "AlreadyMember", "description": "User is already a member of this community." },
-        { "name": "AlreadyRequested", "description": "User has already submitted a pending join request." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid DID."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        },
+        {
+          "name": "AlreadyMember",
+          "description": "User is already a member of this community."
+        },
+        {
+          "name": "AlreadyRequested",
+          "description": "User has already submitted a pending join request."
+        }
       ]
     }
   }

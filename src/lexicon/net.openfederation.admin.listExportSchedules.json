@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.listExportSchedules",
+  "revision": 1,
   "description": "List all export schedules.",
   "defs": {
     "main": {
@@ -16,9 +17,16 @@
     "output": {
       "type": "object",
       "properties": {
-        "schedules": { "type": "array", "items": { "type": "unknown" } }
+        "schedules": {
+          "type": "array",
+          "items": {
+            "type": "unknown"
+          }
+        }
       },
-      "required": ["schedules"]
+      "required": [
+        "schedules"
+      ]
     }
   }
 }

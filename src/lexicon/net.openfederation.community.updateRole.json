@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.updateRole",
+  "revision": 1,
   "description": "Update a community role's name, description, or permissions.",
   "defs": {
     "main": {
@@ -11,27 +12,63 @@
         "schema": {
           "type": "object",
           "properties": {
-            "communityDid": { "type": "string" },
-            "rkey": { "type": "string", "description": "The role record key." },
-            "name": { "type": "string" },
-            "description": { "type": "string" },
-            "permissions": { "type": "array", "items": { "type": "string" } }
+            "communityDid": {
+              "type": "string"
+            },
+            "rkey": {
+              "type": "string",
+              "description": "The role record key."
+            },
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "permissions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           },
-          "required": ["communityDid", "rkey"]
+          "required": [
+            "communityDid",
+            "rkey"
+          ]
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "properties": { "uri": { "type": "string" }, "cid": { "type": "string" } },
-          "required": ["uri", "cid"]
+          "properties": {
+            "uri": {
+              "type": "string"
+            },
+            "cid": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "cid"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Validation failed." },
-        { "name": "RoleNotFound", "description": "No role found with the given rkey." },
-        { "name": "OwnerLockout", "description": "Cannot remove required permissions from owner role." }
+        {
+          "name": "InvalidRequest",
+          "description": "Validation failed."
+        },
+        {
+          "name": "RoleNotFound",
+          "description": "No role found with the given rkey."
+        },
+        {
+          "name": "OwnerLockout",
+          "description": "Cannot remove required permissions from owner role."
+        }
       ]
     }
   }

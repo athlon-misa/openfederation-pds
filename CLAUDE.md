@@ -120,6 +120,14 @@ Before starting the server, configure `.env` (see `.env.example`):
 - **Token Security:** Refresh token rotation with reuse detection. If a previously-rotated token is reused, all sessions for that user are automatically revoked (compromise response).
 - **Auto-Schema Migration:** The PDS automatically initializes the database schema on first startup if the `users` table doesn't exist. No manual `psql` runs needed for fresh deploys.
 
+### Lexicon Revision Policy
+
+Every `src/lexicon/*.json` file must contain a `"revision"` integer field (>= 1) placed after the `"id"` field.
+Bump `revision` by 1 whenever a schema's inputs, outputs, or errors change — additions and breaking changes alike.
+New schemas start at `"revision": 1`.
+Run `npm run lexicon:validate` before committing lexicon changes to confirm all files are valid.
+The docs builder (`npm run build:lexicon-docs`) includes the revision number next to each schema heading.
+
 ---
 
 ## 1. Technology Stack

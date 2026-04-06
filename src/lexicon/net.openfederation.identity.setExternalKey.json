@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.setExternalKey",
+  "revision": 1,
   "description": "Create or update an external identity key in the authenticated user's ATProto repo.",
   "defs": {
     "main": {
@@ -11,13 +12,39 @@
         "schema": {
           "type": "object",
           "properties": {
-            "rkey": { "type": "string", "description": "Record key identifier (1-512 chars, alphanumeric + hyphens)." },
-            "type": { "type": "string", "enum": ["ed25519", "x25519", "secp256k1", "p256"], "description": "Key algorithm type." },
-            "purpose": { "type": "string", "description": "Target network or use case (1-64 chars). Examples: meshtastic, nostr, wireguard, ssh, device." },
-            "publicKey": { "type": "string", "description": "Public key in did:key multibase format (base58btc, z prefix)." },
-            "label": { "type": "string", "description": "Optional human-readable label (max 100 chars)." }
+            "rkey": {
+              "type": "string",
+              "description": "Record key identifier (1-512 chars, alphanumeric + hyphens)."
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "ed25519",
+                "x25519",
+                "secp256k1",
+                "p256"
+              ],
+              "description": "Key algorithm type."
+            },
+            "purpose": {
+              "type": "string",
+              "description": "Target network or use case (1-64 chars). Examples: meshtastic, nostr, wireguard, ssh, device."
+            },
+            "publicKey": {
+              "type": "string",
+              "description": "Public key in did:key multibase format (base58btc, z prefix)."
+            },
+            "label": {
+              "type": "string",
+              "description": "Optional human-readable label (max 100 chars)."
+            }
           },
-          "required": ["rkey", "type", "purpose", "publicKey"]
+          "required": [
+            "rkey",
+            "type",
+            "purpose",
+            "publicKey"
+          ]
         }
       },
       "output": {
@@ -25,15 +52,30 @@
         "schema": {
           "type": "object",
           "properties": {
-            "uri": { "type": "string", "description": "AT URI of the created/updated record." },
-            "cid": { "type": "string", "description": "CID of the record." }
+            "uri": {
+              "type": "string",
+              "description": "AT URI of the created/updated record."
+            },
+            "cid": {
+              "type": "string",
+              "description": "CID of the record."
+            }
           },
-          "required": ["uri", "cid"]
+          "required": [
+            "uri",
+            "cid"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing required fields or validation failed." },
-        { "name": "InvalidPublicKey", "description": "Public key format invalid or multicodec prefix doesn't match type." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields or validation failed."
+        },
+        {
+          "name": "InvalidPublicKey",
+          "description": "Public key format invalid or multicodec prefix doesn't match type."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.reject",
+  "revision": 1,
   "description": "Reject a pending user account. Requires admin or moderator role.",
   "defs": {
     "main": {
@@ -11,9 +12,18 @@
         "schema": {
           "type": "object",
           "properties": {
-            "userId": { "type": "string", "description": "The user's internal ID." },
-            "handle": { "type": "string", "description": "The user's handle." },
-            "email": { "type": "string", "description": "The user's email address." }
+            "userId": {
+              "type": "string",
+              "description": "The user's internal ID."
+            },
+            "handle": {
+              "type": "string",
+              "description": "The user's handle."
+            },
+            "email": {
+              "type": "string",
+              "description": "The user's email address."
+            }
           }
         }
       },
@@ -22,17 +32,37 @@
         "schema": {
           "type": "object",
           "properties": {
-            "id": { "type": "string" },
-            "handle": { "type": "string" },
-            "email": { "type": "string" },
-            "status": { "type": "string", "description": "Always 'rejected' on success." }
+            "id": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "description": "Always 'rejected' on success."
+            }
           },
-          "required": ["id", "handle", "email", "status"]
+          "required": [
+            "id",
+            "handle",
+            "email",
+            "status"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "At least one of userId, handle, or email must be provided." },
-        { "name": "NotFound", "description": "No pending user found matching the provided identifier." }
+        {
+          "name": "InvalidRequest",
+          "description": "At least one of userId, handle, or email must be provided."
+        },
+        {
+          "name": "NotFound",
+          "description": "No pending user found matching the provided identifier."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.create",
+  "revision": 1,
   "description": "Create a new community. Requires an approved user account.",
   "defs": {
     "main": {
@@ -21,35 +22,90 @@
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing required fields or validation failed." },
-        { "name": "HandleTaken", "description": "The requested handle is already in use." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields or validation failed."
+        },
+        {
+          "name": "HandleTaken",
+          "description": "The requested handle is already in use."
+        }
       ]
     },
     "input": {
       "type": "object",
       "properties": {
-        "handle": { "type": "string", "description": "Community handle (3-30 chars, lowercase alphanumeric + hyphens)." },
-        "didMethod": { "type": "string", "description": "DID method to use for the community identity (plc or web)." },
-        "domain": { "type": "string", "description": "Domain for did:web communities. Required when didMethod is 'web'." },
-        "displayName": { "type": "string", "description": "Optional display name for the community." },
-        "description": { "type": "string", "description": "Optional description of the community." },
-        "visibility": { "type": "string", "description": "Community visibility: public or private. Defaults to 'public'." },
-        "joinPolicy": { "type": "string", "description": "Join policy: open or approval. Defaults to 'open'." }
+        "handle": {
+          "type": "string",
+          "description": "Community handle (3-30 chars, lowercase alphanumeric + hyphens)."
+        },
+        "didMethod": {
+          "type": "string",
+          "description": "DID method to use for the community identity (plc or web)."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Domain for did:web communities. Required when didMethod is 'web'."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Optional display name for the community."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of the community."
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Community visibility: public or private. Defaults to 'public'."
+        },
+        "joinPolicy": {
+          "type": "string",
+          "description": "Join policy: open or approval. Defaults to 'open'."
+        }
       },
-      "required": ["handle", "didMethod"]
+      "required": [
+        "handle",
+        "didMethod"
+      ]
     },
     "output": {
       "type": "object",
       "properties": {
-        "did": { "type": "string", "description": "The DID assigned to the new community." },
-        "handle": { "type": "string", "description": "The community handle." },
-        "didMethod": { "type": "string", "description": "The DID method used." },
-        "primaryRotationKey": { "type": "string", "description": "Primary rotation key (did:plc only). Returned once and never stored." },
-        "message": { "type": "string", "description": "Optional status message." },
-        "didDocument": { "type": "unknown", "description": "DID document (did:web only)." },
-        "instructions": { "type": "string", "description": "Setup instructions (did:web only)." }
+        "did": {
+          "type": "string",
+          "description": "The DID assigned to the new community."
+        },
+        "handle": {
+          "type": "string",
+          "description": "The community handle."
+        },
+        "didMethod": {
+          "type": "string",
+          "description": "The DID method used."
+        },
+        "primaryRotationKey": {
+          "type": "string",
+          "description": "Primary rotation key (did:plc only). Returned once and never stored."
+        },
+        "message": {
+          "type": "string",
+          "description": "Optional status message."
+        },
+        "didDocument": {
+          "type": "unknown",
+          "description": "DID document (did:web only)."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Setup instructions (did:web only)."
+        }
       },
-      "required": ["did", "handle", "didMethod"]
+      "required": [
+        "did",
+        "handle",
+        "didMethod"
+      ]
     }
   }
 }

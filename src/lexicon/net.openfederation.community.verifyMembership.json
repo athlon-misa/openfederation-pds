@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.verifyMembership",
+  "revision": 1,
   "description": "Check if a DID is a member of a community.",
   "defs": {
     "main": {
@@ -9,24 +10,44 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "communityDid": { "type": "string", "description": "DID of the community." },
-          "memberDid": { "type": "string", "description": "DID of the user to check." }
+          "communityDid": {
+            "type": "string",
+            "description": "DID of the community."
+          },
+          "memberDid": {
+            "type": "string",
+            "description": "DID of the user to check."
+          }
         },
-        "required": ["communityDid", "memberDid"]
+        "required": [
+          "communityDid",
+          "memberDid"
+        ]
       },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "properties": {
-            "isMember": { "type": "boolean", "description": "Whether the user is a member of the community." },
-            "role": { "type": "string", "description": "Member role (owner, moderator, member). Only present if isMember is true." }
+            "isMember": {
+              "type": "boolean",
+              "description": "Whether the user is a member of the community."
+            },
+            "role": {
+              "type": "string",
+              "description": "Member role (owner, moderator, member). Only present if isMember is true."
+            }
           },
-          "required": ["isMember"]
+          "required": [
+            "isMember"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing required query parameters." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required query parameters."
+        }
       ]
     }
   }

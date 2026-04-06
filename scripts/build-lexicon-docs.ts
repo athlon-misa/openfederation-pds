@@ -40,6 +40,7 @@ interface LexiconDef {
 interface LexiconFile {
   lexicon: number;
   id: string;
+  revision?: number;
   description?: string;
   defs: Record<string, LexiconDef>;
 }
@@ -161,9 +162,11 @@ function renderSchemaPage(lex: LexiconFile): string {
   const main = lex.defs.main;
   const badgeClass = main.type === 'query' ? 'badge-query' : 'badge-procedure';
 
+  const revLabel = lex.revision !== undefined ? ` <span style="font-size:0.75em;color:#6c757d;font-weight:400">(rev ${lex.revision})</span>` : '';
+
   let body = `
     <div class="breadcrumb"><a href="../index.html">Index</a> / ${escapeHtml(lex.id)}</div>
-    <h1><code>${escapeHtml(lex.id)}</code></h1>
+    <h1><code>${escapeHtml(lex.id)}</code>${revLabel}</h1>
     <p><span class="badge ${badgeClass}">${escapeHtml(main.type)}</span></p>
     <p>${escapeHtml(lex.description || main.description || '')}</p>`;
 
@@ -288,8 +291,9 @@ function main() {
       const main = lex.defs.main;
       const badgeClass = main.type === 'query' ? 'badge-query' : 'badge-procedure';
       const shortName = lex.id.replace(PREFIX, '');
+      const revTag = lex.revision !== undefined ? ` <span style="font-size:0.75rem;color:#6c757d">(rev ${lex.revision})</span>` : '';
       indexBody += `<li>
-        <a href="schemas/${lex.id}.html"><code>${escapeHtml(shortName)}</code></a>
+        <a href="schemas/${lex.id}.html"><code>${escapeHtml(shortName)}</code></a>${revTag}
         <span class="badge ${badgeClass} type-tag">${escapeHtml(main.type)}</span>
         — ${escapeHtml(lex.description || main.description || '')}
       </li>`;

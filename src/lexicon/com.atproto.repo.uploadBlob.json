@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.repo.uploadBlob",
+  "revision": 1,
   "description": "Upload a binary blob (image) and receive a blob reference for use in records.",
   "defs": {
     "main": {
@@ -14,21 +15,53 @@
             "blob": {
               "type": "object",
               "properties": {
-                "$type": { "type": "string" },
-                "ref": { "type": "object", "properties": { "$link": { "type": "string" } }, "required": ["$link"] },
-                "mimeType": { "type": "string" },
-                "size": { "type": "integer" }
+                "$type": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": "object",
+                  "properties": {
+                    "$link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "$link"
+                  ]
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                }
               },
-              "required": ["$type", "ref", "mimeType", "size"]
+              "required": [
+                "$type",
+                "ref",
+                "mimeType",
+                "size"
+              ]
             }
           },
-          "required": ["blob"]
+          "required": [
+            "blob"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid Content-Type." },
-        { "name": "BlobTooLarge", "description": "Blob exceeds the maximum allowed size." },
-        { "name": "InvalidMimeType", "description": "Content-Type is not in the allowed list." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid Content-Type."
+        },
+        {
+          "name": "BlobTooLarge",
+          "description": "Blob exceeds the maximum allowed size."
+        },
+        {
+          "name": "InvalidMimeType",
+          "description": "Content-Type is not in the allowed list."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.deleteExternalKey",
+  "revision": 1,
   "description": "Delete an external identity key from the authenticated user's repo.",
   "defs": {
     "main": {
@@ -11,9 +12,14 @@
         "schema": {
           "type": "object",
           "properties": {
-            "rkey": { "type": "string", "description": "The record key to delete." }
+            "rkey": {
+              "type": "string",
+              "description": "The record key to delete."
+            }
           },
-          "required": ["rkey"]
+          "required": [
+            "rkey"
+          ]
         }
       },
       "output": {
@@ -21,14 +27,24 @@
         "schema": {
           "type": "object",
           "properties": {
-            "success": { "type": "boolean" }
+            "success": {
+              "type": "boolean"
+            }
           },
-          "required": ["success"]
+          "required": [
+            "success"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing rkey." },
-        { "name": "KeyNotFound", "description": "No external key found with the given rkey." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing rkey."
+        },
+        {
+          "name": "KeyNotFound",
+          "description": "No external key found with the given rkey."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.leave",
+  "revision": 1,
   "description": "Leave a community. Requires auth. Owners cannot leave their own community.",
   "defs": {
     "main": {
@@ -11,9 +12,14 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "The DID of the community to leave." }
+            "did": {
+              "type": "string",
+              "description": "The DID of the community to leave."
+            }
           },
-          "required": ["did"]
+          "required": [
+            "did"
+          ]
         }
       },
       "output": {
@@ -21,16 +27,33 @@
         "schema": {
           "type": "object",
           "properties": {
-            "success": { "type": "boolean", "description": "Whether the user successfully left the community." }
+            "success": {
+              "type": "boolean",
+              "description": "Whether the user successfully left the community."
+            }
           },
-          "required": ["success"]
+          "required": [
+            "success"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
-        { "name": "NotMember", "description": "User is not a member of this community." },
-        { "name": "Forbidden", "description": "Owner cannot leave their own community." },
-        { "name": "NotFound", "description": "Community not found." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid DID."
+        },
+        {
+          "name": "NotMember",
+          "description": "User is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Owner cannot leave their own community."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        }
       ]
     }
   }

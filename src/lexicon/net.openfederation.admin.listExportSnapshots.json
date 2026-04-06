@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.listExportSnapshots",
+  "revision": 1,
   "description": "List export snapshots for a community.",
   "defs": {
     "main": {
@@ -8,9 +9,13 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "communityDid": { "type": "string" }
+          "communityDid": {
+            "type": "string"
+          }
         },
-        "required": ["communityDid"]
+        "required": [
+          "communityDid"
+        ]
       },
       "output": {
         "encoding": "application/json",
@@ -23,9 +28,16 @@
     "output": {
       "type": "object",
       "properties": {
-        "snapshots": { "type": "array", "items": { "type": "unknown" } }
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "type": "unknown"
+          }
+        }
       },
-      "required": ["snapshots"]
+      "required": [
+        "snapshots"
+      ]
     }
   }
 }

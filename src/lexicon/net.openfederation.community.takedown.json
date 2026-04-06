@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.takedown",
+  "revision": 1,
   "description": "Take down a community. Requires admin role. Requires prior export (exported_at must be set). Per AT Protocol, more permanent than suspension.",
   "defs": {
     "main": {
@@ -11,10 +12,18 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "The DID of the community to take down." },
-            "reason": { "type": "string", "description": "Optional reason for the takedown." }
+            "did": {
+              "type": "string",
+              "description": "The DID of the community to take down."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Optional reason for the takedown."
+            }
           },
-          "required": ["did"]
+          "required": [
+            "did"
+          ]
         }
       },
       "output": {
@@ -22,18 +31,42 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "The community DID." },
-            "status": { "type": "string", "description": "The new status, always 'takendown'." },
-            "reason": { "type": "string", "description": "The reason for takedown, or null if not provided." }
+            "did": {
+              "type": "string",
+              "description": "The community DID."
+            },
+            "status": {
+              "type": "string",
+              "description": "The new status, always 'takendown'."
+            },
+            "reason": {
+              "type": "string",
+              "description": "The reason for takedown, or null if not provided."
+            }
           },
-          "required": ["did", "status"]
+          "required": [
+            "did",
+            "status"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
-        { "name": "NotFound", "description": "Community not found." },
-        { "name": "AlreadyTakenDown", "description": "The community has already been taken down." },
-        { "name": "ExportRequired", "description": "Community data must be exported before takedown. Use community.export first." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid DID."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        },
+        {
+          "name": "AlreadyTakenDown",
+          "description": "The community has already been taken down."
+        },
+        {
+          "name": "ExportRequired",
+          "description": "Community data must be exported before takedown. Use community.export first."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.getExternalKey",
+  "revision": 1,
   "description": "Get a specific external identity key by DID and record key.",
   "defs": {
     "main": {
@@ -9,30 +10,66 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "did": { "type": "string", "description": "The DID." },
-          "rkey": { "type": "string", "description": "The record key." }
+          "did": {
+            "type": "string",
+            "description": "The DID."
+          },
+          "rkey": {
+            "type": "string",
+            "description": "The record key."
+          }
         },
-        "required": ["did", "rkey"]
+        "required": [
+          "did",
+          "rkey"
+        ]
       },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "properties": {
-            "uri": { "type": "string" },
-            "rkey": { "type": "string" },
-            "type": { "type": "string" },
-            "purpose": { "type": "string" },
-            "publicKey": { "type": "string" },
-            "label": { "type": "string" },
-            "createdAt": { "type": "string" }
+            "uri": {
+              "type": "string"
+            },
+            "rkey": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "purpose": {
+              "type": "string"
+            },
+            "publicKey": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string"
+            }
           },
-          "required": ["uri", "rkey", "type", "purpose", "publicKey", "createdAt"]
+          "required": [
+            "uri",
+            "rkey",
+            "type",
+            "purpose",
+            "publicKey",
+            "createdAt"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing required parameters." },
-        { "name": "KeyNotFound", "description": "No external key found for the given DID and rkey." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required parameters."
+        },
+        {
+          "name": "KeyNotFound",
+          "description": "No external key found for the given DID and rkey."
+        }
       ]
     }
   }

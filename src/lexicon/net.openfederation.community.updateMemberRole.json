@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.updateMemberRole",
+  "revision": 1,
   "description": "Change a community member's role. Only community owner or PDS admin can change roles.",
   "defs": {
     "main": {
@@ -11,11 +12,28 @@
         "schema": {
           "type": "object",
           "properties": {
-            "communityDid": { "type": "string", "description": "The community DID." },
-            "memberDid": { "type": "string", "description": "The DID of the member to update." },
-            "role": { "type": "string", "enum": ["moderator", "member"], "description": "New role. Cannot set to 'owner'." }
+            "communityDid": {
+              "type": "string",
+              "description": "The community DID."
+            },
+            "memberDid": {
+              "type": "string",
+              "description": "The DID of the member to update."
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "moderator",
+                "member"
+              ],
+              "description": "New role. Cannot set to 'owner'."
+            }
           },
-          "required": ["communityDid", "memberDid", "role"]
+          "required": [
+            "communityDid",
+            "memberDid",
+            "role"
+          ]
         }
       },
       "output": {
@@ -23,17 +41,36 @@
         "schema": {
           "type": "object",
           "properties": {
-            "uri": { "type": "string" },
-            "cid": { "type": "string" },
-            "role": { "type": "string" }
+            "uri": {
+              "type": "string"
+            },
+            "cid": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            }
           },
-          "required": ["uri", "cid", "role"]
+          "required": [
+            "uri",
+            "cid",
+            "role"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing fields or invalid role." },
-        { "name": "NotMember", "description": "Target DID is not a member of this community." },
-        { "name": "CannotChangeOwner", "description": "Cannot change the owner's role." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing fields or invalid role."
+        },
+        {
+          "name": "NotMember",
+          "description": "Target DID is not a member of this community."
+        },
+        {
+          "name": "CannotChangeOwner",
+          "description": "Cannot change the owner's role."
+        }
       ]
     }
   }

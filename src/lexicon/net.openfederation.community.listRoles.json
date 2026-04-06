@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listRoles",
+  "revision": 1,
   "description": "List all roles defined for a community.",
   "defs": {
     "main": {
@@ -8,9 +9,13 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "communityDid": { "type": "string" }
+          "communityDid": {
+            "type": "string"
+          }
         },
-        "required": ["communityDid"]
+        "required": [
+          "communityDid"
+        ]
       },
       "output": {
         "encoding": "application/json",
@@ -19,26 +24,60 @@
           "ref": "#output"
         }
       },
-      "errors": [{ "name": "InvalidRequest", "description": "Missing communityDid." }]
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing communityDid."
+        }
+      ]
     },
     "roleItem": {
       "type": "object",
       "properties": {
-        "uri": { "type": "string" },
-        "rkey": { "type": "string" },
-        "name": { "type": "string" },
-        "description": { "type": "string" },
-        "permissions": { "type": "array", "items": { "type": "string" } },
-        "memberCount": { "type": "integer" }
+        "uri": {
+          "type": "string"
+        },
+        "rkey": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "memberCount": {
+          "type": "integer"
+        }
       },
-      "required": ["uri", "rkey", "name", "permissions", "memberCount"]
+      "required": [
+        "uri",
+        "rkey",
+        "name",
+        "permissions",
+        "memberCount"
+      ]
     },
     "output": {
       "type": "object",
       "properties": {
-        "roles": { "type": "array", "items": { "type": "ref", "ref": "#roleItem" } }
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#roleItem"
+          }
+        }
       },
-      "required": ["roles"]
+      "required": [
+        "roles"
+      ]
     }
   }
 }

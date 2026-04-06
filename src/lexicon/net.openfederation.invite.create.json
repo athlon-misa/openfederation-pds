@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.invite.create",
+  "revision": 1,
   "description": "Create a new invite code. Requires admin or moderator role.",
   "defs": {
     "main": {
@@ -11,8 +12,16 @@
         "schema": {
           "type": "object",
           "properties": {
-            "maxUses": { "type": "integer", "default": 1, "description": "Maximum number of times the invite code can be used. Defaults to 1." },
-            "expiresAt": { "type": "string", "format": "datetime", "description": "Optional expiration timestamp for the invite code." }
+            "maxUses": {
+              "type": "integer",
+              "default": 1,
+              "description": "Maximum number of times the invite code can be used. Defaults to 1."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "Optional expiration timestamp for the invite code."
+            }
           }
         }
       },
@@ -21,15 +30,31 @@
         "schema": {
           "type": "object",
           "properties": {
-            "code": { "type": "string", "description": "The generated invite code." },
-            "maxUses": { "type": "integer", "description": "Maximum number of uses for this invite code." },
-            "expiresAt": { "type": "string", "format": "datetime", "description": "Expiration timestamp, or null if the code does not expire." }
+            "code": {
+              "type": "string",
+              "description": "The generated invite code."
+            },
+            "maxUses": {
+              "type": "integer",
+              "description": "Maximum number of uses for this invite code."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "Expiration timestamp, or null if the code does not expire."
+            }
           },
-          "required": ["code", "maxUses"]
+          "required": [
+            "code",
+            "maxUses"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Invalid input parameters (e.g. negative maxUses)." }
+        {
+          "name": "InvalidRequest",
+          "description": "Invalid input parameters (e.g. negative maxUses)."
+        }
       ]
     }
   }

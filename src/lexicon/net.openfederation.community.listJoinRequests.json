@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listJoinRequests",
+  "revision": 1,
   "description": "List pending join requests for a community. Requires auth (owner or admin only).",
   "defs": {
     "main": {
@@ -8,11 +9,26 @@
       "description": "Retrieve a paginated list of join requests for a community.",
       "parameters": {
         "type": "params",
-        "required": ["did"],
+        "required": [
+          "did"
+        ],
         "properties": {
-          "did": { "type": "string", "description": "The DID of the community whose join requests to list." },
-          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50, "description": "Maximum number of results to return." },
-          "offset": { "type": "integer", "default": 0, "description": "Number of results to skip for pagination." }
+          "did": {
+            "type": "string",
+            "description": "The DID of the community whose join requests to list."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50,
+            "description": "Maximum number of results to return."
+          },
+          "offset": {
+            "type": "integer",
+            "default": 0,
+            "description": "Number of results to skip for pagination."
+          }
         }
       },
       "output": {
@@ -23,32 +39,85 @@
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid DID parameter." },
-        { "name": "NotFound", "description": "Community not found." },
-        { "name": "Forbidden", "description": "Only the community owner or an admin can list join requests." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid DID parameter."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Only the community owner or an admin can list join requests."
+        }
       ]
     },
     "joinRequest": {
       "type": "object",
       "properties": {
-        "id": { "type": "string", "description": "The join request ID." },
-        "userId": { "type": "string", "description": "The requesting user's internal ID." },
-        "userDid": { "type": "string", "description": "The requesting user's DID." },
-        "handle": { "type": "string", "description": "The requesting user's handle." },
-        "status": { "type": "string", "description": "Request status (pending, approved, rejected)." },
-        "createdAt": { "type": "string", "format": "datetime", "description": "When the join request was submitted." }
+        "id": {
+          "type": "string",
+          "description": "The join request ID."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The requesting user's internal ID."
+        },
+        "userDid": {
+          "type": "string",
+          "description": "The requesting user's DID."
+        },
+        "handle": {
+          "type": "string",
+          "description": "The requesting user's handle."
+        },
+        "status": {
+          "type": "string",
+          "description": "Request status (pending, approved, rejected)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the join request was submitted."
+        }
       },
-      "required": ["id", "userId", "userDid", "handle", "status", "createdAt"]
+      "required": [
+        "id",
+        "userId",
+        "userDid",
+        "handle",
+        "status",
+        "createdAt"
+      ]
     },
     "output": {
       "type": "object",
       "properties": {
-        "requests": { "type": "array", "items": { "type": "ref", "ref": "#joinRequest" } },
-        "total": { "type": "integer", "description": "Total number of join requests." },
-        "limit": { "type": "integer" },
-        "offset": { "type": "integer" }
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#joinRequest"
+          }
+        },
+        "total": {
+          "type": "integer",
+          "description": "Total number of join requests."
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "offset": {
+          "type": "integer"
+        }
       },
-      "required": ["requests", "total", "limit", "offset"]
+      "required": [
+        "requests",
+        "total",
+        "limit",
+        "offset"
+      ]
     }
   }
 }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.export",
+  "revision": 1,
   "description": "Export all community data as a JSON archive. Requires auth (owner or admin). Implements the AT Protocol 'free to go' principle.",
   "defs": {
     "main": {
@@ -8,9 +9,14 @@
       "description": "Export a complete archive of community data including all records, members, and metadata.",
       "parameters": {
         "type": "params",
-        "required": ["did"],
+        "required": [
+          "did"
+        ],
         "properties": {
-          "did": { "type": "string", "description": "The DID of the community to export." }
+          "did": {
+            "type": "string",
+            "description": "The DID of the community to export."
+          }
         }
       },
       "output": {
@@ -21,40 +27,101 @@
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid DID parameter." },
-        { "name": "NotFound", "description": "Community not found." },
-        { "name": "Forbidden", "description": "Only the community owner or an admin can export community data." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid DID parameter."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Only the community owner or an admin can export community data."
+        }
       ]
     },
     "communityInfo": {
       "type": "object",
       "properties": {
-        "did": { "type": "string", "description": "The community DID." },
-        "handle": { "type": "string", "description": "The community handle." },
-        "didMethod": { "type": "string", "description": "The DID method used (plc or web)." },
-        "status": { "type": "string", "description": "Community status (active, suspended, takendown)." }
+        "did": {
+          "type": "string",
+          "description": "The community DID."
+        },
+        "handle": {
+          "type": "string",
+          "description": "The community handle."
+        },
+        "didMethod": {
+          "type": "string",
+          "description": "The DID method used (plc or web)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Community status (active, suspended, takendown)."
+        }
       },
-      "required": ["did", "handle", "didMethod", "status"]
+      "required": [
+        "did",
+        "handle",
+        "didMethod",
+        "status"
+      ]
     },
     "exportStats": {
       "type": "object",
       "properties": {
-        "totalRecords": { "type": "integer", "description": "Total number of records in the export." },
-        "memberCount": { "type": "integer", "description": "Number of members in the community." },
-        "collections": { "type": "integer", "description": "Number of distinct collections." }
+        "totalRecords": {
+          "type": "integer",
+          "description": "Total number of records in the export."
+        },
+        "memberCount": {
+          "type": "integer",
+          "description": "Number of members in the community."
+        },
+        "collections": {
+          "type": "integer",
+          "description": "Number of distinct collections."
+        }
       },
-      "required": ["totalRecords", "memberCount", "collections"]
+      "required": [
+        "totalRecords",
+        "memberCount",
+        "collections"
+      ]
     },
     "output": {
       "type": "object",
       "properties": {
-        "exportedAt": { "type": "string", "format": "datetime", "description": "When the export was generated." },
-        "exportedBy": { "type": "string", "description": "DID of the user who initiated the export." },
-        "community": { "type": "ref", "ref": "#communityInfo" },
-        "stats": { "type": "ref", "ref": "#exportStats" },
-        "collections": { "type": "unknown", "description": "Record of collection arrays, keyed by collection NSID." }
+        "exportedAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the export was generated."
+        },
+        "exportedBy": {
+          "type": "string",
+          "description": "DID of the user who initiated the export."
+        },
+        "community": {
+          "type": "ref",
+          "ref": "#communityInfo"
+        },
+        "stats": {
+          "type": "ref",
+          "ref": "#exportStats"
+        },
+        "collections": {
+          "type": "unknown",
+          "description": "Record of collection arrays, keyed by collection NSID."
+        }
       },
-      "required": ["exportedAt", "exportedBy", "community", "stats", "collections"]
+      "required": [
+        "exportedAt",
+        "exportedBy",
+        "community",
+        "stats",
+        "collections"
+      ]
     }
   }
 }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.register",
+  "revision": 1,
   "description": "Register a new account. Requires an invite code if the server has invite-only registration enabled.",
   "defs": {
     "main": {
@@ -11,12 +12,28 @@
         "schema": {
           "type": "object",
           "properties": {
-            "handle": { "type": "string", "description": "Requested handle (3-30 chars, lowercase alphanumeric + hyphens)." },
-            "email": { "type": "string", "description": "Email address." },
-            "password": { "type": "string", "description": "Password (10-128 chars, must contain 3 of 4 categories)." },
-            "inviteCode": { "type": "string", "description": "Invite code (required if server has invite-only registration)." }
+            "handle": {
+              "type": "string",
+              "description": "Requested handle (3-30 chars, lowercase alphanumeric + hyphens)."
+            },
+            "email": {
+              "type": "string",
+              "description": "Email address."
+            },
+            "password": {
+              "type": "string",
+              "description": "Password (10-128 chars, must contain 3 of 4 categories)."
+            },
+            "inviteCode": {
+              "type": "string",
+              "description": "Invite code (required if server has invite-only registration)."
+            }
           },
-          "required": ["handle", "email", "password"]
+          "required": [
+            "handle",
+            "email",
+            "password"
+          ]
         }
       },
       "output": {
@@ -24,21 +41,53 @@
         "schema": {
           "type": "object",
           "properties": {
-            "id": { "type": "string" },
-            "handle": { "type": "string" },
-            "email": { "type": "string" },
-            "status": { "type": "string", "description": "Always 'pending' for new registrations." }
+            "id": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "description": "Always 'pending' for new registrations."
+            }
           },
-          "required": ["id", "handle", "email", "status"]
+          "required": [
+            "id",
+            "handle",
+            "email",
+            "status"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing required fields or validation failed." },
-        { "name": "InviteRequired", "description": "Invite code required but not provided." },
-        { "name": "InviteInvalid", "description": "Invite code not found." },
-        { "name": "InviteExpired", "description": "Invite code has expired." },
-        { "name": "InviteUsed", "description": "Invite code has been fully used." },
-        { "name": "AccountExists", "description": "Handle or email already in use." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields or validation failed."
+        },
+        {
+          "name": "InviteRequired",
+          "description": "Invite code required but not provided."
+        },
+        {
+          "name": "InviteInvalid",
+          "description": "Invite code not found."
+        },
+        {
+          "name": "InviteExpired",
+          "description": "Invite code has expired."
+        },
+        {
+          "name": "InviteUsed",
+          "description": "Invite code has been fully used."
+        },
+        {
+          "name": "AccountExists",
+          "description": "Handle or email already in use."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.get",
+  "revision": 1,
   "description": "Get community details by DID. No auth required; optional auth enriches response with membership info.",
   "defs": {
     "main": {
@@ -8,9 +9,14 @@
       "description": "Retrieve detailed information about a community.",
       "parameters": {
         "type": "params",
-        "required": ["did"],
+        "required": [
+          "did"
+        ],
         "properties": {
-          "did": { "type": "string", "description": "The DID of the community to retrieve." }
+          "did": {
+            "type": "string",
+            "description": "The DID of the community to retrieve."
+          }
         }
       },
       "output": {
@@ -18,28 +24,91 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "The community DID." },
-            "handle": { "type": "string", "description": "The community handle." },
-            "didMethod": { "type": "string", "description": "The DID method used (plc or web)." },
-            "displayName": { "type": "string", "description": "Display name of the community." },
-            "description": { "type": "string", "description": "Description of the community." },
-            "visibility": { "type": "string", "description": "Community visibility (public or private)." },
-            "joinPolicy": { "type": "string", "description": "Join policy (open or approval)." },
-            "memberCount": { "type": "integer", "description": "Number of members in the community." },
-            "createdAt": { "type": "string", "format": "datetime", "description": "When the community was created." },
-            "status": { "type": "string", "description": "Community status (active, suspended, takendown)." },
-            "statusReason": { "type": "string", "description": "Reason for non-active status, or null if active." },
-            "isOwner": { "type": "boolean", "description": "Whether the authenticated user is the owner." },
-            "isMember": { "type": "boolean", "description": "Whether the authenticated user is a member." },
-            "joinRequestStatus": { "type": "string", "description": "Status of the user's join request (pending, approved, rejected), or null." }
+            "did": {
+              "type": "string",
+              "description": "The community DID."
+            },
+            "handle": {
+              "type": "string",
+              "description": "The community handle."
+            },
+            "didMethod": {
+              "type": "string",
+              "description": "The DID method used (plc or web)."
+            },
+            "displayName": {
+              "type": "string",
+              "description": "Display name of the community."
+            },
+            "description": {
+              "type": "string",
+              "description": "Description of the community."
+            },
+            "visibility": {
+              "type": "string",
+              "description": "Community visibility (public or private)."
+            },
+            "joinPolicy": {
+              "type": "string",
+              "description": "Join policy (open or approval)."
+            },
+            "memberCount": {
+              "type": "integer",
+              "description": "Number of members in the community."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the community was created."
+            },
+            "status": {
+              "type": "string",
+              "description": "Community status (active, suspended, takendown)."
+            },
+            "statusReason": {
+              "type": "string",
+              "description": "Reason for non-active status, or null if active."
+            },
+            "isOwner": {
+              "type": "boolean",
+              "description": "Whether the authenticated user is the owner."
+            },
+            "isMember": {
+              "type": "boolean",
+              "description": "Whether the authenticated user is a member."
+            },
+            "joinRequestStatus": {
+              "type": "string",
+              "description": "Status of the user's join request (pending, approved, rejected), or null."
+            }
           },
-          "required": ["did", "handle", "didMethod", "visibility", "joinPolicy", "memberCount", "createdAt", "status", "isOwner", "isMember"]
+          "required": [
+            "did",
+            "handle",
+            "didMethod",
+            "visibility",
+            "joinPolicy",
+            "memberCount",
+            "createdAt",
+            "status",
+            "isOwner",
+            "isMember"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid DID parameter." },
-        { "name": "NotFound", "description": "Community not found." },
-        { "name": "CommunityTakenDown", "description": "The community has been taken down." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid DID parameter."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.resolveByKey",
+  "revision": 1,
   "description": "Reverse lookup: find the ATProto DID that owns a given external public key.",
   "defs": {
     "main": {
@@ -9,29 +10,62 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "publicKey": { "type": "string", "description": "The public key in multibase format." },
-          "purpose": { "type": "string", "description": "Optional: narrow search to a specific purpose." }
+          "publicKey": {
+            "type": "string",
+            "description": "The public key in multibase format."
+          },
+          "purpose": {
+            "type": "string",
+            "description": "Optional: narrow search to a specific purpose."
+          }
         },
-        "required": ["publicKey"]
+        "required": [
+          "publicKey"
+        ]
       },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string" },
-            "handle": { "type": "string" },
-            "rkey": { "type": "string" },
-            "type": { "type": "string" },
-            "purpose": { "type": "string" },
-            "createdAt": { "type": "string" }
+            "did": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "rkey": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "purpose": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string"
+            }
           },
-          "required": ["did", "handle", "rkey", "type", "purpose", "createdAt"]
+          "required": [
+            "did",
+            "handle",
+            "rkey",
+            "type",
+            "purpose",
+            "createdAt"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing publicKey parameter." },
-        { "name": "KeyNotFound", "description": "No identity found for the given public key." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing publicKey parameter."
+        },
+        {
+          "name": "KeyNotFound",
+          "description": "No identity found for the given public key."
+        }
       ]
     }
   }

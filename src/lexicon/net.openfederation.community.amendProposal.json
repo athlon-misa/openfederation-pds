@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.amendProposal",
+  "revision": 1,
   "description": "Amend an open governance proposal. Resets votes and extends expiration.",
   "defs": {
     "main": {
@@ -20,29 +21,62 @@
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing fields." },
-        { "name": "ProposalNotFound", "description": "No proposal with given rkey." },
-        { "name": "ProposalClosed", "description": "Proposal is not open." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing fields."
+        },
+        {
+          "name": "ProposalNotFound",
+          "description": "No proposal with given rkey."
+        },
+        {
+          "name": "ProposalClosed",
+          "description": "Proposal is not open."
+        }
       ]
     },
     "input": {
       "type": "object",
       "properties": {
-        "communityDid": { "type": "string" },
-        "proposalRkey": { "type": "string" },
-        "proposedRecord": { "type": "unknown", "description": "New proposed record." },
-        "reason": { "type": "string", "description": "Optional reason for amendment." }
+        "communityDid": {
+          "type": "string"
+        },
+        "proposalRkey": {
+          "type": "string"
+        },
+        "proposedRecord": {
+          "type": "unknown",
+          "description": "New proposed record."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional reason for amendment."
+        }
       },
-      "required": ["communityDid", "proposalRkey", "proposedRecord"]
+      "required": [
+        "communityDid",
+        "proposalRkey",
+        "proposedRecord"
+      ]
     },
     "output": {
       "type": "object",
       "properties": {
-        "uri": { "type": "string" },
-        "cid": { "type": "string" },
-        "amendmentCount": { "type": "integer" }
+        "uri": {
+          "type": "string"
+        },
+        "cid": {
+          "type": "string"
+        },
+        "amendmentCount": {
+          "type": "integer"
+        }
       },
-      "required": ["uri", "cid", "amendmentCount"]
+      "required": [
+        "uri",
+        "cid",
+        "amendmentCount"
+      ]
     }
   }
 }

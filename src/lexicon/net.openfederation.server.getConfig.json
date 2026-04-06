@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.server.getConfig",
+  "revision": 1,
   "description": "Get server configuration and statistics. Admin only.",
   "defs": {
     "main": {
@@ -11,13 +12,34 @@
         "schema": {
           "type": "object",
           "properties": {
-            "service": { "type": "string", "description": "Service name." },
-            "version": { "type": "string", "description": "Server version." },
-            "hostname": { "type": "string", "description": "Server hostname." },
-            "inviteRequired": { "type": "boolean", "description": "Whether invite codes are required for registration." },
-            "stats": { "type": "ref", "ref": "#serverStats" }
+            "service": {
+              "type": "string",
+              "description": "Service name."
+            },
+            "version": {
+              "type": "string",
+              "description": "Server version."
+            },
+            "hostname": {
+              "type": "string",
+              "description": "Server hostname."
+            },
+            "inviteRequired": {
+              "type": "boolean",
+              "description": "Whether invite codes are required for registration."
+            },
+            "stats": {
+              "type": "ref",
+              "ref": "#serverStats"
+            }
           },
-          "required": ["service", "version", "hostname", "inviteRequired", "stats"]
+          "required": [
+            "service",
+            "version",
+            "hostname",
+            "inviteRequired",
+            "stats"
+          ]
         }
       }
     },
@@ -25,16 +47,41 @@
       "type": "object",
       "description": "Aggregate server statistics.",
       "properties": {
-        "totalUsers": { "type": "integer" },
-        "pendingUsers": { "type": "integer" },
-        "approvedUsers": { "type": "integer" },
-        "totalCommunities": { "type": "integer" },
-        "activeCommunities": { "type": "integer" },
-        "suspendedCommunities": { "type": "integer" },
-        "totalInvites": { "type": "integer" },
-        "activeInvites": { "type": "integer" }
+        "totalUsers": {
+          "type": "integer"
+        },
+        "pendingUsers": {
+          "type": "integer"
+        },
+        "approvedUsers": {
+          "type": "integer"
+        },
+        "totalCommunities": {
+          "type": "integer"
+        },
+        "activeCommunities": {
+          "type": "integer"
+        },
+        "suspendedCommunities": {
+          "type": "integer"
+        },
+        "totalInvites": {
+          "type": "integer"
+        },
+        "activeInvites": {
+          "type": "integer"
+        }
       },
-      "required": ["totalUsers", "pendingUsers", "approvedUsers", "totalCommunities", "activeCommunities", "suspendedCommunities", "totalInvites", "activeInvites"]
+      "required": [
+        "totalUsers",
+        "pendingUsers",
+        "approvedUsers",
+        "totalCommunities",
+        "activeCommunities",
+        "suspendedCommunities",
+        "totalInvites",
+        "activeInvites"
+      ]
     }
   }
 }

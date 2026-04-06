@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.unlinkApplication",
+  "revision": 1,
   "description": "Remove a linked application from a community.",
   "defs": {
     "main": {
@@ -11,10 +12,19 @@
         "schema": {
           "type": "object",
           "properties": {
-            "communityDid": { "type": "string", "description": "DID of the community." },
-            "rkey": { "type": "string", "description": "Record key (TID) of the application record to remove." }
+            "communityDid": {
+              "type": "string",
+              "description": "DID of the community."
+            },
+            "rkey": {
+              "type": "string",
+              "description": "Record key (TID) of the application record to remove."
+            }
           },
-          "required": ["communityDid", "rkey"]
+          "required": [
+            "communityDid",
+            "rkey"
+          ]
         }
       },
       "output": {
@@ -22,15 +32,29 @@
         "schema": {
           "type": "object",
           "properties": {
-            "success": { "type": "boolean", "description": "Whether the unlink was successful." }
+            "success": {
+              "type": "boolean",
+              "description": "Whether the unlink was successful."
+            }
           },
-          "required": ["success"]
+          "required": [
+            "success"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing required fields." },
-        { "name": "NotFound", "description": "Community or application record not found." },
-        { "name": "Forbidden", "description": "Insufficient privileges (owner or admin required)." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community or application record not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Insufficient privileges (owner or admin required)."
+        }
       ]
     }
   }

@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.listSessions",
+  "revision": 1,
   "description": "List active sessions for the authenticated user. Admins can list sessions for any user by DID.",
   "defs": {
     "main": {
@@ -9,18 +10,26 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "did": { "type": "string", "description": "DID of user to list sessions for (admin only). Omit for own sessions." }
+          "did": {
+            "type": "string",
+            "description": "DID of user to list sessions for (admin only). Omit for own sessions."
+          }
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["sessions"],
+          "required": [
+            "sessions"
+          ],
           "properties": {
             "sessions": {
               "type": "array",
-              "items": { "type": "ref", "ref": "#sessionInfo" }
+              "items": {
+                "type": "ref",
+                "ref": "#sessionInfo"
+              }
             }
           }
         }
@@ -28,13 +37,32 @@
     },
     "sessionInfo": {
       "type": "object",
-      "required": ["id", "createdAt", "expiresAt"],
+      "required": [
+        "id",
+        "createdAt",
+        "expiresAt"
+      ],
       "properties": {
-        "id": { "type": "string", "description": "Session ID (first 8 chars only for security)." },
-        "createdAt": { "type": "string", "format": "datetime" },
-        "lastUsedAt": { "type": "string", "format": "datetime" },
-        "expiresAt": { "type": "string", "format": "datetime" },
-        "isCurrent": { "type": "boolean", "description": "Whether this is the session making the request." }
+        "id": {
+          "type": "string",
+          "description": "Session ID (first 8 chars only for security)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "lastUsedAt": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "isCurrent": {
+          "type": "boolean",
+          "description": "Whether this is the session making the request."
+        }
       }
     }
   }

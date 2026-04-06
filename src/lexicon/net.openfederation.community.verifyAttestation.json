@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.verifyAttestation",
+  "revision": 1,
   "description": "Verify an attestation exists in a community repo. Record existence = validity.",
   "defs": {
     "main": {
@@ -9,10 +10,19 @@
       "parameters": {
         "type": "params",
         "properties": {
-          "communityDid": { "type": "string", "description": "The community DID." },
-          "rkey": { "type": "string", "description": "The attestation record key." }
+          "communityDid": {
+            "type": "string",
+            "description": "The community DID."
+          },
+          "rkey": {
+            "type": "string",
+            "description": "The attestation record key."
+          }
         },
-        "required": ["communityDid", "rkey"]
+        "required": [
+          "communityDid",
+          "rkey"
+        ]
       },
       "output": {
         "encoding": "application/json",
@@ -21,18 +31,36 @@
           "ref": "#output"
         }
       },
-      "errors": [{ "name": "InvalidRequest", "description": "Missing required parameters." }]
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required parameters."
+        }
+      ]
     },
     "output": {
       "type": "object",
       "properties": {
-        "valid": { "type": "boolean" },
-        "attestation": { "type": "unknown" },
-        "communityDid": { "type": "string" },
-        "communityHandle": { "type": "string" },
-        "expired": { "type": "boolean" }
+        "valid": {
+          "type": "boolean"
+        },
+        "attestation": {
+          "type": "unknown"
+        },
+        "communityDid": {
+          "type": "string"
+        },
+        "communityHandle": {
+          "type": "string"
+        },
+        "expired": {
+          "type": "boolean"
+        }
       },
-      "required": ["valid", "communityDid"]
+      "required": [
+        "valid",
+        "communityDid"
+      ]
     }
   }
 }

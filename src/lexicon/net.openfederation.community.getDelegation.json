@@ -1,1 +1,49 @@
-{"lexicon":1,"id":"net.openfederation.community.getDelegation","description":"Check delegation status for a member.","defs":{"main":{"type":"query","parameters":{"type":"params","properties":{"communityDid":{"type":"string"},"memberDid":{"type":"string"}},"required":["communityDid","memberDid"]},"output":{"encoding":"application/json","schema":{"type":"object","properties":{"memberDid":{"type":"string"},"delegatedTo":{"type":"string"},"delegatedFrom":{"type":"array","items":{"type":"string"}}},"required":["memberDid"]}}}}}
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.getDelegation",
+  "revision": 1,
+  "description": "Check delegation status for a member.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "communityDid": {
+            "type": "string"
+          },
+          "memberDid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "communityDid",
+          "memberDid"
+        ]
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "memberDid": {
+              "type": "string"
+            },
+            "delegatedTo": {
+              "type": "string"
+            },
+            "delegatedFrom": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "memberDid"
+          ]
+        }
+      }
+    }
+  }
+}

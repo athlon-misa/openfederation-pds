@@ -1,6 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.delete",
+  "revision": 1,
   "description": "Permanently delete a community and all associated data. Requires auth (owner or admin).",
   "defs": {
     "main": {
@@ -11,9 +12,14 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "The DID of the community to delete." }
+            "did": {
+              "type": "string",
+              "description": "The DID of the community to delete."
+            }
           },
-          "required": ["did"]
+          "required": [
+            "did"
+          ]
         }
       },
       "output": {
@@ -21,15 +27,29 @@
         "schema": {
           "type": "object",
           "properties": {
-            "success": { "type": "boolean", "description": "Whether the community was successfully deleted." }
+            "success": {
+              "type": "boolean",
+              "description": "Whether the community was successfully deleted."
+            }
           },
-          "required": ["success"]
+          "required": [
+            "success"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing or invalid DID." },
-        { "name": "NotFound", "description": "Community not found." },
-        { "name": "Forbidden", "description": "Only the community owner or an admin can delete a community." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid DID."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Only the community owner or an admin can delete a community."
+        }
       ]
     }
   }
