@@ -6,23 +6,24 @@ import { query } from '../db/client.js';
 
 /**
  * Release the vault share (Share 2) to the authenticated user.
- * Requires recent identity verification (admin.verifyChallenge within 30 minutes)
- * or a verificationToken in the request body.
+ * Requires recent identity verification (admin.verifyChallenge within 30 minutes).
+ *
+ * Flow: user calls admin.createVerificationChallenge → receives nonce via email →
+ * calls admin.verifyChallenge → then calls this endpoint within 30 minutes.
  */
 export default async function requestShareRelease(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireAuth(req, res)) return;
     if (!requireApprovedUser(req, res)) return;
 
-    const { verificationToken } = req.body || {};
     const userDid = req.auth.did;
 
-    // Check for recent identity verification
-    const verified = await checkRecentVerification(req.auth.userId, verificationToken);
+    // Check for recent identity verification (audit entry within 30 minutes)
+    const verified = await hasRecentVerification(req.auth.userId);
     if (!verified) {
       res.status(403).json({
         error: 'VerificationRequired',
-        message: 'Identity verification required. Complete admin.verifyChallenge first or provide a verificationToken.',
+        message: 'Identity verification required. Complete admin.createVerificationChallenge and admin.verifyChallenge first.',
       });
       return;
     }
@@ -38,9 +39,7 @@ export default async function requestShareRelease(req: AuthRequest, res: Respons
     }
 
     // Audit the release
-    await logVaultAudit(userDid, 'share.released', userDid, 2, {
-      method: verificationToken ? 'verificationToken' : 'recentChallenge',
-    });
+    await logVaultAudit(userDid, 'share.released', userDid, 2);
 
     res.json({ share });
   } catch (error) {
@@ -50,33 +49,16 @@ export default async function requestShareRelease(req: AuthRequest, res: Respons
 }
 
 /**
- * Check if the user has a recent admin.verifyChallenge audit entry (within 30 minutes)
- * or a valid verification token.
+ * Check if the user has completed identity verification within the last 30 minutes.
+ * Looks for an 'admin.verification.success' audit entry where this user is the target.
  */
-async function checkRecentVerification(userId: string, verificationToken?: string): Promise<boolean> {
-  // Check for recent audit entry from admin.verifyChallenge (admin.verification.success)
+async function hasRecentVerification(userId: string): Promise<boolean> {
   const result = await query(
     `SELECT 1 FROM audit_log
-     WHERE actor_id = $1 AND action = 'admin.verification.success'
+     WHERE target_id = $1 AND action = 'admin.verification.success'
      AND created_at > NOW() - INTERVAL '30 minutes'
      LIMIT 1`,
     [userId]
   );
-
-  if (result.rows.length > 0) return true;
-
-  // If a verification token is provided, check it against the audit log
-  if (verificationToken) {
-    const tokenResult = await query(
-      `SELECT 1 FROM audit_log
-       WHERE actor_id = $1 AND action = 'admin.verification.success'
-       AND meta->>'nonce' = $2
-       AND created_at > NOW() - INTERVAL '30 minutes'
-       LIMIT 1`,
-      [userId, verificationToken]
-    );
-    return tokenResult.rows.length > 0;
-  }
-
-  return false;
+  return result.rows.length > 0;
 }
