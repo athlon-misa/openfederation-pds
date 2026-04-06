@@ -1,0 +1,87 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.disclosure.redeemGrant",
+  "revision": 1,
+  "description": "Redeem a viewing grant to access a private attestation with watermarking and session-scoped re-encryption.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Redeem a viewing grant. Decrypts the private attestation, watermarks it, re-encrypts with a session key, and returns the payload.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#input"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields."
+        },
+        {
+          "name": "NotFound",
+          "description": "Viewing grant or attestation not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller is not the grantee."
+        },
+        {
+          "name": "GrantRevoked",
+          "description": "The viewing grant has been revoked."
+        },
+        {
+          "name": "GrantExpired",
+          "description": "The viewing grant has expired."
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "description": "The viewing grant ID to redeem."
+        }
+      },
+      "required": [
+        "grantId"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "sessionEncryptedPayload": {
+          "type": "unknown",
+          "description": "Object with ciphertext, iv, and authTag (base64 strings)."
+        },
+        "sessionKey": {
+          "type": "string",
+          "description": "Base64-encoded AES-256 session key (returned once)."
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "ISO 8601 timestamp when the session expires."
+        },
+        "watermarkId": {
+          "type": "string",
+          "description": "Unique identifier embedded in the watermarked data."
+        }
+      },
+      "required": [
+        "sessionEncryptedPayload",
+        "sessionKey",
+        "expiresAt",
+        "watermarkId"
+      ]
+    }
+  }
+}

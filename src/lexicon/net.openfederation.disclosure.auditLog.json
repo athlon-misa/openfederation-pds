@@ -1,0 +1,113 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.disclosure.auditLog",
+  "revision": 1,
+  "description": "Query the disclosure audit log for a given attestation.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Returns disclosure events (redeem, revoke) for an attestation. Caller must be the attestation subject, community owner, or admin.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "communityDid": {
+            "type": "string",
+            "description": "The community DID that issued the attestation."
+          },
+          "rkey": {
+            "type": "string",
+            "description": "The attestation record key."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum entries to return (default: 50, max: 100)."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor (ISO 8601 timestamp)."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "At least one of communityDid or rkey is required."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller is not authorized to view the audit log."
+        }
+      ]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "description": "Disclosure audit log entries.",
+          "items": {
+            "type": "ref",
+            "ref": "#entry"
+          }
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Pagination cursor for next page."
+        }
+      },
+      "required": [
+        "entries"
+      ]
+    },
+    "entry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "grantId": {
+          "type": "string"
+        },
+        "communityDid": {
+          "type": "string"
+        },
+        "rkey": {
+          "type": "string"
+        },
+        "requesterDid": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "watermarkId": {
+          "type": "string"
+        },
+        "ipAddress": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "unknown"
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "communityDid",
+        "rkey",
+        "requesterDid",
+        "action",
+        "createdAt"
+      ]
+    }
+  }
+}

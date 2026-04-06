@@ -124,6 +124,10 @@ import vaultRequestShareRelease from '../api/net.openfederation.vault.requestSha
 import vaultRegisterEscrow from '../api/net.openfederation.vault.registerEscrow.js';
 import vaultExportRecoveryKey from '../api/net.openfederation.vault.exportRecoveryKey.js';
 import vaultAuditLog from '../api/net.openfederation.vault.auditLog.js';
+import disclosureRedeemGrant from '../api/net.openfederation.disclosure.redeemGrant.js';
+import disclosureGrantStatus from '../api/net.openfederation.disclosure.grantStatus.js';
+import disclosureRevokeGrant from '../api/net.openfederation.disclosure.revokeGrant.js';
+import disclosureAuditLog from '../api/net.openfederation.disclosure.auditLog.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -403,6 +407,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.vault.registerEscrow': { handler: vaultRegisterEscrow },
   'net.openfederation.vault.exportRecoveryKey': { handler: vaultExportRecoveryKey, limiter: authLimiter },
   'net.openfederation.vault.auditLog': { handler: vaultAuditLog },
+
+  // Disclosure proxy — time-limited access with watermarking
+  'net.openfederation.disclosure.redeemGrant': { handler: disclosureRedeemGrant },
+  'net.openfederation.disclosure.grantStatus': { handler: disclosureGrantStatus },
+  'net.openfederation.disclosure.revokeGrant': { handler: disclosureRevokeGrant },
+  'net.openfederation.disclosure.auditLog': { handler: disclosureAuditLog },
 });
 
 // Blob serve route — serves binary blobs by DID + CID

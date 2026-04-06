@@ -72,7 +72,9 @@ export type AuditAction =
   | 'account.recovery.initiate'
   | 'account.recovery.complete'
   | 'attestation.requestDisclosure'
-  | 'attestation.createViewingGrant';
+  | 'attestation.createViewingGrant'
+  | 'disclosure.redeem'
+  | 'disclosure.revoke';
 
 export async function auditLog(
   action: AuditAction,
