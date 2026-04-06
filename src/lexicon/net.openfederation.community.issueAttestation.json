@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.issueAttestation",
-  "revision": 1,
-  "description": "Issue a signed attestation for a community member. Stored in the community's ATProto repo.",
+  "revision": 2,
+  "description": "Issue a signed attestation for a community member. Supports public and private (encrypted) visibility modes.",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Create an attestation record certifying a member's role, status, or credentials.",
+      "description": "Create an attestation record certifying a member's role, status, or credentials. Private attestations encrypt the claim and store a commitment hash.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -58,6 +58,14 @@
         "expiresAt": {
           "type": "string",
           "description": "Optional ISO 8601 expiration timestamp."
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Visibility mode: 'public' (default) or 'private' (encrypted)."
+        },
+        "accessPolicy": {
+          "type": "unknown",
+          "description": "Optional access policy for private attestations. Supports { type: 'did-allowlist', dids: string[] } or { type: 'community-member', communityDid: string }."
         }
       },
       "required": [
@@ -79,6 +87,14 @@
         },
         "rkey": {
           "type": "string"
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Returned only for private attestations."
+        },
+        "commitment": {
+          "type": "string",
+          "description": "SHA-256 commitment hash. Returned only for private attestations."
         }
       },
       "required": [

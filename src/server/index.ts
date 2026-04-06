@@ -90,6 +90,9 @@ import issueAttestation from '../api/net.openfederation.community.issueAttestati
 import deleteAttestation from '../api/net.openfederation.community.deleteAttestation.js';
 import listAttestations from '../api/net.openfederation.community.listAttestations.js';
 import verifyAttestation from '../api/net.openfederation.community.verifyAttestation.js';
+import requestDisclosure from '../api/net.openfederation.attestation.requestDisclosure.js';
+import createViewingGrant from '../api/net.openfederation.attestation.createViewingGrant.js';
+import verifyCommitment from '../api/net.openfederation.attestation.verifyCommitment.js';
 import updateProfile from '../api/net.openfederation.account.updateProfile.js';
 import getProfileHandler from '../api/net.openfederation.account.getProfile.js';
 import uploadBlob from '../api/com.atproto.repo.uploadBlob.js';
@@ -337,6 +340,11 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.community.deleteAttestation': { handler: deleteAttestation },
   'net.openfederation.community.listAttestations': { handler: listAttestations, limiter: discoveryLimiter },
   'net.openfederation.community.verifyAttestation': { handler: verifyAttestation, limiter: discoveryLimiter },
+
+  // Encrypted attestation disclosure endpoints
+  'net.openfederation.attestation.requestDisclosure': { handler: requestDisclosure },
+  'net.openfederation.attestation.createViewingGrant': { handler: createViewingGrant },
+  'net.openfederation.attestation.verifyCommitment': { handler: verifyCommitment, limiter: discoveryLimiter },
 
   // Profile endpoints
   'net.openfederation.account.updateProfile': { handler: updateProfile },

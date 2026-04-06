@@ -1,0 +1,92 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.attestation.requestDisclosure",
+  "revision": 1,
+  "description": "Request disclosure of a private attestation. Evaluates access policy and returns encrypted DEK if authorized.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Request access to a private attestation's encrypted content. The server evaluates the access policy, viewing grants, and issuer/subject status.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#input"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields."
+        },
+        {
+          "name": "AttestationPublic",
+          "description": "Attestation is public, no disclosure needed."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Requester not authorized by access policy."
+        },
+        {
+          "name": "NotFound",
+          "description": "Attestation not found."
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "communityDid": {
+          "type": "string",
+          "description": "The community DID that issued the attestation."
+        },
+        "rkey": {
+          "type": "string",
+          "description": "The attestation record key."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Optional reason for the disclosure request."
+        }
+      },
+      "required": [
+        "communityDid",
+        "rkey"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "encryptedDEK": {
+          "type": "string",
+          "description": "DEK wrapped (encrypted) for the requester."
+        },
+        "ciphertext": {
+          "type": "string",
+          "description": "Encrypted claim ciphertext (base64)."
+        },
+        "iv": {
+          "type": "string",
+          "description": "Initialization vector (base64)."
+        },
+        "authTag": {
+          "type": "string",
+          "description": "GCM authentication tag (base64)."
+        }
+      },
+      "required": [
+        "encryptedDEK",
+        "ciphertext",
+        "iv",
+        "authTag"
+      ]
+    }
+  }
+}

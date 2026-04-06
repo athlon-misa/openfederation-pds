@@ -70,7 +70,9 @@ export type AuditAction =
   | 'identity.linkWallet'
   | 'identity.unlinkWallet'
   | 'account.recovery.initiate'
-  | 'account.recovery.complete';
+  | 'account.recovery.complete'
+  | 'attestation.requestDisclosure'
+  | 'attestation.createViewingGrant';
 
 export async function auditLog(
   action: AuditAction,

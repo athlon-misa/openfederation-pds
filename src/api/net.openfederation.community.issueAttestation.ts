@@ -1,10 +1,17 @@
 import { Response } from 'express';
+import crypto from 'crypto';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
+import {
+  generateDEK,
+  encryptClaim,
+  createCommitment,
+  wrapDEK,
+} from '../attestation/encryption.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 const VALID_TYPES = ['membership', 'role', 'credential'];
@@ -13,7 +20,10 @@ export default async function issueAttestation(req: AuthRequest, res: Response):
   try {
     if (!requireAuth(req, res)) return;
 
-    const { communityDid, subjectDid, subjectHandle, type, claim, expiresAt } = req.body;
+    const {
+      communityDid, subjectDid, subjectHandle, type, claim, expiresAt,
+      visibility = 'public', accessPolicy,
+    } = req.body;
 
     if (!communityDid || !subjectDid || !subjectHandle || !type || !claim) {
       res.status(400).json({
@@ -35,6 +45,14 @@ export default async function issueAttestation(req: AuthRequest, res: Response):
       res.status(400).json({
         error: 'InvalidRequest',
         message: 'claim must be a JSON object',
+      });
+      return;
+    }
+
+    if (visibility !== 'public' && visibility !== 'private') {
+      res.status(400).json({
+        error: 'InvalidRequest',
+        message: 'visibility must be "public" or "private"',
       });
       return;
     }
@@ -62,22 +80,79 @@ export default async function issueAttestation(req: AuthRequest, res: Response):
     const keypair = await getKeypairForDid(communityDid);
     const rkey = RepoEngine.generateTid();
 
-    const record = {
-      subjectDid,
-      subjectHandle,
-      type,
-      claim,
-      issuedAt: new Date().toISOString(),
-      ...(expiresAt ? { expiresAt } : {}),
-    };
+    if (visibility === 'private') {
+      // Generate DEK and encrypt claim
+      const dek = generateDEK();
+      const encrypted = encryptClaim(claim, dek);
+      const commitment = createCommitment(claim);
 
-    const result = await engine.putRecord(keypair, ATTESTATION_COLLECTION, rkey, record);
+      // Wrap DEK for issuer and subject
+      const encryptedDekIssuer = await wrapDEK(dek);
+      const encryptedDekSubject = await wrapDEK(dek);
 
-    await auditLog('community.issueAttestation', req.auth!.userId, communityDid, {
-      subjectDid, type, rkey,
-    });
+      // Store encrypted record in repo (ciphertext replaces plaintext claim)
+      const record = {
+        subjectDid,
+        subjectHandle,
+        type,
+        claim: {
+          encrypted: true,
+          ciphertext: encrypted.ciphertext,
+          iv: encrypted.iv,
+          authTag: encrypted.authTag,
+        },
+        visibility: 'private',
+        commitment: commitment.hash,
+        issuedAt: new Date().toISOString(),
+        ...(expiresAt ? { expiresAt } : {}),
+      };
 
-    res.status(200).json({ uri: result.uri, cid: result.cid, rkey });
+      const result = await engine.putRecord(keypair, ATTESTATION_COLLECTION, rkey, record);
+
+      // Store encryption metadata
+      const encId = crypto.randomUUID();
+      await query(
+        `INSERT INTO attestation_encryption
+         (id, community_did, rkey, visibility, encrypted_dek_issuer, encrypted_dek_subject, commitment_hash, access_policy)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          encId, communityDid, rkey, 'private',
+          encryptedDekIssuer, encryptedDekSubject,
+          commitment.hash,
+          accessPolicy ? JSON.stringify(accessPolicy) : null,
+        ]
+      );
+
+      await auditLog('community.issueAttestation', req.auth!.userId, communityDid, {
+        subjectDid, type, rkey, visibility: 'private',
+      });
+
+      res.status(200).json({
+        uri: result.uri,
+        cid: result.cid,
+        rkey,
+        visibility: 'private',
+        commitment: commitment.hash,
+      });
+    } else {
+      // Public attestation: existing behavior unchanged
+      const record = {
+        subjectDid,
+        subjectHandle,
+        type,
+        claim,
+        issuedAt: new Date().toISOString(),
+        ...(expiresAt ? { expiresAt } : {}),
+      };
+
+      const result = await engine.putRecord(keypair, ATTESTATION_COLLECTION, rkey, record);
+
+      await auditLog('community.issueAttestation', req.auth!.userId, communityDid, {
+        subjectDid, type, rkey,
+      });
+
+      res.status(200).json({ uri: result.uri, cid: result.cid, rkey });
+    }
   } catch (error) {
     console.error('Error in issueAttestation:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to issue attestation' });

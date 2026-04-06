@@ -1,0 +1,87 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.attestation.createViewingGrant",
+  "revision": 1,
+  "description": "Create a time-limited viewing grant for a private attestation. Only the attestation subject can create grants.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Grant a third party time-limited access to view a private attestation. The caller must be the attestation subject.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#input"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields."
+        },
+        {
+          "name": "NotFound",
+          "description": "Private attestation not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Only the attestation subject can create viewing grants."
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "communityDid": {
+          "type": "string",
+          "description": "The community DID that issued the attestation."
+        },
+        "rkey": {
+          "type": "string",
+          "description": "The attestation record key."
+        },
+        "grantedToDid": {
+          "type": "string",
+          "description": "The DID of the party being granted access."
+        },
+        "expiresInMinutes": {
+          "type": "integer",
+          "description": "Grant duration in minutes (default: 60, max: 1440)."
+        },
+        "grantedFields": {
+          "type": "unknown",
+          "description": "Optional list of specific fields to grant access to."
+        }
+      },
+      "required": [
+        "communityDid",
+        "rkey",
+        "grantedToDid"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "description": "Unique identifier for the viewing grant."
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "ISO 8601 timestamp when the grant expires."
+        }
+      },
+      "required": [
+        "grantId",
+        "expiresAt"
+      ]
+    }
+  }
+}
