@@ -4,6 +4,20 @@ dotenv.config();
 
 const INSECURE_JWT_DEFAULTS = ['dev-secret-change-me', 'change_me', ''];
 
+/**
+ * Parse CHAIN_ADAPTERS env var.
+ * Format: "eip155:137=https://polygon-rpc.com,eip155:1=https://eth-rpc.com"
+ * Returns array of { chainId, rpcUrl } entries.
+ */
+function parseChainAdapters(raw: string): Array<{ chainId: string; rpcUrl: string }> {
+  if (!raw.trim()) return [];
+  return raw.split(',').map(entry => {
+    const [chainId, ...rpcParts] = entry.trim().split('=');
+    const rpcUrl = rpcParts.join('='); // rejoin in case URL contains '='
+    return { chainId: chainId.trim(), rpcUrl: rpcUrl.trim() };
+  }).filter(e => e.chainId && e.rpcUrl);
+}
+
 const jwtSecret = process.env.AUTH_JWT_SECRET || '';
 
 function parseTrustProxy(val: string | undefined): string | number | boolean {
@@ -121,6 +135,11 @@ export const config = {
     user: process.env.SMTP_USER || '',
     password: process.env.SMTP_PASSWORD || '',
     from: process.env.SMTP_FROM || 'noreply@openfederation.net',
+  },
+
+  // Chain adapter configuration for on-chain proof verification
+  chains: {
+    adapters: parseChainAdapters(process.env.CHAIN_ADAPTERS || ''),
   },
 
   // Express trust proxy configuration (for rate limiting and req.ip with proxies)

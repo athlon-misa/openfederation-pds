@@ -108,6 +108,9 @@ import verifyChallenge from '../api/net.openfederation.admin.verifyChallenge.js'
 import createOracleCredential from '../api/net.openfederation.oracle.createCredential.js';
 import listOracleCredentials from '../api/net.openfederation.oracle.listCredentials.js';
 import revokeOracleCredential from '../api/net.openfederation.oracle.revokeCredential.js';
+import submitProof from '../api/net.openfederation.oracle.submitProof.js';
+import { registerAdapter } from '../governance/chain-adapter.js';
+import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
@@ -361,6 +364,9 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.oracle.createCredential': { handler: createOracleCredential },
   'net.openfederation.oracle.listCredentials': { handler: listOracleCredentials },
   'net.openfederation.oracle.revokeCredential': { handler: revokeOracleCredential },
+
+  // Oracle proof verification
+  'net.openfederation.oracle.submitProof': { handler: submitProof },
 });
 
 // Blob serve route — serves binary blobs by DID + CID
@@ -754,6 +760,16 @@ export async function startServer(): Promise<void> {
     if (config.activitypub.enabled) {
       app.use(apRouter);
       console.log('ActivityPub discovery endpoints enabled');
+    }
+
+    // Register chain adapters from config
+    if (config.chains.adapters.length > 0) {
+      for (const { chainId, rpcUrl } of config.chains.adapters) {
+        // Derive a human-readable name from the CAIP-2 chain ID
+        const name = `EVM ${chainId}`;
+        registerAdapter(createEvmAdapter(chainId, name, rpcUrl));
+        console.log(`Registered chain adapter: ${name} (${rpcUrl})`);
+      }
     }
 
     // Schedule periodic session cleanup

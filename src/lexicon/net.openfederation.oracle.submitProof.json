@@ -1,0 +1,91 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.oracle.submitProof",
+  "revision": 1,
+  "description": "Submit and verify a governance proof against a blockchain. Oracle-authenticated.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Verify a governance transaction on-chain and cache the result. Requires X-Oracle-Key header.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "chainId",
+            "transactionHash"
+          ],
+          "properties": {
+            "chainId": {
+              "type": "string",
+              "description": "CAIP-2 chain identifier (e.g., 'eip155:137')."
+            },
+            "transactionHash": {
+              "type": "string",
+              "description": "The transaction hash to verify."
+            },
+            "blockNumber": {
+              "type": "integer",
+              "description": "Expected block number (optional validation)."
+            },
+            "contractAddress": {
+              "type": "string",
+              "description": "Expected contract address (optional validation)."
+            },
+            "expectedOutcome": {
+              "type": "string",
+              "description": "Expected outcome description for audit trail."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "verified",
+            "cached",
+            "verificationMethod"
+          ],
+          "properties": {
+            "verified": {
+              "type": "boolean",
+              "description": "Whether the proof was verified on-chain."
+            },
+            "error": {
+              "type": "string",
+              "description": "Error message if verification failed."
+            },
+            "blockTimestamp": {
+              "type": "integer",
+              "description": "Block timestamp (Unix seconds) if available."
+            },
+            "confirmations": {
+              "type": "integer",
+              "description": "Number of block confirmations if available."
+            },
+            "cached": {
+              "type": "boolean",
+              "description": "Whether the result was served from cache."
+            },
+            "verificationMethod": {
+              "type": "string",
+              "description": "How the proof was verified: 'on-chain', 'cache', or 'oracle-trust'."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields."
+        },
+        {
+          "name": "AuthRequired",
+          "description": "Missing or invalid X-Oracle-Key header."
+        }
+      ]
+    }
+  }
+}
