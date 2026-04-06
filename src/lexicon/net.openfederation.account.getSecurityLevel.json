@@ -1,0 +1,66 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.getSecurityLevel",
+  "revision": 1,
+  "description": "Get the current security posture and recovery tier for the authenticated user.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Returns recovery tier, checklist of security features, and upgrade suggestions.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "recoveryTier",
+            "tierName",
+            "checklist"
+          ],
+          "properties": {
+            "recoveryTier": {
+              "type": "integer",
+              "description": "Recovery tier level (1=standard, 2=enhanced, 3=self-custodial).",
+              "minimum": 1,
+              "maximum": 3
+            },
+            "tierName": {
+              "type": "string",
+              "description": "Human-readable tier name.",
+              "enum": ["standard", "enhanced", "self-custodial"]
+            },
+            "checklist": {
+              "type": "object",
+              "required": ["passkey", "recoveryEmail", "vaultShares", "escrowRegistered", "keyExported"],
+              "properties": {
+                "passkey": {
+                  "type": "boolean",
+                  "description": "Whether authentication is working."
+                },
+                "recoveryEmail": {
+                  "type": "boolean",
+                  "description": "Whether recovery email is verified."
+                },
+                "vaultShares": {
+                  "type": "boolean",
+                  "description": "Whether vault shares exist for this user."
+                },
+                "escrowRegistered": {
+                  "type": "boolean",
+                  "description": "Whether any share is held by an escrow provider."
+                },
+                "keyExported": {
+                  "type": "boolean",
+                  "description": "Whether recovery key has been exported (tier >= 3)."
+                }
+              }
+            },
+            "upgradePath": {
+              "type": "string",
+              "description": "Suggestion for next security upgrade, or null if at maximum tier."
+            }
+          }
+        }
+      }
+    }
+  }
+}

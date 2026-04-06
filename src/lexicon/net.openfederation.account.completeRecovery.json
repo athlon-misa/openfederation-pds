@@ -1,0 +1,56 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.completeRecovery",
+  "revision": 1,
+  "description": "Complete account recovery using a recovery token.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Validates the recovery token, resets the password, and revokes all existing sessions.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "token",
+            "newPassword"
+          ],
+          "properties": {
+            "token": {
+              "type": "string",
+              "description": "The recovery token received via email."
+            },
+            "newPassword": {
+              "type": "string",
+              "description": "The new password to set."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "success"
+          ],
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidToken",
+          "description": "The recovery token is invalid, expired, or already used."
+        },
+        {
+          "name": "WeakPassword",
+          "description": "The new password does not meet strength requirements."
+        }
+      ]
+    }
+  }
+}

@@ -68,7 +68,9 @@ export type AuditAction =
   | 'oracle.credential.revoke'
   | 'oracle.proofApplied'
   | 'identity.linkWallet'
-  | 'identity.unlinkWallet';
+  | 'identity.unlinkWallet'
+  | 'account.recovery.initiate'
+  | 'account.recovery.complete';
 
 export async function auditLog(
   action: AuditAction,

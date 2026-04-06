@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.initiateRecovery",
+  "revision": 1,
+  "description": "Initiate account recovery by sending a recovery email.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Validates handle+email match, creates a recovery attempt, and sends a recovery email. Always returns success to avoid leaking account existence.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "handle",
+            "email"
+          ],
+          "properties": {
+            "handle": {
+              "type": "string",
+              "description": "The account handle."
+            },
+            "email": {
+              "type": "string",
+              "description": "The email address associated with the account."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "success"
+          ],
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

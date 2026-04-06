@@ -69,6 +69,9 @@ import listSessions from '../api/net.openfederation.account.listSessions.js';
 import revokeSession from '../api/net.openfederation.account.revokeSession.js';
 import requestPasswordReset from '../api/net.openfederation.account.requestPasswordReset.js';
 import confirmPasswordReset from '../api/net.openfederation.account.confirmPasswordReset.js';
+import getSecurityLevel from '../api/net.openfederation.account.getSecurityLevel.js';
+import initiateRecovery from '../api/net.openfederation.account.initiateRecovery.js';
+import completeRecovery from '../api/net.openfederation.account.completeRecovery.js';
 import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js';
 import listPeers from '../api/net.openfederation.federation.listPeers.js';
 import listPeerCommunities from '../api/net.openfederation.federation.listPeerCommunities.js';
@@ -347,6 +350,9 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.account.revokeSession': { handler: revokeSession },
   'net.openfederation.account.requestPasswordReset': { handler: requestPasswordReset, limiter: authLimiter },
   'net.openfederation.account.confirmPasswordReset': { handler: confirmPasswordReset, limiter: authLimiter },
+  'net.openfederation.account.getSecurityLevel': { handler: getSecurityLevel },
+  'net.openfederation.account.initiateRecovery': { handler: initiateRecovery, limiter: authLimiter },
+  'net.openfederation.account.completeRecovery': { handler: completeRecovery, limiter: authLimiter },
 
   // Standard ATProto admin endpoints
   'com.atproto.admin.updateSubjectStatus': { handler: updateSubjectStatus },

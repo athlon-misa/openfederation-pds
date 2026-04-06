@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS users (
     status_reason TEXT,
     exported_at TIMESTAMP WITH TIME ZONE,
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TIMESTAMP WITH TIME ZONE
+    locked_until TIMESTAMP WITH TIME ZONE,
+    recovery_tier INTEGER DEFAULT 1,
+    recovery_email_verified BOOLEAN DEFAULT false
     -- FK to partner_keys(id) added after partner_keys table creation
 );
 
@@ -367,3 +369,21 @@ CREATE TABLE IF NOT EXISTS escrow_providers (
     registered_by VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Recovery attempts: tracks identity recovery operations
+CREATE TABLE IF NOT EXISTS recovery_attempts (
+    id VARCHAR(36) PRIMARY KEY,
+    user_did VARCHAR(255) NOT NULL,
+    tier INTEGER NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'expired', 'failed')),
+    token_hash VARCHAR(255),
+    expires_at TIMESTAMP WITH TIME ZONE,
+    initiated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    initiated_by VARCHAR(255),
+    ip_address VARCHAR(45),
+    metadata JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_recovery_attempts_did ON recovery_attempts(user_did);
+CREATE INDEX IF NOT EXISTS idx_recovery_attempts_token ON recovery_attempts(token_hash);
+CREATE INDEX IF NOT EXISTS idx_recovery_attempts_status ON recovery_attempts(user_did, status);
