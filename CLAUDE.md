@@ -47,12 +47,13 @@ Before starting the server, configure `.env` (see `.env.example`):
 | `SMTP_PASSWORD` | No | SMTP password. |
 | `SMTP_FROM` | No | From address (default: noreply@openfederation.net). |
 | `EXPRESS_TRUST_PROXY` | No | Express trust proxy setting (default: 1). Set to 2 for Cloudflare + proxy. |
+| `CHAIN_ADAPTERS` | No | Chain RPC URLs for proof verification. Format: `eip155:137=https://rpc.example.com`. Treat as secret (contains API keys). |
 
 ### Current Implementation Status
 
 **Completed:**
 - Project structure and TypeScript ESM configuration
-- PostgreSQL database schema (22 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials)
+- PostgreSQL database schema (23 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials, proof_verifications)
 - Express server with XRPC routing and frozen handler registry
 - Identity Manager supporting both `did:plc` and `did:web` with domain validation
 - Real MST Repository Engine wrapping `@atproto/repo` with signed commits, CAR export, and ATProto-compliant TID generation
@@ -106,6 +107,8 @@ Before starting the server, configure `.env` (see `.env.example`):
 - ActivityPub RSA key persistence: keys stored encrypted in DB, survive restarts
 - CLI: session management, security diagnostics (check-config, audit-summary), Oracle credential CRUD
 - Lexicon registry: `@resonator-foundation/lexicon` npm package, schema validation in CI, GitHub Pages docs
+- Lexicon per-schema revision tracking: `"revision"` integer field on all lexicon JSONs, CI validation, docs generation
+- Chain-specific proof verification: `ChainAdapter` interface, EVM adapter (ethers v6), proof caching, `submitProof` endpoint with Oracle auth, graceful fallback for unregistered chains
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -278,6 +281,7 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | POST | `net.openfederation.oracle.createCredential` | Admin | Create Oracle credential for a community |
 | GET | `net.openfederation.oracle.listCredentials` | Admin | List Oracle credentials |
 | POST | `net.openfederation.oracle.revokeCredential` | Admin | Revoke an Oracle credential |
+| POST | `net.openfederation.oracle.submitProof` | Oracle | Submit governance proof for on-chain verification |
 
 ### OpenFederation Identity Bridge
 
@@ -337,12 +341,13 @@ See `src/db/schema.sql` for the full schema. Key tables (22 total):
 | `password_reset_tokens` | Password reset tokens (SHA-256 hashed, time-limited) |
 | `ap_signing_keys` | Persisted RSA signing keys for ActivityPub actors |
 | `oracle_credentials` | Oracle API credentials for on-chain governance (per-community scoped) |
+| `proof_verifications` | Cached on-chain governance proof verification results |
 
 ### Migration Scripts
 
 Schema is auto-initialized on first startup. Incremental migrations are applied manually:
 
-`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`
+`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`
 
 ---
 
