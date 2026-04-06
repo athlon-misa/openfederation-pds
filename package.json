@@ -28,7 +28,8 @@
     "test": "node --loader ts-node/esm --test tests/security-*.test.ts",
     "test:unit": "node --loader ts-node/esm --test tests/security-validation.test.ts tests/security-jwt.test.ts tests/security-encryption.test.ts tests/security-guards.test.ts tests/security-middleware.test.ts",
     "test:api": "vitest run",
-    "test:api:watch": "vitest"
+    "test:api:watch": "vitest",
+    "test:e2e": "vitest run tests/e2e/"
   },
   "keywords": [
     "atproto",
