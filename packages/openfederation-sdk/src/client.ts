@@ -210,6 +210,23 @@ export class OpenFederationClient implements AuthProvider {
   }
 
   /**
+   * Inject an existing session for server-side use.
+   * Call when you already have valid tokens (e.g. from an iron-session cookie)
+   * and don't need to go through the login flow.
+   *
+   * @example
+   * const sdk = createClient({ serverUrl, partnerKey, storage: 'memory' });
+   * sdk.loginWithExternalSession(session.accessToken, session.refreshToken, {
+   *   did: session.did, handle: session.handle, email: session.email, active: true,
+   * });
+   * // sdk is now fully usable for any authenticated call
+   */
+  loginWithExternalSession(accessJwt: string, refreshJwt: string, user: User): void {
+    this.tokens.setTokens(accessJwt, refreshJwt, user);
+    this.notifyAuthChange(user);
+  }
+
+  /**
    * Handle the OAuth callback after ATProto login redirect.
    * Call this on the callback page to complete the login flow.
    *
