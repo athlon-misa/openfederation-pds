@@ -18,6 +18,28 @@ export type {
   RegisterOptions,
   LoginOptions,
   FetchOptions,
+  // Wallet Linking
+  WalletChallenge,
+  WalletLink,
+  WalletResolution,
+  LinkWalletOptions,
+  // Vault & Recovery
+  SecurityLevel,
+  VaultAuditEntry,
+  RegisterEscrowOptions,
+  InitiateRecoveryOptions,
+  CompleteRecoveryOptions,
+  // Encrypted Attestations
+  IssueAttestationOptions,
+  AttestationResult,
+  CommitmentVerification,
+  DisclosureResult,
+  ViewingGrant,
+  CreateViewingGrantOptions,
+  // Disclosure Proxy
+  GrantRedemption,
+  GrantStatus,
+  DisclosureAuditEntry,
 } from './types.js';
 export type { VerifiedSession, VerifyPdsTokenOptions } from './verify.js';
 

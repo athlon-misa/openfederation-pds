@@ -1,4 +1,13 @@
-import type { ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions, SessionResponse, AuthProvider, ATProtoLoginOptions } from './types.js';
+import type {
+  ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions,
+  SessionResponse, AuthProvider, ATProtoLoginOptions,
+  WalletChallenge, WalletLink, WalletResolution, LinkWalletOptions,
+  SecurityLevel, VaultAuditEntry, RegisterEscrowOptions,
+  InitiateRecoveryOptions, CompleteRecoveryOptions,
+  IssueAttestationOptions, AttestationResult, CommitmentVerification,
+  DisclosureResult, CreateViewingGrantOptions, ViewingGrant,
+  GrantRedemption, GrantStatus, DisclosureAuditEntry,
+} from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
 import { displayHandle as displayHandleUtil, xrpcUrl } from './utils.js';
@@ -300,6 +309,229 @@ export class OpenFederationClient implements AuthProvider {
     }
 
     return res.json();
+  }
+
+  // ── Wallet Linking ──────────────────────────────────
+
+  /**
+   * Get a challenge string for wallet linking. The challenge must be signed
+   * by the wallet's private key and passed to `linkWallet()`.
+   */
+  async getWalletLinkChallenge(chain: string, walletAddress: string): Promise<WalletChallenge> {
+    return this.fetch('net.openfederation.identity.getWalletLinkChallenge', {
+      method: 'GET',
+      params: { chain, walletAddress },
+    }) as Promise<WalletChallenge>;
+  }
+
+  /**
+   * Link a wallet to the authenticated user's account.
+   * Requires a signed challenge from `getWalletLinkChallenge()`.
+   */
+  async linkWallet(opts: LinkWalletOptions): Promise<{ success: boolean; chain: string; walletAddress: string; label: string | null }> {
+    return this.fetch('net.openfederation.identity.linkWallet', {
+      method: 'POST',
+      body: opts as unknown as Record<string, unknown>,
+    }) as Promise<{ success: boolean; chain: string; walletAddress: string; label: string | null }>;
+  }
+
+  /**
+   * Unlink a wallet from the authenticated user's account by label.
+   */
+  async unlinkWallet(label: string): Promise<{ success: boolean }> {
+    return this.fetch('net.openfederation.identity.unlinkWallet', {
+      method: 'POST',
+      body: { label },
+    }) as Promise<{ success: boolean }>;
+  }
+
+  /**
+   * List all wallets linked to the authenticated user's account.
+   */
+  async listWalletLinks(): Promise<{ walletLinks: WalletLink[] }> {
+    return this.fetch('net.openfederation.identity.listWalletLinks', {
+      method: 'GET',
+    }) as Promise<{ walletLinks: WalletLink[] }>;
+  }
+
+  /**
+   * Resolve a wallet address to an ATProto DID.
+   * Public endpoint — no authentication required.
+   */
+  async resolveWallet(chain: string, walletAddress: string): Promise<WalletResolution> {
+    return this.fetch('net.openfederation.identity.resolveWallet', {
+      method: 'GET',
+      params: { chain, walletAddress },
+    }) as Promise<WalletResolution>;
+  }
+
+  // ── Vault & Recovery ────────────────────────────────
+
+  /**
+   * Get the current user's security/recovery tier and checklist.
+   */
+  async getSecurityLevel(): Promise<SecurityLevel> {
+    return this.fetch('net.openfederation.account.getSecurityLevel', {
+      method: 'GET',
+    }) as Promise<SecurityLevel>;
+  }
+
+  /**
+   * Request the release of a Shamir secret share for key recovery.
+   */
+  async requestShareRelease(): Promise<{ share: string }> {
+    return this.fetch('net.openfederation.vault.requestShareRelease', {
+      method: 'POST',
+    }) as Promise<{ share: string }>;
+  }
+
+  /**
+   * Register an escrow provider for enhanced recovery.
+   */
+  async registerEscrow(opts: RegisterEscrowOptions): Promise<{ success: boolean; recoveryTier: number; escrowProviderDid: string }> {
+    return this.fetch('net.openfederation.vault.registerEscrow', {
+      method: 'POST',
+      body: opts as unknown as Record<string, unknown>,
+    }) as Promise<{ success: boolean; recoveryTier: number; escrowProviderDid: string }>;
+  }
+
+  /**
+   * Export a recovery key share for self-custodial backup.
+   */
+  async exportRecoveryKey(): Promise<{ share: string; recoveryTier: number }> {
+    return this.fetch('net.openfederation.vault.exportRecoveryKey', {
+      method: 'POST',
+    }) as Promise<{ share: string; recoveryTier: number }>;
+  }
+
+  /**
+   * Get the vault audit log showing share access and recovery events.
+   */
+  async getVaultAuditLog(limit?: number): Promise<{ entries: VaultAuditEntry[] }> {
+    return this.fetch('net.openfederation.vault.auditLog', {
+      method: 'GET',
+      params: limit ? { limit: String(limit) } : undefined,
+    }) as Promise<{ entries: VaultAuditEntry[] }>;
+  }
+
+  /**
+   * Initiate account recovery (no auth required — user is locked out).
+   * Sends a recovery email with a token.
+   */
+  async initiateRecovery(opts: InitiateRecoveryOptions): Promise<{ success: boolean }> {
+    const url = `${this.serverUrl}/xrpc/net.openfederation.account.initiateRecovery`;
+    const res = await globalThis.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw errorFromResponse(res.status, body);
+    return body as { success: boolean };
+  }
+
+  /**
+   * Complete account recovery with token and new password (no auth required).
+   */
+  async completeRecovery(opts: CompleteRecoveryOptions): Promise<{ success: boolean }> {
+    const url = `${this.serverUrl}/xrpc/net.openfederation.account.completeRecovery`;
+    const res = await globalThis.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw errorFromResponse(res.status, body);
+    return body as { success: boolean };
+  }
+
+  // ── Attestations ────────────────────────────────────
+
+  /**
+   * Issue a signed attestation for a community member.
+   * Supports public and private (encrypted) attestations.
+   */
+  async issueAttestation(opts: IssueAttestationOptions): Promise<AttestationResult> {
+    return this.fetch('net.openfederation.community.issueAttestation', {
+      method: 'POST',
+      body: opts as unknown as Record<string, unknown>,
+    }) as Promise<AttestationResult>;
+  }
+
+  /**
+   * Verify a commitment hash for a private attestation without revealing content.
+   */
+  async verifyCommitment(communityDid: string, rkey: string): Promise<CommitmentVerification> {
+    return this.fetch('net.openfederation.attestation.verifyCommitment', {
+      method: 'GET',
+      params: { communityDid, rkey },
+    }) as Promise<CommitmentVerification>;
+  }
+
+  /**
+   * Request disclosure of a private attestation's encrypted content.
+   */
+  async requestDisclosure(communityDid: string, rkey: string, purpose?: string): Promise<DisclosureResult> {
+    return this.fetch('net.openfederation.attestation.requestDisclosure', {
+      method: 'POST',
+      body: { communityDid, rkey, ...(purpose && { purpose }) },
+    }) as Promise<DisclosureResult>;
+  }
+
+  /**
+   * Create a time-limited viewing grant for a private attestation.
+   */
+  async createViewingGrant(opts: CreateViewingGrantOptions): Promise<ViewingGrant> {
+    return this.fetch('net.openfederation.attestation.createViewingGrant', {
+      method: 'POST',
+      body: opts as unknown as Record<string, unknown>,
+    }) as Promise<ViewingGrant>;
+  }
+
+  // ── Disclosure Proxy ────────────────────────────────
+
+  /**
+   * Redeem a viewing grant to access a private attestation's content.
+   * Returns a session-encrypted payload with a watermark for audit.
+   */
+  async redeemGrant(grantId: string): Promise<GrantRedemption> {
+    return this.fetch('net.openfederation.disclosure.redeemGrant', {
+      method: 'POST',
+      body: { grantId },
+    }) as Promise<GrantRedemption>;
+  }
+
+  /**
+   * Check the status and access count of a viewing grant.
+   */
+  async getGrantStatus(grantId: string): Promise<GrantStatus> {
+    return this.fetch('net.openfederation.disclosure.grantStatus', {
+      method: 'GET',
+      params: { grantId },
+    }) as Promise<GrantStatus>;
+  }
+
+  /**
+   * Revoke a viewing grant, preventing further access.
+   */
+  async revokeGrant(grantId: string): Promise<{ success: boolean }> {
+    return this.fetch('net.openfederation.disclosure.revokeGrant', {
+      method: 'POST',
+      body: { grantId },
+    }) as Promise<{ success: boolean }>;
+  }
+
+  /**
+   * Get the disclosure audit log for a community's attestations.
+   */
+  async getDisclosureAuditLog(communityDid: string, rkey?: string, limit?: number): Promise<{ entries: DisclosureAuditEntry[] }> {
+    const params: Record<string, string> = { communityDid };
+    if (rkey) params.rkey = rkey;
+    if (limit) params.limit = String(limit);
+    return this.fetch('net.openfederation.disclosure.auditLog', {
+      method: 'GET',
+      params,
+    }) as Promise<{ entries: DisclosureAuditEntry[] }>;
   }
 
   /**

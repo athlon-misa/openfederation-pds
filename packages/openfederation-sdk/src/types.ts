@@ -79,3 +79,148 @@ export interface SessionResponse {
   refreshJwt: string;
   active: boolean;
 }
+
+// ── Wallet Linking ──────────────────────────────────
+
+export interface WalletChallenge {
+  challenge: string;
+  expiresAt: string;
+}
+
+export interface WalletLink {
+  chain: string;
+  walletAddress: string;
+  label: string | null;
+  linkedAt: string;
+}
+
+export interface WalletResolution {
+  did: string;
+  handle: string;
+}
+
+export interface LinkWalletOptions {
+  chain: 'ethereum' | 'solana';
+  walletAddress: string;
+  challenge: string;
+  signature: string;
+  label?: string;
+}
+
+// ── Vault & Recovery ────────────────────────────────
+
+export interface SecurityLevel {
+  recoveryTier: number;
+  tierName: 'standard' | 'enhanced' | 'self-custodial';
+  checklist: {
+    passkey: boolean;
+    recoveryEmail: boolean;
+    vaultShares: boolean;
+    escrowRegistered: boolean;
+    keyExported: boolean;
+  };
+  upgradePath: string | null;
+}
+
+export interface VaultAuditEntry {
+  id: string;
+  userDid: string;
+  action: string;
+  actorDid?: string;
+  shareIndex?: number;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface RegisterEscrowOptions {
+  escrowProviderDid: string;
+  escrowProviderName: string;
+  verificationUrl?: string;
+}
+
+export interface InitiateRecoveryOptions {
+  handle: string;
+  email: string;
+}
+
+export interface CompleteRecoveryOptions {
+  token: string;
+  newPassword: string;
+}
+
+// ── Encrypted Attestations ──────────────────────────
+
+export interface IssueAttestationOptions {
+  communityDid: string;
+  subjectDid: string;
+  subjectHandle: string;
+  type: 'membership' | 'role' | 'credential';
+  claim: Record<string, unknown>;
+  expiresAt?: string;
+  visibility?: 'public' | 'private';
+  accessPolicy?: Record<string, unknown>;
+}
+
+export interface AttestationResult {
+  uri: string;
+  cid: string;
+  rkey: string;
+  visibility?: string;
+  commitment?: string;
+}
+
+export interface CommitmentVerification {
+  commitment: { hash: string; schemaHash?: string };
+  issuerDid: string;
+  visibility: string;
+  issuedAt?: string;
+  revoked: boolean;
+}
+
+export interface DisclosureResult {
+  encryptedDEK: string;
+  ciphertext: string;
+  iv: string;
+  authTag: string;
+}
+
+export interface ViewingGrant {
+  grantId: string;
+  expiresAt: string;
+}
+
+export interface CreateViewingGrantOptions {
+  communityDid: string;
+  rkey: string;
+  grantedToDid: string;
+  expiresInMinutes?: number;
+  grantedFields?: string[];
+}
+
+// ── Disclosure Proxy ────────────────────────────────
+
+export interface GrantRedemption {
+  sessionEncryptedPayload: { ciphertext: string; iv: string; authTag: string };
+  sessionKey: string;
+  expiresAt: string;
+  watermarkId: string;
+}
+
+export interface GrantStatus {
+  status: string;
+  expiresAt: string;
+  accessCount: number;
+  lastAccessedAt?: string;
+  createdAt: string;
+}
+
+export interface DisclosureAuditEntry {
+  id: string;
+  grantId?: string;
+  attestationCommunityDid: string;
+  attestationRkey: string;
+  requesterDid: string;
+  action: string;
+  watermarkId?: string;
+  createdAt: string;
+}
