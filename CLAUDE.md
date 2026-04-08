@@ -99,7 +99,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Community attestations: issue, verify, list, and revoke (delete-as-revoke, ATProto-native) cryptographically signed credentials
 - User profile endpoints: update standard `app.bsky.actor.profile` and custom collections (e.g., `app.grvty.actor.profile`)
 - Profile aggregation: `getProfile` returns standard + all custom `*.actor.profile` collections
-- Test suite: 37 test files — 17 integration (API), 5 unit, 9 E2E journeys, 6 security (vitest + node:test)
+- Test suite: 38 test files — 18 integration (API), 5 unit, 9 E2E journeys, 6 security (vitest + node:test)
 - Email service: Nodemailer-based with SMTP transport, console fallback for development
 - Per-account brute-force protection: failed login tracking with exponential lockout (5 failures: 1min, 10: 5min, 15: 30min, 20+: 2hr)
 - Session management: list active sessions, revoke by ID or revoke-all, email notifications
@@ -119,6 +119,8 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Identity Recovery Tiers: Tier 1 (email recovery), Tier 2 (2-of-3 escrow), Tier 3 (self-custodial), security level endpoint, recovery initiation/completion flow
 - Encrypted Attestations: private attestations with AES-256-GCM DEK encryption, commitment hashes, policy-based disclosure (Mode 1), time-limited viewing grants (Mode 2)
 - Disclosure Proxy: time-limited grant redemption with session-scoped re-encryption, JSON watermarking for forensic traceability, disclosure audit logging
+- Custodial Secret Storage: opaque encrypted blob storage per user per chain (`custodial_secrets`), upsert-safe, FK-cascaded on account delete, vault audit logging for all access
+- SDK `loginWithExternalSession`: inject iron-session tokens into client without login flow — enables server-side Next.js/grvty-web usage with no custom XRPC wrappers
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -317,6 +319,8 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | POST | `net.openfederation.vault.registerEscrow` | Yes | Register external escrow provider for Share 3 |
 | POST | `net.openfederation.vault.exportRecoveryKey` | Yes | Export vault share for self-custody (elevated verification) |
 | GET  | `net.openfederation.vault.auditLog` | Yes | View vault audit log entries |
+| POST | `net.openfederation.vault.storeCustodialSecret` | Yes | Store opaque encrypted blob (e.g. wallet mnemonic) per chain; upsert |
+| GET  | `net.openfederation.vault.getCustodialSecret` | Yes | Retrieve encrypted blob for a given chain |
 
 ### OpenFederation Identity Bridge
 
@@ -392,12 +396,13 @@ See `src/db/schema.sql` for the full schema. Key tables (22 total):
 | `viewing_grants` | Time-limited disclosure grants for private attestations |
 | `disclosure_sessions` | Active grant redemption sessions with session key hashes |
 | `disclosure_audit_log` | Forensic audit trail for all disclosure events |
+| `custodial_secrets` | Opaque encrypted blobs per user per chain (UNIQUE user_did+chain, FK cascade on delete) |
 
 ### Migration Scripts
 
 Schema is auto-initialized on first startup. Incremental migrations are applied manually:
 
-`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`
+`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`, `scripts/migrate-020-custodial-secrets.sql`
 
 ---
 
