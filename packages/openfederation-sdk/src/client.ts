@@ -7,6 +7,7 @@ import type {
   IssueAttestationOptions, AttestationResult, CommitmentVerification,
   DisclosureResult, CreateViewingGrantOptions, ViewingGrant,
   GrantRedemption, GrantStatus, DisclosureAuditEntry,
+  StoreCustodialSecretOptions, CustodialSecret,
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
@@ -532,6 +533,31 @@ export class OpenFederationClient implements AuthProvider {
       method: 'GET',
       params,
     }) as Promise<{ entries: DisclosureAuditEntry[] }>;
+  }
+
+  // ── Custodial Secrets ───────────────────────────────
+
+  /**
+   * Store (upsert) an encrypted custodial secret for a given chain.
+   * The blob is opaque — the PDS never decrypts it.
+   * Idempotent: calling again with the same chain overwrites the previous entry.
+   */
+  async storeCustodialSecret(opts: StoreCustodialSecretOptions): Promise<{ success: boolean; secretId: string }> {
+    return this.fetch('net.openfederation.vault.storeCustodialSecret', {
+      method: 'POST',
+      body: opts as unknown as Record<string, unknown>,
+    }) as Promise<{ success: boolean; secretId: string }>;
+  }
+
+  /**
+   * Retrieve the encrypted custodial secret for a given chain.
+   * Throws a 404 error if no secret exists for that chain.
+   */
+  async getCustodialSecret(chain: string): Promise<CustodialSecret> {
+    return this.fetch('net.openfederation.vault.getCustodialSecret', {
+      method: 'GET',
+      params: { chain },
+    }) as Promise<CustodialSecret>;
   }
 
   /**

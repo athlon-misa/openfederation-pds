@@ -124,6 +124,8 @@ import vaultRequestShareRelease from '../api/net.openfederation.vault.requestSha
 import vaultRegisterEscrow from '../api/net.openfederation.vault.registerEscrow.js';
 import vaultExportRecoveryKey from '../api/net.openfederation.vault.exportRecoveryKey.js';
 import vaultAuditLog from '../api/net.openfederation.vault.auditLog.js';
+import vaultStoreCustodialSecret from '../api/net.openfederation.vault.storeCustodialSecret.js';
+import vaultGetCustodialSecret from '../api/net.openfederation.vault.getCustodialSecret.js';
 import disclosureRedeemGrant from '../api/net.openfederation.disclosure.redeemGrant.js';
 import disclosureGrantStatus from '../api/net.openfederation.disclosure.grantStatus.js';
 import disclosureRevokeGrant from '../api/net.openfederation.disclosure.revokeGrant.js';
@@ -407,6 +409,8 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.vault.registerEscrow': { handler: vaultRegisterEscrow },
   'net.openfederation.vault.exportRecoveryKey': { handler: vaultExportRecoveryKey, limiter: authLimiter },
   'net.openfederation.vault.auditLog': { handler: vaultAuditLog },
+  'net.openfederation.vault.storeCustodialSecret': { handler: vaultStoreCustodialSecret },
+  'net.openfederation.vault.getCustodialSecret': { handler: vaultGetCustodialSecret },
 
   // Disclosure proxy — time-limited access with watermarking
   'net.openfederation.disclosure.redeemGrant': { handler: disclosureRedeemGrant },

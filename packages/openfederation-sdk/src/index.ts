@@ -40,6 +40,9 @@ export type {
   GrantRedemption,
   GrantStatus,
   DisclosureAuditEntry,
+  // Custodial Secrets
+  StoreCustodialSecretOptions,
+  CustodialSecret,
 } from './types.js';
 export type { VerifiedSession, VerifyPdsTokenOptions } from './verify.js';
 

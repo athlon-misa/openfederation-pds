@@ -224,3 +224,20 @@ export interface DisclosureAuditEntry {
   watermarkId?: string;
   createdAt: string;
 }
+
+// ── Custodial Secrets ───────────────────────────────
+
+export interface StoreCustodialSecretOptions {
+  secretType: string;
+  chain: string;
+  encryptedBlob: string;
+  walletAddress: string;
+}
+
+export interface CustodialSecret {
+  secretType: string;
+  chain: string;
+  encryptedBlob: string;
+  walletAddress: string;
+  createdAt: string;
+}
