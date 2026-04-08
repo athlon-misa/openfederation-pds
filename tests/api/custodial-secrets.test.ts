@@ -90,11 +90,23 @@ describe('Custodial Secrets', () => {
       expect(res.status).toBe(404);
     });
 
-    it('should not return another user secret', async () => {
+    it('should isolate secrets between users', async () => {
       if (!plcAvailable) return;
-      // other user has no solana secret — 404
-      const res = await xrpcAuthGet('net.openfederation.vault.getCustodialSecret', other.accessJwt, { chain: 'solana' });
-      expect(res.status).toBe(404);
+      // Store a different secret for 'other' on the same chain
+      await xrpcAuthPost('net.openfederation.vault.storeCustodialSecret', other.accessJwt, {
+        secretType: 'wallet-mnemonic',
+        chain: 'solana',
+        encryptedBlob: 'b3RoZXJibG9i',
+        walletAddress: 'OtherAddr999',
+      });
+      // user retrieves their blob — should see their own data
+      const userRes = await xrpcAuthGet('net.openfederation.vault.getCustodialSecret', user.accessJwt, { chain: 'solana' });
+      expect(userRes.status).toBe(200);
+      expect(userRes.body.walletAddress).not.toBe('OtherAddr999');
+      // other retrieves their blob — should see their own data
+      const otherRes = await xrpcAuthGet('net.openfederation.vault.getCustodialSecret', other.accessJwt, { chain: 'solana' });
+      expect(otherRes.status).toBe(200);
+      expect(otherRes.body.walletAddress).toBe('OtherAddr999');
     });
   });
 });

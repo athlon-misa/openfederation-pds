@@ -240,4 +240,5 @@ export interface CustodialSecret {
   encryptedBlob: string;
   walletAddress: string;
   createdAt: string;
+  updatedAt: string;
 }

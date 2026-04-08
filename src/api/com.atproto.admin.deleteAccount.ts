@@ -66,6 +66,9 @@ export default async function adminDeleteAccount(req: AuthRequest, res: Response
       await client.query('DELETE FROM repo_blocks WHERE community_did = $1', [user.did]);
       await client.query('DELETE FROM repo_roots WHERE did = $1', [user.did]);
 
+      // Delete custodial secrets
+      await client.query('DELETE FROM custodial_secrets WHERE user_did = $1', [user.did]);
+
       // Delete community memberships and join requests
       await client.query('DELETE FROM members_unique WHERE member_did = $1', [user.did]);
       await client.query('DELETE FROM join_requests WHERE user_id = $1', [user.id]);

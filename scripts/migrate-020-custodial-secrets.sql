@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS custodial_secrets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_did TEXT NOT NULL,
+  user_did TEXT NOT NULL REFERENCES users(did) ON DELETE CASCADE,
   chain TEXT NOT NULL,
   secret_type TEXT NOT NULL,
   encrypted_blob TEXT NOT NULL,

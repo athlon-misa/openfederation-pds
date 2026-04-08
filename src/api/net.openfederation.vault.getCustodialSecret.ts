@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { logVaultAudit } from '../vault/vault-store.js';
 
 /**
  * Retrieve the encrypted custodial secret for the authenticated user's given chain.
@@ -25,8 +26,9 @@ export default async function getCustodialSecret(req: AuthRequest, res: Response
       encrypted_blob: string;
       wallet_address: string;
       created_at: string;
+      updated_at: string;
     }>(
-      `SELECT secret_type, chain, encrypted_blob, wallet_address, created_at
+      `SELECT secret_type, chain, encrypted_blob, wallet_address, created_at, updated_at
        FROM custodial_secrets
        WHERE user_did = $1 AND chain = $2`,
       [req.auth.did, chain],
@@ -38,12 +40,16 @@ export default async function getCustodialSecret(req: AuthRequest, res: Response
     }
 
     const row = result.rows[0];
+
+    await logVaultAudit(req.auth.did, 'custody_accessed', req.auth.did, undefined, { chain });
+
     res.json({
       secretType: row.secret_type,
       chain: row.chain,
       encryptedBlob: row.encrypted_blob,
       walletAddress: row.wallet_address,
       createdAt: row.created_at,
+      updatedAt: row.updated_at,
     });
   } catch (error) {
     console.error('Error retrieving custodial secret:', error);

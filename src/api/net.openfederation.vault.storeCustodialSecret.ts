@@ -26,8 +26,8 @@ export default async function storeCustodialSecret(req: AuthRequest, res: Respon
       res.status(400).json({ error: 'InvalidRequest', message: 'chain is required (max 64 chars)' });
       return;
     }
-    if (!encryptedBlob || typeof encryptedBlob !== 'string') {
-      res.status(400).json({ error: 'InvalidRequest', message: 'encryptedBlob is required' });
+    if (!encryptedBlob || typeof encryptedBlob !== 'string' || encryptedBlob.length > 65536) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'encryptedBlob is required (max 65536 chars)' });
       return;
     }
     if (!walletAddress || typeof walletAddress !== 'string' || walletAddress.length > 256) {
@@ -48,7 +48,7 @@ export default async function storeCustodialSecret(req: AuthRequest, res: Respon
     );
     const secretId = result.rows[0].id;
 
-    await logVaultAudit(req.auth.did, 'custody_initialized', req.auth.did, undefined, {
+    await logVaultAudit(req.auth.did, 'custody_stored', req.auth.did, undefined, {
       chain,
       secretType,
       walletAddress,
