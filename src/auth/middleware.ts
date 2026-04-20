@@ -3,6 +3,12 @@ import type { AuthRequest, UserRole, UserStatus } from './types.js';
 import { verifyAccessToken } from './tokens.js';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
+import {
+  looksLikeServiceAuthJwt,
+  verifyServiceAuthJwt,
+  checkServiceAuthRateLimit,
+  ServiceAuthError,
+} from './service-auth.js';
 
 // OAuth verifier (set during server startup if OAuth is enabled)
 // Uses the OAuthProvider's authenticateRequest method for DPoP token verification.
@@ -93,6 +99,78 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
   if (!token) {
     req.authError = 'missing';
     next();
+    return;
+  }
+
+  // Service-auth JWT path: ES256K/ES256-signed tokens issued by the caller's
+  // atproto signing key from a peer PDS. Selected purely by header alg so we
+  // never try HS256-verifying an asymmetric-signed JWT.
+  if (looksLikeServiceAuthJwt(token)) {
+    try {
+      // If the route is /xrpc/:nsid, scope lxm validation to that NSID.
+      const nsidMatch = req.path.match(/^\/xrpc\/([^/]+)/);
+      const expectedLxm = nsidMatch ? nsidMatch[1] : undefined;
+
+      const claims = await verifyServiceAuthJwt(token, { expectedLxm });
+
+      if (!checkServiceAuthRateLimit(claims.iss)) {
+        req.authError = 'invalid';
+        req.serviceAuthError = {
+          code: 'RateLimitExceeded',
+          message: 'Too many service-auth requests for this DID',
+          status: 429,
+        };
+        next();
+        return;
+      }
+
+      // If the iss DID corresponds to a local user, pull their profile so
+      // roles apply; otherwise treat as an external caller with approved
+      // status and no local roles.
+      const localUser = await query<{ id: string; handle: string; email: string; status: string }>(
+        'SELECT id, handle, email, status FROM users WHERE did = $1',
+        [claims.iss]
+      );
+      if (localUser.rows.length > 0) {
+        const u = localUser.rows[0];
+        const roleResult = await query<{ role: string }>(
+          'SELECT role FROM user_roles WHERE user_id = $1',
+          [u.id]
+        );
+        req.auth = {
+          userId: u.id,
+          handle: u.handle,
+          email: u.email || '',
+          did: claims.iss,
+          status: u.status as UserStatus,
+          roles: roleResult.rows.map(r => r.role) as UserRole[],
+          authMethod: 'service-auth',
+        };
+      } else {
+        req.auth = {
+          userId: claims.iss,
+          handle: claims.iss,
+          email: '',
+          did: claims.iss,
+          status: 'approved',
+          roles: [],
+          authMethod: 'service-auth',
+        };
+      }
+      next();
+    } catch (err) {
+      req.authError = 'invalid';
+      if (err instanceof ServiceAuthError) {
+        req.serviceAuthError = { code: err.code, message: err.message, status: err.status };
+      } else {
+        req.serviceAuthError = {
+          code: 'InvalidToken',
+          message: 'Service-auth verification failed',
+          status: 401,
+        };
+      }
+      next();
+    }
     return;
   }
 

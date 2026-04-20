@@ -5,6 +5,13 @@ import { ROLE_COLLECTION, MEMBER_COLLECTION } from './permissions.js';
 
 export function requireAuth(req: AuthRequest, res: Response): req is AuthRequest & { auth: AuthContext } {
   if (!req.auth) {
+    if (req.serviceAuthError) {
+      res.status(req.serviceAuthError.status).json({
+        error: req.serviceAuthError.code,
+        message: req.serviceAuthError.message,
+      });
+      return false;
+    }
     res.status(401).json({
       error: 'Unauthorized',
       message: req.authError === 'invalid' ? 'Invalid access token' : 'Missing access token',

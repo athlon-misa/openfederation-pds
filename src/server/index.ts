@@ -16,6 +16,7 @@ import createSession from '../api/com.atproto.server.createSession.js';
 import refreshSession from '../api/com.atproto.server.refreshSession.js';
 import getSession from '../api/com.atproto.server.getSession.js';
 import deleteSession from '../api/com.atproto.server.deleteSession.js';
+import getServiceAuthEndpoint from '../api/com.atproto.server.getServiceAuth.js';
 import registerAccount from '../api/net.openfederation.account.register.js';
 import approveAccount from '../api/net.openfederation.account.approve.js';
 import rejectAccount from '../api/net.openfederation.account.reject.js';
@@ -380,6 +381,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'com.atproto.server.refreshSession': { handler: refreshSession, limiter: authLimiter },
   'com.atproto.server.getSession': { handler: getSession },
   'com.atproto.server.deleteSession': { handler: deleteSession },
+  'com.atproto.server.getServiceAuth': { handler: getServiceAuthEndpoint },
   'com.atproto.repo.getRecord': { handler: getRecord },
   'com.atproto.repo.putRecord': { handler: putRecord },
   'com.atproto.repo.createRecord': { handler: createRecord },

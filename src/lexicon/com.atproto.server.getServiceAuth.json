@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.getServiceAuth",
+  "revision": 1,
+  "description": "Issue a short-lived signed JWT (service-auth) for the authenticated user, addressed to a named service DID.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Returns a JWT signed by the caller's atproto signing key. Used for inter-service authentication.",
+      "parameters": {
+        "type": "params",
+        "required": ["aud"],
+        "properties": {
+          "aud": {
+            "type": "string",
+            "description": "The DID of the service that the token will be authenticated against."
+          },
+          "exp": {
+            "type": "integer",
+            "description": "Desired expiration time as a Unix timestamp (seconds). Capped at 30 minutes from now."
+          },
+          "lxm": {
+            "type": "string",
+            "description": "Lexicon method NSID the token should be restricted to."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["token"],
+          "properties": {
+            "token": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid query parameters." },
+        { "name": "BadExpiration", "description": "exp is in the past or beyond the allowed ceiling." },
+        { "name": "NoSigningKey", "description": "The caller has no signing key on this PDS." }
+      ]
+    }
+  }
+}

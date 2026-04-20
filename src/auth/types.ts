@@ -12,10 +12,12 @@ export interface AuthContext {
   did: string;
   status: UserStatus;
   roles: UserRole[];
-  authMethod?: 'local' | 'oauth';
+  authMethod?: 'local' | 'oauth' | 'service-auth';
 }
 
 export interface AuthRequest extends Request {
   auth?: AuthContext;
   authError?: 'missing' | 'invalid';
+  /** Detailed service-auth error for the 'invalid' case. Used to return specific HTTP codes. */
+  serviceAuthError?: { code: string; message: string; status: number };
 }

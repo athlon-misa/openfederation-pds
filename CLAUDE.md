@@ -53,6 +53,8 @@ Before starting the server, configure `.env` (see `.env.example`):
 | `SMTP_FROM` | No | From address (default: noreply@openfederation.net). |
 | `EXPRESS_TRUST_PROXY` | No | Express trust proxy setting (default: 1). Set to 2 for Cloudflare + proxy. |
 | `CHAIN_ADAPTERS` | No | Chain RPC URLs for proof verification. Format: `eip155:137=https://rpc.example.com`. Treat as secret (contains API keys). |
+| `PDS_SERVICE_DID` | No | Service DID accepted in the `aud` claim of inbound service-auth JWTs (default: `did:web:{PDS_HOSTNAME}`). |
+| `SERVICE_AUTH_RATE_LIMIT` | No | Max inbound service-auth requests per caller DID per minute (default: 60). |
 
 ### Current Implementation Status
 
@@ -121,6 +123,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Disclosure Proxy: time-limited grant redemption with session-scoped re-encryption, JSON watermarking for forensic traceability, disclosure audit logging
 - Custodial Secret Storage: opaque encrypted blob storage per user per chain (`custodial_secrets`), upsert-safe, FK-cascaded on account delete, vault audit logging for all access
 - SDK `loginWithExternalSession`: inject iron-session tokens into client without login flow — enables server-side Next.js/grvty-web usage with no custom XRPC wrappers
+- Cross-PDS service-auth (atproto inter-service JWTs): `com.atproto.server.getServiceAuth` mints outbound JWTs; inbound ES256K/ES256 JWTs verified against the issuer DID's atproto signing key (did:plc + did:web), cached 5 min, replay-protected, per-DID rate limited — lets Bluesky / federated users authenticate to `net.openfederation.*` endpoints without a local session
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -222,6 +225,7 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | POST | `com.atproto.server.refreshSession` | Yes | Rotate refresh token (reuse detection) |
 | GET  | `com.atproto.server.getSession` | Yes | Get current session info |
 | POST | `com.atproto.server.deleteSession` | Yes | Logout / invalidate session |
+| GET  | `com.atproto.server.getServiceAuth` | Yes | Mint short-lived ES256K JWT signed by the caller's atproto key for outbound cross-PDS auth |
 | GET  | `com.atproto.repo.getRecord` | No | Fetch a single record from a repo |
 | POST | `com.atproto.repo.putRecord` | Yes | Write a record (real MST signed commit) |
 | POST | `com.atproto.repo.createRecord` | Yes | Create a record with auto-generated TID rkey |
@@ -413,6 +417,7 @@ Schema is auto-initialized on first startup. Incremental migrations are applied 
 - Refresh tokens: random 64-byte hex strings, SHA-256 hashed in DB
 - Refresh token rotation with **reuse detection**: if a rotated-out token is replayed, all user sessions are revoked
 - Roles re-validated from DB on every token refresh
+- Cross-PDS service-auth JWTs (ES256K / ES256): verified against the issuer DID's atproto signing key via `@atproto/identity` DID resolver with 5-min cache; signature-based replay cache; per-DID rate limit (default 60/min, `SERVICE_AUTH_RATE_LIMIT`); local users keep roles, external callers get `authMethod: 'service-auth'` with empty roles and `status: 'approved'`. Service DID defaults to `did:web:{PDS_HOSTNAME}`, overridable via `PDS_SERVICE_DID`
 
 ### Key Management
 - Recovery keys and signing keys encrypted at rest using AES-256-GCM
