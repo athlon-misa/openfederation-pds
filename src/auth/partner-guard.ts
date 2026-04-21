@@ -18,6 +18,7 @@ interface PartnerRow {
   allowed_origins: string[] | null;
   rate_limit_per_hour: number;
   status: string;
+  verification_state: string;
 }
 
 /**
@@ -39,7 +40,7 @@ export async function validatePartnerKey(
   const keyHash = hashPartnerKey(rawKey);
 
   const result = await query<PartnerRow>(
-    `SELECT id, name, partner_name, permissions, allowed_origins, rate_limit_per_hour, status
+    `SELECT id, name, partner_name, permissions, allowed_origins, rate_limit_per_hour, status, verification_state
      FROM partner_keys WHERE key_hash = $1`,
     [keyHash]
   );
@@ -53,6 +54,17 @@ export async function validatePartnerKey(
 
   if (partner.status !== 'active') {
     res.status(401).json({ error: 'Unauthorized', message: 'Partner key has been revoked' });
+    return null;
+  }
+
+  if (partner.verification_state !== 'verified') {
+    res.status(403).json({
+      error: 'PartnerKeyUnverified',
+      message:
+        'Partner key has not completed domain-ownership verification. ' +
+        'Publish the verification token at /.well-known/openfederation-partner.json ' +
+        'on each allowed origin, then have an admin call net.openfederation.partner.verifyKey.',
+    });
     return null;
   }
 
@@ -100,7 +112,10 @@ export async function getCachedPartnerOrigins(): Promise<string[]> {
   }
   try {
     const result = await query<{ allowed_origins: string[] | null }>(
-      `SELECT allowed_origins FROM partner_keys WHERE status = 'active' AND allowed_origins IS NOT NULL`
+      `SELECT allowed_origins FROM partner_keys
+       WHERE status = 'active'
+         AND verification_state = 'verified'
+         AND allowed_origins IS NOT NULL`
     );
     const origins = new Set<string>();
     for (const row of result.rows) {

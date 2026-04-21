@@ -27,6 +27,8 @@ export type AuditAction =
   | 'partner.register'
   | 'partner.key.create'
   | 'partner.key.revoke'
+  | 'partner.key.verified'
+  | 'partner.key.verifyFailed'
   | 'account.suspend'
   | 'account.unsuspend'
   | 'account.takedown'

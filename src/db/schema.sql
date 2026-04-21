@@ -223,11 +223,15 @@ CREATE TABLE IF NOT EXISTS partner_keys (
     revoked_by VARCHAR(36) REFERENCES users(id),
     last_used_at TIMESTAMPTZ,
     total_registrations INTEGER NOT NULL DEFAULT 0,
+    verification_state TEXT NOT NULL DEFAULT 'verified' CHECK (verification_state IN ('pending', 'verified')),
+    verification_token_hash TEXT,
+    verified_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_partner_keys_status ON partner_keys(status);
 CREATE INDEX idx_partner_keys_hash ON partner_keys(key_hash);
+CREATE INDEX idx_partner_keys_verification_state ON partner_keys(verification_state);
 
 -- Blob storage metadata
 CREATE TABLE IF NOT EXISTS blobs (

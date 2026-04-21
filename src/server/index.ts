@@ -52,6 +52,7 @@ import { createExternalOAuthRouter } from '../oauth/external-routes.js';
 import resolveExternal from '../api/net.openfederation.account.resolveExternal.js';
 import partnerRegister from '../api/net.openfederation.partner.register.js';
 import createPartnerKey from '../api/net.openfederation.partner.createKey.js';
+import verifyPartnerKey from '../api/net.openfederation.partner.verifyKey.js';
 import listPartnerKeys from '../api/net.openfederation.partner.listKeys.js';
 import revokePartnerKey from '../api/net.openfederation.partner.revokeKey.js';
 import linkApplication from '../api/net.openfederation.community.linkApplication.js';
@@ -338,6 +339,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   // Partner API endpoints
   'net.openfederation.partner.register': { handler: partnerRegister, limiter: registrationLimiter },
   'net.openfederation.partner.createKey': { handler: createPartnerKey },
+  'net.openfederation.partner.verifyKey': { handler: verifyPartnerKey },
   'net.openfederation.partner.listKeys': { handler: listPartnerKeys },
   'net.openfederation.partner.revokeKey': { handler: revokePartnerKey },
 

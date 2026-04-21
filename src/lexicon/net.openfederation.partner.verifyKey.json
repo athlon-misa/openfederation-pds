@@ -1,0 +1,79 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.partner.verifyKey",
+  "revision": 1,
+  "description": "Finalize partner-key creation by proving domain ownership. Fetches /.well-known/openfederation-partner.json from every allowed origin and verifies the JSON contains the previously-issued verification token. On success, the partner key is marked 'verified' and becomes usable for registration.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Verify domain ownership for a pending partner key. Admin-only.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#input"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing id, key has no allowed origins, or key is already revoked."
+        },
+        {
+          "name": "NotFound",
+          "description": "No partner key with the given id."
+        },
+        {
+          "name": "VerificationFailed",
+          "description": "One or more allowed origins failed domain-ownership verification. See `results` in the response body for per-origin reasons."
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "UUID of the partner key returned by partner.createKey."
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "verificationState": {
+          "type": "string",
+          "description": "'verified' on success."
+        },
+        "verifiedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Origins that passed verification (returned on success)."
+        },
+        "alreadyVerified": {
+          "type": "boolean",
+          "description": "True if the key was already verified before this call."
+        }
+      },
+      "required": [
+        "id",
+        "verificationState"
+      ]
+    }
+  }
+}
