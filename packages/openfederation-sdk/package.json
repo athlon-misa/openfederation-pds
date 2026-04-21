@@ -1,6 +1,6 @@
 {
   "name": "@open-federation/sdk",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Vanilla JS SDK for OpenFederation PDS — registration, login, and session management",
   "type": "module",
   "main": "./dist/index.cjs",

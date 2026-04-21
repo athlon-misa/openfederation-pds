@@ -1,6 +1,6 @@
 {
   "name": "@open-federation/react",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "React bindings for @open-federation/sdk — provider, hooks, and a drop-in Sign In With OpenFederation button.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -26,7 +26,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@open-federation/sdk": "^0.1.0"
+    "@open-federation/sdk": "^0.0.0"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
