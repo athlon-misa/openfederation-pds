@@ -128,6 +128,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Cross-PDS service-auth (atproto inter-service JWTs): `com.atproto.server.getServiceAuth` mints outbound JWTs; inbound ES256K/ES256 JWTs verified against the issuer DID's atproto signing key (did:plc + did:web), cached 5 min, replay-protected, per-DID rate limited — lets Bluesky / federated users authenticate to `net.openfederation.*` endpoints without a local session
 - Progressive-custody wallets: a single DID anchors many per-chain wallets, each at one of three custody tiers. Tier 1 (`custodial`) — PDS holds the key encrypted at rest, signs server-side per explicit per-dApp consent with expiry. Tier 2 (`user_encrypted`) — SDK wraps a BIP-39 mnemonic under the user's passphrase; the PDS stores an opaque blob it can never decrypt. Tier 3 (`self_custody`) — client keeps mnemonic offline, PDS holds only the public link. All three share one `wallet_links` substrate and the same EIP-191 / Ed25519 proof-of-control, so addresses remain stable across future tier upgrades
 - Wallet transaction signing + ecosystem adapters: `wallet.signTransaction` endpoint signs EIP-1559/legacy EVM transactions (chainId required — replay-safe) and Solana transaction-message bytes at Tier 1 with consent gating. SDK: `client.wallet.signTransaction` (tier-dispatched), `client.wallet.asEthersSigner()` produces an ethers v6 Signer drop-in, `client.wallet.asSolanaSigner()` duck-types on `@solana/web3.js` Transaction / VersionedTransaction. `ethers` is an optional peerDependency — dynamic-imported, kept out of the SDK bundle
+- Sign-In With OpenFederation (SIWOF): CAIP-122 / SIWE-compatible sign-in flow. `signInChallenge` issues a canonical message scoped to a dApp audience; `signInAssert` verifies the wallet signature and mints a didToken (service-auth JWT signed by the user's atproto key) plus a walletProof. Both are offline-verifiable — any dApp can confirm authenticity via standard W3C DID resolution without calling OpenFederation. SDK `client.signInWithOpenFederation(...)` runs the full flow in one call (tier-aware); `verifySignInAssertion()` is the pure offline verifier (did:plc + did:web resolver, ES256K/ES256 JWT + EIP-191/Ed25519 wallet signatures)
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -344,6 +345,8 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | POST | `net.openfederation.identity.unlinkWallet` | Yes | Unlink a wallet by label |
 | GET  | `net.openfederation.identity.listWalletLinks` | Yes | List user's linked wallets |
 | GET  | `net.openfederation.identity.resolveWallet` | No | Reverse lookup: find ATProto DID by wallet address |
+| POST | `net.openfederation.identity.signInChallenge` | Yes | Issue a canonical CAIP-122 message for SIWOF (dApp scoped by audience, 5-min TTL) |
+| POST | `net.openfederation.identity.signInAssert` | Yes | Verify wallet signature + mint didToken (atproto-signed JWT) + walletProof; both are offline-verifiable by dApps |
 
 ### OpenFederation Progressive-Custody Wallets
 
@@ -421,7 +424,7 @@ See `src/db/schema.sql` for the full schema. Key tables (22 total):
 
 Schema is auto-initialized on first startup. Incremental migrations are applied manually:
 
-`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`, `scripts/migrate-020-custodial-secrets.sql`, `scripts/migrate-021-wallet-custody.sql`
+`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`, `scripts/migrate-020-custodial-secrets.sql`, `scripts/migrate-021-wallet-custody.sql`, `scripts/migrate-022-signin-challenges.sql`
 
 ---
 

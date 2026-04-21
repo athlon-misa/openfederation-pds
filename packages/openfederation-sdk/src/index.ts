@@ -57,7 +57,21 @@ export type {
   WalletSignTransactionResult,
   WalletSignTxEthereumOptions,
   WalletSignTxSolanaOptions,
+  // Sign-In With OpenFederation
+  SiwofChallengeResponse,
+  SiwofWalletProof,
+  SiwofAssertResponse,
+  SignInWithOpenFederationOptions,
 } from './types.js';
+export {
+  verifySignInAssertion,
+  SiwofVerifyError,
+} from './siwof/verify.js';
+export type {
+  VerifiedSignInAssertion,
+  WalletProof,
+  VerifySignInOptions,
+} from './siwof/verify.js';
 export {
   generateMnemonic,
   isValidMnemonic,

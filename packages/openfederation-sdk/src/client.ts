@@ -11,6 +11,7 @@ import type {
   WalletChain, ProvisionTier1Options, ProvisionTier2Options, ProvisionTier3Options,
   ProvisionResult, GrantConsentOptions, ConsentGrant, WalletSignOptions,
   WalletSignTransactionOptions, WalletSignTransactionResult,
+  SiwofChallengeResponse, SiwofAssertResponse, SignInWithOpenFederationOptions,
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
@@ -753,6 +754,59 @@ export class OpenFederationClient implements AuthProvider {
       return createSolanaSigner(this, opts.walletAddress, opts.session);
     },
   };
+
+  /**
+   * Sign-In With OpenFederation (SIWOF).
+   *
+   * Runs the full dApp sign-in flow in one call: issue a CAIP-122 challenge,
+   * sign it with the named wallet, and have the PDS mint an offline-
+   * verifiable didToken + walletProof. A dApp backend verifies both without
+   * calling OpenFederation (see `verifySignInAssertion` for the primitives).
+   *
+   * Tier dispatch:
+   *   - Tier 2/3: pass `signer` (a WalletSession from unlockTier2, or any
+   *     object exposing `signMessage(message, chain)`). The signature is
+   *     produced client-side.
+   *   - Tier 1: omit `signer`. Each sign call routes through the PDS with
+   *     the active dApp consent grant (must be granted separately first).
+   */
+  async signInWithOpenFederation(opts: SignInWithOpenFederationOptions): Promise<SiwofAssertResponse> {
+    const challenge = await this.fetch('net.openfederation.identity.signInChallenge', {
+      method: 'POST',
+      body: {
+        chain: opts.chain,
+        walletAddress: opts.walletAddress,
+        audience: opts.audience,
+        ...(opts.chainId ? { chainId: opts.chainId } : {}),
+        ...(opts.statement ? { statement: opts.statement } : {}),
+        ...(opts.resources ? { resources: opts.resources } : {}),
+      },
+    }) as SiwofChallengeResponse;
+
+    let walletSignature: string;
+    if (opts.signer) {
+      const s = await opts.signer.signMessage(challenge.message, opts.chain);
+      walletSignature = s;
+    } else {
+      const res = await this.wallet.sign({
+        chain: opts.chain,
+        walletAddress: opts.walletAddress,
+        message: challenge.message,
+        dappOrigin: opts.audience,
+      });
+      walletSignature = res.signature;
+    }
+
+    return this.fetch('net.openfederation.identity.signInAssert', {
+      method: 'POST',
+      body: {
+        chain: opts.chain,
+        walletAddress: opts.walletAddress,
+        message: challenge.message,
+        walletSignature,
+      },
+    }) as Promise<SiwofAssertResponse>;
+  }
 
   /**
    * Clean up timers and callbacks.

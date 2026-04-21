@@ -333,9 +333,16 @@ CREATE TABLE IF NOT EXISTS wallet_link_challenges (
     wallet_address VARCHAR(255) NOT NULL,
     challenge TEXT NOT NULL,
     expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- 'link' for BYOW wallet-link proof, 'signin' for SIWOF (migration 022)
+    purpose TEXT NOT NULL DEFAULT 'link'
+        CHECK (purpose IN ('link', 'signin')),
+    -- Audience (dApp origin) the challenge is scoped to; NULL for link.
+    audience TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_wallet_challenges_did ON wallet_link_challenges(user_did);
+CREATE INDEX IF NOT EXISTS idx_wallet_challenges_purpose
+    ON wallet_link_challenges(user_did, purpose, expires_at);
 
 -- Tier 1 custodial wallet keys. PDS holds the private key, encrypted at rest
 -- with KEY_ENCRYPTION_SECRET (same AES-256-GCM primitive as signing_keys).

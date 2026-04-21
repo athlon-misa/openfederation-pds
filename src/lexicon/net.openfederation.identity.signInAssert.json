@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.signInAssert",
+  "revision": 1,
+  "description": "Verify a wallet signature over a SIWOF message and mint a service-auth JWT (didToken) plus a walletProof. Both artifacts are offline-verifiable: a dApp backend can validate them without further calls to OpenFederation.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "message", "walletSignature"],
+          "properties": {
+            "chain": { "type": "string", "description": "ethereum or solana" },
+            "walletAddress": { "type": "string" },
+            "message": { "type": "string", "description": "The exact SIWOF message returned by signInChallenge." },
+            "walletSignature": { "type": "string", "description": "EIP-191 hex (Ethereum) or base58 Ed25519 (Solana) signature over the message." }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["didToken", "walletProof", "did", "audience"],
+          "properties": {
+            "didToken": { "type": "string", "description": "Service-auth JWT signed by the user's atproto key." },
+            "did": { "type": "string" },
+            "audience": { "type": "string" },
+            "walletProof": {
+              "type": "object",
+              "required": ["message", "signature", "chain", "walletAddress", "chainIdCaip2"],
+              "properties": {
+                "message": { "type": "string" },
+                "signature": { "type": "string" },
+                "chain": { "type": "string" },
+                "walletAddress": { "type": "string" },
+                "chainIdCaip2": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or malformed fields, or message/walletAddress mismatch." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "InvalidSignature", "description": "Wallet signature did not verify against walletAddress." },
+        { "name": "ChallengeNotFound", "description": "No matching SIWOF challenge for this DID + wallet + message." },
+        { "name": "ChallengeExpired", "description": "The challenge has expired; request a fresh one." },
+        { "name": "NoSigningKey", "description": "No atproto signing key for this DID to mint the didToken." }
+      ]
+    }
+  }
+}

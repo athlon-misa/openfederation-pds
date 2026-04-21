@@ -173,7 +173,11 @@ export async function verifyServiceAuthJwt(
 
 /**
  * Sign a service-auth JWT for outbound use.
- * Used by com.atproto.server.getServiceAuth.
+ * Used by com.atproto.server.getServiceAuth and the SIWOF didToken flow.
+ *
+ * extraClaims are merged into the payload alongside the standard
+ * iss/aud/exp/iat/jti/lxm. Any claim key passed here is additive — existing
+ * standard claims win if there's a conflict (can't override iss, aud, etc.).
  */
 export async function signServiceAuthJwt(opts: {
   keypair: Keypair;
@@ -181,10 +185,11 @@ export async function signServiceAuthJwt(opts: {
   aud: string;
   exp: number;
   lxm?: string;
+  extraClaims?: Record<string, unknown>;
 }): Promise<string> {
   const alg = opts.keypair.jwtAlg; // 'ES256K' or 'ES256'
   const header = { typ: 'JWT', alg };
-  const payload: ServiceAuthClaims = {
+  const standard: ServiceAuthClaims = {
     iss: opts.iss,
     aud: opts.aud,
     exp: opts.exp,
@@ -192,6 +197,7 @@ export async function signServiceAuthJwt(opts: {
     jti: randomJti(),
     ...(opts.lxm ? { lxm: opts.lxm } : {}),
   };
+  const payload = { ...(opts.extraClaims ?? {}), ...standard };
   const headerB64 = base64UrlEncodeString(JSON.stringify(header));
   const payloadB64 = base64UrlEncodeString(JSON.stringify(payload));
   const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);

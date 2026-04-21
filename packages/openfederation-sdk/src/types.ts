@@ -184,6 +184,51 @@ export type WalletSignTransactionResult =
   | { chain: 'ethereum'; walletAddress: string; dappOrigin: string; signedTx: string }
   | { chain: 'solana'; walletAddress: string; dappOrigin: string; signature: string };
 
+// ── Sign-In With OpenFederation ──────────────────────
+
+export interface SiwofChallengeResponse {
+  message: string;
+  nonce: string;
+  issuedAt: string;
+  expirationTime: string;
+  audience: string;
+  chainIdCaip2: string;
+}
+
+export interface SiwofWalletProof {
+  message: string;
+  signature: string;
+  chain: WalletChain;
+  walletAddress: string;
+  chainIdCaip2: string;
+}
+
+export interface SiwofAssertResponse {
+  didToken: string;
+  walletProof: SiwofWalletProof;
+  did: string;
+  audience: string;
+}
+
+export interface SignInWithOpenFederationOptions {
+  chain: WalletChain;
+  walletAddress: string;
+  /** Full dApp URL; the message's URI field and didToken `aud` both derive from this. */
+  audience: string;
+  /** Optional CAIP-2 chain ID (e.g. "eip155:137"). Defaults by chain. */
+  chainId?: string;
+  /** Optional prompt shown to the user in the wallet-sign dialog. */
+  statement?: string;
+  /** Optional resources the signature also attests to. */
+  resources?: string[];
+  /**
+   * How to sign the challenge. Omit for Tier 1 (PDS signs). Provide a
+   * WalletSession (from unlockTier2) or any object with signMessage(msg, chain)
+   * — e.g. ethers.Wallet wrapped to expose that shape — for Tier 2/3.
+   */
+  signer?: { signMessage: (message: string, chain: WalletChain) => Promise<string> | string };
+}
+
 // ── Vault & Recovery ────────────────────────────────
 
 export interface SecurityLevel {

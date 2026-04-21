@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.signInChallenge",
+  "revision": 1,
+  "description": "Issue a canonical CAIP-122 / SIWOF message for the caller to sign with a wallet they own. Used by dApps to authenticate users via 'Sign In With OpenFederation'.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "audience"],
+          "properties": {
+            "chain": { "type": "string", "description": "ethereum or solana" },
+            "walletAddress": { "type": "string", "description": "An active wallet linked to the caller's DID (any custody tier)." },
+            "audience": { "type": "string", "description": "Full URL of the dApp requesting sign-in (e.g. https://game.example.com)." },
+            "chainId": { "type": "string", "description": "Optional CAIP-2 chain identifier (e.g. eip155:137 for Polygon). Defaults per chain." },
+            "statement": { "type": "string", "description": "Optional human-readable prompt shown to the user in their wallet." },
+            "resources": { "type": "array", "description": "Optional URIs the signature also vouches for.", "items": { "type": "string" } }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["message", "nonce", "issuedAt", "expirationTime", "audience", "chainIdCaip2"],
+          "properties": {
+            "message": { "type": "string", "description": "The canonical CAIP-122 message string to sign." },
+            "nonce": { "type": "string" },
+            "issuedAt": { "type": "string" },
+            "expirationTime": { "type": "string" },
+            "audience": { "type": "string" },
+            "chainIdCaip2": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields or malformed audience." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "WalletNotFound", "description": "No active wallet with the given address for this DID." }
+      ]
+    }
+  }
+}

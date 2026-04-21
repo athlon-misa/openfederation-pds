@@ -246,6 +246,61 @@ async function main() {
 
   // ── Summary ─────────────────────────────────────────────────────────────
 
+  // ── Sign-In With OpenFederation ─────────────────────────────────────────
+
+  log('Sign-In With OpenFederation — dApp gets offline-verifiable tokens');
+  const siwofAudience = 'https://siwof-demo.example.com/login';
+  // Tier 1 signing requires a consent grant for the dApp origin.
+  await xrpc('POST', 'net.openfederation.wallet.grantConsent', {
+    token,
+    body: { dappOrigin: siwofAudience, chain: 'ethereum', walletAddress: t1.body.walletAddress },
+  });
+  const chRes = await xrpc<{ message: string; nonce: string; chainIdCaip2: string }>(
+    'POST',
+    'net.openfederation.identity.signInChallenge',
+    {
+      token,
+      body: {
+        chain: 'ethereum',
+        walletAddress: t1.body.walletAddress,
+        audience: siwofAudience,
+        statement: `Welcome, ${handle}. Sign to continue.`,
+      },
+    }
+  );
+  if (chRes.status !== 200) throw new Error(`siwof challenge failed: ${chRes.status}`);
+  console.log(`  ✓ CAIP-122 challenge issued (${chRes.body.chainIdCaip2}, nonce=${chRes.body.nonce.slice(0, 8)}…)`);
+
+  const siwofSig = await xrpc<{ signature: string }>('POST', 'net.openfederation.wallet.sign', {
+    token,
+    body: {
+      chain: 'ethereum',
+      walletAddress: t1.body.walletAddress,
+      message: chRes.body.message,
+      dappOrigin: siwofAudience,
+    },
+  });
+  const assertRes = await xrpc<{ didToken: string; walletProof: any; did: string }>(
+    'POST',
+    'net.openfederation.identity.signInAssert',
+    {
+      token,
+      body: {
+        chain: 'ethereum',
+        walletAddress: t1.body.walletAddress,
+        message: chRes.body.message,
+        walletSignature: siwofSig.body.signature,
+      },
+    }
+  );
+  if (assertRes.status !== 200) throw new Error(`siwof assert failed: ${assertRes.status}`);
+
+  const header = JSON.parse(Buffer.from(assertRes.body.didToken.split('.')[0], 'base64url').toString('utf-8'));
+  const payload = JSON.parse(Buffer.from(assertRes.body.didToken.split('.')[1], 'base64url').toString('utf-8'));
+  console.log(`  ✓ didToken minted — alg=${header.alg}, iss=${payload.iss}, aud=${payload.aud}`);
+  console.log(`  ✓ sub=${payload.sub} (CAIP-10), nonce=${payload.nonce.slice(0, 8)}…`);
+  console.log(`  → Any dApp can verify this didToken + walletProof offline via DID resolution.`);
+
   log('Summary — one DID, three wallets, three custody tiers');
   const list = await xrpc<{ walletLinks: Array<{ chain: string; walletAddress: string; label: string | null }> }>(
     'GET',

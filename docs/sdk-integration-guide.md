@@ -1116,3 +1116,60 @@ await connection.sendRawTransaction(tx.serialize());
 ```
 
 The Solana signer duck-types on `serializeMessage()` (legacy Transaction) and `message.serialize()` (VersionedTransaction). Full `@solana/wallet-adapter-base` compatibility ships in a dedicated package in Milestone 5.
+
+
+---
+
+## Sign-In With OpenFederation (M3)
+
+A dApp says "authenticate this user and prove control of a wallet" — OpenFederation returns two artifacts:
+
+- **`didToken`** — a short-lived JWT signed by the user's atproto signing key, containing DID, audience, wallet address, nonce, CAIP-10 subject. Verifiable via standard W3C DID resolution; no call to OpenFederation required.
+- **`walletProof`** — the CAIP-122 message and the wallet's signature over it. Verifiable via chain-native tooling (ethers.verifyMessage, tweetnacl).
+
+Together they prove: *"this DID said this wallet speaks for them, to this dApp, at this time."*
+
+### Running the flow (embed)
+
+```ts
+// The user is already logged into OpenFederation.
+const assertion = await client.signInWithOpenFederation({
+  chain: 'ethereum',
+  walletAddress: ethAddr,
+  audience: 'https://game.example.com/login',
+  statement: 'Welcome to Game. Sign to continue.',
+  // Tier 2/3: pass `signer` (WalletSession or anything with signMessage).
+  // Tier 1: omit `signer` — the PDS signs via the active consent grant.
+});
+// assertion.didToken, assertion.walletProof, assertion.did, assertion.audience
+```
+
+### Verifying offline on the dApp side
+
+```ts
+import { verifySignInAssertion } from '@openfederation/sdk';
+
+try {
+  const { did, walletAddress, nonce, audience } = await verifySignInAssertion(
+    request.body.didToken,
+    request.body.walletProof,
+    {
+      expectedAudience: 'https://game.example.com/login',
+      plcUrl: 'https://plc.directory',  // optional; default shown
+      // clockSkewSec: 30,              // default
+    }
+  );
+  // Trust `did`. Issue your dApp session cookie / JWT keyed on it.
+} catch (err) {
+  // typed SiwofVerifyError — err.code is one of:
+  //   InvalidToken, ExpiredToken, BadAudience, InvalidJwtSignature,
+  //   InvalidWalletSignature, ProofMismatch, UnresolvableDid
+}
+```
+
+### Security notes
+
+- **Nonce + expiry** — the CAIP-122 message carries an `expirationTime` (default 5 min) and a random nonce. Challenges are one-shot: after a successful `signInAssert`, the challenge is deleted.
+- **Message ↔ token cross-check** — verifier confirms the `walletAddress`, `chain`, and `chainIdCaip2` claims in the JWT match the `walletProof` exactly. Tampering either side fails with `ProofMismatch`.
+- **Audience binding** — the `aud` claim is the normalized dApp URL; pass `expectedAudience` to the verifier to block tokens minted for a different origin.
+- **Replay of the didToken** — short TTL (5 min). If longer sessions are needed, the dApp should exchange the `didToken` for its own long-lived session once on receipt.

@@ -74,6 +74,7 @@ export type AuditAction =
   | 'wallet.signTransaction'
   | 'wallet.consent.grant'
   | 'wallet.consent.revoke'
+  | 'identity.signInAssert'
   | 'account.recovery.initiate'
   | 'account.recovery.complete'
   | 'attestation.requestDisclosure'
