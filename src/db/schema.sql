@@ -319,12 +319,19 @@ CREATE TABLE IF NOT EXISTS wallet_links (
         CHECK (custody_tier IN ('custodial', 'user_encrypted', 'self_custody')),
     custody_status TEXT NOT NULL DEFAULT 'active'
         CHECK (custody_status IN ('active', 'exported', 'superseded')),
+    -- Primary wallet per chain, used by public resolver + DID doc augmentation.
+    -- See migration 023.
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
     UNIQUE(chain, wallet_address),
     UNIQUE(user_did, label)
 );
 CREATE INDEX IF NOT EXISTS idx_wallet_links_did ON wallet_links(user_did);
 CREATE INDEX IF NOT EXISTS idx_wallet_links_address ON wallet_links(chain, wallet_address);
 CREATE INDEX IF NOT EXISTS idx_wallet_links_tier ON wallet_links(user_did, custody_tier);
+-- Enforce one primary per (user, chain) among active wallets.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_links_primary
+    ON wallet_links (user_did, chain)
+    WHERE is_primary AND custody_status = 'active';
 
 CREATE TABLE IF NOT EXISTS wallet_link_challenges (
     id VARCHAR(36) PRIMARY KEY,

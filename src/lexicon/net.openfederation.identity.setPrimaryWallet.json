@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.setPrimaryWallet",
+  "revision": 1,
+  "description": "Mark one of the caller's active wallets as the primary for its chain. Public resolver (getPrimaryWallet) and DID document augmentation default to the primary wallet.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "isPrimary"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "isPrimary": { "type": "boolean" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "WalletNotFound", "description": "No such wallet for this DID." },
+        { "name": "WalletInactive", "description": "Wallet has been exported or superseded." }
+      ]
+    }
+  }
+}

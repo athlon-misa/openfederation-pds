@@ -301,6 +301,37 @@ async function main() {
   console.log(`  ✓ sub=${payload.sub} (CAIP-10), nonce=${payload.nonce.slice(0, 8)}…`);
   console.log(`  → Any dApp can verify this didToken + walletProof offline via DID resolution.`);
 
+  // ── Public resolver + DID augmentation ─────────────────────────────────
+
+  log('Public resolver + DID augmentation — anyone can look up DID → wallet');
+
+  // Mark primary wallet per chain so the resolver has a canonical answer.
+  await xrpc('POST', 'net.openfederation.identity.setPrimaryWallet', {
+    token, body: { chain: 'ethereum', walletAddress: t1.body.walletAddress },
+  });
+  await xrpc('POST', 'net.openfederation.identity.setPrimaryWallet', {
+    token, body: { chain: 'solana', walletAddress: t2Wallet.address },
+  });
+
+  // Unauthenticated resolver — any dApp can hit this for any DID.
+  const resolved = await xrpc<any>('GET', 'net.openfederation.identity.getPrimaryWallet', {
+    params: { did, chain: 'ethereum' },
+  });
+  console.log(`  ✓ getPrimaryWallet(${did}, ethereum) → ${resolved.body.walletAddress} (${resolved.body.custodyTier})`);
+  if (resolved.body.proof) {
+    const [, p] = resolved.body.proof.split('.');
+    const claims = JSON.parse(Buffer.from(p, 'base64url').toString('utf-8'));
+    console.log(`  ✓ proof JWT: iss=${claims.iss}, sub=${claims.sub} (dApps verify via DID resolution)`);
+  }
+
+  const aug = await xrpc<any>('GET', 'net.openfederation.identity.getDidAugmentation', {
+    params: { did },
+  });
+  console.log(`  ✓ getDidAugmentation → ${aug.body.verificationMethod.length} W3C verification method(s):`);
+  for (const vm of aug.body.verificationMethod) {
+    console.log(`     ${vm.type.padEnd(40)} ${vm.blockchainAccountId}`);
+  }
+
   log('Summary — one DID, three wallets, three custody tiers');
   const list = await xrpc<{ walletLinks: Array<{ chain: string; walletAddress: string; label: string | null }> }>(
     'GET',

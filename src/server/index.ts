@@ -91,6 +91,10 @@ import walletSign from '../api/net.openfederation.wallet.sign.js';
 import walletSignTransaction from '../api/net.openfederation.wallet.signTransaction.js';
 import signInChallenge from '../api/net.openfederation.identity.signInChallenge.js';
 import signInAssert from '../api/net.openfederation.identity.signInAssert.js';
+import getPrimaryWallet from '../api/net.openfederation.identity.getPrimaryWallet.js';
+import listWalletsPublic from '../api/net.openfederation.identity.listWalletsPublic.js';
+import setPrimaryWallet from '../api/net.openfederation.identity.setPrimaryWallet.js';
+import getDidAugmentation from '../api/net.openfederation.identity.getDidAugmentation.js';
 import walletGrantConsent from '../api/net.openfederation.wallet.grantConsent.js';
 import walletRevokeConsent from '../api/net.openfederation.wallet.revokeConsent.js';
 import walletListConsents from '../api/net.openfederation.wallet.listConsents.js';
@@ -341,6 +345,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   // Sign-In With OpenFederation (SIWOF)
   'net.openfederation.identity.signInChallenge': { handler: signInChallenge, limiter: createLimiter },
   'net.openfederation.identity.signInAssert': { handler: signInAssert, limiter: walletSignLimiter },
+
+  // Public DID→wallet resolver + DID document augmentation (unauthenticated).
+  'net.openfederation.identity.getPrimaryWallet': { handler: getPrimaryWallet, limiter: discoveryLimiter },
+  'net.openfederation.identity.listWalletsPublic': { handler: listWalletsPublic, limiter: discoveryLimiter },
+  'net.openfederation.identity.setPrimaryWallet': { handler: setPrimaryWallet },
+  'net.openfederation.identity.getDidAugmentation': { handler: getDidAugmentation, limiter: discoveryLimiter },
   'net.openfederation.wallet.grantConsent': { handler: walletGrantConsent, limiter: createLimiter },
   'net.openfederation.wallet.revokeConsent': { handler: walletRevokeConsent },
   'net.openfederation.wallet.listConsents': { handler: walletListConsents },
@@ -561,8 +571,35 @@ app.get('/.well-known/did.json', discoveryLimiter, async (req: Request, res: Res
     const keypair = await Secp256k1Keypair.import(decrypted, { exportable: false });
     const publicKeyMultibase = toMultibaseMultikeySecp256k1(keypair.publicKeyBytes());
 
+    // Augment the DID doc with any linked wallets (blockchainAccountId via
+    // CAIP-10). Standards-compliant W3C DID resolvers will surface the
+    // user's Ethereum + Solana addresses as verification methods.
+    const { buildDidAugmentation } = await import('../identity/did-augment.js');
+    const { resolveChainIdCaip2 } = await import('../identity/siwof.js');
+    const walletsRes = await query<{ chain: 'ethereum' | 'solana'; wallet_address: string; is_primary: boolean }>(
+      `SELECT chain, wallet_address, is_primary FROM wallet_links
+       WHERE user_did = $1 AND custody_status = 'active'
+       ORDER BY is_primary DESC, chain, linked_at`,
+      [did]
+    );
+    const aug = buildDidAugmentation(
+      did,
+      walletsRes.rows.map((r) => ({
+        chain: r.chain,
+        walletAddress: r.wallet_address,
+        chainIdCaip2: resolveChainIdCaip2(r.chain),
+        isPrimary: r.is_primary,
+      })),
+    );
+
+    const context: string[] = ['https://www.w3.org/ns/did/v1'];
+    if (aug.verificationMethod.length > 0) {
+      context.push('https://w3id.org/security/suites/secp256k1-2019/v1');
+      context.push('https://w3id.org/security/suites/ed25519-2020/v1');
+    }
+
     const didDocument = {
-      '@context': ['https://www.w3.org/ns/did/v1'],
+      '@context': context,
       id: did,
       alsoKnownAs: [`at://${hostname}`],
       verificationMethod: [
@@ -572,7 +609,10 @@ app.get('/.well-known/did.json', discoveryLimiter, async (req: Request, res: Res
           controller: did,
           publicKeyMultibase,
         },
+        ...aug.verificationMethod,
       ],
+      ...(aug.assertionMethod.length > 0 ? { assertionMethod: aug.assertionMethod } : {}),
+      ...(aug.authentication.length > 0 ? { authentication: aug.authentication } : {}),
       service: [
         {
           id: '#atproto_pds',

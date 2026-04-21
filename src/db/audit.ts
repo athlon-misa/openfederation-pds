@@ -75,6 +75,7 @@ export type AuditAction =
   | 'wallet.consent.grant'
   | 'wallet.consent.revoke'
   | 'identity.signInAssert'
+  | 'identity.setPrimaryWallet'
   | 'account.recovery.initiate'
   | 'account.recovery.complete'
   | 'attestation.requestDisclosure'

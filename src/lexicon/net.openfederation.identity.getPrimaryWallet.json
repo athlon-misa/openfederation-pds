@@ -1,0 +1,43 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.getPrimaryWallet",
+  "revision": 1,
+  "description": "Public DID→wallet resolver. Returns the primary wallet for a DID on a given chain, plus an optional detached service-auth JWT (proof) the caller can verify offline via standard DID resolution.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "required": ["did", "chain"],
+        "properties": {
+          "did": { "type": "string" },
+          "chain": { "type": "string", "description": "ethereum or solana" },
+          "includeProof": { "type": "boolean", "description": "Include a service-auth JWT proof of the binding (default true)." }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["did", "chain", "chainIdCaip2", "walletAddress", "linkedAt", "custodyTier"],
+          "properties": {
+            "did": { "type": "string" },
+            "handle": { "type": "string" },
+            "chain": { "type": "string" },
+            "chainIdCaip2": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "label": { "type": "string" },
+            "linkedAt": { "type": "string" },
+            "custodyTier": { "type": "string" },
+            "proof": { "type": "string", "description": "Service-auth JWT signed by the DID's atproto key." }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing did." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "NoPrimaryWallet", "description": "No active primary wallet for this DID on this chain." }
+      ]
+    }
+  }
+}

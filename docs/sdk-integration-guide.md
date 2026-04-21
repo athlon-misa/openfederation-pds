@@ -1173,3 +1173,77 @@ try {
 - **Message ↔ token cross-check** — verifier confirms the `walletAddress`, `chain`, and `chainIdCaip2` claims in the JWT match the `walletProof` exactly. Tampering either side fails with `ProofMismatch`.
 - **Audience binding** — the `aud` claim is the normalized dApp URL; pass `expectedAudience` to the verifier to block tokens minted for a different origin.
 - **Replay of the didToken** — short TTL (5 min). If longer sessions are needed, the dApp should exchange the `didToken` for its own long-lived session once on receipt.
+
+
+---
+
+## Public DID → wallet resolution (M4)
+
+Any dApp can resolve a DID to its on-chain wallets without OpenFederation credentials, via two independent paths: a convenience XRPC, and standard W3C DID resolution.
+
+### Resolver convenience API
+
+```ts
+// Unauthenticated.
+GET /xrpc/net.openfederation.identity.getPrimaryWallet?did={did}&chain=ethereum
+// → { did, handle, walletAddress, custodyTier, proof?: <service-auth JWT> }
+```
+
+The `proof` field is a short-lived JWT signed by the user's atproto key. Any dApp can verify the DID→wallet binding cryptographically by resolving the DID via standard W3C methods and checking the signature — no trust in OpenFederation required.
+
+```ts
+GET /xrpc/net.openfederation.identity.listWalletsPublic?did={did}
+// → { did, handle, wallets: [ { chain, walletAddress, label, linkedAt, custodyTier, isPrimary } ] }
+```
+
+Users control which wallet is primary per chain:
+
+```ts
+// Authenticated.
+POST /xrpc/net.openfederation.identity.setPrimaryWallet
+body: { chain: 'ethereum', walletAddress: '0x…' }
+```
+
+### W3C DID-document augmentation
+
+For **did:web** identities served by OpenFederation, `/.well-known/did.json` carries wallet verification methods automatically:
+
+```json
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/secp256k1-2019/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1"
+  ],
+  "id": "did:web:pds.openfederation.net",
+  "verificationMethod": [
+    { "id": "…#atproto", "type": "Multikey", "publicKeyMultibase": "z…" },
+    {
+      "id": "…#wallet-ethereum",
+      "type": "EcdsaSecp256k1VerificationKey2019",
+      "controller": "…",
+      "blockchainAccountId": "eip155:1:0xabc…"
+    },
+    {
+      "id": "…#wallet-solana",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "…",
+      "blockchainAccountId": "solana:mainnet:9xCc…"
+    }
+  ]
+}
+```
+
+For **did:plc** identities (where we can't modify the PLC log), the same verification-method payload is served by a sidecar endpoint:
+
+```ts
+GET /xrpc/net.openfederation.identity.getDidAugmentation?did={did}
+```
+
+A standards-compliant W3C DID resolver can merge this with the PLC doc to get the full identity surface — or dApps can query both endpoints directly.
+
+### Why this matters
+
+- **Zero OF lock-in.** Any DID resolver that understands `blockchainAccountId` sees OF users as full web3 citizens.
+- **Proof is portable.** The resolver's `proof` JWT is offline-verifiable — cache it, serve it, forward it.
+- **User-controlled surface.** Users pick which wallet shows up as "their" Ethereum or Solana address; changes are atomic, and the address stays identical across custody-tier upgrades.
