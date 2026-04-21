@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.getSecurityLevel",
-  "revision": 1,
+  "revision": 2,
   "description": "Get the current security posture and recovery tier for the authenticated user.",
   "defs": {
     "main": {
@@ -29,36 +29,41 @@
               "enum": ["standard", "enhanced", "self-custodial"]
             },
             "checklist": {
-              "type": "object",
-              "required": ["passkey", "recoveryEmail", "vaultShares", "escrowRegistered", "keyExported"],
-              "properties": {
-                "passkey": {
-                  "type": "boolean",
-                  "description": "Whether authentication is working."
-                },
-                "recoveryEmail": {
-                  "type": "boolean",
-                  "description": "Whether recovery email is verified."
-                },
-                "vaultShares": {
-                  "type": "boolean",
-                  "description": "Whether vault shares exist for this user."
-                },
-                "escrowRegistered": {
-                  "type": "boolean",
-                  "description": "Whether any share is held by an escrow provider."
-                },
-                "keyExported": {
-                  "type": "boolean",
-                  "description": "Whether recovery key has been exported (tier >= 3)."
-                }
-              }
+              "type": "ref",
+              "ref": "#securityChecklist"
             },
             "upgradePath": {
               "type": "string",
               "description": "Suggestion for next security upgrade, or null if at maximum tier."
             }
           }
+        }
+      }
+    },
+    "securityChecklist": {
+      "type": "object",
+      "description": "Per-feature boolean flags describing which security upgrades the user has completed.",
+      "required": ["passkey", "recoveryEmail", "vaultShares", "escrowRegistered", "keyExported"],
+      "properties": {
+        "passkey": {
+          "type": "boolean",
+          "description": "Whether authentication is working."
+        },
+        "recoveryEmail": {
+          "type": "boolean",
+          "description": "Whether recovery email is verified."
+        },
+        "vaultShares": {
+          "type": "boolean",
+          "description": "Whether vault shares exist for this user."
+        },
+        "escrowRegistered": {
+          "type": "boolean",
+          "description": "Whether any share is held by an escrow provider."
+        },
+        "keyExported": {
+          "type": "boolean",
+          "description": "Whether recovery key has been exported (tier >= 3)."
         }
       }
     }

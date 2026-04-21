@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.signInAssert",
-  "revision": 1,
+  "revision": 2,
   "description": "Verify a wallet signature over a SIWOF message and mint a service-auth JWT (didToken) plus a walletProof. Both artifacts are offline-verifiable: a dApp backend can validate them without further calls to OpenFederation.",
   "defs": {
     "main": {
@@ -29,15 +29,8 @@
             "did": { "type": "string" },
             "audience": { "type": "string" },
             "walletProof": {
-              "type": "object",
-              "required": ["message", "signature", "chain", "walletAddress", "chainIdCaip2"],
-              "properties": {
-                "message": { "type": "string" },
-                "signature": { "type": "string" },
-                "chain": { "type": "string" },
-                "walletAddress": { "type": "string" },
-                "chainIdCaip2": { "type": "string" }
-              }
+              "type": "ref",
+              "ref": "#walletProof"
             }
           }
         }
@@ -50,6 +43,18 @@
         { "name": "ChallengeExpired", "description": "The challenge has expired; request a fresh one." },
         { "name": "NoSigningKey", "description": "No atproto signing key for this DID to mint the didToken." }
       ]
+    },
+    "walletProof": {
+      "type": "object",
+      "description": "CAIP-122 message and the wallet signature over it. dApps verify this against the wallet address with chain-native tooling (ethers.verifyMessage / tweetnacl.sign.detached.verify).",
+      "required": ["message", "signature", "chain", "walletAddress", "chainIdCaip2"],
+      "properties": {
+        "message": { "type": "string" },
+        "signature": { "type": "string" },
+        "chain": { "type": "string" },
+        "walletAddress": { "type": "string" },
+        "chainIdCaip2": { "type": "string" }
+      }
     }
   }
 }

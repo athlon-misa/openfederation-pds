@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.vault.auditLog",
-  "revision": 1,
+  "revision": 2,
   "description": "Retrieve vault audit log entries for the authenticated user.",
   "defs": {
     "main": {
@@ -23,47 +23,34 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": [
-            "entries"
-          ],
+          "required": ["entries"],
           "properties": {
             "entries": {
               "type": "array",
               "items": {
-                "type": "object",
-                "required": [
-                  "id",
-                  "userDid",
-                  "action",
-                  "createdAt"
-                ],
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "userDid": {
-                    "type": "string"
-                  },
-                  "action": {
-                    "type": "string"
-                  },
-                  "actorDid": {
-                    "type": "string"
-                  },
-                  "shareIndex": {
-                    "type": "integer"
-                  },
-                  "metadata": {
-                    "type": "object"
-                  },
-                  "createdAt": {
-                    "type": "string"
-                  }
-                }
+                "type": "ref",
+                "ref": "#auditEntry"
               }
             }
           }
         }
+      }
+    },
+    "auditEntry": {
+      "type": "object",
+      "description": "Single vault audit log entry.",
+      "required": ["id", "userDid", "action", "createdAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "userDid": { "type": "string" },
+        "action": { "type": "string" },
+        "actorDid": { "type": "string" },
+        "shareIndex": { "type": "integer" },
+        "metadata": {
+          "type": "unknown",
+          "description": "Opaque action-specific metadata blob — schema varies by action."
+        },
+        "createdAt": { "type": "string" }
       }
     }
   }

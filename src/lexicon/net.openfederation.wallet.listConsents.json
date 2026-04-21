@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.wallet.listConsents",
-  "revision": 1,
+  "revision": 2,
   "description": "List the authenticated user's active (unrevoked, unexpired) Tier 1 signing consent grants.",
   "defs": {
     "main": {
@@ -15,20 +15,25 @@
             "consents": {
               "type": "array",
               "items": {
-                "type": "object",
-                "required": ["id", "dappOrigin", "grantedAt", "expiresAt"],
-                "properties": {
-                  "id": { "type": "string" },
-                  "dappOrigin": { "type": "string" },
-                  "chain": { "type": "string" },
-                  "walletAddress": { "type": "string" },
-                  "grantedAt": { "type": "string" },
-                  "expiresAt": { "type": "string" }
-                }
+                "type": "ref",
+                "ref": "#consentEntry"
               }
             }
           }
         }
+      }
+    },
+    "consentEntry": {
+      "type": "object",
+      "description": "Single active Tier 1 signing consent grant.",
+      "required": ["id", "dappOrigin", "grantedAt", "expiresAt"],
+      "properties": {
+        "id": { "type": "string" },
+        "dappOrigin": { "type": "string" },
+        "chain": { "type": "string" },
+        "walletAddress": { "type": "string" },
+        "grantedAt": { "type": "string" },
+        "expiresAt": { "type": "string" }
       }
     }
   }

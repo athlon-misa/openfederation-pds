@@ -30,8 +30,11 @@ async function main() {
 
   console.log(`Found ${files.length} lexicon schemas`);
 
-  // 2. Validate each file
+  // 2. Validate each file. Collect all failures so a single run surfaces
+  //    every invalid schema instead of bailing on the first one — makes
+  //    batch-fixing tractable.
   const validated: Array<{ file: string; doc: LexiconDoc }> = [];
+  const invalidFiles: Array<{ file: string; err: unknown }> = [];
 
   for (const file of files) {
     const filePath = path.join(LEXICON_SRC, file);
@@ -42,9 +45,9 @@ async function main() {
     try {
       doc = parseLexiconDoc(raw);
     } catch (err) {
+      invalidFiles.push({ file, err });
       console.error(`INVALID: ${file}`);
-      console.error(`  ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
+      continue;
     }
 
     // Verify filename matches id
@@ -57,6 +60,14 @@ async function main() {
 
     validated.push({ file, doc });
     console.log(`  ✓ ${doc.id}`);
+  }
+
+  if (invalidFiles.length > 0) {
+    console.error(`\n${invalidFiles.length} invalid schema(s):`);
+    for (const { file } of invalidFiles) {
+      console.error(`  - ${file}`);
+    }
+    process.exit(1);
   }
 
   // If --validate-only, stop after validation

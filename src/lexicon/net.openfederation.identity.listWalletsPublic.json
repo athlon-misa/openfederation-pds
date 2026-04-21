@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.listWalletsPublic",
-  "revision": 1,
+  "revision": 2,
   "description": "Public list of a DID's active wallet links. Exposes only public fields — chain, address, label, linked_at, custody tier, primary flag.",
   "defs": {
     "main": {
@@ -24,16 +24,8 @@
             "wallets": {
               "type": "array",
               "items": {
-                "type": "object",
-                "required": ["chain", "walletAddress", "linkedAt", "custodyTier", "isPrimary"],
-                "properties": {
-                  "chain": { "type": "string" },
-                  "walletAddress": { "type": "string" },
-                  "label": { "type": "string" },
-                  "linkedAt": { "type": "string" },
-                  "custodyTier": { "type": "string" },
-                  "isPrimary": { "type": "boolean" }
-                }
+                "type": "ref",
+                "ref": "#walletEntry"
               }
             }
           }
@@ -42,6 +34,19 @@
       "errors": [
         { "name": "InvalidRequest", "description": "Missing did." }
       ]
+    },
+    "walletEntry": {
+      "type": "object",
+      "description": "One active wallet link for a DID.",
+      "required": ["chain", "walletAddress", "linkedAt", "custodyTier", "isPrimary"],
+      "properties": {
+        "chain": { "type": "string" },
+        "walletAddress": { "type": "string" },
+        "label": { "type": "string" },
+        "linkedAt": { "type": "string" },
+        "custodyTier": { "type": "string" },
+        "isPrimary": { "type": "boolean" }
+      }
     }
   }
 }
