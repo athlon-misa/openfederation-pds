@@ -1,18 +1,15 @@
 import { Request, Response } from 'express';
-import { Secp256k1Keypair } from '@atproto/crypto';
 import { config } from '../config.js';
 import { getClient } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
+import { createUserIdentity } from '../identity/user-identity.js';
 import {
-  isStrongPassword,
-  isValidEmail,
-  isValidHandle,
-  normalizeEmail,
-  normalizeHandle,
-  passwordValidationMessage,
-} from '../auth/utils.js';
-import { createUserIdentity, storeUserSigningKey } from '../identity/user-identity.js';
-import { RepoEngine } from '../repo/repo-engine.js';
+  RegistrationValidationError,
+  normalizeAndValidateCredentials,
+  ensureHandleEmailAvailable,
+  insertUserWithRole,
+  initializeUserRepoAsync,
+} from '../auth/account-creation.js';
 import crypto from 'crypto';
 
 interface RegisterInput {
@@ -25,40 +22,17 @@ interface RegisterInput {
 export default async function registerAccount(req: Request, res: Response): Promise<void> {
   const input: RegisterInput = req.body;
 
-  if (!input?.handle || !input?.email || !input?.password) {
-    res.status(400).json({
-      error: 'InvalidRequest',
-      message: 'handle, email, and password are required',
-    });
-    return;
+  let credentials;
+  try {
+    credentials = normalizeAndValidateCredentials(input);
+  } catch (err) {
+    if (err instanceof RegistrationValidationError) {
+      res.status(err.status).json({ error: err.code, message: err.message });
+      return;
+    }
+    throw err;
   }
-
-  const handle = normalizeHandle(input.handle);
-  const email = normalizeEmail(input.email);
-
-  if (!isValidHandle(handle)) {
-    res.status(400).json({
-      error: 'InvalidRequest',
-      message: 'Handle must be 3-30 characters, lowercase letters, numbers, and hyphens only. No leading/trailing hyphens or consecutive hyphens. Some names are reserved.',
-    });
-    return;
-  }
-
-  if (!isValidEmail(email)) {
-    res.status(400).json({
-      error: 'InvalidRequest',
-      message: 'Email is invalid',
-    });
-    return;
-  }
-
-  if (!isStrongPassword(input.password)) {
-    res.status(400).json({
-      error: 'InvalidRequest',
-      message: passwordValidationMessage(),
-    });
-    return;
-  }
+  const { handle, email, password } = credentials;
 
   if (config.auth.inviteRequired && !input.inviteCode) {
     res.status(403).json({
@@ -74,18 +48,15 @@ export default async function registerAccount(req: Request, res: Response): Prom
     let inviteCodeToUse: string | null = null;
     let inviteMaxUses: number | null = null;
 
-    const existing = await client.query<{ id: string }>(
-      'SELECT id FROM users WHERE handle = $1 OR email = $2',
-      [handle, email]
-    );
-
-    if (existing.rows.length > 0) {
+    try {
+      await ensureHandleEmailAvailable(client, handle, email);
+    } catch (err) {
       await client.query('ROLLBACK');
-      res.status(409).json({
-        error: 'AccountExists',
-        message: 'Handle or email is already in use',
-      });
-      return;
+      if (err instanceof RegistrationValidationError) {
+        res.status(err.status).json({ error: err.code, message: err.message });
+        return;
+      }
+      throw err;
     }
 
     if (config.auth.inviteRequired) {
@@ -146,7 +117,6 @@ export default async function registerAccount(req: Request, res: Response): Prom
           return;
         }
       }
-
     }
 
     // Create identity and hash password in parallel (independent operations)
@@ -155,7 +125,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
     try {
       [identity, passwordHash] = await Promise.all([
         createUserIdentity(handle),
-        hashPassword(input.password),
+        hashPassword(password),
       ]);
     } catch (err) {
       await client.query('ROLLBACK');
@@ -169,17 +139,14 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
     const userId = crypto.randomUUID();
 
-    await client.query(
-      `INSERT INTO users (id, handle, email, password_hash, status, did)
-       VALUES ($1, $2, $3, $4, 'pending', $5)`,
-      [userId, handle, email, passwordHash, identity.did]
-    );
-
-    await client.query(
-      `INSERT INTO user_roles (user_id, role)
-       VALUES ($1, 'user')`,
-      [userId]
-    );
+    await insertUserWithRole(client, {
+      userId,
+      handle,
+      email,
+      passwordHash,
+      did: identity.did,
+      status: 'pending',
+    });
 
     if (inviteCodeToUse) {
       const usedBy = inviteMaxUses === 1 ? userId : null;
@@ -195,28 +162,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
     await client.query('COMMIT');
 
-    // Store signing key and create user repo (outside transaction - identity already registered)
-    try {
-      await storeUserSigningKey(identity.did, identity.signingKeyBase64);
-
-      // Build keypair directly from the raw key bytes instead of
-      // encrypt-then-decrypt (saves ~200ms of redundant PBKDF2)
-      const keyBytes = Buffer.from(identity.signingKeyBase64, 'base64');
-      const keypair = await Secp256k1Keypair.import(keyBytes, { exportable: false });
-
-      const engine = new RepoEngine(identity.did);
-      await engine.createRepo(keypair, [
-        {
-          collection: 'app.bsky.actor.profile',
-          rkey: 'self',
-          record: { displayName: handle, description: '' },
-        },
-      ]);
-    } catch (err) {
-      // Log but don't fail registration — the user account is created,
-      // repo can be initialized later if needed
-      console.error('Warning: failed to create user repo (account still created):', err);
-    }
+    await initializeUserRepoAsync(identity.did, handle, identity.signingKeyBase64);
 
     res.status(201).json({
       id: userId,

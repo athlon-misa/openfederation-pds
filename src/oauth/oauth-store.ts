@@ -37,15 +37,14 @@ import type {
 
 import { query, getClient } from '../db/client.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
-import {
-  isValidHandle,
-  isValidEmail,
-  isStrongPassword,
-  normalizeEmail,
-  normalizeHandle,
-} from '../auth/utils.js';
+import { normalizeHandle } from '../auth/utils.js';
 import { createUserIdentity } from '../identity/user-identity.js';
-import { storeUserSigningKey } from '../identity/user-identity.js';
+import {
+  normalizeAndValidateCredentials,
+  ensureHandleEmailAvailable,
+  insertUserWithRole,
+  initializeUserRepoAsync,
+} from '../auth/account-creation.js';
 import { config } from '../config.js';
 import crypto from 'crypto';
 
@@ -53,30 +52,15 @@ import crypto from 'crypto';
 
 export class PgAccountStore implements AccountStore {
   async createAccount(data: CreateAccountData): Promise<Account> {
-    const handle = normalizeHandle(data.handle);
-    const email = normalizeEmail(data.email);
+    const { handle, email, password } = normalizeAndValidateCredentials(data);
 
-    if (!isValidHandle(handle)) {
-      throw new Error('Invalid handle format');
-    }
-    if (!isValidEmail(email)) {
-      throw new Error('Invalid email format');
-    }
-    if (!isStrongPassword(data.password)) {
-      throw new Error('Password does not meet strength requirements');
-    }
-
-    // Check handle availability
-    const existing = await query(
-      'SELECT id FROM users WHERE handle = $1 OR email = $2',
-      [handle, email]
-    );
-    if (existing.rows.length > 0) {
-      throw new Error('Handle or email already taken');
-    }
-
-    // Validate invite code if required
-    if (config.auth.inviteRequired && data.inviteCode) {
+    // Invite check BEFORE starting any IO. Bug-fix: previously this was
+    // gated on `data.inviteCode` being present, which meant OAuth callers
+    // could skip the invite gate just by omitting the code.
+    if (config.auth.inviteRequired) {
+      if (!data.inviteCode) {
+        throw new Error('An invite code is required to register');
+      }
       const invite = await query(
         'SELECT code, max_uses, uses_count, expires_at FROM invites WHERE code = $1',
         [data.inviteCode]
@@ -87,26 +71,28 @@ export class PgAccountStore implements AccountStore {
       if (inv.expires_at && new Date(inv.expires_at) < new Date()) throw new Error('Invite code expired');
     }
 
-    const userId = crypto.randomUUID();
-    const passwordHash = await hashPassword(data.password);
-
-    // Create DID identity
-    const { did, signingKeyBase64 } = await createUserIdentity(handle);
-
     const client = await getClient();
+    let identity: Awaited<ReturnType<typeof createUserIdentity>>;
+    const userId = crypto.randomUUID();
     try {
       await client.query('BEGIN');
 
-      await client.query(
-        `INSERT INTO users (id, handle, email, password_hash, status, did, auth_type)
-         VALUES ($1, $2, $3, $4, 'pending', $5, 'local')`,
-        [userId, handle, email, passwordHash, did]
-      );
+      await ensureHandleEmailAvailable(client, handle, email);
 
-      await client.query(
-        'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
-        [userId, 'user']
-      );
+      const [createdIdentity, passwordHash] = await Promise.all([
+        createUserIdentity(handle),
+        hashPassword(password),
+      ]);
+      identity = createdIdentity;
+
+      await insertUserWithRole(client, {
+        userId,
+        handle,
+        email,
+        passwordHash,
+        did: identity.did,
+        status: 'pending',
+      });
 
       if (config.auth.inviteRequired && data.inviteCode) {
         await client.query(
@@ -123,15 +109,13 @@ export class PgAccountStore implements AccountStore {
       client.release();
     }
 
-    // Store signing key (outside transaction)
-    try {
-      await storeUserSigningKey(did, signingKeyBase64);
-    } catch (err) {
-      console.error('Failed to store signing key for', did, err);
-    }
+    // Initialize signing key + repo outside the user-insert transaction.
+    // Previously the OAuth path only stored the signing key and skipped
+    // repo initialization entirely — now aligned with the other two flows.
+    await initializeUserRepoAsync(identity.did, handle, identity.signingKeyBase64);
 
     return {
-      sub: did,
+      sub: identity.did,
       aud: config.pds.serviceUrl,
       email,
       name: handle,
