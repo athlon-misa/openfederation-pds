@@ -1,7 +1,8 @@
 {
   "name": "@open-federation/lexicon",
   "version": "0.1.0",
-  "description": "ATProto Lexicon schemas for the OpenFederation protocol",
+  "private": true,
+  "description": "ATProto Lexicon schemas for the OpenFederation protocol (not yet published — build-lexicon-package codegen has a pre-existing @atproto/lexicon validation issue on net.openfederation.account.getSecurityLevel; publishing will resume once fixed)",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

@@ -43,7 +43,9 @@ jobs:
         run: |
           npm run --workspace @open-federation/sdk build
           npm run --workspace @open-federation/react build
-          npm run --workspace @open-federation/lexicon build
+          # Note: @open-federation/lexicon is intentionally not built / published
+          # yet — its codegen has a pre-existing validation issue on
+          # net.openfederation.account.getSecurityLevel. Re-enable once fixed.
 
       - name: Create Release PR or publish
         id: changesets

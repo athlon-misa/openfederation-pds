@@ -1,7 +1,6 @@
 ---
 "@open-federation/sdk": minor
 "@open-federation/react": minor
-"@open-federation/lexicon": minor
 ---
 
 Initial public release of the `@open-federation` package family under the newly-registered npm scope.
