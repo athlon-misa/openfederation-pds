@@ -8,11 +8,16 @@ import type {
   DisclosureResult, CreateViewingGrantOptions, ViewingGrant,
   GrantRedemption, GrantStatus, DisclosureAuditEntry,
   StoreCustodialSecretOptions, CustodialSecret,
+  WalletChain, ProvisionTier1Options, ProvisionTier2Options, ProvisionTier3Options,
+  ProvisionResult, GrantConsentOptions, ConsentGrant, WalletSignOptions,
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
 import { displayHandle as displayHandleUtil, xrpcUrl } from './utils.js';
 import { errorFromResponse, AuthenticationError } from './errors.js';
+import { provisionTier2, provisionTier3 } from './wallet/provision.js';
+import { unwrapMnemonic, type WrappedBlob } from './wallet/wrap.js';
+import { WalletSession } from './wallet/wallet-session.js';
 
 export class OpenFederationClient implements AuthProvider {
   private serverUrl: string;
@@ -576,6 +581,122 @@ export class OpenFederationClient implements AuthProvider {
       params: { chain },
     }) as Promise<CustodialSecret>;
   }
+
+  // ── Progressive-custody wallets ──────────────────────
+
+  /** Exposes the new wallet provisioning / signing APIs under a namespace. */
+  readonly wallet = {
+    /**
+     * Provision a Tier 1 (custodial) wallet. The PDS generates the key,
+     * encrypts it at rest, and links the address to the caller's DID.
+     * Returns the new wallet's public address. The caller never sees the
+     * private key — Tier 1 keys live entirely on the server until upgraded.
+     */
+    createTier1: async (opts: ProvisionTier1Options): Promise<ProvisionResult> => {
+      const res = await this.fetch('net.openfederation.wallet.provision', {
+        method: 'POST',
+        body: { chain: opts.chain, label: opts.label },
+      }) as ProvisionResult;
+      return res;
+    },
+
+    /**
+     * Provision a Tier 2 (user-encrypted) wallet: the SDK generates a BIP-39
+     * mnemonic in the browser, wraps it with the user's passphrase, uploads
+     * the opaque blob, and links the derived address to the DID via the
+     * existing challenge-response flow. The PDS never sees the mnemonic.
+     */
+    createTier2: async (opts: ProvisionTier2Options): Promise<ProvisionResult> => {
+      return provisionTier2(
+        {
+          getChallenge: (chain, walletAddress) =>
+            this.getWalletLinkChallenge(chain, walletAddress),
+          linkWallet: (o) =>
+            this.linkWallet(o as LinkWalletOptions),
+          storeCustodialSecret: (o) =>
+            this.storeCustodialSecret(o as StoreCustodialSecretOptions),
+        },
+        opts
+      );
+    },
+
+    /**
+     * Provision a Tier 3 (self-custody) wallet. The SDK generates a mnemonic
+     * locally, links the derived address, and returns the mnemonic to the
+     * caller — who must store it themselves. Nothing beyond the public
+     * binding is retained by the PDS.
+     */
+    createTier3: async (opts: ProvisionTier3Options): Promise<ProvisionResult> => {
+      return provisionTier3(
+        {
+          getChallenge: (chain, walletAddress) =>
+            this.getWalletLinkChallenge(chain, walletAddress),
+          linkWallet: (o) =>
+            this.linkWallet(o as LinkWalletOptions),
+          storeCustodialSecret: async () => { /* unused on Tier 3 */ },
+        },
+        opts
+      );
+    },
+
+    /**
+     * Unlock a Tier 2 wallet with its passphrase. Returns an in-memory
+     * `WalletSession` that can sign client-side for any chain derived from
+     * the same master mnemonic.
+     */
+    unlockTier2: async (opts: { chain: WalletChain; passphrase: string }): Promise<WalletSession> => {
+      const secret = await this.getCustodialSecret(opts.chain);
+      const blob = JSON.parse(secret.encryptedBlob) as WrappedBlob;
+      const mnemonic = await unwrapMnemonic(blob, opts.passphrase);
+      return new WalletSession(mnemonic);
+    },
+
+    /**
+     * Sign a message with a Tier 1 wallet via the PDS. Requires an active
+     * consent grant from `grantConsent()`. Returns a chain-native signature.
+     */
+    sign: async (opts: WalletSignOptions): Promise<{ signature: string; chain: string; walletAddress: string; dappOrigin: string }> => {
+      const dappOrigin = opts.dappOrigin
+        ?? (typeof globalThis !== 'undefined' && (globalThis as any).location
+          ? (globalThis as any).location.origin
+          : undefined);
+      if (!dappOrigin) {
+        throw new Error('dappOrigin is required (no window.location available in this environment)');
+      }
+      return this.fetch('net.openfederation.wallet.sign', {
+        method: 'POST',
+        body: {
+          chain: opts.chain,
+          walletAddress: opts.walletAddress,
+          message: opts.message,
+          dappOrigin,
+        },
+      }) as Promise<{ signature: string; chain: string; walletAddress: string; dappOrigin: string }>;
+    },
+
+    /** Grant a dApp origin time-bounded permission to sign with Tier 1 wallet(s). */
+    grantConsent: async (opts: GrantConsentOptions): Promise<ConsentGrant> => {
+      return this.fetch('net.openfederation.wallet.grantConsent', {
+        method: 'POST',
+        body: opts as unknown as Record<string, unknown>,
+      }) as Promise<ConsentGrant>;
+    },
+
+    /** Revoke a consent grant by id, or by origin + optional wallet scope. */
+    revokeConsent: async (opts: { id?: string; dappOrigin?: string; chain?: WalletChain; walletAddress?: string }): Promise<{ revoked: number }> => {
+      return this.fetch('net.openfederation.wallet.revokeConsent', {
+        method: 'POST',
+        body: opts as unknown as Record<string, unknown>,
+      }) as Promise<{ revoked: number }>;
+    },
+
+    /** List all active (unrevoked, unexpired) consent grants for the user. */
+    listConsents: async (): Promise<{ consents: ConsentGrant[] }> => {
+      return this.fetch('net.openfederation.wallet.listConsents', {
+        method: 'GET',
+      }) as Promise<{ consents: ConsentGrant[] }>;
+    },
+  };
 
   /**
    * Clean up timers and callbacks.

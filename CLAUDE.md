@@ -55,12 +55,14 @@ Before starting the server, configure `.env` (see `.env.example`):
 | `CHAIN_ADAPTERS` | No | Chain RPC URLs for proof verification. Format: `eip155:137=https://rpc.example.com`. Treat as secret (contains API keys). |
 | `PDS_SERVICE_DID` | No | Service DID accepted in the `aud` claim of inbound service-auth JWTs (default: `did:web:{PDS_HOSTNAME}`). |
 | `SERVICE_AUTH_RATE_LIMIT` | No | Max inbound service-auth requests per caller DID per minute (default: 60). |
+| `WALLET_SIGN_RATE_LIMIT` | No | Max Tier 1 wallet-sign requests per minute per IP (default: 60). |
+| `CREATE_RATE_LIMIT` | No | Max "create" operations (invites, communities, wallets, consents) per hour per IP (default: 10). |
 
 ### Current Implementation Status
 
 **Completed:**
 - Project structure and TypeScript ESM configuration
-- PostgreSQL database schema (33 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials, proof_verifications, wallet_links, wallet_link_challenges, vault_shares, vault_audit_log, escrow_providers, recovery_attempts, attestation_encryption, viewing_grants, disclosure_sessions, disclosure_audit_log)
+- PostgreSQL database schema (35 tables: users, user_roles, invites, sessions, communities, plc_keys, signing_keys, user_signing_keys, repo_blocks, repo_roots, records_index, members_unique, commits, join_requests, audit_log, partner_keys, blobs, export_schedules, export_snapshots, password_reset_tokens, ap_signing_keys, oracle_credentials, proof_verifications, wallet_links, wallet_link_challenges, wallet_custody, wallet_dapp_consents, vault_shares, vault_audit_log, escrow_providers, recovery_attempts, attestation_encryption, viewing_grants, disclosure_sessions, disclosure_audit_log, custodial_secrets)
 - Express server with XRPC routing and frozen handler registry
 - Identity Manager supporting both `did:plc` and `did:web` with domain validation
 - Real MST Repository Engine wrapping `@atproto/repo` with signed commits, CAR export, and ATProto-compliant TID generation
@@ -124,6 +126,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Custodial Secret Storage: opaque encrypted blob storage per user per chain (`custodial_secrets`), upsert-safe, FK-cascaded on account delete, vault audit logging for all access
 - SDK `loginWithExternalSession`: inject iron-session tokens into client without login flow — enables server-side Next.js/grvty-web usage with no custom XRPC wrappers
 - Cross-PDS service-auth (atproto inter-service JWTs): `com.atproto.server.getServiceAuth` mints outbound JWTs; inbound ES256K/ES256 JWTs verified against the issuer DID's atproto signing key (did:plc + did:web), cached 5 min, replay-protected, per-DID rate limited — lets Bluesky / federated users authenticate to `net.openfederation.*` endpoints without a local session
+- Progressive-custody wallets: a single DID anchors many per-chain wallets, each at one of three custody tiers. Tier 1 (`custodial`) — PDS holds the key encrypted at rest, signs server-side per explicit per-dApp consent with expiry. Tier 2 (`user_encrypted`) — SDK wraps a BIP-39 mnemonic under the user's passphrase; the PDS stores an opaque blob it can never decrypt. Tier 3 (`self_custody`) — client keeps mnemonic offline, PDS holds only the public link. All three share one `wallet_links` substrate and the same EIP-191 / Ed25519 proof-of-control, so addresses remain stable across future tier upgrades
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -341,6 +344,16 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | GET  | `net.openfederation.identity.listWalletLinks` | Yes | List user's linked wallets |
 | GET  | `net.openfederation.identity.resolveWallet` | No | Reverse lookup: find ATProto DID by wallet address |
 
+### OpenFederation Progressive-Custody Wallets
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| POST | `net.openfederation.wallet.provision` | Yes | Tier 1 only: PDS generates a wallet, encrypts the key at rest, links the address to the caller's DID |
+| POST | `net.openfederation.wallet.sign` | Yes | Tier 1 only: sign a message with a custodial wallet; requires `X-dApp-Origin` header or body `dappOrigin` and an active consent grant |
+| POST | `net.openfederation.wallet.grantConsent` | Yes | Grant a dApp origin time-bounded permission to sign with Tier 1 wallet(s); default 7-day TTL, max 30-day |
+| POST | `net.openfederation.wallet.revokeConsent` | Yes | Revoke consent by id or by (dappOrigin, chain?, walletAddress?) scope |
+| GET  | `net.openfederation.wallet.listConsents` | Yes | List the caller's active (unrevoked, unexpired) Tier 1 signing consents |
+
 ### OpenFederation Partner API
 
 | Method | NSID | Auth | Description |
@@ -406,7 +419,7 @@ See `src/db/schema.sql` for the full schema. Key tables (22 total):
 
 Schema is auto-initialized on first startup. Incremental migrations are applied manually:
 
-`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`, `scripts/migrate-020-custodial-secrets.sql`
+`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`, `scripts/migrate-020-custodial-secrets.sql`, `scripts/migrate-021-wallet-custody.sql`
 
 ---
 

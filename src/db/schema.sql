@@ -314,11 +314,17 @@ CREATE TABLE IF NOT EXISTS wallet_links (
     challenge TEXT NOT NULL,
     signature TEXT NOT NULL,
     linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Progressive custody tier for this wallet. See migration 021.
+    custody_tier TEXT NOT NULL DEFAULT 'self_custody'
+        CHECK (custody_tier IN ('custodial', 'user_encrypted', 'self_custody')),
+    custody_status TEXT NOT NULL DEFAULT 'active'
+        CHECK (custody_status IN ('active', 'exported', 'superseded')),
     UNIQUE(chain, wallet_address),
     UNIQUE(user_did, label)
 );
 CREATE INDEX IF NOT EXISTS idx_wallet_links_did ON wallet_links(user_did);
 CREATE INDEX IF NOT EXISTS idx_wallet_links_address ON wallet_links(chain, wallet_address);
+CREATE INDEX IF NOT EXISTS idx_wallet_links_tier ON wallet_links(user_did, custody_tier);
 
 CREATE TABLE IF NOT EXISTS wallet_link_challenges (
     id VARCHAR(36) PRIMARY KEY,
@@ -330,6 +336,40 @@ CREATE TABLE IF NOT EXISTS wallet_link_challenges (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_wallet_challenges_did ON wallet_link_challenges(user_did);
+
+-- Tier 1 custodial wallet keys. PDS holds the private key, encrypted at rest
+-- with KEY_ENCRYPTION_SECRET (same AES-256-GCM primitive as signing_keys).
+-- Only decrypted in-memory for a single sign() request.
+CREATE TABLE IF NOT EXISTS wallet_custody (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_did VARCHAR(255) NOT NULL REFERENCES users(did) ON DELETE CASCADE,
+    chain VARCHAR(32) NOT NULL,
+    wallet_address VARCHAR(255) NOT NULL,
+    private_key_encrypted BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_did, chain, wallet_address)
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_custody_user_did ON wallet_custody(user_did);
+
+-- OAuth-style per-dApp consent grants authorizing the PDS to sign with Tier 1
+-- wallets on behalf of the user. Default TTL 7 days; user can revoke early.
+CREATE TABLE IF NOT EXISTS wallet_dapp_consents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_did VARCHAR(255) NOT NULL REFERENCES users(did) ON DELETE CASCADE,
+    dapp_origin TEXT NOT NULL,
+    chain VARCHAR(32),
+    wallet_address VARCHAR(255),
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_consents_lookup
+  ON wallet_dapp_consents(user_did, dapp_origin)
+  WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_wallet_consents_expiry
+  ON wallet_dapp_consents(expires_at)
+  WHERE revoked_at IS NULL;
 
 -- Vault shares: Shamir's Secret Sharing for threshold key custody
 CREATE TABLE IF NOT EXISTS vault_shares (

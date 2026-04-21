@@ -107,6 +107,61 @@ export interface LinkWalletOptions {
   label?: string;
 }
 
+// ── Progressive-custody wallet provisioning ─────────
+
+export type WalletChain = 'ethereum' | 'solana';
+export type CustodyTier = 'custodial' | 'user_encrypted' | 'self_custody';
+
+export interface ProvisionTier1Options {
+  chain: WalletChain;
+  label?: string;
+}
+
+export interface ProvisionTier2Options {
+  chain: WalletChain;
+  /** Passphrase used to wrap the generated mnemonic before it is uploaded. */
+  passphrase: string;
+  label?: string;
+}
+
+export interface ProvisionTier3Options {
+  chain: WalletChain;
+  label?: string;
+}
+
+export interface ProvisionResult {
+  chain: WalletChain;
+  walletAddress: string;
+  custodyTier: CustodyTier;
+  label: string | null;
+  /** Tier 3 only: the raw mnemonic returned to the caller. */
+  mnemonic?: string;
+}
+
+export interface GrantConsentOptions {
+  dappOrigin: string;
+  chain?: WalletChain;
+  walletAddress?: string;
+  ttlSeconds?: number;
+}
+
+export interface ConsentGrant {
+  id: string;
+  dappOrigin: string;
+  chain?: WalletChain | null;
+  walletAddress?: string | null;
+  grantedAt: string;
+  expiresAt: string;
+}
+
+export interface WalletSignOptions {
+  chain: WalletChain;
+  walletAddress: string;
+  message: string;
+  /** Origin of the requesting dApp; defaults to `window.location.origin`. */
+  dappOrigin?: string;
+}
+
 // ── Vault & Recovery ────────────────────────────────
 
 export interface SecurityLevel {

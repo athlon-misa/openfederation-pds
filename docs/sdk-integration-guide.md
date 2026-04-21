@@ -954,3 +954,89 @@ ALTER TABLE users ADD COLUMN created_by_partner VARCHAR(36) REFERENCES partner_k
 Migrations:
 - `scripts/migrate-004-partner-keys.sql` — partner keys table
 - `scripts/migrate-006-rbac-roles.sql` — adds `partner-manager` and `auditor` roles
+
+
+---
+
+## Progressive-Custody Wallets
+
+OpenFederation provisions web3 wallets at three custody tiers. One DID, many wallets, each at a security level chosen by the user — and upgradable later without changing the on-chain address.
+
+| Tier | Where the key lives | Signing path | When to use |
+|---|---|---|---|
+| **1 Custodial** | PDS (encrypted at rest) | `client.wallet.sign(...)` routes to the PDS; per-dApp consent required | Casual gaming, points, badges |
+| **2 User-encrypted** | PDS holds a passphrase-wrapped blob; user holds the passphrase | `client.wallet.unlockTier2(...)` returns a `WalletSession` that signs in-browser | Community tokens, regular voting |
+| **3 Self-custody** | Nowhere on OF — client keeps the mnemonic | Sign in your own wallet software | Treasury signing, governance, high value |
+
+All tiers share the same on-chain address and the same `wallet_links` binding. Upgrading a tier (Milestone 2.5, future PR) preserves the address.
+
+### Tier 1 — Custodial wallet
+
+```ts
+const client = createClient({ serverUrl, partnerKey });
+await client.register({ handle, email, password });
+
+// Ask the PDS to generate a custodial Ethereum wallet.
+const t1 = await client.wallet.createTier1({ chain: 'ethereum', label: 'game-1' });
+// => { chain: 'ethereum', walletAddress: '0x…', custodyTier: 'custodial', label: 'game-1' }
+
+// Before any dApp can sign with this wallet, the user must grant consent
+// to the dApp's origin. Default TTL 7 days, max 30 days.
+await client.wallet.grantConsent({
+  dappOrigin: 'https://game.example.com',
+  chain: 'ethereum',
+  walletAddress: t1.walletAddress,
+});
+
+// Sign a message via the PDS. Returns an EIP-191 hex signature.
+const { signature } = await client.wallet.sign({
+  chain: 'ethereum',
+  walletAddress: t1.walletAddress,
+  message: 'Hello from Tier 1',
+  dappOrigin: 'https://game.example.com',
+});
+```
+
+### Tier 2 — User-encrypted wallet
+
+```ts
+// Client-side: generate a BIP-39 mnemonic, wrap with a passphrase,
+// upload the encrypted blob, link the derived address to the DID.
+const t2 = await client.wallet.createTier2({
+  chain: 'solana',
+  passphrase: 'correct-horse-battery-staple',
+  label: 'community-1',
+});
+
+// To sign, unlock with the passphrase → get an in-memory WalletSession.
+const session = await client.wallet.unlockTier2({
+  chain: 'solana',
+  passphrase: 'correct-horse-battery-staple',
+});
+const sig = session.signMessage('hello', 'solana'); // base58 Ed25519 signature
+
+// When done, wipe the in-memory keys.
+session.destroy();
+```
+
+### Tier 3 — Self-custody wallet
+
+```ts
+// Client generates the mnemonic, links the public address to the DID,
+// and returns the mnemonic for the caller to store offline.
+const t3 = await client.wallet.createTier3({ chain: 'ethereum', label: 'treasury' });
+console.log('Store this mnemonic offline:', t3.mnemonic);
+// Nothing was uploaded to the PDS beyond the public link. From here on,
+// sign with your own wallet software (MetaMask, Ledger, etc.).
+```
+
+### Rate limits
+
+- `CREATE_RATE_LIMIT` (default 10/hr/IP) caps provisioning + consent grants.
+- `WALLET_SIGN_RATE_LIMIT` (default 60/min/IP) caps Tier 1 signing requests.
+- Both are surfaced as 429 with `error: "RateLimitExceeded"`.
+
+### See also
+
+- End-to-end demo: `scripts/demos/wallet-progressive-custody.ts` — creates one wallet per tier and independently verifies each signature.
+- Database migration: `scripts/migrate-021-wallet-custody.sql`.

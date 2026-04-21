@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.sign",
+  "revision": 1,
+  "description": "Sign a message with a Tier 1 (custodial) wallet. Requires an active consent grant from the authenticated user to the requesting dApp origin.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "message"],
+          "properties": {
+            "chain": { "type": "string", "description": "ethereum or solana" },
+            "walletAddress": { "type": "string", "description": "Address to sign with; must be owned by the caller and at Tier 1." },
+            "message": { "type": "string", "description": "Plaintext message. Max 4096 chars." },
+            "dappOrigin": { "type": "string", "description": "Full origin URL of the requesting dApp. Falls back to the X-dApp-Origin header if omitted." }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "signature", "dappOrigin"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "signature": { "type": "string", "description": "Chain-native signature: EIP-191 hex (ETH), base58 (Solana)." },
+            "dappOrigin": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields or oversize message." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "WalletNotFound", "description": "No such wallet for this DID." },
+        { "name": "WalletInactive", "description": "Wallet has been exported or superseded." },
+        { "name": "UnsupportedTier", "description": "Wallet is not Tier 1 — must sign client-side or via external wallet software." },
+        { "name": "ConsentRequired", "description": "No active consent grant authorizes this dApp to sign with this wallet." }
+      ]
+    }
+  }
+}

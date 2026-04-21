@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.revokeConsent",
+  "revision": 1,
+  "description": "Revoke a single consent grant by id, or all matching grants by (dappOrigin, chain?, walletAddress?).",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "dappOrigin": { "type": "string" },
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["revoked"],
+          "properties": {
+            "revoked": { "type": "integer", "description": "Number of active grants revoked by this call." }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Neither id nor dappOrigin provided, or malformed parameters." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana if provided." }
+      ]
+    }
+  }
+}

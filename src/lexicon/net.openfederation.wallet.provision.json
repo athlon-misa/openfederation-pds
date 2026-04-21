@@ -1,0 +1,40 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.provision",
+  "revision": 1,
+  "description": "Provision a Tier 1 (custodial) wallet for the authenticated user on a given chain. The PDS generates the key, encrypts it at rest, and links the public address to the caller's DID.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain"],
+          "properties": {
+            "chain": { "type": "string", "description": "ethereum or solana" },
+            "label": { "type": "string", "description": "Optional human-readable label, 1-64 chars, unique per user." }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "custodyTier"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "custodyTier": { "type": "string" },
+            "label": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing or invalid parameters." },
+        { "name": "UnsupportedChain", "description": "Chain must be ethereum or solana." },
+        { "name": "ProvisionFailed", "description": "Address collision, label conflict, or other linking failure." }
+      ]
+    }
+  }
+}

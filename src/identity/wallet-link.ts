@@ -43,15 +43,17 @@ export async function createChallenge(
   const nonce = randomBytes(32).toString('hex');
   const timestamp = new Date().toISOString();
   const challenge = `OpenFederation Wallet Link\n\nDID: ${userDid}\nChain: ${chain}\nWallet: ${normalizedAddress}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
-  const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
 
-  await query(
+  // Compute expiry in SQL so the stored value aligns with the NOW()
+  // comparison used during verification — avoids TZ drift on plain TIMESTAMP.
+  const result = await query<{ expires_at: Date }>(
     `INSERT INTO wallet_link_challenges (id, user_did, chain, wallet_address, challenge, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [id, userDid, chain, normalizedAddress, challenge, expiresAt.toISOString()]
+     VALUES ($1, $2, $3, $4, $5, NOW() + ($6 || ' milliseconds')::interval)
+     RETURNING expires_at`,
+    [id, userDid, chain, normalizedAddress, challenge, CHALLENGE_TTL_MS.toString()]
   );
 
-  return { challenge, expiresAt: expiresAt.toISOString() };
+  return { challenge, expiresAt: new Date(result.rows[0].expires_at).toISOString() };
 }
 
 // ── Signature verification + linking ────────────────────────────
@@ -88,12 +90,15 @@ export async function verifyAndLink(
   try {
     await client.query('BEGIN');
 
-    // Lock the challenge row to serialize concurrent attempts
+    // Lock the challenge row to serialize concurrent attempts.
+    // Compare expires_at to server-side NOW() to avoid JS/pg TZ drift on
+    // plain TIMESTAMP columns (client-side `new Date(row.expires_at)`
+    // silently reinterprets a naive timestamp as local time).
     const challengeResult = await client.query<{
       id: string;
-      expires_at: Date;
+      expired: boolean;
     }>(
-      `SELECT id, expires_at FROM wallet_link_challenges
+      `SELECT id, (expires_at < NOW()) AS expired FROM wallet_link_challenges
        WHERE user_did = $1 AND chain = $2 AND wallet_address = $3 AND challenge = $4
        FOR UPDATE`,
       [userDid, chain, normalizedAddress, challenge]
@@ -105,7 +110,7 @@ export async function verifyAndLink(
     }
 
     const row = challengeResult.rows[0];
-    if (new Date(row.expires_at) < new Date()) {
+    if (row.expired) {
       await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
       await client.query('COMMIT');
       return { success: false, error: 'Challenge has expired' };

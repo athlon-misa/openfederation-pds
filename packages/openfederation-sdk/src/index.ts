@@ -43,7 +43,28 @@ export type {
   // Custodial Secrets
   StoreCustodialSecretOptions,
   CustodialSecret,
+  // Progressive-custody wallets
+  WalletChain,
+  CustodyTier,
+  ProvisionTier1Options,
+  ProvisionTier2Options,
+  ProvisionTier3Options,
+  ProvisionResult,
+  GrantConsentOptions,
+  ConsentGrant,
+  WalletSignOptions,
 } from './types.js';
+export {
+  generateMnemonic,
+  isValidMnemonic,
+  deriveWallet,
+  wrapMnemonic,
+  unwrapMnemonic,
+  signEthereumMessage,
+  signSolanaMessage,
+  WalletSession,
+} from './wallet/index.js';
+export type { WrappedBlob, DerivedWallet } from './wallet/index.js';
 export type { VerifiedSession, VerifyPdsTokenOptions } from './verify.js';
 
 import { OpenFederationClient } from './client.js';

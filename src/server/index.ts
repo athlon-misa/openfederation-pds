@@ -86,6 +86,11 @@ import linkWallet from '../api/net.openfederation.identity.linkWallet.js';
 import unlinkWalletHandler from '../api/net.openfederation.identity.unlinkWallet.js';
 import listWalletLinksHandler from '../api/net.openfederation.identity.listWalletLinks.js';
 import resolveWalletHandler from '../api/net.openfederation.identity.resolveWallet.js';
+import walletProvision from '../api/net.openfederation.wallet.provision.js';
+import walletSign from '../api/net.openfederation.wallet.sign.js';
+import walletGrantConsent from '../api/net.openfederation.wallet.grantConsent.js';
+import walletRevokeConsent from '../api/net.openfederation.wallet.revokeConsent.js';
+import walletListConsents from '../api/net.openfederation.wallet.listConsents.js';
 import updateMemberRole from '../api/net.openfederation.community.updateMemberRole.js';
 import issueAttestation from '../api/net.openfederation.community.issueAttestation.js';
 import deleteAttestation from '../api/net.openfederation.community.deleteAttestation.js';
@@ -234,7 +239,7 @@ const registrationLimiter = rateLimit({
 
 const createLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,  // 1 hour
-  max: 10,                     // 10 community creations per hour
+  max: parseInt(process.env.CREATE_RATE_LIMIT || '10', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many creation requests, please try again later' },
@@ -246,6 +251,17 @@ const discoveryLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many discovery requests, please try again later' },
+});
+
+// Tier 1 custodial-signing: per-IP cap, but also per-DID checked at handler
+// level if we ever need finer granularity. Default 60/min per IP matches
+// service-auth and keeps a single dApp from saturating the PDS.
+const walletSignLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.WALLET_SIGN_RATE_LIMIT || '60', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'RateLimitExceeded', message: 'Too many signing requests, please try again later' },
 });
 
 // Apply global rate limiter
@@ -313,6 +329,13 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.identity.unlinkWallet': { handler: unlinkWalletHandler },
   'net.openfederation.identity.listWalletLinks': { handler: listWalletLinksHandler },
   'net.openfederation.identity.resolveWallet': { handler: resolveWalletHandler, limiter: discoveryLimiter },
+
+  // Progressive-custody wallet provisioning + custodial signing (Tier 1)
+  'net.openfederation.wallet.provision': { handler: walletProvision, limiter: createLimiter },
+  'net.openfederation.wallet.sign': { handler: walletSign, limiter: walletSignLimiter },
+  'net.openfederation.wallet.grantConsent': { handler: walletGrantConsent, limiter: createLimiter },
+  'net.openfederation.wallet.revokeConsent': { handler: walletRevokeConsent },
+  'net.openfederation.wallet.listConsents': { handler: walletListConsents },
 
   // Community role management
   'net.openfederation.community.updateMemberRole': { handler: updateMemberRole },
