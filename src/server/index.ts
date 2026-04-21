@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { config } from '../config.js';
 import { testConnection } from '../db/client.js';
@@ -824,27 +824,66 @@ app.get('/sdk/v1.js', (_req: Request, res: Response) => {
 });
 
 
-// Auto-migrate schema if needed (for fresh Railway deploys)
+// Auto-migrate schema and apply incremental migrations on every startup.
+//
+// On a brand-new database this runs schema.sql (the full baseline) and then
+// all scripts/migrate-*.sql in filename order. On an existing database only
+// the migrations run — schema.sql is skipped. Every migration is written
+// with IF NOT EXISTS on CREATE TABLE / CREATE INDEX / ADD COLUMN, making
+// repeated applies safe.
+//
+// This is the root fix for long-running deploys drifting behind the repo's
+// migration set: if someone pushes migrate-026 tomorrow, the next Railway
+// deploy applies it before handlers accept traffic. Nothing to remember,
+// nothing to run by hand.
 async function ensureSchema(): Promise<void> {
-  const result = await query(
-    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')"
+  const tableCheck = await query<{ exists: boolean }>(
+    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') AS exists",
   );
-  if (!result.rows[0].exists) {
-    console.log('No schema detected, initializing database...');
-    // schema.sql lives in src/db/ — try source first, then project root
-    const candidates = [
+
+  if (!tableCheck.rows[0].exists) {
+    console.log('No schema detected, initializing database from schema.sql...');
+    const schemaCandidates = [
       join(process.cwd(), 'src', 'db', 'schema.sql'),
       join(process.cwd(), 'schema.sql'),
     ];
-    const schemaPath = candidates.find(p => existsSync(p));
+    const schemaPath = schemaCandidates.find((p) => existsSync(p));
     if (!schemaPath) {
       console.error('FATAL: Could not find schema.sql to initialize database');
       process.exit(1);
     }
-    const schema = readFileSync(schemaPath, 'utf-8');
-    await query(schema);
+    await query(readFileSync(schemaPath, 'utf-8'));
     console.log('Database schema initialized');
   }
+
+  // Apply all incremental migrations (idempotent by design).
+  const migrationCandidates = [
+    join(process.cwd(), 'scripts'),
+    join(process.cwd(), 'dist', 'scripts'),
+  ];
+  const migrationsDir = migrationCandidates.find((p) => existsSync(p));
+  if (!migrationsDir) {
+    console.warn('No scripts/ directory found — skipping incremental migrations.');
+    return;
+  }
+  const files = readdirSync(migrationsDir)
+    .filter((f) => /^migrate-\d+.*\.sql$/.test(f))
+    .sort();
+  if (files.length === 0) return;
+
+  let applied = 0;
+  for (const f of files) {
+    try {
+      await query(readFileSync(join(migrationsDir, f), 'utf-8'));
+      applied++;
+    } catch (err) {
+      // Migrations should all be idempotent — report any failure loudly.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`Migration ${f} failed: ${msg}`);
+      throw err;
+    }
+  }
+  console.log(`Applied ${applied} migrations (${files[0]}..${files[files.length - 1]}).`);
 }
 
 // Periodic cleanup of expired and revoked sessions
