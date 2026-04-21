@@ -54,6 +54,30 @@ describe('Community Attestations', () => {
       expect(res.body.error).toBe('NotMember');
     });
 
+    it('should reject claim exceeding 4096 bytes (size cap, issue #47)', async () => {
+      if (!plcAvailable) return;
+      const oversizedClaim = { data: 'x'.repeat(5000) };
+      const res = await xrpcAuthPost('net.openfederation.community.issueAttestation', owner.accessJwt, {
+        communityDid, subjectDid: member.did, subjectHandle: member.handle,
+        type: 'credential', claim: oversizedClaim,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('PayloadTooLarge');
+    });
+
+    it('should reject claim nested deeper than 5 levels (depth cap, issue #47)', async () => {
+      if (!plcAvailable) return;
+      // Build a deeply-nested object: level 7 > limit 5
+      const deep: any = { v: 1 };
+      for (let i = 0; i < 7; i++) deep.v = { v: deep.v };
+      const res = await xrpcAuthPost('net.openfederation.community.issueAttestation', owner.accessJwt, {
+        communityDid, subjectDid: member.did, subjectHandle: member.handle,
+        type: 'credential', claim: deep,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/nest deeper/i);
+    });
+
     it('should issue an attestation', async () => {
       if (!plcAvailable) return;
       const res = await xrpcAuthPost('net.openfederation.community.issueAttestation', owner.accessJwt, {

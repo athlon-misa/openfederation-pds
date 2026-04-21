@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.issueAttestation",
-  "revision": 2,
-  "description": "Issue a signed attestation for a community member. Supports public and private (encrypted) visibility modes.",
+  "revision": 3,
+  "description": "Issue a signed attestation for a community member. Supports public and private (encrypted) visibility modes. Claim is capped at 4096 bytes (JSON-serialized) and 5 levels of nesting.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -24,7 +24,11 @@
       "errors": [
         {
           "name": "InvalidRequest",
-          "description": "Missing required fields."
+          "description": "Missing required fields, invalid type, or claim exceeds depth/shape limits."
+        },
+        {
+          "name": "PayloadTooLarge",
+          "description": "Claim exceeds 4096 bytes when JSON-serialized."
         },
         {
           "name": "NotMember",
@@ -53,7 +57,7 @@
         },
         "claim": {
           "type": "unknown",
-          "description": "Arbitrary claim data (role, position, status, etc.)."
+          "description": "Arbitrary claim data (role, position, status, etc.). Must be a JSON object <= 4096 bytes when serialized, with depth <= 5 levels."
         },
         "expiresAt": {
           "type": "string",

@@ -15,6 +15,26 @@ import {
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 const VALID_TYPES = ['membership', 'role', 'credential'];
+const MAX_CLAIM_SIZE_BYTES = 4096;
+const MAX_CLAIM_DEPTH = 5;
+
+/**
+ * Returns the maximum nesting depth of a JSON value. Scalars/nulls are
+ * depth 0. An object whose deepest property is a scalar is depth 1.
+ */
+function jsonDepth(value: unknown): number {
+  if (value === null || typeof value !== 'object') return 0;
+  if (Array.isArray(value)) {
+    let max = 0;
+    for (const v of value) max = Math.max(max, jsonDepth(v));
+    return 1 + max;
+  }
+  let max = 0;
+  for (const v of Object.values(value as Record<string, unknown>)) {
+    max = Math.max(max, jsonDepth(v));
+  }
+  return 1 + max;
+}
 
 export default async function issueAttestation(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -45,6 +65,24 @@ export default async function issueAttestation(req: AuthRequest, res: Response):
       res.status(400).json({
         error: 'InvalidRequest',
         message: 'claim must be a JSON object',
+      });
+      return;
+    }
+
+    // Cap claim size and nesting depth to prevent storage inflation and
+    // protect downstream serializers/renderers from pathological input.
+    const claimJson = JSON.stringify(claim);
+    if (claimJson.length > MAX_CLAIM_SIZE_BYTES) {
+      res.status(400).json({
+        error: 'PayloadTooLarge',
+        message: `claim must not exceed ${MAX_CLAIM_SIZE_BYTES} bytes when serialized as JSON`,
+      });
+      return;
+    }
+    if (jsonDepth(claim) > MAX_CLAIM_DEPTH) {
+      res.status(400).json({
+        error: 'InvalidRequest',
+        message: `claim must not nest deeper than ${MAX_CLAIM_DEPTH} levels`,
       });
       return;
     }
