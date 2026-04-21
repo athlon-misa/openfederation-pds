@@ -1,6 +1,6 @@
 export { OpenFederationClient } from './client.js';
 export { verifyPdsToken } from './verify.js';
-export { displayHandle } from './utils.js';
+export { displayHandle, parseTokenExpiry } from './utils.js';
 export {
   OpenFederationError,
   AuthenticationError,

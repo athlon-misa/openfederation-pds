@@ -1585,3 +1585,24 @@ Register it with `@solana/wallet-adapter-react`:
 - If demand shifts, either of these recipes can be promoted into a package in an afternoon.
 
 A fully-working runnable reference lives at **`/demos/siwof-dapp/`** — Vite + React + `@openfederation/react`, no wagmi / wallet-adapter needed, which is the simpler integration path most dApps pick.
+
+
+---
+
+## `parseTokenExpiry(value)` — robust token-expiry parsing
+
+OAuth SDKs (including `@atproto/oauth-client-node`) report `expires_at` in at least three shapes depending on version and code path: ISO-8601 strings, Unix epoch seconds, Unix epoch milliseconds. Passing a seconds-epoch to `new Date(n)` silently gives a 1970-era date; an unparseable string gives `NaN`. Both failure modes look authenticated but 401 every request.
+
+```ts
+import { parseTokenExpiry } from '@openfederation/sdk';
+
+const expiresAtMs = parseTokenExpiry(tokenSet.expires_at);
+// guaranteed finite. Defaults to Date.now() + 1h when the input is garbage.
+
+// Override the fallback if you want a stricter default:
+parseTokenExpiry(tokenSet.expires_at, {
+  fallbackMs: Date.now() + 30 * 60 * 1000,
+});
+```
+
+Accepts: numbers (seconds or ms, auto-disambiguated at the 1e12 boundary), ISO-8601 strings, numeric strings, `Date` instances. Returns the configured fallback (default 1h from now) for everything else — never returns NaN.
