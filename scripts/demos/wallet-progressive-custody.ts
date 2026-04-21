@@ -17,7 +17,7 @@
  */
 
 import 'dotenv/config';
-import { verifyMessage as verifyEthMessage } from 'ethers';
+import { verifyMessage as verifyEthMessage, Transaction as EthersTransaction } from 'ethers';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 import {
@@ -26,6 +26,7 @@ import {
   wrapMnemonic,
   unwrapMnemonic,
   signMessage,
+  signEthereumTransaction,
 } from '../../packages/openfederation-sdk/src/wallet/index.js';
 import { mnemonicToSeed } from '../../packages/openfederation-sdk/src/wallet/mnemonic.js';
 
@@ -118,6 +119,28 @@ async function main() {
   const t1Recovered = verifyEthMessage(t1Msg, t1Sign.body.signature).toLowerCase();
   console.log(`  ✓ signature verified — recovered ${t1Recovered} === ${t1.body.walletAddress} (${t1Recovered === t1.body.walletAddress})`);
 
+  // Sign a real EIP-1559 transaction via the new signTransaction endpoint.
+  const t1TxRes = await xrpc<{ signedTx: string }>('POST', 'net.openfederation.wallet.signTransaction', {
+    token,
+    body: {
+      chain: 'ethereum',
+      walletAddress: t1.body.walletAddress,
+      dappOrigin,
+      tx: {
+        to: '0x000000000000000000000000000000000000bEEF',
+        value: '1000000000000',       // 0.000001 ETH (wei as string)
+        gasLimit: '21000',
+        maxFeePerGas: '30000000000',  // 30 gwei
+        maxPriorityFeePerGas: '1000000000', // 1 gwei
+        nonce: 0,
+        chainId: 137,                  // Polygon
+      },
+    },
+  });
+  if (t1TxRes.status !== 200) throw new Error(`t1 signTransaction failed: ${t1TxRes.status} ${JSON.stringify(t1TxRes.body)}`);
+  const t1SignedTx = EthersTransaction.from(t1TxRes.body.signedTx);
+  console.log(`  ✓ signed EIP-1559 tx (chainId ${t1SignedTx.chainId}) — 'from' recovers to ${t1SignedTx.from?.toLowerCase()}`);
+
   // ── Tier 2: User-encrypted ──────────────────────────────────────────────
 
   log('Tier 2 (User-encrypted) — SDK generates mnemonic, wraps with passphrase');
@@ -207,6 +230,19 @@ async function main() {
   const t3SigResult = signMessage('ethereum', t3Msg, t3Wallet.privateKey);
   const t3Recovered = verifyEthMessage(t3Msg, t3SigResult).toLowerCase();
   console.log(`  ✓ offline-signed and verified — ${t3Recovered} === ${t3Wallet.address} (${t3Recovered === t3Wallet.address})`);
+
+  // And a real transaction, signed entirely client-side using the same mnemonic.
+  const t3SignedTx = await signEthereumTransaction(t3Wallet.privateKey, {
+    to: '0x0000000000000000000000000000000000C0FFEE',
+    value: '5000000000000000',
+    gasLimit: '21000',
+    maxFeePerGas: '20000000000',
+    maxPriorityFeePerGas: '1000000000',
+    nonce: 0,
+    chainId: 1,
+  });
+  const t3Parsed = EthersTransaction.from(t3SignedTx);
+  console.log(`  ✓ client-signed mainnet tx — 'from' ${t3Parsed.from?.toLowerCase()} === ${t3Wallet.address} (${t3Parsed.from?.toLowerCase() === t3Wallet.address})`);
 
   // ── Summary ─────────────────────────────────────────────────────────────
 

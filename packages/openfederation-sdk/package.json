@@ -39,6 +39,12 @@
     "tsup": "^8.0.0",
     "typescript": "^5.4.0"
   },
+  "peerDependencies": {
+    "ethers": ">=6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ethers": { "optional": true }
+  },
   "keywords": [
     "openfederation",
     "atproto",

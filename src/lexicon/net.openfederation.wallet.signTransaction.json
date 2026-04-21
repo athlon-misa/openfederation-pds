@@ -1,0 +1,54 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.signTransaction",
+  "revision": 1,
+  "description": "Sign a blockchain transaction with a Tier 1 (custodial) wallet. Requires an active consent grant from the authenticated user to the requesting dApp origin. Payload shape is chain-specific.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress"],
+          "properties": {
+            "chain": { "type": "string", "description": "ethereum or solana" },
+            "walletAddress": { "type": "string" },
+            "dappOrigin": { "type": "string", "description": "Falls back to X-dApp-Origin header if omitted." },
+            "tx": {
+              "type": "unknown",
+              "description": "Ethereum only: a TransactionRequest object (to, value, data, nonce, gasLimit, chainId, maxFeePerGas, ...). chainId is required so we never sign replay-vulnerable transactions."
+            },
+            "messageBase64": {
+              "type": "string",
+              "description": "Solana only: base64-encoded bytes of Transaction.compileMessage().serialize(). Max 128KB."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "dappOrigin"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "dappOrigin": { "type": "string" },
+            "signedTx": { "type": "string", "description": "Ethereum: 0x-prefixed RLP-encoded signed transaction." },
+            "signature": { "type": "string", "description": "Solana: base58-encoded Ed25519 signature over messageBase64." }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields or oversize payload." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "WalletNotFound", "description": "No such wallet for this DID." },
+        { "name": "WalletInactive", "description": "Wallet has been exported or superseded." },
+        { "name": "UnsupportedTier", "description": "Wallet is not Tier 1." },
+        { "name": "ConsentRequired", "description": "No active consent grants this dApp permission." },
+        { "name": "SigningFailed", "description": "Custodial key material is missing or signing threw." }
+      ]
+    }
+  }
+}

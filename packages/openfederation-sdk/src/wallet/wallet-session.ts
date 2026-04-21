@@ -6,6 +6,11 @@
 import { mnemonicToSeed } from './mnemonic.js';
 import { deriveWallet, type DerivedWallet } from './derive.js';
 import { signMessage as signRaw } from './sign.js';
+import {
+  signEthereumTransaction as signEvmTx,
+  signSolanaTransactionMessage as signSolMsg,
+  type EvmTransactionRequest,
+} from './tx.js';
 
 export type SupportedChain = 'ethereum' | 'solana';
 
@@ -33,6 +38,24 @@ export class WalletSession {
   signMessage(message: string, chain: SupportedChain): string {
     const w = this.keyFor(chain);
     return signRaw(chain, message, w.privateKey);
+  }
+
+  /**
+   * Sign an Ethereum transaction using the derived EVM key. Returns
+   * 0x-prefixed signed RLP. Requires `ethers@^6` installed as a peer dep.
+   */
+  async signEthereumTransaction(tx: EvmTransactionRequest): Promise<string> {
+    const w = this.keyFor('ethereum');
+    return signEvmTx(w.privateKey, tx);
+  }
+
+  /**
+   * Sign the message bytes of a Solana transaction. Returns a base58
+   * Ed25519 signature the caller attaches to their Transaction.
+   */
+  signSolanaTransactionMessage(messageBytes: Uint8Array): string {
+    const w = this.keyFor('solana');
+    return signSolMsg(w.privateKey, messageBytes);
   }
 
   /** Zero out the cached seed + per-chain private keys. Best effort. */

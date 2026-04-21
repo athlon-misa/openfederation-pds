@@ -71,6 +71,7 @@ export type AuditAction =
   | 'identity.unlinkWallet'
   | 'wallet.provision'
   | 'wallet.sign'
+  | 'wallet.signTransaction'
   | 'wallet.consent.grant'
   | 'wallet.consent.revoke'
   | 'account.recovery.initiate'

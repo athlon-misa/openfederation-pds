@@ -88,6 +88,7 @@ import listWalletLinksHandler from '../api/net.openfederation.identity.listWalle
 import resolveWalletHandler from '../api/net.openfederation.identity.resolveWallet.js';
 import walletProvision from '../api/net.openfederation.wallet.provision.js';
 import walletSign from '../api/net.openfederation.wallet.sign.js';
+import walletSignTransaction from '../api/net.openfederation.wallet.signTransaction.js';
 import walletGrantConsent from '../api/net.openfederation.wallet.grantConsent.js';
 import walletRevokeConsent from '../api/net.openfederation.wallet.revokeConsent.js';
 import walletListConsents from '../api/net.openfederation.wallet.listConsents.js';
@@ -333,6 +334,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   // Progressive-custody wallet provisioning + custodial signing (Tier 1)
   'net.openfederation.wallet.provision': { handler: walletProvision, limiter: createLimiter },
   'net.openfederation.wallet.sign': { handler: walletSign, limiter: walletSignLimiter },
+  'net.openfederation.wallet.signTransaction': { handler: walletSignTransaction, limiter: walletSignLimiter },
   'net.openfederation.wallet.grantConsent': { handler: walletGrantConsent, limiter: createLimiter },
   'net.openfederation.wallet.revokeConsent': { handler: walletRevokeConsent },
   'net.openfederation.wallet.listConsents': { handler: walletListConsents },

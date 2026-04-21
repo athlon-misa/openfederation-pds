@@ -1040,3 +1040,79 @@ console.log('Store this mnemonic offline:', t3.mnemonic);
 
 - End-to-end demo: `scripts/demos/wallet-progressive-custody.ts` — creates one wallet per tier and independently verifies each signature.
 - Database migration: `scripts/migrate-021-wallet-custody.sql`.
+
+
+### Signing transactions (M2)
+
+`wallet.signMessage` covers user-facing sign-in prompts; `wallet.signTransaction` produces wire-ready signed transactions.
+
+```ts
+// Tier 1 — the PDS signs. Consent must already be granted.
+const result = await client.wallet.signTransaction({
+  chain: 'ethereum',
+  walletAddress: t1.walletAddress,
+  dappOrigin: 'https://game.example.com',
+  tx: {
+    to: '0x…',
+    value: '1000000000000000',          // wei, as string
+    gasLimit: '21000',
+    maxFeePerGas: '30000000000',
+    maxPriorityFeePerGas: '1000000000',
+    nonce: 0,
+    chainId: 137,                       // REQUIRED — we refuse replay-vulnerable tx
+  },
+});
+// result.signedTx === '0x…' — broadcast via your provider.
+
+// Solana: server signs the message bytes of Transaction.compileMessage().
+const messageBytes = tx.serializeMessage();
+const { signature } = await client.wallet.signTransaction({
+  chain: 'solana',
+  walletAddress: solT1,
+  messageBase64: Buffer.from(messageBytes).toString('base64'),
+});
+tx.addSignature(publicKey, bs58.decode(signature));
+```
+
+### Drop-in ethers v6 signer
+
+```ts
+// Tier 2 unlock → adapter wraps the in-memory session.
+const session = await client.wallet.unlockTier2({
+  chain: 'ethereum',
+  passphrase: 'correct-horse',
+});
+const signer = await client.wallet.asEthersSigner({
+  walletAddress: t2Address,
+  session,                              // omit for Tier 1
+});
+
+// Use it with any ethers workflow.
+import { Contract, JsonRpcProvider } from 'ethers';
+const provider = new JsonRpcProvider(rpcUrl);
+const connected = signer.connect(provider);
+const contract = new Contract(contractAddress, abi, connected);
+await contract.someMethod(args);        // uses the OF wallet transparently
+```
+
+Install `ethers@^6` yourself — it's an **optional peerDependency**. The SDK doesn't bundle it; dApps that already use ethers get it for free.
+
+### Lightweight Solana signer
+
+```ts
+import { Transaction } from '@solana/web3.js';
+const signer = client.wallet.asSolanaSigner({
+  walletAddress: solAddress,
+  session,                              // omit for Tier 1
+});
+
+const tx = new Transaction().add(/* ... */);
+tx.recentBlockhash = recentBlockhash;
+tx.feePayer = new PublicKey(solAddress);
+
+const sigB58 = await signer.signTransactionMessage(tx);
+tx.addSignature(new PublicKey(solAddress), bs58.decode(sigB58));
+await connection.sendRawTransaction(tx.serialize());
+```
+
+The Solana signer duck-types on `serializeMessage()` (legacy Transaction) and `message.serialize()` (VersionedTransaction). Full `@solana/wallet-adapter-base` compatibility ships in a dedicated package in Milestone 5.

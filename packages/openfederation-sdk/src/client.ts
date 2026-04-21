@@ -10,6 +10,7 @@ import type {
   StoreCustodialSecretOptions, CustodialSecret,
   WalletChain, ProvisionTier1Options, ProvisionTier2Options, ProvisionTier3Options,
   ProvisionResult, GrantConsentOptions, ConsentGrant, WalletSignOptions,
+  WalletSignTransactionOptions, WalletSignTransactionResult,
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
@@ -18,6 +19,8 @@ import { errorFromResponse, AuthenticationError } from './errors.js';
 import { provisionTier2, provisionTier3 } from './wallet/provision.js';
 import { unwrapMnemonic, type WrappedBlob } from './wallet/wrap.js';
 import { WalletSession } from './wallet/wallet-session.js';
+import { createSolanaSigner } from './wallet/solana-adapter.js';
+import { normalizeEvmTxForWire } from './wallet/tx-normalize.js';
 
 export class OpenFederationClient implements AuthProvider {
   private serverUrl: string;
@@ -695,6 +698,59 @@ export class OpenFederationClient implements AuthProvider {
       return this.fetch('net.openfederation.wallet.listConsents', {
         method: 'GET',
       }) as Promise<{ consents: ConsentGrant[] }>;
+    },
+
+    /**
+     * Sign a blockchain transaction with a Tier 1 wallet via the PDS. For
+     * Tier 2 and Tier 3 wallets, sign client-side using an unlocked
+     * `WalletSession` (Tier 2) or your own keys (Tier 3) — this endpoint
+     * will refuse non-Tier-1 wallets.
+     */
+    signTransaction: async (opts: WalletSignTransactionOptions): Promise<WalletSignTransactionResult> => {
+      const dappOrigin = opts.dappOrigin
+        ?? (typeof globalThis !== 'undefined' && (globalThis as any).location
+          ? (globalThis as any).location.origin
+          : undefined);
+      if (!dappOrigin) {
+        throw new Error('dappOrigin is required (no window.location available in this environment)');
+      }
+      const body: Record<string, unknown> = {
+        chain: opts.chain,
+        walletAddress: opts.walletAddress,
+        dappOrigin,
+      };
+      if (opts.chain === 'ethereum') {
+        body.tx = normalizeEvmTxForWire(opts.tx);
+      } else {
+        body.messageBase64 = opts.messageBase64;
+      }
+      return this.fetch('net.openfederation.wallet.signTransaction', {
+        method: 'POST',
+        body,
+      }) as Promise<WalletSignTransactionResult>;
+    },
+
+    /**
+     * Return an ethers v6 Signer bound to the given wallet address.
+     *
+     * For Tier 2 wallets, the caller must supply an unlocked `session`
+     * (from `unlockTier2`); signing happens client-side.
+     *
+     * For Tier 1 wallets, leave `session` unset — signing routes to the
+     * PDS with the active consent grant. Note Tier 1 signing happens
+     * asynchronously via fetch; compatible with ethers.Signer's async API.
+     */
+    asEthersSigner: async (opts: { walletAddress: string; session?: import('./wallet/wallet-session.js').WalletSession }) => {
+      const { createEthersSigner } = await import('./wallet/ethers-adapter.js');
+      return createEthersSigner(this, opts.walletAddress, opts.session);
+    },
+
+    /**
+     * Return a lightweight Solana signer compatible with common
+     * `@solana/web3.js` transaction-signing call-sites.
+     */
+    asSolanaSigner: (opts: { walletAddress: string; session?: import('./wallet/wallet-session.js').WalletSession }) => {
+      return createSolanaSigner(this, opts.walletAddress, opts.session);
     },
   };
 

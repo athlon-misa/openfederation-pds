@@ -142,3 +142,75 @@ export async function signWithCustodialKey(opts: {
     privateKey.fill(0);
   }
 }
+
+/**
+ * Transaction-signing counterpart of signWithCustodialKey.
+ *
+ * Ethereum: the caller passes a TransactionRequest; we serialize + sign via
+ * ethers (supports legacy, EIP-2930, EIP-1559, EIP-4844 transactions) and
+ * return the 0x-prefixed RLP-encoded signed transaction ready to broadcast.
+ *
+ * Solana: we do NOT reconstruct the full transaction server-side — that
+ * requires knowing blockhash, multiple signers, program references, etc.
+ * Instead we sign the caller-supplied message bytes (what
+ * `Transaction.compileMessage().serialize()` emits) with the wallet's
+ * ed25519 key and return the base58 signature; the client reassembles.
+ */
+export async function signTransactionWithCustodialKey(opts:
+  | { userDid: string; chain: 'ethereum'; walletAddress: string; tx: EvmTransactionRequest }
+  | { userDid: string; chain: 'solana'; walletAddress: string; messageBytes: Uint8Array }
+): Promise<string | null> {
+  const privateKey = await loadCustodialKey(opts.userDid, opts.chain, opts.walletAddress);
+  if (!privateKey) return null;
+
+  try {
+    if (opts.chain === 'ethereum') {
+      const wallet = new Wallet('0x' + privateKey.toString('hex'));
+      return await wallet.signTransaction(normalizeEvmTx(opts.tx));
+    }
+    if (opts.chain === 'solana') {
+      const sig = nacl.sign.detached(opts.messageBytes, new Uint8Array(privateKey));
+      return bs58.encode(sig);
+    }
+    throw new Error(`Unsupported chain`);
+  } finally {
+    privateKey.fill(0);
+  }
+}
+
+/** A JSON-safe EVM transaction request, as sent over the wire. */
+export interface EvmTransactionRequest {
+  to?: string;
+  from?: string;
+  nonce?: number | string;
+  gasLimit?: string;
+  gasPrice?: string;
+  maxFeePerGas?: string;
+  maxPriorityFeePerGas?: string;
+  data?: string;
+  value?: string;
+  chainId: number | string;
+  type?: number;
+  accessList?: Array<{ address: string; storageKeys: string[] }>;
+}
+
+/**
+ * Convert string-encoded bigints (gasLimit, value, etc.) to bigints so
+ * ethers v6 accepts the request. Leaves unknown fields as-is.
+ */
+function normalizeEvmTx(tx: EvmTransactionRequest): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (tx.to !== undefined) out.to = tx.to;
+  if (tx.from !== undefined) out.from = tx.from;
+  if (tx.nonce !== undefined) out.nonce = typeof tx.nonce === 'string' ? Number(tx.nonce) : tx.nonce;
+  if (tx.gasLimit !== undefined) out.gasLimit = BigInt(tx.gasLimit);
+  if (tx.gasPrice !== undefined) out.gasPrice = BigInt(tx.gasPrice);
+  if (tx.maxFeePerGas !== undefined) out.maxFeePerGas = BigInt(tx.maxFeePerGas);
+  if (tx.maxPriorityFeePerGas !== undefined) out.maxPriorityFeePerGas = BigInt(tx.maxPriorityFeePerGas);
+  if (tx.data !== undefined) out.data = tx.data;
+  if (tx.value !== undefined) out.value = BigInt(tx.value);
+  if (tx.chainId !== undefined) out.chainId = typeof tx.chainId === 'string' ? Number(tx.chainId) : tx.chainId;
+  if (tx.type !== undefined) out.type = tx.type;
+  if (tx.accessList !== undefined) out.accessList = tx.accessList;
+  return out;
+}

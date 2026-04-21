@@ -53,6 +53,10 @@ export type {
   GrantConsentOptions,
   ConsentGrant,
   WalletSignOptions,
+  WalletSignTransactionOptions,
+  WalletSignTransactionResult,
+  WalletSignTxEthereumOptions,
+  WalletSignTxSolanaOptions,
 } from './types.js';
 export {
   generateMnemonic,
@@ -62,9 +66,18 @@ export {
   unwrapMnemonic,
   signEthereumMessage,
   signSolanaMessage,
+  signEthereumTransaction,
+  signSolanaTransactionMessage,
   WalletSession,
+  createSolanaSigner,
 } from './wallet/index.js';
-export type { WrappedBlob, DerivedWallet } from './wallet/index.js';
+export type {
+  WrappedBlob,
+  DerivedWallet,
+  EvmTransactionRequest,
+  OFSolanaSigner,
+  SolanaTransactionLike,
+} from './wallet/index.js';
 export type { VerifiedSession, VerifyPdsTokenOptions } from './verify.js';
 
 import { OpenFederationClient } from './client.js';

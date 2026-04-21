@@ -162,6 +162,28 @@ export interface WalletSignOptions {
   dappOrigin?: string;
 }
 
+export interface WalletSignTxEthereumOptions {
+  chain: 'ethereum';
+  walletAddress: string;
+  /** ethers v6 TransactionRequest. Must include chainId. */
+  tx: Record<string, unknown> & { chainId: number | bigint | string };
+  dappOrigin?: string;
+}
+
+export interface WalletSignTxSolanaOptions {
+  chain: 'solana';
+  walletAddress: string;
+  /** base64 of Transaction.compileMessage().serialize(). */
+  messageBase64: string;
+  dappOrigin?: string;
+}
+
+export type WalletSignTransactionOptions = WalletSignTxEthereumOptions | WalletSignTxSolanaOptions;
+
+export type WalletSignTransactionResult =
+  | { chain: 'ethereum'; walletAddress: string; dappOrigin: string; signedTx: string }
+  | { chain: 'solana'; walletAddress: string; dappOrigin: string; signature: string };
+
 // ── Vault & Recovery ────────────────────────────────
 
 export interface SecurityLevel {

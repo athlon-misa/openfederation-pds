@@ -127,6 +127,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - SDK `loginWithExternalSession`: inject iron-session tokens into client without login flow — enables server-side Next.js/grvty-web usage with no custom XRPC wrappers
 - Cross-PDS service-auth (atproto inter-service JWTs): `com.atproto.server.getServiceAuth` mints outbound JWTs; inbound ES256K/ES256 JWTs verified against the issuer DID's atproto signing key (did:plc + did:web), cached 5 min, replay-protected, per-DID rate limited — lets Bluesky / federated users authenticate to `net.openfederation.*` endpoints without a local session
 - Progressive-custody wallets: a single DID anchors many per-chain wallets, each at one of three custody tiers. Tier 1 (`custodial`) — PDS holds the key encrypted at rest, signs server-side per explicit per-dApp consent with expiry. Tier 2 (`user_encrypted`) — SDK wraps a BIP-39 mnemonic under the user's passphrase; the PDS stores an opaque blob it can never decrypt. Tier 3 (`self_custody`) — client keeps mnemonic offline, PDS holds only the public link. All three share one `wallet_links` substrate and the same EIP-191 / Ed25519 proof-of-control, so addresses remain stable across future tier upgrades
+- Wallet transaction signing + ecosystem adapters: `wallet.signTransaction` endpoint signs EIP-1559/legacy EVM transactions (chainId required — replay-safe) and Solana transaction-message bytes at Tier 1 with consent gating. SDK: `client.wallet.signTransaction` (tier-dispatched), `client.wallet.asEthersSigner()` produces an ethers v6 Signer drop-in, `client.wallet.asSolanaSigner()` duck-types on `@solana/web3.js` Transaction / VersionedTransaction. `ethers` is an optional peerDependency — dynamic-imported, kept out of the SDK bundle
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -350,6 +351,7 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 |:---|:---|:---|:---|
 | POST | `net.openfederation.wallet.provision` | Yes | Tier 1 only: PDS generates a wallet, encrypts the key at rest, links the address to the caller's DID |
 | POST | `net.openfederation.wallet.sign` | Yes | Tier 1 only: sign a message with a custodial wallet; requires `X-dApp-Origin` header or body `dappOrigin` and an active consent grant |
+| POST | `net.openfederation.wallet.signTransaction` | Yes | Tier 1 only: sign an EVM transaction (returns signed RLP) or Solana message bytes (returns base58 signature); same consent + tier gate as `wallet.sign` |
 | POST | `net.openfederation.wallet.grantConsent` | Yes | Grant a dApp origin time-bounded permission to sign with Tier 1 wallet(s); default 7-day TTL, max 30-day |
 | POST | `net.openfederation.wallet.revokeConsent` | Yes | Revoke consent by id or by (dappOrigin, chain?, walletAddress?) scope |
 | GET  | `net.openfederation.wallet.listConsents` | Yes | List the caller's active (unrevoked, unexpired) Tier 1 signing consents |
