@@ -43,17 +43,18 @@ await (async () => {
     password: process.env.DB_PASSWORD || '',
   });
   try {
-    // Skip schema + migrations if the database is already initialized.
-    // schema.sql and some migrations use CREATE (not CREATE IF NOT EXISTS)
-    // for indexes, so re-applying them errors on a populated database.
+    // Only apply schema.sql on a fresh DB (it has un-guarded CREATE INDEX
+    // statements that error on re-apply). Migrations always run — they're
+    // idempotent (IF NOT EXISTS throughout) and required to catch up a DB
+    // that was seeded from an older snapshot with new migrations pending.
     const check = await pool.query<{ exists: boolean }>(
       "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') AS exists",
     );
-    if (check.rows[0]?.exists) return;
-
-    const schemaPath = join(process.cwd(), 'src', 'db', 'schema.sql');
-    if (existsSync(schemaPath)) {
-      await pool.query(readFileSync(schemaPath, 'utf-8'));
+    if (!check.rows[0]?.exists) {
+      const schemaPath = join(process.cwd(), 'src', 'db', 'schema.sql');
+      if (existsSync(schemaPath)) {
+        await pool.query(readFileSync(schemaPath, 'utf-8'));
+      }
     }
     const migrationsDir = join(process.cwd(), 'scripts');
     const migrations = readdirSync(migrationsDir)
@@ -63,8 +64,6 @@ await (async () => {
       try {
         await pool.query(readFileSync(join(migrationsDir, m), 'utf-8'));
       } catch (err) {
-        // Migrations are written to be idempotent but some CREATE operations
-        // may error on repeat runs. Surface only unexpected failures.
         const msg = err instanceof Error ? err.message : String(err);
         if (!/already exists|duplicate/i.test(msg)) {
           console.error(`[test-setup] migration ${m} failed:`, msg);
