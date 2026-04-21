@@ -351,6 +351,18 @@ CREATE INDEX IF NOT EXISTS idx_wallet_challenges_did ON wallet_link_challenges(u
 CREATE INDEX IF NOT EXISTS idx_wallet_challenges_purpose
     ON wallet_link_challenges(user_did, purpose, expires_at);
 
+-- PDS service-DID signing key. The PDS publishes a did:web document at
+-- /.well-known/did.json when the request hostname matches config.pds.hostname;
+-- that document carries a Multikey verificationMethod backed by this key.
+-- See migration 024.
+CREATE TABLE IF NOT EXISTS pds_service_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    hostname TEXT NOT NULL UNIQUE,
+    public_key_multibase TEXT NOT NULL,
+    private_key_encrypted BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Tier 1 custodial wallet keys. PDS holds the private key, encrypted at rest
 -- with KEY_ENCRYPTION_SECRET (same AES-256-GCM primitive as signing_keys).
 -- Only decrypted in-memory for a single sign() request.

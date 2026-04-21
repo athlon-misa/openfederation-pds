@@ -87,7 +87,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Registration creates user repos with `app.bsky.actor.profile` record
 - ATProto repo endpoints: `putRecord`, `createRecord`, `deleteRecord`, `describeRepo`, `listRecords`
 - Federation endpoint: `sync.getRepo` (full repo as CAR stream)
-- Well-known endpoints: `/.well-known/did.json` (did:web), `/.well-known/webfinger` (AT Protocol discovery)
+- Well-known endpoints: `/.well-known/did.json` (serves the PDS's own did:web service DID by default — backed by an auto-generated secp256k1 key in `pds_service_keys`, encrypted at rest; falls through to a did:web community record if one is registered at the PDS hostname), `/.well-known/webfinger` (AT Protocol discovery)
 - Auto-schema migration on startup (no manual `psql` needed for fresh deploys)
 - PLC directory service (`plc-server/`) for Railway deployment
 - Partner Registration API: trusted third-party apps can register users without invite codes (auto-approved)
@@ -433,7 +433,7 @@ See `src/db/schema.sql` for the full schema. Key tables (22 total):
 
 Schema is auto-initialized on first startup. Incremental migrations are applied manually:
 
-`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`, `scripts/migrate-020-custodial-secrets.sql`, `scripts/migrate-021-wallet-custody.sql`, `scripts/migrate-022-signin-challenges.sql`, `scripts/migrate-023-wallet-primary.sql`
+`scripts/migrate-001-repo-roots.sql`, `scripts/migrate-002-user-signing-keys.sql`, `scripts/migrate-003-oauth.sql`, `scripts/migrate-004-partner-keys.sql`, `scripts/migrate-005-user-lifecycle.sql`, `scripts/migrate-006-rbac-roles.sql`, `scripts/migrate-007-blobs.sql`, `scripts/migrate-008-export-schedules.sql`, `scripts/migrate-009-login-protection.sql`, `scripts/migrate-010-password-reset.sql`, `scripts/migrate-011-ap-keys.sql`, `scripts/migrate-012-invite-binding.sql`, `scripts/migrate-013-oracle-credentials.sql`, `scripts/migrate-014-proof-verifications.sql`, `scripts/migrate-015-wallet-links.sql`, `scripts/migrate-016-vault-shares.sql`, `scripts/migrate-017-recovery-tiers.sql`, `scripts/migrate-018-encrypted-attestations.sql`, `scripts/migrate-019-disclosure-sessions.sql`, `scripts/migrate-020-custodial-secrets.sql`, `scripts/migrate-021-wallet-custody.sql`, `scripts/migrate-022-signin-challenges.sql`, `scripts/migrate-023-wallet-primary.sql`, `scripts/migrate-024-pds-service-key.sql`
 
 ---
 

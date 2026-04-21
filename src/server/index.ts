@@ -544,7 +544,13 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
   }
 });
 
-// /.well-known/did.json — serves DID documents for did:web communities
+// /.well-known/did.json — serves DID documents for
+//   1. the PDS's own service DID (did:web:${config.pds.hostname}), OR
+//   2. a community registered at did:web:${config.pds.hostname} (unusual,
+//      legacy path — communities normally get did:plc now)
+// A PDS instance hosts exactly one hostname so the short-circuit at (1) fires
+// whenever the PDS's own service DID is requested. Communities under the
+// same hostname (if any) fall through to the existing lookup.
 app.get('/.well-known/did.json', discoveryLimiter, async (req: Request, res: Response) => {
   try {
     // Use configured PDS hostname to prevent HTTP host header injection.
@@ -554,18 +560,49 @@ app.get('/.well-known/did.json', discoveryLimiter, async (req: Request, res: Res
       return res.status(500).json({ error: 'InternalServerError', message: 'PDS hostname not configured' });
     }
 
-    // Look up did:web community by hostname
     const did = `did:web:${hostname}`;
-    const result = await query<{ did: string }>(
+
+    // First: is a community registered at this exact DID? If so, honor the
+    // existing community lookup (preserves back-compat for any did:web
+    // communities from before this change).
+    const communityResult = await query<{ did: string }>(
       'SELECT did FROM communities WHERE did = $1',
       [did]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'NotFound', message: 'No did:web identity for this domain' });
+    if (communityResult.rows.length === 0) {
+      // No community → serve the PDS's own service DID document.
+      const { ensurePdsServiceKey } = await import('../identity/pds-service-key.js');
+      const serviceKey = await ensurePdsServiceKey(hostname);
+      const serviceDoc = {
+        '@context': [
+          'https://www.w3.org/ns/did/v1',
+          'https://w3id.org/security/multikey/v1',
+        ],
+        id: did,
+        alsoKnownAs: [`https://${hostname}`],
+        verificationMethod: [
+          {
+            id: `${did}#atproto`,
+            type: 'Multikey',
+            controller: did,
+            publicKeyMultibase: serviceKey.publicKeyMultibase,
+          },
+        ],
+        assertionMethod: [`${did}#atproto`],
+        service: [
+          {
+            id: '#atproto_pds',
+            type: 'AtprotoPersonalDataServer',
+            serviceEndpoint: config.pds.serviceUrl,
+          },
+        ],
+      };
+      res.setHeader('Content-Type', 'application/did+json');
+      return res.json(serviceDoc);
     }
 
-    // Load signing key to get public key
+    // Community path (legacy) — load its signing key + augmentation.
     const keyResult = await query<{ signing_key_bytes: Buffer }>(
       'SELECT signing_key_bytes FROM signing_keys WHERE community_did = $1',
       [did]
