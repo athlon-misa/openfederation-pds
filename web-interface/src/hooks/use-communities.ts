@@ -15,6 +15,7 @@ import {
   deleteCommunity,
   listPeerCommunities,
 } from '@/lib/api/communities';
+import { unwrapApi } from '@/lib/api/unwrap';
 
 export const communityKeys = {
   all: ['communities'] as const,
@@ -29,22 +30,14 @@ export const communityKeys = {
 export function useMyCommunitiesQuery(limit = 50, offset = 0) {
   return useQuery({
     queryKey: communityKeys.mine(limit, offset),
-    queryFn: async () => {
-      const result = await listMyCommunities(limit, offset);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listMyCommunities(limit, offset)),
   });
 }
 
 export function useCommunityDetailQuery(did: string) {
   return useQuery({
     queryKey: communityKeys.detail(did),
-    queryFn: async () => {
-      const result = await getCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await getCommunity(did)),
     staleTime: 60 * 1000, // 1 minute
   });
 }
@@ -52,11 +45,7 @@ export function useCommunityDetailQuery(did: string) {
 export function useMembersQuery(did: string, limit = 50, offset = 0) {
   return useQuery({
     queryKey: communityKeys.members(did, limit, offset),
-    queryFn: async () => {
-      const result = await listMembers(did, limit, offset);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listMembers(did, limit, offset)),
     staleTime: 60 * 1000, // 1 minute
   });
 }
@@ -64,11 +53,7 @@ export function useMembersQuery(did: string, limit = 50, offset = 0) {
 export function useJoinRequestsQuery(did: string, limit = 50, offset = 0) {
   return useQuery({
     queryKey: communityKeys.joinRequests(did, limit, offset),
-    queryFn: async () => {
-      const result = await listJoinRequests(did, limit, offset);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listJoinRequests(did, limit, offset)),
     staleTime: 60 * 1000, // 1 minute
   });
 }
@@ -76,22 +61,14 @@ export function useJoinRequestsQuery(did: string, limit = 50, offset = 0) {
 export function useExploreCommunitiesQuery(limit = 50, offset = 0, mode: 'public' | 'all' = 'public') {
   return useQuery({
     queryKey: communityKeys.explore(limit, offset, mode),
-    queryFn: async () => {
-      const result = await listAllCommunities(limit, offset, mode);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listAllCommunities(limit, offset, mode)),
   });
 }
 
 export function useJoinCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await joinCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await joinCommunity(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
@@ -101,11 +78,7 @@ export function useJoinCommunityMutation() {
 export function useLeaveCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await leaveCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await leaveCommunity(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
@@ -121,11 +94,7 @@ export function useUpdateCommunityMutation() {
     }: {
       did: string;
       data: { displayName?: string; description?: string; visibility?: 'public' | 'private'; joinPolicy?: 'open' | 'approval' };
-    }) => {
-      const result = await updateCommunity(did, data);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    }) => unwrapApi(await updateCommunity(did, data)),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: communityKeys.detail(variables.did) });
     },
@@ -134,32 +103,21 @@ export function useUpdateCommunityMutation() {
 
 export function useExportCommunityMutation() {
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await exportCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await exportCommunity(did)),
   });
 }
 
 export function useTransferCommunityMutation() {
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await transferCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await transferCommunity(did)),
   });
 }
 
 export function useResolveJoinRequestMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ requestId, action }: { requestId: string; action: 'approve' | 'reject' }) => {
-      const result = await resolveJoinRequest(requestId, action);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ requestId, action }: { requestId: string; action: 'approve' | 'reject' }) =>
+      unwrapApi(await resolveJoinRequest(requestId, action)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
@@ -169,11 +127,8 @@ export function useResolveJoinRequestMutation() {
 export function useRemoveMemberMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ did, memberDid }: { did: string; memberDid: string }) => {
-      const result = await removeMember(did, memberDid);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ did, memberDid }: { did: string; memberDid: string }) =>
+      unwrapApi(await removeMember(did, memberDid)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
@@ -183,11 +138,7 @@ export function useRemoveMemberMutation() {
 export function useDeleteCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await deleteCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await deleteCommunity(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
@@ -197,11 +148,7 @@ export function useDeleteCommunityMutation() {
 export function usePeerCommunitiesQuery() {
   return useQuery({
     queryKey: communityKeys.peerCommunities,
-    queryFn: async () => {
-      const result = await listPeerCommunities();
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listPeerCommunities()),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

@@ -17,6 +17,7 @@ import {
   updateRoles,
 } from '@/lib/api/admin';
 import { suspendCommunity, unsuspendCommunity, takedownCommunity, deleteCommunity, listAllCommunities } from '@/lib/api/communities';
+import { unwrapApi } from '@/lib/api/unwrap';
 
 export const adminKeys = {
   accounts: (params: Record<string, unknown>) => ['admin', 'accounts', params] as const,
@@ -28,11 +29,7 @@ export const adminKeys = {
 export function useAccountsQuery(params: { limit?: number; offset?: number; status?: string; role?: string; q?: string } = {}) {
   return useQuery({
     queryKey: adminKeys.accounts(params),
-    queryFn: async () => {
-      const result = await listAccounts(params);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listAccounts(params)),
     staleTime: 2 * 60 * 1000, // 2 minutes — admin data doesn't change rapidly
   });
 }
@@ -40,11 +37,7 @@ export function useAccountsQuery(params: { limit?: number; offset?: number; stat
 export function useInvitesQuery(params: { limit?: number; offset?: number; status?: string } = {}) {
   return useQuery({
     queryKey: adminKeys.invites(params),
-    queryFn: async () => {
-      const result = await listInvites(params);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listInvites(params)),
     staleTime: 2 * 60 * 1000, // 2 minutes — admin data doesn't change rapidly
   });
 }
@@ -52,11 +45,7 @@ export function useInvitesQuery(params: { limit?: number; offset?: number; statu
 export function useAdminCommunitiesQuery(limit = 50, offset = 0) {
   return useQuery({
     queryKey: adminKeys.allCommunities(limit, offset),
-    queryFn: async () => {
-      const result = await listAllCommunities(limit, offset, 'all');
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listAllCommunities(limit, offset, 'all')),
     staleTime: 2 * 60 * 1000, // 2 minutes — admin data doesn't change rapidly
   });
 }
@@ -64,11 +53,7 @@ export function useAdminCommunitiesQuery(limit = 50, offset = 0) {
 export function useApproveAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (userId: string) => {
-      const result = await approveAccount(userId);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (userId: string) => unwrapApi(await approveAccount(userId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -78,11 +63,7 @@ export function useApproveAccountMutation() {
 export function useRejectAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (userId: string) => {
-      const result = await rejectAccount(userId);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (userId: string) => unwrapApi(await rejectAccount(userId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -92,11 +73,8 @@ export function useRejectAccountMutation() {
 export function useCreateInviteMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ maxUses, expiresAt }: { maxUses: number; expiresAt?: string }) => {
-      const result = await createInvite(maxUses, expiresAt);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ maxUses, expiresAt }: { maxUses: number; expiresAt?: string }) =>
+      unwrapApi(await createInvite(maxUses, expiresAt)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'invites'] });
     },
@@ -106,11 +84,8 @@ export function useCreateInviteMutation() {
 export function useSuspendAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ did, reason }: { did: string; reason?: string }) => {
-      const result = await suspendAccount(did, reason);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ did, reason }: { did: string; reason?: string }) =>
+      unwrapApi(await suspendAccount(did, reason)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -120,11 +95,7 @@ export function useSuspendAccountMutation() {
 export function useUnsuspendAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await unsuspendAccount(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await unsuspendAccount(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -134,11 +105,8 @@ export function useUnsuspendAccountMutation() {
 export function useTakedownAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ did, reason }: { did: string; reason?: string }) => {
-      const result = await takedownAccount(did, reason);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ did, reason }: { did: string; reason?: string }) =>
+      unwrapApi(await takedownAccount(did, reason)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -148,11 +116,7 @@ export function useTakedownAccountMutation() {
 export function useReverseTakedownAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await reverseTakedownAccount(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await reverseTakedownAccount(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -162,11 +126,7 @@ export function useReverseTakedownAccountMutation() {
 export function useExportAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await exportAccount(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await exportAccount(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -176,11 +136,7 @@ export function useExportAccountMutation() {
 export function useDeleteAccountMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await deleteAccount(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await deleteAccount(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -190,11 +146,8 @@ export function useDeleteAccountMutation() {
 export function useSuspendCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ did, reason }: { did: string; reason?: string }) => {
-      const result = await suspendCommunity(did, reason);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ did, reason }: { did: string; reason?: string }) =>
+      unwrapApi(await suspendCommunity(did, reason)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'communities'] });
       queryClient.invalidateQueries({ queryKey: ['communities'] });
@@ -205,11 +158,7 @@ export function useSuspendCommunityMutation() {
 export function useUnsuspendCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await unsuspendCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await unsuspendCommunity(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'communities'] });
       queryClient.invalidateQueries({ queryKey: ['communities'] });
@@ -220,11 +169,8 @@ export function useUnsuspendCommunityMutation() {
 export function useTakedownCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ did, reason }: { did: string; reason?: string }) => {
-      const result = await takedownCommunity(did, reason);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ did, reason }: { did: string; reason?: string }) =>
+      unwrapApi(await takedownCommunity(did, reason)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'communities'] });
       queryClient.invalidateQueries({ queryKey: ['communities'] });
@@ -235,22 +181,14 @@ export function useTakedownCommunityMutation() {
 export function usePartnerKeysQuery() {
   return useQuery({
     queryKey: adminKeys.partnerKeys(),
-    queryFn: async () => {
-      const result = await listPartnerKeys();
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    queryFn: async () => unwrapApi(await listPartnerKeys()),
   });
 }
 
 export function useCreatePartnerKeyMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: Parameters<typeof createPartnerKey>[0]) => {
-      const result = await createPartnerKey(input);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (input: Parameters<typeof createPartnerKey>[0]) => unwrapApi(await createPartnerKey(input)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'partnerKeys'] });
     },
@@ -260,11 +198,7 @@ export function useCreatePartnerKeyMutation() {
 export function useRevokePartnerKeyMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const result = await revokePartnerKey(id);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (id: string) => unwrapApi(await revokePartnerKey(id)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'partnerKeys'] });
     },
@@ -274,11 +208,8 @@ export function useRevokePartnerKeyMutation() {
 export function useUpdateRolesMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ did, addRoles, removeRoles }: { did: string; addRoles?: string[]; removeRoles?: string[] }) => {
-      const result = await updateRoles(did, addRoles, removeRoles);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async ({ did, addRoles, removeRoles }: { did: string; addRoles?: string[]; removeRoles?: string[] }) =>
+      unwrapApi(await updateRoles(did, addRoles, removeRoles)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
     },
@@ -288,11 +219,7 @@ export function useUpdateRolesMutation() {
 export function useAdminDeleteCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => {
-      const result = await deleteCommunity(did);
-      if (!result.ok) throw new Error(result.message);
-      return result.data;
-    },
+    mutationFn: async (did: string) => unwrapApi(await deleteCommunity(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'communities'] });
       queryClient.invalidateQueries({ queryKey: ['communities'] });

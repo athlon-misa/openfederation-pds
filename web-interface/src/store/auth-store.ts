@@ -27,6 +27,48 @@ interface AuthState {
   hydrate: () => Promise<void>;
 }
 
+type SessionState = {
+  roles: string[];
+  status: string | null;
+  isAdmin: boolean;
+  isModerator: boolean;
+  isPartnerManager: boolean;
+  isAuditor: boolean;
+  hasAdminAccess: boolean;
+};
+
+const ADMIN_ACCESS_ROLES = new Set(['admin', 'moderator', 'partner-manager', 'auditor']);
+
+function deriveSessionState(roles: string[], status: string | null): SessionState {
+  return {
+    roles,
+    status,
+    isAdmin: roles.includes('admin'),
+    isModerator: roles.includes('moderator'),
+    isPartnerManager: roles.includes('partner-manager'),
+    isAuditor: roles.includes('auditor'),
+    hasAdminAccess: roles.some((r) => ADMIN_ACCESS_ROLES.has(r)),
+  };
+}
+
+/**
+ * Returns session-state flags derived from login/refresh/callback responses.
+ * If the server included `roles` in the response, uses those directly
+ * (optimization: skip the extra getSession round-trip). Otherwise falls back
+ * to calling getSession. Returns null if neither source has usable data.
+ */
+async function resolveSessionState(
+  responseRoles: string[] | undefined,
+  responseStatus: string | undefined,
+): Promise<SessionState | null> {
+  if (responseRoles) {
+    return deriveSessionState(responseRoles, responseStatus ?? 'approved');
+  }
+  const sessionResult = await getSession();
+  if (!sessionResult.ok) return null;
+  return deriveSessionState(sessionResult.data.roles, sessionResult.data.status);
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => {
@@ -64,33 +106,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
 
-          // Use roles from response if available (server optimization), fallback to getSession
-          const r = result.data.roles || [];
-          if (result.data.roles) {
-            set({
-              roles: r,
-              status: result.data.status || 'approved',
-              isAdmin: r.includes('admin'),
-              isModerator: r.includes('moderator'),
-              isPartnerManager: r.includes('partner-manager'),
-              isAuditor: r.includes('auditor'),
-              hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
-            });
-          } else {
-            const sessionResult = await getSession();
-            if (sessionResult.ok) {
-              const sr = sessionResult.data.roles;
-              set({
-                roles: sr,
-                status: sessionResult.data.status,
-                isAdmin: sr.includes('admin'),
-                isModerator: sr.includes('moderator'),
-                isPartnerManager: sr.includes('partner-manager'),
-                isAuditor: sr.includes('auditor'),
-                hasAdminAccess: sr.includes('admin') || sr.includes('moderator') || sr.includes('partner-manager') || sr.includes('auditor'),
-              });
-            }
-          }
+          const sessionState = await resolveSessionState(result.data.roles, result.data.status);
+          if (sessionState) set(sessionState);
 
           return { ok: true };
         },
@@ -118,33 +135,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
 
-          // Use roles from response if available (server optimization), fallback to getSession
-          const r = result.data.roles || [];
-          if (result.data.roles) {
-            set({
-              roles: r,
-              status: result.data.status || 'approved',
-              isAdmin: r.includes('admin'),
-              isModerator: r.includes('moderator'),
-              isPartnerManager: r.includes('partner-manager'),
-              isAuditor: r.includes('auditor'),
-              hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
-            });
-          } else {
-            const sessionResult = await getSession();
-            if (sessionResult.ok) {
-              const sr = sessionResult.data.roles;
-              set({
-                roles: sr,
-                status: sessionResult.data.status,
-                isAdmin: sr.includes('admin'),
-                isModerator: sr.includes('moderator'),
-                isPartnerManager: sr.includes('partner-manager'),
-                isAuditor: sr.includes('auditor'),
-                hasAdminAccess: sr.includes('admin') || sr.includes('moderator') || sr.includes('partner-manager') || sr.includes('auditor'),
-              });
-            }
-          }
+          const sessionState = await resolveSessionState(result.data.roles, result.data.status);
+          if (sessionState) set(sessionState);
 
           return { ok: true };
         },
@@ -187,33 +179,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
 
-          // Use roles from response if available (server optimization), fallback to getSession
-          const r = result.data.roles || [];
-          if (result.data.roles) {
-            set({
-              roles: r,
-              status: result.data.status || 'approved',
-              isAdmin: r.includes('admin'),
-              isModerator: r.includes('moderator'),
-              isPartnerManager: r.includes('partner-manager'),
-              isAuditor: r.includes('auditor'),
-              hasAdminAccess: r.includes('admin') || r.includes('moderator') || r.includes('partner-manager') || r.includes('auditor'),
-            });
-          } else {
-            const sessionResult = await getSession();
-            if (sessionResult.ok) {
-              const sr = sessionResult.data.roles;
-              set({
-                roles: sr,
-                status: sessionResult.data.status,
-                isAdmin: sr.includes('admin'),
-                isModerator: sr.includes('moderator'),
-                isPartnerManager: sr.includes('partner-manager'),
-                isAuditor: sr.includes('auditor'),
-                hasAdminAccess: sr.includes('admin') || sr.includes('moderator') || sr.includes('partner-manager') || sr.includes('auditor'),
-              });
-            }
-          }
+          const sessionState = await resolveSessionState(result.data.roles, result.data.status);
+          if (sessionState) set(sessionState);
 
           return true;
         },
