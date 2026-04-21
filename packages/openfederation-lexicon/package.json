@@ -1,5 +1,5 @@
 {
-  "name": "@resonator-foundation/lexicon",
+  "name": "@open-federation/lexicon",
   "version": "0.1.0",
   "description": "ATProto Lexicon schemas for the OpenFederation protocol",
   "type": "module",
@@ -17,6 +17,10 @@
     "dist",
     "schemas"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf dist"

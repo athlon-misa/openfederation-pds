@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@openfederation/react": "file:../../packages/openfederation-react",
-    "@openfederation/sdk": "file:../../packages/openfederation-sdk",
+    "@open-federation/react": "file:../../packages/openfederation-react",
+    "@open-federation/sdk": "file:../../packages/openfederation-sdk",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

@@ -7,7 +7,7 @@ import type {
   SignInWithOpenFederationOptions,
   SiwofAssertResponse,
   WalletLink,
-} from '@openfederation/sdk';
+} from '@open-federation/sdk';
 import { useOpenFederationContext } from './provider.js';
 
 export type { User, WalletLink };

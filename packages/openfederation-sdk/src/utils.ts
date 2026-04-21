@@ -50,7 +50,7 @@ export function xrpcUrl(
  *
  * @example
  * ```ts
- * import { parseTokenExpiry } from '@openfederation/sdk';
+ * import { parseTokenExpiry } from '@open-federation/sdk';
  *
  * session.accessTokenExpiresAt = parseTokenExpiry(tokenSet.expires_at);
  * // — or with a custom fallback:

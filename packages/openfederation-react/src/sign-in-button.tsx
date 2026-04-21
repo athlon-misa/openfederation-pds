@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import type {
   SiwofAssertResponse,
   WalletChain,
-} from '@openfederation/sdk';
+} from '@open-federation/sdk';
 import { useOpenFederationContext } from './provider.js';
 
 export interface SignInWithOpenFederationProps {

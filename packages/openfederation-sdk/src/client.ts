@@ -854,7 +854,7 @@ export class OpenFederationClient implements AuthProvider {
   /**
    * Vanilla-JS drop-in: renders a "Sign in with OpenFederation" button into
    * the given DOM element. For React apps, prefer `<SignInWithOpenFederation>`
-   * from `@openfederation/react`.
+   * from `@open-federation/react`.
    *
    * @example
    * ```html

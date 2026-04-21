@@ -1,7 +1,7 @@
 {
-  "name": "@openfederation/react",
+  "name": "@open-federation/react",
   "version": "0.1.0",
-  "description": "React bindings for @openfederation/sdk — provider, hooks, and a drop-in Sign In With OpenFederation button.",
+  "description": "React bindings for @open-federation/sdk — provider, hooks, and a drop-in Sign In With OpenFederation button.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -16,13 +16,17 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@openfederation/sdk": "file:../openfederation-sdk"
+    "@open-federation/sdk": "^0.1.0"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

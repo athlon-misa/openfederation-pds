@@ -1,5 +1,5 @@
 {
-  "name": "@openfederation/sdk",
+  "name": "@open-federation/sdk",
   "version": "0.1.0",
   "description": "Vanilla JS SDK for OpenFederation PDS — registration, login, and session management",
   "type": "module",
@@ -30,6 +30,10 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsup && cp src/global.d.ts dist/global.d.ts",
     "dev": "tsup --watch",

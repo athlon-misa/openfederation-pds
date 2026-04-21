@@ -6,13 +6,13 @@ import {
   type SiwofAssertResponse,
   type WalletChain,
   type VerifiedSignInAssertion,
-} from '@openfederation/sdk';
+} from '@open-federation/sdk';
 import {
   OpenFederationProvider,
   SignInWithOpenFederation,
   useOFSession,
   useOFWallet,
-} from '@openfederation/react';
+} from '@open-federation/react';
 
 /** Config surface — normally a dApp hard-codes these. The demo lets you edit them. */
 interface DemoConfig {

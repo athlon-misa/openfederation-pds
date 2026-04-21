@@ -1,5 +1,5 @@
 /**
- * Smoke test for the @openfederation/react package's public surface.
+ * Smoke test for the @open-federation/react package's public surface.
  *
  * We import from the built artifacts to validate that (a) the package
  * exports what the docs claim, and (b) its type declarations compile.
@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-describe('@openfederation/react package shape', () => {
+describe('@open-federation/react package shape', () => {
   it('exports the advertised API surface', async () => {
     const mod: Record<string, unknown> = await import(
       '../../packages/openfederation-react/src/index.js'

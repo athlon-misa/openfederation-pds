@@ -1,6 +1,6 @@
 # OpenFederation SDK Integration Guide
 
-How to add user registration and login to your website using the `@openfederation/sdk`. This is the simplest way to let users create OpenFederation accounts directly from your app — no redirects, no invite codes, users are auto-approved and logged in immediately.
+How to add user registration and login to your website using the `@open-federation/sdk`. This is the simplest way to let users create OpenFederation accounts directly from your app — no redirects, no invite codes, users are auto-approved and logged in immediately.
 
 ---
 
@@ -58,11 +58,11 @@ The SDK bundle is served directly from the PDS at `/sdk/v1.js` (~2.5KB gzipped, 
 ## Quick Start: npm
 
 ```bash
-npm install @openfederation/sdk
+npm install @open-federation/sdk
 ```
 
 ```typescript
-import { createClient } from '@openfederation/sdk';
+import { createClient } from '@open-federation/sdk';
 
 const ofd = createClient({
   serverUrl: 'https://pds.openfederation.net',
@@ -350,7 +350,7 @@ Verify a PDS access token by calling `com.atproto.server.getSession` on the issu
 Returns: `Promise<VerifiedSession | null>` — `{ did, handle }` on success, `null` on any failure.
 
 ```typescript
-import { verifyPdsToken } from '@openfederation/sdk';
+import { verifyPdsToken } from '@open-federation/sdk';
 
 // Recommended: verify against a known PDS
 const session = await verifyPdsToken(req.headers.authorization?.split(' ')[1], {
@@ -379,7 +379,7 @@ console.log('Authenticated user:', session.did, session.handle);
 Standalone version of `ofd.displayHandle()`. Can be imported and used without creating a client instance.
 
 ```typescript
-import { displayHandle } from '@openfederation/sdk';
+import { displayHandle } from '@open-federation/sdk';
 displayHandle('alice.openfederation.net');  // "alice"
 displayHandle('alice.custom.net', '.custom.net');  // "alice"
 ```
@@ -389,7 +389,7 @@ displayHandle('alice.custom.net', '.custom.net');  // "alice"
 The SDK version string (e.g. `"0.1.0"`). Follows semver.
 
 ```typescript
-import { SDK_VERSION } from '@openfederation/sdk';
+import { SDK_VERSION } from '@open-federation/sdk';
 console.log('SDK version:', SDK_VERSION);
 ```
 
@@ -415,7 +415,7 @@ The **DID** is the stable identifier — it never changes even if the user chang
 All errors extend `OpenFederationError` and have `status`, `code`, and `message` properties.
 
 ```typescript
-import { ConflictError, ValidationError, RateLimitError } from '@openfederation/sdk';
+import { ConflictError, ValidationError, RateLimitError } from '@open-federation/sdk';
 
 try {
   await ofd.register({ handle: 'alice', email: 'a@b.com', password: 'Str0ng!Pass' });
@@ -450,7 +450,7 @@ All error classes are available as named exports:
 
 ```typescript
 // npm
-import { OpenFederationError, AuthenticationError } from '@openfederation/sdk';
+import { OpenFederationError, AuthenticationError } from '@open-federation/sdk';
 
 // IIFE (script tag)
 const { OpenFederationError, AuthenticationError } = OpenFederation;
@@ -567,7 +567,7 @@ The SDK ships TypeScript type definitions (`.d.ts`) for all three output formats
 Types are automatically resolved via `package.json` exports. No extra configuration needed:
 
 ```typescript
-import { createClient, type User, type ClientConfig } from '@openfederation/sdk';
+import { createClient, type User, type ClientConfig } from '@open-federation/sdk';
 ```
 
 All types are exported:
@@ -580,7 +580,7 @@ All types are exported:
 For TypeScript projects that use the IIFE bundle, add a triple-slash reference to get types for the `OpenFederation` global:
 
 ```typescript
-/// <reference types="@openfederation/sdk/global" />
+/// <reference types="@open-federation/sdk/global" />
 
 const ofd = OpenFederation.createClient({
   serverUrl: 'https://pds.openfederation.net',
@@ -593,7 +593,7 @@ const ofd = OpenFederation.createClient({
 The `OpenFederationClient` implements the `AuthProvider` interface, which can be used by other SDKs that need to consume OpenFederation auth:
 
 ```typescript
-import type { AuthProvider } from '@openfederation/sdk';
+import type { AuthProvider } from '@open-federation/sdk';
 
 class MyGameClient {
   constructor(private auth: AuthProvider) {}
@@ -632,7 +632,7 @@ When a breaking change requires a new major version, a `/sdk/v2.js` endpoint wil
 console.log(OpenFederation.SDK_VERSION);  // "0.1.0"
 
 // npm
-import { SDK_VERSION } from '@openfederation/sdk';
+import { SDK_VERSION } from '@open-federation/sdk';
 console.log(SDK_VERSION);  // "0.1.0"
 ```
 
@@ -1147,7 +1147,7 @@ const assertion = await client.signInWithOpenFederation({
 ### Verifying offline on the dApp side
 
 ```ts
-import { verifySignInAssertion } from '@openfederation/sdk';
+import { verifySignInAssertion } from '@open-federation/sdk';
 
 try {
   const { did, walletAddress, nonce, audience } = await verifySignInAssertion(
@@ -1312,8 +1312,8 @@ The "integrate in an afternoon" promise, made concrete. Two paths:
 ### React
 
 ```tsx
-import { createClient } from '@openfederation/sdk';
-import { OpenFederationProvider, SignInWithOpenFederation, useOFSession } from '@openfederation/react';
+import { createClient } from '@open-federation/sdk';
+import { OpenFederationProvider, SignInWithOpenFederation, useOFSession } from '@open-federation/react';
 
 const client = createClient({ serverUrl, partnerKey });
 
@@ -1384,7 +1384,7 @@ A full working example lives at `demos/siwof-vanilla-button.html`.
 Any Node service can verify the `didToken` + `walletProof` the button produces:
 
 ```ts
-import { verifySignInAssertion } from '@openfederation/sdk';
+import { verifySignInAssertion } from '@open-federation/sdk';
 
 const { did, walletAddress, audience, nonce } = await verifySignInAssertion(
   body.didToken,
@@ -1398,8 +1398,8 @@ The verifier pulls the issuer DID via public W3C DID resolution (did:plc + did:w
 
 ### Planned follow-ups
 
-- `@openfederation/wagmi-connector` — wagmi v2 `Connector` so OF appears as a wallet in the EVM dApp ecosystem.
-- `@openfederation/solana-adapter` — implements `@solana/wallet-adapter-base.WalletAdapter` for drop-in Solana integrations.
+- `@open-federation/wagmi-connector` — wagmi v2 `Connector` so OF appears as a wallet in the EVM dApp ecosystem.
+- `@open-federation/solana-adapter` — implements `@solana/wallet-adapter-base.WalletAdapter` for drop-in Solana integrations.
 - Full demo dApp (`demos/siwof-dapp/`) wiring an EVM contract call + Solana message sign entirely through OpenFederation.
 
 
@@ -1415,7 +1415,7 @@ We deliberately do *not* publish these as npm packages: wagmi and solana-wallet-
 
 ```ts
 import { createConnector, type Connector } from 'wagmi';
-import { createClient, type OpenFederationClient } from '@openfederation/sdk';
+import { createClient, type OpenFederationClient } from '@open-federation/sdk';
 import { getAddress } from 'ethers';
 
 /**
@@ -1510,7 +1510,7 @@ import {
   type WalletName,
 } from '@solana/wallet-adapter-base';
 import { PublicKey, type Transaction, type VersionedTransaction } from '@solana/web3.js';
-import type { OpenFederationClient } from '@openfederation/sdk';
+import type { OpenFederationClient } from '@open-federation/sdk';
 import bs58 from 'bs58';
 
 export const OpenFederationWalletName = 'OpenFederation' as WalletName<'OpenFederation'>;
@@ -1584,7 +1584,7 @@ Register it with `@solana/wallet-adapter-react`:
 - dApps that adopt OpenFederation typically want to customize the icon, name, and supported chains anyway.
 - If demand shifts, either of these recipes can be promoted into a package in an afternoon.
 
-A fully-working runnable reference lives at **`/demos/siwof-dapp/`** — Vite + React + `@openfederation/react`, no wagmi / wallet-adapter needed, which is the simpler integration path most dApps pick.
+A fully-working runnable reference lives at **`/demos/siwof-dapp/`** — Vite + React + `@open-federation/react`, no wagmi / wallet-adapter needed, which is the simpler integration path most dApps pick.
 
 
 ---
@@ -1594,7 +1594,7 @@ A fully-working runnable reference lives at **`/demos/siwof-dapp/`** — Vite + 
 OAuth SDKs (including `@atproto/oauth-client-node`) report `expires_at` in at least three shapes depending on version and code path: ISO-8601 strings, Unix epoch seconds, Unix epoch milliseconds. Passing a seconds-epoch to `new Date(n)` silently gives a 1970-era date; an unparseable string gives `NaN`. Both failure modes look authenticated but 401 every request.
 
 ```ts
-import { parseTokenExpiry } from '@openfederation/sdk';
+import { parseTokenExpiry } from '@open-federation/sdk';
 
 const expiresAtMs = parseTokenExpiry(tokenSet.expires_at);
 // guaranteed finite. Defaults to Date.now() + 1h when the input is garbage.

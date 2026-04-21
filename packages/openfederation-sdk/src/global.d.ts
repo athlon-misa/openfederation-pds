@@ -7,7 +7,7 @@
  *
  * Usage in TypeScript projects consuming the IIFE bundle:
  *
- *   /// <reference types="@openfederation/sdk/global" />
+ *   /// <reference types="@open-federation/sdk/global" />
  *
  *   const ofd = OpenFederation.createClient({
  *     serverUrl: 'https://pds.openfederation.net',

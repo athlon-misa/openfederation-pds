@@ -421,7 +421,7 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
   -d '{"refreshJwt":"<refreshJwt>"}'
 ```
 
-## JavaScript SDK (`@openfederation/sdk`)
+## JavaScript SDK (`@open-federation/sdk`)
 
 A zero-dependency browser SDK for third-party apps to register and log in users. Available via npm or as a `<script>` tag served from the PDS.
 
@@ -440,10 +440,10 @@ A zero-dependency browser SDK for third-party apps to register and log in users.
 
 **npm**:
 ```bash
-npm install @openfederation/sdk
+npm install @open-federation/sdk
 ```
 ```typescript
-import { createClient } from '@openfederation/sdk';
+import { createClient } from '@open-federation/sdk';
 const ofd = createClient({ serverUrl: '...', partnerKey: '...' });
 ```
 

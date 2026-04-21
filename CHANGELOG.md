@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **User Lifecycle**: deactivate, activate, export, delete (ATProto-compatible)
 - **External Identity Keys**: Cross-network identity bridging (Ed25519, X25519, secp256k1, P256)
 - **Partner API**: Trusted third-party app registration with per-key rate limiting
-- **SDK**: `@openfederation/sdk` zero-dependency browser library (ESM + CJS + IIFE)
+- **SDK**: `@open-federation/sdk` zero-dependency browser library (ESM + CJS + IIFE)
 - **Web UI**: Next.js 15 admin dashboard with shadcn/ui, React Query, kbar command palette
 - **CLI**: `ofc` command-line tool following clig.dev conventions
 - **PLC Directory**: Standalone `plc-server/` service for self-hosted DID resolution

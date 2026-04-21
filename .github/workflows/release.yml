@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release @open-federation/*
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed for changesets to open the "Version Packages" PR.
+      contents: write
+      pull-requests: write
+      # Required for npm provenance (auto-attested publishes).
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so changesets can diff for unchanged packages.
+          fetch-depth: 0
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate lexicon revisions
+        run: npm run lexicon:validate
+
+      - name: Build publishable packages
+        run: |
+          npm run --workspace @open-federation/sdk build
+          npm run --workspace @open-federation/react build
+          npm run --workspace @open-federation/lexicon build
+
+      - name: Create Release PR or publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          # Runs `changeset version` + commit to a "Version Packages" PR.
+          # When that PR merges back to main, the next run does the publish.
+          publish: npx changeset publish
+          version: npx changeset version
+          commit: "chore(release): version packages"
+          title: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provenance attestations — only works on GitHub-hosted runners.
+          NPM_CONFIG_PROVENANCE: "true"

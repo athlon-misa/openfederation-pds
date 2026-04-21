@@ -93,7 +93,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Partner Registration API: trusted third-party apps can register users without invite codes (auto-approved)
 - Partner key management: create, list, revoke keys (admin endpoints)
 - Partner security: SHA-256 hashed keys, origin validation, per-key rate limiting, instant revocation
-- Vanilla JS SDK (`@openfederation/sdk`): zero-dependency browser library for registration, login, session management
+- Vanilla JS SDK (`@open-federation/sdk`): zero-dependency browser library for registration, login, session management
 - SDK distribution: PDS-hosted at `/sdk/v1.js` (IIFE, 2.5KB gzipped) + npm publishable from `packages/openfederation-sdk/`
 - SDK features: auto-refresh tokens, localStorage/sessionStorage/memory backends, typed error classes, ATProto OAuth redirect support
 - External Identity Keys: cross-network identity bridging (Meshtastic, Nostr, WireGuard, SSH, hardware devices) via `net.openfederation.identity.externalKey` records
@@ -115,7 +115,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Invite binding: `--bound-to` email restriction and notes on invite codes
 - ActivityPub RSA key persistence: keys stored encrypted in DB, survive restarts
 - CLI: session management, security diagnostics (check-config, audit-summary), Oracle credential CRUD
-- Lexicon registry: `@resonator-foundation/lexicon` npm package, schema validation in CI, GitHub Pages docs
+- Lexicon registry: `@open-federation/lexicon` npm package, schema validation in CI, GitHub Pages docs
 - Lexicon per-schema revision tracking: `"revision"` integer field on all lexicon JSONs, CI validation, docs generation
 - Chain-specific proof verification: `ChainAdapter` interface, EVM adapter (ethers v6), proof caching, `submitProof` endpoint with Oracle auth, graceful fallback for unregistered chains
 - DID-to-wallet linking: challenge-response Ethereum (EIP-191) and Solana (Ed25519) signature verification, reverse wallet-to-DID resolution, transaction-safe linking
@@ -131,7 +131,7 @@ Before starting the server, configure `.env` (see `.env.example`):
 - Sign-In With OpenFederation (SIWOF): CAIP-122 / SIWE-compatible sign-in flow. `signInChallenge` issues a canonical message scoped to a dApp audience; `signInAssert` verifies the wallet signature and mints a didToken (service-auth JWT signed by the user's atproto key) plus a walletProof. Both are offline-verifiable — any dApp can confirm authenticity via standard W3C DID resolution without calling OpenFederation. SDK `client.signInWithOpenFederation(...)` runs the full flow in one call (tier-aware); `verifySignInAssertion()` is the pure offline verifier (did:plc + did:web resolver, ES256K/ES256 JWT + EIP-191/Ed25519 wallet signatures)
 - Public DID→wallet resolver + W3C DID-document augmentation: unauthenticated `getPrimaryWallet`, `listWalletsPublic`, and `getDidAugmentation` let any dApp resolve DID→wallet without OpenFederation-specific credentials. `getPrimaryWallet` returns a detached service-auth JWT proof (signed by the user's atproto key) so the binding is cryptographically verifiable via standard DID resolution. For did:web communities, wallet verificationMethod entries (EcdsaSecp256k1VerificationKey2019 / Ed25519VerificationKey2020 with CAIP-10 blockchainAccountId) are injected into `/.well-known/did.json` — any W3C-spec DID resolver discovers the user's on-chain identity automatically. Users choose which wallet is primary per chain via `setPrimaryWallet`
 - Custody tier upgrades (Tier 1 → 2, 1 → 3, 2 → 3): one-way transitions that preserve the on-chain wallet address. `retrieveForUpgrade` one-shot-exports the plaintext Tier 1 key (with password re-auth) so the client can re-wrap it under a new passphrase; `finalizeTierChange` atomically deletes the old custody record, stores the new encrypted blob (for Tier 2), revokes any active dApp consent grants, and updates `custody_tier`. SDK `client.wallet.upgradeToTier({chain, walletAddress, newTier, currentPassword, newPassphrase?, currentTier})` orchestrates the full retrieve-rewrap-finalize dance in one call. Downgrades are unsupported — users create a new wallet for that path. Wallet reputation, attestations, and on-chain history follow the address through every tier change
-- Developer-adoption packages: new `@openfederation/react` (in `packages/openfederation-react/`) exports `<OpenFederationProvider>`, `useOFSession`, `useOFWallet`, `useOFClient`, and a drop-in `<SignInWithOpenFederation chain="ethereum" onSuccess=...>` component — a dApp wires SIWOF in under 10 lines. Main SDK gets `client.mountSignInButton(el, opts)` for zero-framework integrators — the whole flow lives inside one `<script>` tag and one function call. Full @solana/wallet-adapter-base + wagmi Connector packages are planned as follow-ups
+- Developer-adoption packages: new `@open-federation/react` (in `packages/openfederation-react/`) exports `<OpenFederationProvider>`, `useOFSession`, `useOFWallet`, `useOFClient`, and a drop-in `<SignInWithOpenFederation chain="ethereum" onSuccess=...>` component — a dApp wires SIWOF in under 10 lines. Main SDK gets `client.mountSignInButton(el, opts)` for zero-framework integrators — the whole flow lives inside one `<script>` tag and one function call. Full @solana/wallet-adapter-base + wagmi Connector packages are planned as follow-ups
 
 **TODO for Full Production:**
 - Blob storage for avatars and banners
@@ -198,7 +198,7 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 |   |-- config.ts      # Server configuration
 |   |-- index.ts       # Main application entry point
 |-- /packages
-|   |-- /openfederation-sdk  # @openfederation/sdk — vanilla JS SDK for 3rd-party apps
+|   |-- /openfederation-sdk  # @open-federation/sdk — vanilla JS SDK for 3rd-party apps
 |       |-- /src             # TypeScript source (client, auth, storage, types, errors, utils)
 |       |-- /dist            # Build output (ESM, CJS, IIFE)
 |       |-- tsup.config.ts   # Build config (esbuild-based)
@@ -508,7 +508,7 @@ All requests have a configurable timeout (default 30s). Session credentials are 
 
 ### Ownership
 
-This repository owns **the OpenFederation PDS API server, the `@openfederation/sdk` vanilla JS SDK, the PLC directory service, and the Web UI admin dashboard**.
+This repository owns **the OpenFederation PDS API server, the `@open-federation/sdk` vanilla JS SDK, the PLC directory service, and the Web UI admin dashboard**.
 Any bugs, features, or refactors related to the above are this agent's responsibility to fix directly.
 
 ### Dependencies from sibling repositories
@@ -519,8 +519,8 @@ This repository has **no dependencies on sibling repos**. It is the upstream ide
 
 The following sibling repos depend on packages owned by this repo:
 
-- **grvty-leaderboards** ([repo](https://github.com/athlon-misa/grvty-leaderboards)) — uses `@openfederation/sdk` via `@grvty/identity` for user authentication and partner registration
-- **FlappySoccer** ([repo](https://github.com/athlon-misa/flappysoccer)) — uses `@openfederation/sdk` (IIFE bundle at `/sdk/v1.js`) for user registration and login
+- **grvty-leaderboards** ([repo](https://github.com/athlon-misa/grvty-leaderboards)) — uses `@open-federation/sdk` via `@grvty/identity` for user authentication and partner registration
+- **FlappySoccer** ([repo](https://github.com/athlon-misa/flappysoccer)) — uses `@open-federation/sdk` (IIFE bundle at `/sdk/v1.js`) for user registration and login
 
 ### Cross-repo routing rules
 
@@ -547,7 +547,7 @@ Use `gh issue create` with these defaults:
 ### Project topology
 
 This repo is part of a multi-repo project:
-- [OpenFederationPDS](https://github.com/athlon-misa/openfederation-pds) — Identity platform, PDS API, `@openfederation/sdk`
+- [OpenFederationPDS](https://github.com/athlon-misa/openfederation-pds) — Identity platform, PDS API, `@open-federation/sdk`
 - [grvty-leaderboards](https://github.com/athlon-misa/grvty-leaderboards) — Leaderboard microservice with OpenFederation auth
 - [FlappySoccer](https://github.com/athlon-misa/flappysoccer) — Browser game consuming both OpenFederation auth and leaderboard API
 

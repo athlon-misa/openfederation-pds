@@ -22,7 +22,7 @@ Breaking changes to lexicons are acceptable now (single consumer: Grvty).
 | Versioning | SemVer on the package (`0.x.y`) | Per-schema revisions deferred to #31 |
 | Source of truth | `src/lexicon/` in the PDS repo | Schemas authored alongside handlers |
 
-## 1. npm Package (`@openfederation/lexicon`)
+## 1. npm Package (`@open-federation/lexicon`)
 
 **Location:** `packages/openfederation-lexicon/`
 
@@ -32,7 +32,7 @@ Breaking changes to lexicons are acceptable now (single consumer: Grvty).
   - `schemas`: array of all lexicon objects (for `@atproto/lexicon` validators)
   - `schemaMap`: `Record<string, LexiconDoc>` keyed by NSID for individual lookups
   - `nsids`: const object of all NSID strings for type-safe references
-- Built with tsup (ESM + CJS), same toolchain as `@openfederation/sdk`
+- Built with tsup (ESM + CJS), same toolchain as `@open-federation/sdk`
 
 **Initial version:** `0.1.0`
 

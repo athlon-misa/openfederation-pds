@@ -2,8 +2,8 @@
 
 A minimal Vite + React app that exercises every consumer-facing piece of the OpenFederation web3 identity layer end-to-end:
 
-- `@openfederation/sdk` for `createClient`, tier-1 wallet provisioning + signing, `signInWithOpenFederation`, and `verifySignInAssertion`.
-- `@openfederation/react` for `OpenFederationProvider`, `useOFSession`, `useOFWallet`, and `<SignInWithOpenFederation>`.
+- `@open-federation/sdk` for `createClient`, tier-1 wallet provisioning + signing, `signInWithOpenFederation`, and `verifySignInAssertion`.
+- `@open-federation/react` for `OpenFederationProvider`, `useOFSession`, `useOFWallet`, and `<SignInWithOpenFederation>`.
 
 Nothing here depends on a wallet extension, a wagmi connector, or solana-wallet-adapter. A freshly-signed-up user with no external wallet can produce an offline-verifiable `didToken` in three clicks.
 

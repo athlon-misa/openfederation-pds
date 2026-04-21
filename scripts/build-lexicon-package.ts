@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Build script for @openfederation/lexicon package.
+ * Build script for @open-federation/lexicon package.
  *
  * 1. Validates all net.openfederation.* lexicon JSON files
  * 2. Copies them into packages/openfederation-lexicon/schemas/

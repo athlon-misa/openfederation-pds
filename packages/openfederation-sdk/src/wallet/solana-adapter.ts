@@ -7,7 +7,7 @@
  * `compileMessage()` so the adapter works with `Transaction` and
  * `VersionedTransaction` alike. Callers that want the full
  * `@solana/wallet-adapter-base` WalletAdapter interface can wrap this
- * object themselves, or use the dedicated `@openfederation/solana-adapter`
+ * object themselves, or use the dedicated `@open-federation/solana-adapter`
  * package (planned for M5).
  */
 

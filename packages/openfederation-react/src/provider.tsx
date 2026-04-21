@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import type { OpenFederationClient, User } from '@openfederation/sdk';
+import type { OpenFederationClient, User } from '@open-federation/sdk';
 
 export interface OpenFederationProviderProps {
-  /** A client instance created via `createClient(...)` from @openfederation/sdk. */
+  /** A client instance created via `createClient(...)` from @open-federation/sdk. */
   client: OpenFederationClient;
   children: React.ReactNode;
 }
@@ -21,8 +21,8 @@ const OpenFederationContext = createContext<OpenFederationContextValue | null>(n
  *
  * @example
  * ```tsx
- * import { createClient } from '@openfederation/sdk';
- * import { OpenFederationProvider } from '@openfederation/react';
+ * import { createClient } from '@open-federation/sdk';
+ * import { OpenFederationProvider } from '@open-federation/react';
  *
  * const client = createClient({ serverUrl, partnerKey });
  *

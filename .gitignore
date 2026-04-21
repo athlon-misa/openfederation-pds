@@ -51,3 +51,4 @@ articles/
 
 # Generated docs site (built by scripts/build-lexicon-docs.ts)
 docs-site/
+data/

@@ -1,5 +1,5 @@
 {
-  "name": "@openfederation/matrix-bridge",
+  "name": "@open-federation/matrix-bridge",
   "version": "0.1.0",
   "description": "OpenFederation PDS to Matrix bridge — syncs community membership and roles to Matrix Spaces",
   "type": "module",
