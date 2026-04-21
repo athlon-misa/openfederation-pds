@@ -1401,3 +1401,187 @@ The verifier pulls the issuer DID via public W3C DID resolution (did:plc + did:w
 - `@openfederation/wagmi-connector` — wagmi v2 `Connector` so OF appears as a wallet in the EVM dApp ecosystem.
 - `@openfederation/solana-adapter` — implements `@solana/wallet-adapter-base.WalletAdapter` for drop-in Solana integrations.
 - Full demo dApp (`demos/siwof-dapp/`) wiring an EVM contract call + Solana message sign entirely through OpenFederation.
+
+
+---
+
+## Wrapping OpenFederation into existing connector ecosystems
+
+We ship `client.wallet.asEthersSigner()` and `client.wallet.asSolanaSigner()` as the canonical signer surfaces. If your dApp uses **wagmi** or **@solana/wallet-adapter-react**, here's how to wrap them into the connector shape those libraries expect — **without** a dedicated OpenFederation connector package.
+
+We deliberately do *not* publish these as npm packages: wagmi and solana-wallet-adapter both break compatibility on major versions, and the wrapper is thin enough that copy-paste-and-own beats library-and-maintain.
+
+### wagmi v2 Connector
+
+```ts
+import { createConnector, type Connector } from 'wagmi';
+import { createClient, type OpenFederationClient } from '@openfederation/sdk';
+import { getAddress } from 'ethers';
+
+/**
+ * ~50 lines to make OpenFederation appear in wagmi's connector picker.
+ * The heavy lifting — signing, tier dispatch, consent — lives inside
+ * `client.wallet.asEthersSigner(...)`.
+ */
+export function openfederationConnector(client: OpenFederationClient) {
+  return createConnector((_config) => ({
+    id: 'openfederation',
+    name: 'OpenFederation',
+    type: 'openfederation',
+
+    async connect({ chainId } = {}) {
+      const user = await client.getUser();
+      if (!user) throw new Error('Not logged into OpenFederation — call client.login() first');
+      const { walletLinks } = await client.listWalletLinks();
+      const eth = walletLinks.find((w) => w.chain === 'ethereum');
+      if (!eth) throw new Error('No Ethereum wallet linked to this DID');
+      return {
+        accounts: [getAddress(eth.walletAddress)],
+        chainId: chainId ?? 1,
+      };
+    },
+
+    async getAccounts() {
+      const { walletLinks } = await client.listWalletLinks();
+      return walletLinks
+        .filter((w) => w.chain === 'ethereum')
+        .map((w) => getAddress(w.walletAddress));
+    },
+
+    async getProvider() {
+      // wagmi's Connector contract wants a provider. For OpenFederation,
+      // the signer is the primitive — a minimal EIP-1193 shim is enough
+      // for personal_sign / eth_sendTransaction routing.
+      return makeEip1193Shim(client);
+    },
+
+    async disconnect() { /* no-op — OF session is managed separately */ },
+    async getChainId() { return 1; },
+    async isAuthorized() { return (await client.getUser()) != null; },
+    onAccountsChanged() {}, onChainChanged() {}, onDisconnect() {},
+  } satisfies Partial<Connector>));
+}
+
+// Minimal EIP-1193 shim: routes personal_sign and eth_sendTransaction to
+// the OpenFederation signer. Extend with whatever RPC methods your dApp uses.
+function makeEip1193Shim(client: OpenFederationClient) {
+  return {
+    async request({ method, params }: { method: string; params: unknown[] }) {
+      const { walletLinks } = await client.listWalletLinks();
+      const eth = walletLinks.find((w) => w.chain === 'ethereum');
+      if (!eth) throw new Error('No Ethereum wallet');
+      if (method === 'eth_accounts' || method === 'eth_requestAccounts') {
+        return [eth.walletAddress];
+      }
+      if (method === 'personal_sign') {
+        const [message] = params as [string];
+        const res = await client.wallet.sign({
+          chain: 'ethereum', walletAddress: eth.walletAddress,
+          message, dappOrigin: window.location.origin,
+        });
+        return res.signature;
+      }
+      if (method === 'eth_sendTransaction') {
+        const [tx] = params as [Record<string, unknown>];
+        const res = await client.wallet.signTransaction({
+          chain: 'ethereum',
+          walletAddress: eth.walletAddress,
+          tx: tx as { chainId: number | bigint | string },
+          dappOrigin: window.location.origin,
+        });
+        // Caller broadcasts the signed RLP via their provider.
+        if ('signedTx' in res) return res.signedTx;
+        throw new Error('unexpected response');
+      }
+      throw new Error(`Unsupported RPC method: ${method}`);
+    },
+  };
+}
+```
+
+Drop this file into your dApp, register it with `wagmi.createConfig({ connectors: [openfederationConnector(client)] })`, and OpenFederation shows up alongside MetaMask / WalletConnect in any connector-picker UI.
+
+### @solana/wallet-adapter-base
+
+```ts
+import {
+  BaseMessageSignerWalletAdapter,
+  WalletReadyState,
+  type WalletName,
+} from '@solana/wallet-adapter-base';
+import { PublicKey, type Transaction, type VersionedTransaction } from '@solana/web3.js';
+import type { OpenFederationClient } from '@openfederation/sdk';
+import bs58 from 'bs58';
+
+export const OpenFederationWalletName = 'OpenFederation' as WalletName<'OpenFederation'>;
+
+export class OpenFederationSolanaAdapter extends BaseMessageSignerWalletAdapter {
+  name = OpenFederationWalletName;
+  url = 'https://openfederation.net';
+  icon = 'data:image/svg+xml;base64,...';
+  supportedTransactionVersions = new Set([0, 'legacy'] as const);
+  readyState = WalletReadyState.Loadable;
+
+  private _publicKey: PublicKey | null = null;
+
+  constructor(private client: OpenFederationClient) { super(); }
+
+  get publicKey() { return this._publicKey; }
+  get connecting() { return false; }
+
+  async connect(): Promise<void> {
+    const user = await this.client.getUser();
+    if (!user) throw new Error('Log into OpenFederation first');
+    const { walletLinks } = await this.client.listWalletLinks();
+    const sol = walletLinks.find((w) => w.chain === 'solana');
+    if (!sol) throw new Error('No Solana wallet linked');
+    this._publicKey = new PublicKey(sol.walletAddress);
+    this.emit('connect', this._publicKey);
+  }
+
+  async disconnect(): Promise<void> {
+    this._publicKey = null;
+    this.emit('disconnect');
+  }
+
+  async signMessage(message: Uint8Array): Promise<Uint8Array> {
+    if (!this._publicKey) throw new Error('not connected');
+    const res = await this.client.wallet.sign({
+      chain: 'solana',
+      walletAddress: this._publicKey.toBase58(),
+      message: new TextDecoder().decode(message),
+      dappOrigin: window.location.origin,
+    });
+    return bs58.decode(res.signature);
+  }
+
+  async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
+    if (!this._publicKey) throw new Error('not connected');
+    const signer = this.client.wallet.asSolanaSigner({ walletAddress: this._publicKey.toBase58() });
+    const sig = await signer.signTransactionMessage(tx as any);
+    (tx as any).addSignature(this._publicKey, bs58.decode(sig));
+    return tx;
+  }
+
+  async signAllTransactions<T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]> {
+    return Promise.all(txs.map((t) => this.signTransaction(t)));
+  }
+}
+```
+
+Register it with `@solana/wallet-adapter-react`:
+
+```tsx
+<WalletProvider wallets={[new OpenFederationSolanaAdapter(client)]}>
+  <WalletModalProvider>{/* your app */}</WalletModalProvider>
+</WalletProvider>
+```
+
+### Why these aren't packages
+
+- Both wagmi and wallet-adapter change APIs between majors — a pinned published connector would trap consumers on an old peer version.
+- The wrapper logic is trivial once `asEthersSigner` / `asSolanaSigner` exist. That's the real contribution.
+- dApps that adopt OpenFederation typically want to customize the icon, name, and supported chains anyway.
+- If demand shifts, either of these recipes can be promoted into a package in an afternoon.
+
+A fully-working runnable reference lives at **`/demos/siwof-dapp/`** — Vite + React + `@openfederation/react`, no wagmi / wallet-adapter needed, which is the simpler integration path most dApps pick.
