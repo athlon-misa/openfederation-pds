@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.finalizeTierChange",
+  "revision": 1,
+  "description": "Atomically transition a wallet between custody tiers. Supports Tier 1 → 2, Tier 1 → 3, and Tier 2 → 3 (one-way upgrades). Deletes the prior custody record, optionally stores a new Tier 2 encrypted blob, revokes active dApp consent grants, and updates the tier. Wallet address stays the same.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "newTier", "currentPassword"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "newTier": { "type": "string", "description": "Target tier: user_encrypted or self_custody (custodial is a downgrade and is unsupported)." },
+            "newEncryptedBlob": { "type": "string", "description": "Required when newTier is user_encrypted. Opaque AES-GCM blob produced by wrapping the mnemonic under the user's passphrase." },
+            "currentPassword": { "type": "string" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "previousTier", "newTier"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "previousTier": { "type": "string" },
+            "newTier": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields or oversize blob." },
+        { "name": "InvalidPassword", "description": "currentPassword did not verify." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "WalletNotFound", "description": "No such wallet for this DID." },
+        { "name": "WalletInactive", "description": "Wallet has been exported or superseded." },
+        { "name": "UnsupportedTransition", "description": "Requested transition is not supported (downgrades are not allowed)." }
+      ]
+    }
+  }
+}

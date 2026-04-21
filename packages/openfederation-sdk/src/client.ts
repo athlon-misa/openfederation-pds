@@ -12,6 +12,7 @@ import type {
   ProvisionResult, GrantConsentOptions, ConsentGrant, WalletSignOptions,
   WalletSignTransactionOptions, WalletSignTransactionResult,
   SiwofChallengeResponse, SiwofAssertResponse, SignInWithOpenFederationOptions,
+  UpgradeTierOptions, UpgradeTierResult,
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
@@ -22,6 +23,7 @@ import { unwrapMnemonic, type WrappedBlob } from './wallet/wrap.js';
 import { WalletSession } from './wallet/wallet-session.js';
 import { createSolanaSigner } from './wallet/solana-adapter.js';
 import { normalizeEvmTxForWire } from './wallet/tx-normalize.js';
+import { upgradeToTier as upgradeToTierFlow } from './wallet/upgrade.js';
 
 export class OpenFederationClient implements AuthProvider {
   private serverUrl: string;
@@ -699,6 +701,47 @@ export class OpenFederationClient implements AuthProvider {
       return this.fetch('net.openfederation.wallet.listConsents', {
         method: 'GET',
       }) as Promise<{ consents: ConsentGrant[] }>;
+    },
+
+    /**
+     * Upgrade a wallet's custody tier without changing its on-chain address.
+     * Supported transitions: 1→2, 1→3, 2→3. The caller's current password
+     * is required for every transition; a new passphrase is additionally
+     * required when going to Tier 2.
+     */
+    upgradeToTier: async (opts: UpgradeTierOptions): Promise<UpgradeTierResult> => {
+      if (opts.currentTier === 'self_custody') {
+        throw new Error('Already at Tier 3 (self-custody); nothing to upgrade');
+      }
+      const res = await upgradeToTierFlow(
+        {
+          retrieveForUpgrade: (o) =>
+            this.fetch('net.openfederation.wallet.retrieveForUpgrade', {
+              method: 'POST',
+              body: o as unknown as Record<string, unknown>,
+            }) as Promise<{ privateKeyBase64: string; exportFormat: string }>,
+          finalizeTierChange: (o) =>
+            this.fetch('net.openfederation.wallet.finalizeTierChange', {
+              method: 'POST',
+              body: o as unknown as Record<string, unknown>,
+            }) as Promise<{ previousTier: string; newTier: string }>,
+        },
+        {
+          chain: opts.chain,
+          walletAddress: opts.walletAddress,
+          newTier: opts.newTier,
+          currentPassword: opts.currentPassword,
+          newPassphrase: opts.newPassphrase,
+          currentTier: opts.currentTier,
+        }
+      );
+      return {
+        chain: res.chain,
+        walletAddress: res.walletAddress,
+        previousTier: res.previousTier,
+        newTier: res.newTier,
+        exportedPrivateKeyBase64: res.exportedPrivateKeyBase64,
+      };
     },
 
     /**

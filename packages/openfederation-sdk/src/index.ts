@@ -62,6 +62,9 @@ export type {
   SiwofWalletProof,
   SiwofAssertResponse,
   SignInWithOpenFederationOptions,
+  // Tier upgrades
+  UpgradeTierOptions,
+  UpgradeTierResult,
 } from './types.js';
 export {
   verifySignInAssertion,

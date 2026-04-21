@@ -95,6 +95,8 @@ import getPrimaryWallet from '../api/net.openfederation.identity.getPrimaryWalle
 import listWalletsPublic from '../api/net.openfederation.identity.listWalletsPublic.js';
 import setPrimaryWallet from '../api/net.openfederation.identity.setPrimaryWallet.js';
 import getDidAugmentation from '../api/net.openfederation.identity.getDidAugmentation.js';
+import walletRetrieveForUpgrade from '../api/net.openfederation.wallet.retrieveForUpgrade.js';
+import walletFinalizeTierChange from '../api/net.openfederation.wallet.finalizeTierChange.js';
 import walletGrantConsent from '../api/net.openfederation.wallet.grantConsent.js';
 import walletRevokeConsent from '../api/net.openfederation.wallet.revokeConsent.js';
 import walletListConsents from '../api/net.openfederation.wallet.listConsents.js';
@@ -351,6 +353,12 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.identity.listWalletsPublic': { handler: listWalletsPublic, limiter: discoveryLimiter },
   'net.openfederation.identity.setPrimaryWallet': { handler: setPrimaryWallet },
   'net.openfederation.identity.getDidAugmentation': { handler: getDidAugmentation, limiter: discoveryLimiter },
+
+  // Progressive-custody tier upgrades (1 → 2, 1 → 3, 2 → 3). authLimiter
+  // enforces a stricter throttle on password-backed operations.
+  'net.openfederation.wallet.retrieveForUpgrade': { handler: walletRetrieveForUpgrade, limiter: authLimiter },
+  'net.openfederation.wallet.finalizeTierChange': { handler: walletFinalizeTierChange, limiter: authLimiter },
+
   'net.openfederation.wallet.grantConsent': { handler: walletGrantConsent, limiter: createLimiter },
   'net.openfederation.wallet.revokeConsent': { handler: walletRevokeConsent },
   'net.openfederation.wallet.listConsents': { handler: walletListConsents },

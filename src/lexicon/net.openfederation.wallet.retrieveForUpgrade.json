@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.retrieveForUpgrade",
+  "revision": 1,
+  "description": "One-shot export of a Tier 1 (custodial) wallet's private key in preparation for a tier upgrade. Password re-auth required. Client re-wraps (for Tier 2) or takes self-custody (for Tier 3), then calls finalizeTierChange.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "currentPassword"],
+          "properties": {
+            "chain": { "type": "string", "description": "ethereum or solana" },
+            "walletAddress": { "type": "string" },
+            "currentPassword": { "type": "string", "description": "The caller's current account password." }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["chain", "walletAddress", "privateKeyBase64", "exportFormat"],
+          "properties": {
+            "chain": { "type": "string" },
+            "walletAddress": { "type": "string" },
+            "privateKeyBase64": { "type": "string" },
+            "exportFormat": { "type": "string", "description": "raw-secp256k1-32-bytes or raw-ed25519-64-bytes" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "Missing required fields or external-auth account." },
+        { "name": "InvalidPassword", "description": "currentPassword did not verify." },
+        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
+        { "name": "WalletNotFound", "description": "No such wallet for this DID." },
+        { "name": "WalletInactive", "description": "Wallet has been exported or superseded." },
+        { "name": "UnsupportedTier", "description": "Only Tier 1 (custodial) wallets use this endpoint." },
+        { "name": "SigningFailed", "description": "Custodial key material is missing." }
+      ]
+    }
+  }
+}

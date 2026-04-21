@@ -1247,3 +1247,57 @@ A standards-compliant W3C DID resolver can merge this with the PLC doc to get th
 - **Zero OF lock-in.** Any DID resolver that understands `blockchainAccountId` sees OF users as full web3 citizens.
 - **Proof is portable.** The resolver's `proof` JWT is offline-verifiable — cache it, serve it, forward it.
 - **User-controlled surface.** Users pick which wallet shows up as "their" Ethereum or Solana address; changes are atomic, and the address stays identical across custody-tier upgrades.
+
+
+---
+
+## Tier upgrades (M2.5)
+
+The whole point of progressive custody is that users can move *up* the security ladder as a wallet's value grows — without losing their on-chain identity. Supported transitions: **Tier 1 → Tier 2**, **Tier 1 → Tier 3**, **Tier 2 → Tier 3**. The wallet address never changes.
+
+```ts
+// Tier 1 → Tier 2: wrap the server-held key under a user passphrase.
+const res = await client.wallet.upgradeToTier({
+  chain: 'ethereum',
+  walletAddress: t1.walletAddress,
+  currentTier: 'custodial',
+  newTier: 'user_encrypted',
+  currentPassword,
+  newPassphrase: 'correct-horse-battery-staple',
+});
+// res.newTier === 'user_encrypted'; wallet address unchanged.
+// From now on, signing uses `client.wallet.unlockTier2(...)` locally —
+// the PDS cannot sign on the user's behalf anymore.
+
+// Tier 1 → Tier 3: export plaintext for cold storage.
+const self = await client.wallet.upgradeToTier({
+  chain: 'ethereum',
+  walletAddress: t1.walletAddress,
+  currentTier: 'custodial',
+  newTier: 'self_custody',
+  currentPassword,
+});
+// self.exportedPrivateKeyBase64 — store offline.
+
+// Tier 2 → Tier 3: drop the server-held blob.
+await client.wallet.upgradeToTier({
+  chain: 'solana',
+  walletAddress: t2.walletAddress,
+  currentTier: 'user_encrypted',
+  newTier: 'self_custody',
+  currentPassword,
+});
+// The user already holds the passphrase; at this point they're fully self-custodial.
+```
+
+### Security model
+
+- Every upgrade requires the user's **current account password** (re-auth). Session-hijack alone cannot upgrade a wallet.
+- The one endpoint that leaks plaintext (`retrieveForUpgrade`) is gated on password re-auth AND works only for Tier 1 wallets. Tier 2 users never need it — they already hold the passphrase and can unwrap locally via `client.wallet.unlockTier2`.
+- `finalizeTierChange` atomically revokes all active per-dApp consent grants for the wallet being upgraded. Those grants only make sense for Tier 1.
+- Address preserved across every tier. Wallet reputation (attestations, community badges, on-chain history) travels unchanged.
+
+### What's NOT supported
+
+- **Downgrades** (Tier 3 → 2, Tier 2 → 1, etc.) — require handing plaintext back to OpenFederation, which breaks the Tier 2/3 contract. If a user wants lower friction, they create a new wallet at the desired tier.
+- **Tier 1 ↔ Tier 1 re-provisioning** under the same address — the key would need to be regenerated, changing the address.

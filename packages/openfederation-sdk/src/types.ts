@@ -210,6 +210,28 @@ export interface SiwofAssertResponse {
   audience: string;
 }
 
+export interface UpgradeTierOptions {
+  chain: WalletChain;
+  walletAddress: string;
+  /** Target tier: 'user_encrypted' or 'self_custody'. Downgrades are unsupported. */
+  newTier: 'user_encrypted' | 'self_custody';
+  /** The caller's current account password. */
+  currentPassword: string;
+  /** New passphrase for wrapping the mnemonic at Tier 2. Required when newTier = 'user_encrypted'. */
+  newPassphrase?: string;
+  /** Current tier of the wallet, known by the client. SDK reads this from list endpoints. */
+  currentTier: CustodyTier;
+}
+
+export interface UpgradeTierResult {
+  chain: WalletChain;
+  walletAddress: string;
+  previousTier: string;
+  newTier: 'user_encrypted' | 'self_custody';
+  /** Present ONLY for custodial → self_custody. Raw private key bytes as base64. */
+  exportedPrivateKeyBase64?: string;
+}
+
 export interface SignInWithOpenFederationOptions {
   chain: WalletChain;
   walletAddress: string;

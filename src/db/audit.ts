@@ -76,6 +76,8 @@ export type AuditAction =
   | 'wallet.consent.revoke'
   | 'identity.signInAssert'
   | 'identity.setPrimaryWallet'
+  | 'wallet.retrieveForUpgrade'
+  | 'wallet.tierChange'
   | 'account.recovery.initiate'
   | 'account.recovery.complete'
   | 'attestation.requestDisclosure'

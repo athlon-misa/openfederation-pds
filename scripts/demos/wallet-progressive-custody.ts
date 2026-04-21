@@ -332,6 +332,45 @@ async function main() {
     console.log(`     ${vm.type.padEnd(40)} ${vm.blockchainAccountId}`);
   }
 
+  // ── Tier upgrade: 1 → 2 → 3 on the same address ────────────────────────
+
+  log('Tier upgrade — one address climbs the security ladder');
+  const ut1 = await xrpc<any>('POST', 'net.openfederation.wallet.provision', {
+    token, body: { chain: 'ethereum', label: 'upgrade-demo' },
+  });
+  if (ut1.status !== 200) throw new Error(`upgrade provision failed: ${ut1.status} ${JSON.stringify(ut1.body)}`);
+  const upgradeAddr = ut1.body.walletAddress;
+  console.log(`  ✓ fresh Tier 1 wallet at ${upgradeAddr}`);
+
+  // Tier 1 → Tier 2: retrieve plaintext, wrap under passphrase, finalize.
+  const ret = await xrpc<any>('POST', 'net.openfederation.wallet.retrieveForUpgrade', {
+    token, body: { chain: 'ethereum', walletAddress: upgradeAddr, currentPassword: 'DemoPassword123!' },
+  });
+  if (ret.status !== 200) throw new Error(`retrieve failed: ${ret.status}`);
+  const upgradePass = 'upgrade-passphrase-987';
+  const wrappedUpgrade = await wrapMnemonic(ret.body.privateKeyBase64, upgradePass);
+  const fin12 = await xrpc<any>('POST', 'net.openfederation.wallet.finalizeTierChange', {
+    token, body: {
+      chain: 'ethereum', walletAddress: upgradeAddr,
+      newTier: 'user_encrypted',
+      newEncryptedBlob: JSON.stringify(wrappedUpgrade),
+      currentPassword: 'DemoPassword123!',
+    },
+  });
+  if (fin12.status !== 200) throw new Error(`1→2 finalize failed: ${fin12.status}`);
+  console.log(`  ✓ Tier 1 → Tier 2: ${upgradeAddr} (same address — PDS now holds only the encrypted blob)`);
+
+  // Tier 2 → Tier 3: drop the server blob entirely.
+  const fin23 = await xrpc<any>('POST', 'net.openfederation.wallet.finalizeTierChange', {
+    token, body: {
+      chain: 'ethereum', walletAddress: upgradeAddr,
+      newTier: 'self_custody',
+      currentPassword: 'DemoPassword123!',
+    },
+  });
+  if (fin23.status !== 200) throw new Error(`2→3 finalize failed: ${fin23.status}`);
+  console.log(`  ✓ Tier 2 → Tier 3: ${upgradeAddr} (same address — PDS now holds only the public link)`);
+
   log('Summary — one DID, three wallets, three custody tiers');
   const list = await xrpc<{ walletLinks: Array<{ chain: string; walletAddress: string; label: string | null }> }>(
     'GET',
