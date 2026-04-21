@@ -1301,3 +1301,103 @@ await client.wallet.upgradeToTier({
 
 - **Downgrades** (Tier 3 → 2, Tier 2 → 1, etc.) — require handing plaintext back to OpenFederation, which breaks the Tier 2/3 contract. If a user wants lower friction, they create a new wallet at the desired tier.
 - **Tier 1 ↔ Tier 1 re-provisioning** under the same address — the key would need to be regenerated, changing the address.
+
+
+---
+
+## Developer adoption — React + vanilla button (M5)
+
+The "integrate in an afternoon" promise, made concrete. Two paths:
+
+### React
+
+```tsx
+import { createClient } from '@openfederation/sdk';
+import { OpenFederationProvider, SignInWithOpenFederation, useOFSession } from '@openfederation/react';
+
+const client = createClient({ serverUrl, partnerKey });
+
+function App() {
+  return (
+    <OpenFederationProvider client={client}>
+      <Home />
+    </OpenFederationProvider>
+  );
+}
+
+function Home() {
+  const { user, login, logout } = useOFSession();
+  if (!user) return <button onClick={() => login({ identifier, password })}>Log in</button>;
+  return (
+    <>
+      <p>Hi, @{user.handle}!</p>
+      <SignInWithOpenFederation
+        chain="ethereum"
+        audience={window.location.origin}
+        onSuccess={async (assertion) => {
+          await fetch('/api/login', { method: 'POST', body: JSON.stringify(assertion) });
+        }}
+        onError={(err) => console.error(err)}
+      />
+    </>
+  );
+}
+```
+
+**Hooks:**
+
+- `useOFClient()` — returns the raw `OpenFederationClient` for anything not covered by the higher-level hooks.
+- `useOFSession()` — `{ user, ready, isAuthenticated, login, register, logout }`. Re-renders on auth state changes.
+- `useOFWallet()` — `{ wallets, loading, error, refresh, signIn }`. `signIn` is a shorthand for `client.signInWithOpenFederation(...)`.
+
+**Component:**
+
+- `<SignInWithOpenFederation chain onSuccess onError?>` — drop-in button. Auto-resolves the user's wallet on that chain (override via `walletAddress`), runs the CAIP-122 → wallet.sign → assert flow, calls `onSuccess(assertion)`. Supports `render={({ onClick, loading, disabled }) => ...}` for custom styling.
+
+### Vanilla `<script>`-tag
+
+```html
+<div id="of-signin"></div>
+<script src="https://pds.openfederation.net/sdk/v1.js"></script>
+<script>
+  const client = OpenFederation.createClient({ serverUrl, partnerKey });
+  // ...user logs in first via client.login(...)
+  client.mountSignInButton(document.getElementById('of-signin'), {
+    chain: 'ethereum',
+    audience: window.location.origin,
+    onSuccess: (assertion) => {
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assertion),
+      });
+    },
+    onError: (err) => console.error(err),
+  });
+</script>
+```
+
+A full working example lives at `demos/siwof-vanilla-button.html`.
+
+### Server-side verification (no SDK required)
+
+Any Node service can verify the `didToken` + `walletProof` the button produces:
+
+```ts
+import { verifySignInAssertion } from '@openfederation/sdk';
+
+const { did, walletAddress, audience, nonce } = await verifySignInAssertion(
+  body.didToken,
+  body.walletProof,
+  { expectedAudience: 'https://your-dapp.com' },
+);
+// Trust `did`. Issue your dApp session keyed on it.
+```
+
+The verifier pulls the issuer DID via public W3C DID resolution (did:plc + did:web), checks the JWT signature, checks the wallet signature — zero calls to OpenFederation required.
+
+### Planned follow-ups
+
+- `@openfederation/wagmi-connector` — wagmi v2 `Connector` so OF appears as a wallet in the EVM dApp ecosystem.
+- `@openfederation/solana-adapter` — implements `@solana/wallet-adapter-base.WalletAdapter` for drop-in Solana integrations.
+- Full demo dApp (`demos/siwof-dapp/`) wiring an EVM contract call + Solana message sign entirely through OpenFederation.

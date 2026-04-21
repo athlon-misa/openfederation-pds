@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sign In With OpenFederation — Vanilla Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font: 16px/1.5 -apple-system, Segoe UI, sans-serif; max-width: 640px; margin: 4rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .subtitle { color: #666; margin-top: 0; }
+    label { display: block; margin: 1rem 0 0.25rem; font-weight: 600; }
+    input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0.375rem; font: inherit; box-sizing: border-box; }
+    pre { background: #f6f6f6; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+    .section { margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1.5rem; }
+    .muted { color: #666; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <h1>Sign In With OpenFederation</h1>
+  <p class="subtitle">Zero-framework demo — one &lt;script&gt; tag + one function call.</p>
+
+  <p class="muted">
+    Log in to your OpenFederation account first via <code>client.login()</code>,
+    then click below. The button produces a <code>didToken</code> + <code>walletProof</code>
+    your backend verifies offline.
+  </p>
+
+  <label>PDS URL</label>
+  <input id="pds" value="http://localhost:8080" />
+  <label>Partner Key</label>
+  <input id="partner" placeholder="ofp_..." />
+  <label>Handle</label>
+  <input id="handle" />
+  <label>Password</label>
+  <input id="password" type="password" />
+
+  <div class="section">
+    <button id="login">1. Log in</button>
+    <div id="of-signin" style="margin-top: 0.75rem"></div>
+  </div>
+
+  <div class="section">
+    <h2>Result</h2>
+    <pre id="out">(not signed in)</pre>
+  </div>
+
+  <script src="http://localhost:8080/sdk/v1.js"></script>
+  <script>
+    let client = null;
+
+    document.getElementById('login').addEventListener('click', async () => {
+      const pds = document.getElementById('pds').value;
+      const partnerKey = document.getElementById('partner').value;
+      const handle = document.getElementById('handle').value;
+      const password = document.getElementById('password').value;
+
+      client = OpenFederation.createClient({
+        serverUrl: pds,
+        partnerKey,
+        storage: 'memory',
+      });
+
+      try {
+        const user = await client.login({ identifier: handle, password });
+        document.getElementById('out').textContent =
+          'Logged in as ' + user.handle + '\nDID: ' + user.did;
+
+        // Mount the drop-in SIWOF button.
+        const target = document.getElementById('of-signin');
+        target.replaceChildren();
+        client.mountSignInButton(target, {
+          chain: 'ethereum',
+          audience: window.location.origin,
+          statement: 'Sign in to the vanilla demo',
+          onSuccess: (assertion) => {
+            document.getElementById('out').textContent = JSON.stringify(assertion, null, 2);
+          },
+          onError: (err) => {
+            document.getElementById('out').textContent = 'Error: ' + err.message;
+          },
+        });
+      } catch (err) {
+        document.getElementById('out').textContent = 'Login failed: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

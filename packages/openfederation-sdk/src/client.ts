@@ -852,6 +852,107 @@ export class OpenFederationClient implements AuthProvider {
   }
 
   /**
+   * Vanilla-JS drop-in: renders a "Sign in with OpenFederation" button into
+   * the given DOM element. For React apps, prefer `<SignInWithOpenFederation>`
+   * from `@openfederation/react`.
+   *
+   * @example
+   * ```html
+   * <div id="of-signin"></div>
+   * <script src="/sdk/v1.js"></script>
+   * <script>
+   *   const client = OpenFederation.createClient({ serverUrl, partnerKey });
+   *   client.mountSignInButton(document.getElementById('of-signin'), {
+   *     chain: 'ethereum',
+   *     audience: window.location.origin,
+   *     onSuccess: (assertion) => fetch('/api/login', {
+   *       method: 'POST', body: JSON.stringify(assertion),
+   *     }),
+   *   });
+   * </script>
+   * ```
+   */
+  mountSignInButton(
+    target: Element,
+    opts: {
+      chain: 'ethereum' | 'solana';
+      audience?: string;
+      walletAddress?: string;
+      statement?: string;
+      label?: string;
+      onSuccess: (assertion: SiwofAssertResponse) => void;
+      onError?: (err: Error) => void;
+    }
+  ): { destroy: () => void } {
+    const doc = target.ownerDocument;
+    const btn = doc.createElement('button');
+    btn.type = 'button';
+    btn.textContent = opts.label ?? 'Sign in with OpenFederation';
+    btn.setAttribute('data-openfederation-signin', '');
+    Object.assign(btn.style, {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.5rem',
+      padding: '0.625rem 1rem',
+      border: '1px solid rgba(0,0,0,0.1)',
+      borderRadius: '0.5rem',
+      background: '#111',
+      color: '#fff',
+      fontWeight: '600',
+      cursor: 'pointer',
+    });
+
+    const originalLabel = btn.textContent;
+    const setBusy = (busy: boolean) => {
+      btn.disabled = busy;
+      btn.style.opacity = busy ? '0.6' : '1';
+      btn.textContent = busy ? 'Signing…' : originalLabel;
+    };
+
+    const handleClick = async () => {
+      if (btn.disabled) return;
+      setBusy(true);
+      try {
+        let walletAddress = opts.walletAddress;
+        if (!walletAddress) {
+          const list = await this.listWalletLinks();
+          const match = list.walletLinks.find((w) => w.chain === opts.chain);
+          if (!match) throw new Error(`No wallet on chain "${opts.chain}" for this account`);
+          walletAddress = match.walletAddress;
+        }
+        const audience = opts.audience
+          ?? (typeof (globalThis as any).location !== 'undefined'
+            ? (globalThis as any).location.origin
+            : undefined);
+        if (!audience) throw new Error('audience is required');
+        const assertion = await this.signInWithOpenFederation({
+          chain: opts.chain,
+          walletAddress,
+          audience,
+          statement: opts.statement,
+        });
+        opts.onSuccess(assertion);
+      } catch (err) {
+        if (opts.onError) opts.onError(err as Error);
+        else throw err;
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    btn.addEventListener('click', handleClick);
+    target.appendChild(btn);
+
+    return {
+      destroy: () => {
+        btn.removeEventListener('click', handleClick);
+        if (btn.parentNode) btn.parentNode.removeChild(btn);
+      },
+    };
+  }
+
+  /**
    * Clean up timers and callbacks.
    */
   destroy(): void {
