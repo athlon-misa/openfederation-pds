@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { testConnection } from '../db/client.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
 import getRecord from '../api/com.atproto.repo.getRecord.js';
+import resolveHandle from '../api/com.atproto.identity.resolveHandle.js';
 import putRecord from '../api/com.atproto.repo.putRecord.js';
 import createRecord from '../api/com.atproto.repo.createRecord.js';
 import deleteRecord from '../api/com.atproto.repo.deleteRecord.js';
@@ -449,6 +450,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'com.atproto.server.getSession': { handler: getSession },
   'com.atproto.server.deleteSession': { handler: deleteSession },
   'com.atproto.server.getServiceAuth': { handler: getServiceAuthEndpoint },
+  'com.atproto.identity.resolveHandle': { handler: resolveHandle, limiter: discoveryLimiter },
   'com.atproto.repo.getRecord': { handler: getRecord },
   'com.atproto.repo.putRecord': { handler: putRecord },
   'com.atproto.repo.createRecord': { handler: createRecord },

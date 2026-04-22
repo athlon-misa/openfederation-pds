@@ -234,6 +234,7 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | GET  | `com.atproto.server.getSession` | Yes | Get current session info |
 | POST | `com.atproto.server.deleteSession` | Yes | Logout / invalidate session |
 | GET  | `com.atproto.server.getServiceAuth` | Yes | Mint short-lived ES256K JWT signed by the caller's atproto key for outbound cross-PDS auth |
+| GET  | `com.atproto.identity.resolveHandle` | No | Standard AT Protocol handle → DID resolution. Accepts bare or suffixed handles; looks up users, falls back to communities. |
 | GET  | `com.atproto.repo.getRecord` | No | Fetch a single record from a repo |
 | POST | `com.atproto.repo.putRecord` | Yes | Write a record (real MST signed commit) |
 | POST | `com.atproto.repo.createRecord` | Yes | Create a record with auto-generated TID rkey |

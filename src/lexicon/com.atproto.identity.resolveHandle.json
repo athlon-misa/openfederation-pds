@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.identity.resolveHandle",
+  "revision": 1,
+  "description": "Resolves an atproto handle (hostname) to a DID. Does not bi-directionally verify against the DID document (the spec marks that step as optional).",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Look up the DID for a handle hosted by this PDS. Supports both bare handles (e.g. 'alice') and suffixed handles (e.g. 'alice.openfederation.net'); the suffix configured for this PDS is stripped before lookup. Returns HandleNotFound if no user or community on this PDS claims the handle.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "handle"
+        ],
+        "properties": {
+          "handle": {
+            "type": "string",
+            "format": "handle",
+            "description": "The handle to resolve."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did"
+          ],
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "HandleNotFound",
+          "description": "No user or community on this PDS has the given handle."
+        }
+      ]
+    }
+  }
+}
