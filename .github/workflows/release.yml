@@ -64,5 +64,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Provenance attestations — only works on GitHub-hosted runners.
-          NPM_CONFIG_PROVENANCE: "true"
+          # Provenance attestations temporarily disabled while debugging
+          # publish E404. 0.1.0 was published without attestations; enabling
+          # provenance on later versions surfaces as an E404 at the PUT step
+          # even though sigstore signs successfully. Re-enable once the root
+          # cause is known (most likely: token type or npm trusted-publisher
+          # policy needs to be set up).
+          NPM_CONFIG_PROVENANCE: "false"
