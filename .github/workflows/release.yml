@@ -63,11 +63,10 @@ jobs:
           title: "chore(release): version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NPM_TOKEN is no longer required — the @open-federation packages
+          # are configured with OIDC trusted publishers pointed at this repo
+          # + workflow. Authentication happens via the id-token: write
+          # permission above and the GitHub Actions OIDC exchange. Left here
+          # only as a fallback during local/manual publishes.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Provenance attestations temporarily disabled while debugging
-          # publish E404. 0.1.0 was published without attestations; enabling
-          # provenance on later versions surfaces as an E404 at the PUT step
-          # even though sigstore signs successfully. Re-enable once the root
-          # cause is known (most likely: token type or npm trusted-publisher
-          # policy needs to be set up).
-          NPM_CONFIG_PROVENANCE: "false"
+          NPM_CONFIG_PROVENANCE: "true"
