@@ -1,5 +1,12 @@
 # @open-federation/react
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [c509f92]
+  - @open-federation/sdk@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
