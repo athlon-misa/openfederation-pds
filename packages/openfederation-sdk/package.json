@@ -61,7 +61,8 @@
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OpenFederationPDS/OpenFederationPDS"
+    "url": "https://github.com/athlon-misa/openfederation-pds",
+    "directory": "packages/openfederation-sdk"
   },
   "dependencies": {
     "@noble/curves": "^1.9.7",
