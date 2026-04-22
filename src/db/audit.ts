@@ -42,7 +42,7 @@ export type AuditAction =
   | 'account.password.reset.confirm'
   | 'identity.setExternalKey'
   | 'identity.deleteExternalKey'
-  | 'community.updateMemberRole'
+  | 'community.updateMember'
   | 'community.issueAttestation'
   | 'community.deleteAttestation'
   | 'admin.importRepo'

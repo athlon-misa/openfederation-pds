@@ -1,0 +1,118 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.updateMember",
+  "revision": 1,
+  "description": "Partially update a community member record. Any subset of `role`/`roleRkey`, `kind`, `tags`, and `attributes` may be supplied. Requires `community.member.write` permission on the target community.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Rewrite the member record with a merge of the provided fields. Fields not supplied are preserved. Pass `null` for `kind`, `tags`, or `attributes` to clear them.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#input"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields or no updatable field supplied."
+        },
+        {
+          "name": "RoleNotFound",
+          "description": "Supplied roleRkey does not correspond to a role record in the community."
+        },
+        {
+          "name": "NotMember",
+          "description": "Target DID is not a member of this community."
+        },
+        {
+          "name": "CannotChangeOwner",
+          "description": "Cannot change the owner's role."
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "communityDid": {
+          "type": "string",
+          "description": "The community DID."
+        },
+        "memberDid": {
+          "type": "string",
+          "description": "The DID of the member to update."
+        },
+        "role": {
+          "type": "string",
+          "description": "Optional authorization role name (e.g. 'moderator', 'member'). Mutually exclusive with `roleRkey` — prefer roleRkey for custom roles."
+        },
+        "roleRkey": {
+          "type": "string",
+          "description": "Optional: rkey of a net.openfederation.community.role record. Replaces any existing role/roleRkey."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Optional semantic type (e.g. 'player', 'staff'). Pass an empty string or null to clear."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional tags. Pass an empty array to clear."
+        },
+        "attributes": {
+          "type": "unknown",
+          "description": "Optional opaque JSON object. Stored verbatim. Pass null to clear."
+        }
+      },
+      "required": [
+        "communityDid",
+        "memberDid"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string"
+        },
+        "cid": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "description": "Resolved role name after update (for backwards compat with updateMemberRole clients)."
+        },
+        "roleRkey": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attributes": {
+          "type": "unknown"
+        }
+      },
+      "required": [
+        "uri",
+        "cid"
+      ]
+    }
+  }
+}

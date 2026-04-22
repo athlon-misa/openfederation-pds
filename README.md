@@ -236,7 +236,7 @@ Enables cross-network identity bridging for Meshtastic, Nostr, WireGuard, SSH, a
 | `net.openfederation.community.updateRole` | POST | Owner | Update role permissions |
 | `net.openfederation.community.deleteRole` | POST | Owner | Delete a role (fails if members assigned) |
 | `net.openfederation.community.listRoles` | GET | No | List roles with member counts |
-| `net.openfederation.community.updateMemberRole` | POST | Owner | Assign a member to a role |
+| `net.openfederation.community.updateMember` | POST | Owner/Admin | Partial update of member record: role, kind, tags, attributes (any subset). Renamed from updateMemberRole (#50). |
 | `net.openfederation.community.setGovernanceModel` | POST | Owner | Switch governance mode (benevolent-dictator / simple-majority) |
 | `net.openfederation.community.createProposal` | POST | Voter | Propose a change to a protected collection |
 | `net.openfederation.community.amendProposal` | POST | Voter | Amend an open proposal (resets votes) |

@@ -117,10 +117,10 @@ describe('Community Roles', () => {
     });
   });
 
-  describe('updateMemberRole with roleRkey', () => {
+  describe('updateMember with roleRkey', () => {
     it('should assign a member to a custom role', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.community.updateMemberRole', owner.accessJwt, {
+      const res = await xrpcAuthPost('net.openfederation.community.updateMember', owner.accessJwt, {
         communityDid, memberDid: member.did, roleRkey: customRoleRkey,
       });
       expect(res.status).toBe(200);
@@ -141,7 +141,7 @@ describe('Community Roles', () => {
 
     it('should delete a role after reassigning members', async () => {
       if (!plcAvailable) return;
-      await xrpcAuthPost('net.openfederation.community.updateMemberRole', owner.accessJwt, {
+      await xrpcAuthPost('net.openfederation.community.updateMember', owner.accessJwt, {
         communityDid, memberDid: member.did, roleRkey: memberRoleRkey,
       });
 

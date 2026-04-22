@@ -58,7 +58,16 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
     const [membersResult, countResult] = await Promise.all([
       query<{
         rkey: string;
-        record: { did: string; handle: string; role: string; joinedAt: string };
+        record: {
+          did: string;
+          handle: string;
+          role?: string;
+          roleRkey?: string;
+          kind?: string;
+          tags?: string[];
+          attributes?: Record<string, unknown>;
+          joinedAt: string;
+        };
       }>(
         `SELECT rkey, record FROM records_index
          WHERE community_did = $1 AND collection = 'net.openfederation.community.member'
@@ -73,12 +82,24 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
       ),
     ]);
 
-    const members = membersResult.rows.map((row) => ({
-      did: row.record.did,
-      handle: row.record.handle,
-      role: row.record.role,
-      joinedAt: row.record.joinedAt,
-    }));
+    const members = membersResult.rows.map((row) => {
+      const r = row.record;
+      // Return a minimal required shape first; attach optional semantic
+      // fields only when present so the response stays tight.
+      const out: Record<string, unknown> = {
+        did: r.did,
+        handle: r.handle,
+        role: r.role ?? (r.roleRkey ? 'custom' : 'member'),
+        joinedAt: r.joinedAt,
+      };
+      if (r.roleRkey) out.roleRkey = r.roleRkey;
+      if (r.kind) out.kind = r.kind;
+      if (Array.isArray(r.tags) && r.tags.length > 0) out.tags = r.tags;
+      if (r.attributes && typeof r.attributes === 'object' && Object.keys(r.attributes).length > 0) {
+        out.attributes = r.attributes;
+      }
+      return out;
+    });
 
     res.status(200).json({
       members,

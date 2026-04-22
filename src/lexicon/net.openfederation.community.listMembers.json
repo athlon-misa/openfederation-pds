@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listMembers",
-  "revision": 1,
-  "description": "List members of a community. Requires auth. Private communities restrict access to members, owner, or admin.",
+  "revision": 2,
+  "description": "List members of a community. Requires auth. Private communities restrict access to members, owner, or admin. Each member may carry optional semantic `kind`, `tags`, and `attributes` fields orthogonal to `role` — see issue #50.",
   "defs": {
     "main": {
       "type": "query",
@@ -66,7 +66,26 @@
         },
         "role": {
           "type": "string",
-          "description": "The member's role in the community."
+          "description": "The member's role in the community (authorization-oriented: owner, moderator, member, or a custom role rkey reference)."
+        },
+        "roleRkey": {
+          "type": "string",
+          "description": "Optional: rkey of the custom role record when role is defined via net.openfederation.community.role."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Optional: semantic type of membership (e.g. 'player', 'staff', 'fan', 'donor'). Free-form — consuming apps own the vocabulary; PDS does not validate it. Orthogonal to `role`."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional: additive flags that coexist with `kind` (e.g. 'captain', 'head-coach', 'founder')."
+        },
+        "attributes": {
+          "type": "unknown",
+          "description": "Optional: opaque JSON object of kind-specific metadata. PDS stores and returns verbatim; no validation. Consuming apps define and validate the shape per `kind`."
         },
         "joinedAt": {
           "type": "string",

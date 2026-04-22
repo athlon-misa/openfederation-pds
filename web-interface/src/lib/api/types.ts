@@ -120,6 +120,10 @@ export interface CommunityMember {
   did: string;
   handle: string;
   role: string;
+  roleRkey?: string;
+  kind?: string;
+  tags?: string[];
+  attributes?: Record<string, unknown>;
   joinedAt: string;
 }
 

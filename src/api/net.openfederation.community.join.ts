@@ -7,10 +7,19 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { findRoleRkeyByName } from '../auth/permissions.js';
 
+const MAX_KIND_LENGTH = 64;
+const MAX_TAGS = 20;
+const MAX_TAG_LENGTH = 64;
+const MAX_ATTRIBUTES_SIZE = 4096;
+
 /**
  * net.openfederation.community.join
  *
  * Join a community (open) or request to join (approval policy).
+ * Optional semantic fields (kind / tags / attributes) classify the
+ * membership — see issue #50. Consuming apps own the vocabulary; the
+ * PDS only enforces size bounds so one membership record can't balloon
+ * community storage.
  */
 export default async function joinCommunity(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -19,11 +28,56 @@ export default async function joinCommunity(req: AuthRequest, res: Response): Pr
     }
 
     const auth = req.auth!;
-    const { did } = req.body;
+    const { did, kind, tags, attributes } = req.body ?? {};
 
     if (!did) {
       res.status(400).json({ error: 'InvalidRequest', message: 'Missing required field: did' });
       return;
+    }
+
+    // Size/shape validation on optional semantic fields
+    if (kind !== undefined && kind !== null) {
+      if (typeof kind !== 'string' || kind.length === 0 || kind.length > MAX_KIND_LENGTH) {
+        res.status(400).json({
+          error: 'InvalidRequest',
+          message: `kind must be a non-empty string <= ${MAX_KIND_LENGTH} chars`,
+        });
+        return;
+      }
+    }
+    if (tags !== undefined && tags !== null) {
+      if (!Array.isArray(tags) || tags.length > MAX_TAGS) {
+        res.status(400).json({
+          error: 'InvalidRequest',
+          message: `tags must be an array of up to ${MAX_TAGS} strings`,
+        });
+        return;
+      }
+      for (const t of tags) {
+        if (typeof t !== 'string' || t.length === 0 || t.length > MAX_TAG_LENGTH) {
+          res.status(400).json({
+            error: 'InvalidRequest',
+            message: `each tag must be a non-empty string <= ${MAX_TAG_LENGTH} chars`,
+          });
+          return;
+        }
+      }
+    }
+    if (attributes !== undefined && attributes !== null) {
+      if (typeof attributes !== 'object' || Array.isArray(attributes)) {
+        res.status(400).json({
+          error: 'InvalidRequest',
+          message: 'attributes must be a JSON object',
+        });
+        return;
+      }
+      if (JSON.stringify(attributes).length > MAX_ATTRIBUTES_SIZE) {
+        res.status(400).json({
+          error: 'PayloadTooLarge',
+          message: `attributes must not exceed ${MAX_ATTRIBUTES_SIZE} bytes when serialized as JSON`,
+        });
+        return;
+      }
     }
 
     // Verify community exists
@@ -60,12 +114,18 @@ export default async function joinCommunity(req: AuthRequest, res: Response): Pr
       const keypair = await getKeypairForDid(did);
       const rkey = RepoEngine.generateTid();
       const memberRoleRkey = await findRoleRkeyByName(did, 'member', query);
-      await engine.putRecord(keypair, 'net.openfederation.community.member', rkey, {
+      const memberRecord: Record<string, unknown> = {
         did: auth.did,
         handle: auth.handle,
         ...(memberRoleRkey ? { roleRkey: memberRoleRkey } : { role: 'member' }),
         joinedAt: new Date().toISOString(),
-      });
+      };
+      if (typeof kind === 'string' && kind.length > 0) memberRecord.kind = kind;
+      if (Array.isArray(tags) && tags.length > 0) memberRecord.tags = tags;
+      if (attributes && typeof attributes === 'object' && !Array.isArray(attributes) && Object.keys(attributes).length > 0) {
+        memberRecord.attributes = attributes;
+      }
+      await engine.putRecord(keypair, 'net.openfederation.community.member', rkey, memberRecord);
 
       res.status(200).json({ status: 'joined' });
     } else {

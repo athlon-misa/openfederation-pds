@@ -34,10 +34,10 @@ describe('Community Governance', () => {
 
     await xrpcAuthPost('net.openfederation.community.join', voter1.accessJwt, { communityDid });
     await xrpcAuthPost('net.openfederation.community.join', voter2.accessJwt, { communityDid });
-    await xrpcAuthPost('net.openfederation.community.updateMemberRole', owner.accessJwt, {
+    await xrpcAuthPost('net.openfederation.community.updateMember', owner.accessJwt, {
       communityDid, memberDid: voter1.did, roleRkey: modRoleRkey,
     });
-    await xrpcAuthPost('net.openfederation.community.updateMemberRole', owner.accessJwt, {
+    await xrpcAuthPost('net.openfederation.community.updateMember', owner.accessJwt, {
       communityDid, memberDid: voter2.did, roleRkey: modRoleRkey,
     });
   });

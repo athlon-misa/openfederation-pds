@@ -296,7 +296,7 @@ The docs builder (`npm run build:lexicon-docs`) includes the revision number nex
 | POST | `net.openfederation.community.unsuspend` | Admin | Unsuspend a community |
 | POST | `net.openfederation.community.takedown` | Admin | Take down a community (requires prior export) |
 | POST | `net.openfederation.community.transfer` | Owner | Generate transfer package for migration (owner-only per AT Protocol) |
-| POST | `net.openfederation.community.updateMemberRole` | Owner/Admin | Change a member's role (moderator/member) |
+| POST | `net.openfederation.community.updateMember` | Owner/Admin | Partial update of member record: role, kind, tags, attributes (any subset). Renamed from updateMemberRole to support semantic classification (#50). |
 | POST | `net.openfederation.community.issueAttestation` | Owner/Mod | Issue a signed attestation for a member |
 | POST | `net.openfederation.community.deleteAttestation` | Owner/Mod | Revoke an attestation (delete-as-revoke) |
 | GET  | `net.openfederation.community.listAttestations` | No | List attestations by community/subject/type |

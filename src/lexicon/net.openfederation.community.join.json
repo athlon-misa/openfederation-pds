@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.join",
-  "revision": 1,
-  "description": "Join a community or submit a join request. Requires an approved user account.",
+  "revision": 2,
+  "description": "Join a community or submit a join request. Requires an approved user account. Optional `kind`, `tags`, and `attributes` classify the membership semantically (see issue #50).",
   "defs": {
     "main": {
       "type": "procedure",
@@ -15,6 +15,21 @@
             "did": {
               "type": "string",
               "description": "The DID of the community to join."
+            },
+            "kind": {
+              "type": "string",
+              "description": "Optional: semantic type of membership (e.g. 'player', 'staff', 'fan'). Free-form; consuming apps own the vocabulary."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Optional: additive flags that coexist with `kind` (e.g. 'captain', 'founder')."
+            },
+            "attributes": {
+              "type": "unknown",
+              "description": "Optional: opaque JSON object of kind-specific metadata. Stored verbatim."
             }
           },
           "required": [

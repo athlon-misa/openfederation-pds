@@ -101,7 +101,7 @@ import walletFinalizeTierChange from '../api/net.openfederation.wallet.finalizeT
 import walletGrantConsent from '../api/net.openfederation.wallet.grantConsent.js';
 import walletRevokeConsent from '../api/net.openfederation.wallet.revokeConsent.js';
 import walletListConsents from '../api/net.openfederation.wallet.listConsents.js';
-import updateMemberRole from '../api/net.openfederation.community.updateMemberRole.js';
+import updateMember from '../api/net.openfederation.community.updateMember.js';
 import issueAttestation from '../api/net.openfederation.community.issueAttestation.js';
 import deleteAttestation from '../api/net.openfederation.community.deleteAttestation.js';
 import listAttestations from '../api/net.openfederation.community.listAttestations.js';
@@ -382,7 +382,7 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.wallet.listConsents': { handler: walletListConsents },
 
   // Community role management
-  'net.openfederation.community.updateMemberRole': { handler: updateMemberRole },
+  'net.openfederation.community.updateMember': { handler: updateMember },
 
   // Community role CRUD
   'net.openfederation.community.createRole': { handler: createRole },
