@@ -88,7 +88,12 @@ jobs:
         env:
           DB_HOST: localhost
           DB_PORT: "5432"
-          DB_NAME: openfederation_test
+          # Tests run against openfederation_test (the Postgres service DB
+          # seeded above). setup.ts enforces TEST_DB_NAME !== DB_NAME and
+          # then overrides DB_NAME with TEST_DB_NAME — so DB_NAME here is
+          # a placeholder that never gets connected to.
+          DB_NAME: openfederation_ci_placeholder
+          TEST_DB_NAME: openfederation_test
           DB_USER: test
           DB_PASSWORD: test
           AUTH_JWT_SECRET: ci-test-secret-minimum-32-characters-long
