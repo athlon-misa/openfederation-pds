@@ -3,6 +3,10 @@ name: Release
 on:
   push:
     branches: [main]
+  # Manual re-trigger after fixing NPM_TOKEN / publish config, without
+  # having to make an empty commit. changeset publish is idempotent:
+  # already-published versions are skipped, only unpublished ones retry.
+  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
