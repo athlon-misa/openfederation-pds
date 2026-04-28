@@ -4,8 +4,6 @@ import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
-import { validateOracleKey } from '../auth/oracle-guard.js';
-import type { OracleContext } from '../auth/oracle-guard.js';
 import { auditLog } from '../db/audit.js';
 
 /**
@@ -48,10 +46,7 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
     }
 
     // Check for Oracle authentication
-    let oracleContext: OracleContext | null = null;
-    if (req.headers['x-oracle-key']) {
-      oracleContext = await validateOracleKey(req);
-    }
+    const oracleContext = req.oracleAuth ?? null;
 
     // Governance enforcement for community repos
     if (await isCommunityDid(repo)) {

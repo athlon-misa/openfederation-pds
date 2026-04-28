@@ -1,5 +1,7 @@
 import type { Response } from 'express';
 import type { AuthRequest, AuthContext, UserRole, CommunityRole, CommunityStatus } from './types.js';
+import type { PartnerContext } from './partner-guard.js';
+import type { OracleContext } from './oracle-guard.js';
 import { query } from '../db/client.js';
 import { getCallerCommunityCapabilities } from '../community/visibility.js';
 
@@ -226,4 +228,46 @@ export async function requireCommunityPermission(
 
   res.status(403).json({ error: 'Forbidden', message: 'Insufficient community privileges' });
   return false;
+}
+
+/**
+ * Guard: require a valid partner key (set by authMiddleware from X-Partner-Key header).
+ * Sends 401 when no partner is authenticated; 403 when the required permission is absent.
+ */
+export function requirePartnerAuth(
+  req: AuthRequest,
+  res: Response,
+  requiredPermission: string
+): req is AuthRequest & { partnerAuth: PartnerContext } {
+  if (!req.partnerAuth) {
+    if (req.partnerAuthError) {
+      res.status(req.partnerAuthError.status).json({
+        error: req.partnerAuthError.code,
+        message: req.partnerAuthError.message,
+      });
+    } else {
+      res.status(401).json({ error: 'AuthRequired', message: 'Valid X-Partner-Key header required' });
+    }
+    return false;
+  }
+  if (!req.partnerAuth.permissions.includes(requiredPermission)) {
+    res.status(403).json({ error: 'Forbidden', message: `Partner key lacks '${requiredPermission}' permission` });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Guard: require a valid oracle key (set by authMiddleware from X-Oracle-Key header).
+ * Sends 401 when no oracle is authenticated.
+ */
+export function requireOracleAuth(
+  req: AuthRequest,
+  res: Response
+): req is AuthRequest & { oracleAuth: OracleContext } {
+  if (!req.oracleAuth) {
+    res.status(401).json({ error: 'AuthRequired', message: 'Valid X-Oracle-Key header required' });
+    return false;
+  }
+  return true;
 }

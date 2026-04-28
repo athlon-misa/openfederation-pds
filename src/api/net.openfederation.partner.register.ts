@@ -1,7 +1,8 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import type { AuthRequest } from '../auth/types.js';
+import { requirePartnerAuth } from '../auth/guards.js';
 import { getClient, query } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
-import { verifyPartnerKey } from '../auth/verification.js';
 import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
 import { createUserIdentity } from '../identity/user-identity.js';
 import {
@@ -21,18 +22,9 @@ interface PartnerRegisterInput {
   password: string;
 }
 
-export default async function partnerRegister(req: Request, res: Response): Promise<void> {
-  // Authenticate via partner key (not JWT)
-  const partnerAuth = await verifyPartnerKey({
-    rawKey: req.headers['x-partner-key'] as string | undefined,
-    origin: req.headers.origin as string | undefined,
-    requiredPermission: 'register',
-  });
-  if (!partnerAuth.ok) {
-    res.status(partnerAuth.status).json({ error: partnerAuth.code, message: partnerAuth.message });
-    return;
-  }
-  const partner = partnerAuth.partner;
+export default async function partnerRegister(req: AuthRequest, res: Response): Promise<void> {
+  if (!requirePartnerAuth(req, res, 'register')) return;
+  const partner = req.partnerAuth;
 
   const input: PartnerRegisterInput = req.body;
 

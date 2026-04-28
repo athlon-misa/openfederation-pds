@@ -3,6 +3,8 @@ import type { AuthRequest } from './types.js';
 import {
   setOAuthVerifier as setAuthVerificationOAuthVerifier,
   verifyRequestAuth,
+  verifyPartnerKey,
+  verifyOracleKey,
 } from './verification.js';
 
 type OAuthVerifier = {
@@ -33,5 +35,31 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
   req.auth = result.auth;
   req.authError = result.authError;
   req.serviceAuthError = result.serviceAuthError;
+
+  const partnerKey = req.headers['x-partner-key'];
+  if (typeof partnerKey === 'string' && partnerKey.length > 0) {
+    const partnerResult = await verifyPartnerKey({
+      rawKey: partnerKey,
+      origin: req.headers.origin as string | undefined,
+      requiredPermission: '',
+    });
+    if (partnerResult.ok) {
+      req.partnerAuth = partnerResult.partner;
+    } else {
+      req.partnerAuthError = { status: partnerResult.status, code: partnerResult.code, message: partnerResult.message };
+    }
+  }
+
+  const oracleKey = req.headers['x-oracle-key'];
+  if (typeof oracleKey === 'string' && oracleKey.length > 0) {
+    const oracleResult = await verifyOracleKey({
+      rawKey: oracleKey,
+      origin: req.headers.origin as string | undefined,
+    });
+    if (oracleResult.ok) {
+      req.oracleAuth = oracleResult.oracle;
+    }
+  }
+
   next();
 }
