@@ -7,6 +7,7 @@ import { throwXrpc } from '../../xrpc/errors.js';
 import { auditLog } from '../../db/audit.js';
 import { getCallerCommunityCapabilities } from '../visibility.js';
 import { requireString } from './utils.js';
+import { syncMemberRoleProjection } from '../display-projection.js';
 
 const UPDATE_MEMBER_NSID = 'net.openfederation.community.updateMember';
 const MAX_KIND_LENGTH = 64;
@@ -270,6 +271,15 @@ export async function updateMemberLifecycle(
 
   const keypair = await getKeypairForDid(communityDid);
   const result = await engine.putRecord(keypair, MEMBER_COLLECTION, memberRkey, next);
+
+  // Sync projection columns that changed
+  await syncMemberRoleProjection(communityDid, memberDid, {
+    role: next.role ?? null,
+    roleRkey: next.roleRkey ?? null,
+    kind: next.kind ?? null,
+    tags: next.tags ?? null,
+    attributes: next.attributes ?? null,
+  });
 
   await auditLog('community.updateMember', caller.userId, communityDid, {
     memberDid,

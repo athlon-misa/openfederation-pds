@@ -4,11 +4,6 @@ import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { canViewPrivateCommunity, getCommunityAccess } from '../community/visibility.js';
 
-/**
- * net.openfederation.community.listMembers
- *
- * List members of a community. For private communities, only members/owner/admin can see.
- */
 export default async function listMembers(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireAuth(req, res)) {
@@ -35,49 +30,67 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Fetch members and total count in parallel (independent queries)
+    // Single-table read from projection — no records_index join needed
     const [membersResult, countResult] = await Promise.all([
       query<{
-        rkey: string;
-        record: {
-          did: string;
-          handle: string;
-          role?: string;
-          roleRkey?: string;
-          kind?: string;
-          tags?: string[];
-          attributes?: Record<string, unknown>;
-          joinedAt: string;
-        };
+        member_did: string;
+        handle: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        role: string | null;
+        role_rkey: string | null;
+        kind: string | null;
+        tags: string[] | null;
+        attributes: Record<string, unknown> | null;
+        created_at: string;
+        record_rkey: string;
       }>(
-        `SELECT rkey, record FROM records_index
-         WHERE community_did = $1 AND collection = 'net.openfederation.community.member'
+        `SELECT member_did, handle, display_name, avatar_url, role, role_rkey,
+                kind, tags, attributes, created_at, record_rkey
+         FROM members_unique
+         WHERE community_did = $1
          ORDER BY created_at ASC
          LIMIT $2 OFFSET $3`,
-        [did, limit, offset]
+        [did, limit, offset],
       ),
       query<{ count: string }>(
-        `SELECT COUNT(*) as count FROM records_index
-         WHERE community_did = $1 AND collection = 'net.openfederation.community.member'`,
-        [did]
+        `SELECT COUNT(*) as count FROM members_unique WHERE community_did = $1`,
+        [did],
       ),
     ]);
 
+    // For joinedAt we still need the record — but we have record_rkey, so we
+    // can look it up from records_index in one batch query (not N+1).
+    const rkeys = membersResult.rows.map(r => r.record_rkey);
+    let joinedAtMap: Record<string, string> = {};
+    if (rkeys.length > 0) {
+      const joinedResult = await query<{ rkey: string; joined_at: string }>(
+        `SELECT rkey, record->>'joinedAt' as joined_at
+         FROM records_index
+         WHERE community_did = $1
+           AND collection = 'net.openfederation.community.member'
+           AND rkey = ANY($2)`,
+        [did, rkeys],
+      );
+      for (const row of joinedResult.rows) {
+        joinedAtMap[row.rkey] = row.joined_at;
+      }
+    }
+
     const members = membersResult.rows.map((row) => {
-      const r = row.record;
-      // Return a minimal required shape first; attach optional semantic
-      // fields only when present so the response stays tight.
       const out: Record<string, unknown> = {
-        did: r.did,
-        handle: r.handle,
-        role: r.role ?? (r.roleRkey ? 'custom' : 'member'),
-        joinedAt: r.joinedAt,
+        did: row.member_did,
+        handle: row.handle,
+        displayName: row.display_name ?? row.handle,
+        avatarUrl: row.avatar_url ?? null,
+        role: row.role ?? (row.role_rkey ? 'custom' : 'member'),
+        joinedAt: joinedAtMap[row.record_rkey] ?? new Date(row.created_at).toISOString(),
       };
-      if (r.roleRkey) out.roleRkey = r.roleRkey;
-      if (r.kind) out.kind = r.kind;
-      if (Array.isArray(r.tags) && r.tags.length > 0) out.tags = r.tags;
-      if (r.attributes && typeof r.attributes === 'object' && Object.keys(r.attributes).length > 0) {
-        out.attributes = r.attributes;
+      if (row.role_rkey) out.roleRkey = row.role_rkey;
+      if (row.kind) out.kind = row.kind;
+      if (Array.isArray(row.tags) && row.tags.length > 0) out.tags = row.tags;
+      if (row.attributes && typeof row.attributes === 'object' && Object.keys(row.attributes).length > 0) {
+        out.attributes = row.attributes;
       }
       return out;
     });

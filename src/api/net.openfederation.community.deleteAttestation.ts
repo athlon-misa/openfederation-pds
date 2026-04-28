@@ -58,6 +58,11 @@ export default async function deleteAttestation(req: AuthRequest, res: Response)
       [communityDid, rkey]
     );
 
+    await query(
+      `DELETE FROM community_attestation_index WHERE community_did = $1 AND rkey = $2`,
+      [communityDid, rkey]
+    );
+
     await auditLog('community.deleteAttestation', req.auth!.userId, communityDid, {
       rkey,
       revokedGrants,

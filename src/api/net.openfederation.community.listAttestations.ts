@@ -20,18 +20,22 @@ export default async function listAttestations(req: AuthRequest, res: Response):
       return;
     }
 
-    let sql = `SELECT rkey, record FROM records_index WHERE community_did = $1 AND collection = $2`;
-    const params: (string | number)[] = [communityDid, ATTESTATION_COLLECTION];
-    let paramIdx = 3;
+    // Read from the write-time projection index — single SELECT, no join needed
+    let sql = `SELECT rkey, subject_did, subject_handle, subject_display_name, subject_avatar_url,
+                      type, claim, issued_at, expires_at
+               FROM community_attestation_index
+               WHERE community_did = $1`;
+    const params: (string | number)[] = [communityDid];
+    let paramIdx = 2;
 
     if (subjectDid) {
-      sql += ` AND record->>'subjectDid' = $${paramIdx}`;
+      sql += ` AND subject_did = $${paramIdx}`;
       params.push(subjectDid);
       paramIdx++;
     }
 
     if (type) {
-      sql += ` AND record->>'type' = $${paramIdx}`;
+      sql += ` AND type = $${paramIdx}`;
       params.push(type);
       paramIdx++;
     }
@@ -45,9 +49,19 @@ export default async function listAttestations(req: AuthRequest, res: Response):
     sql += ` ORDER BY rkey ASC LIMIT $${paramIdx}`;
     params.push(limit + 1);
 
-    const result = await query<{ rkey: string; record: any }>(sql, params);
-    let rows = result.rows;
+    const result = await query<{
+      rkey: string;
+      subject_did: string;
+      subject_handle: string;
+      subject_display_name: string;
+      subject_avatar_url: string | null;
+      type: string;
+      claim: unknown;
+      issued_at: Date;
+      expires_at: Date | null;
+    }>(sql, params);
 
+    let rows = result.rows;
     let nextCursor: string | undefined;
     if (rows.length > limit) {
       rows = rows.slice(0, limit);
@@ -57,12 +71,14 @@ export default async function listAttestations(req: AuthRequest, res: Response):
     const attestations = rows.map(row => ({
       uri: `at://${communityDid}/${ATTESTATION_COLLECTION}/${row.rkey}`,
       rkey: row.rkey,
-      subjectDid: row.record?.subjectDid,
-      subjectHandle: row.record?.subjectHandle,
-      type: row.record?.type,
-      claim: row.record?.claim,
-      issuedAt: row.record?.issuedAt,
-      expiresAt: row.record?.expiresAt,
+      subjectDid: row.subject_did,
+      subjectHandle: row.subject_handle,
+      subjectDisplayName: row.subject_display_name,
+      subjectAvatarUrl: row.subject_avatar_url ?? null,
+      type: row.type,
+      claim: row.claim,
+      issuedAt: new Date(row.issued_at).toISOString(),
+      ...(row.expires_at ? { expiresAt: new Date(row.expires_at).toISOString() } : {}),
     }));
 
     res.status(200).json({

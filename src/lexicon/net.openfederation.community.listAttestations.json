@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listAttestations",
-  "revision": 1,
+  "revision": 2,
   "description": "List attestations issued by a community. Public endpoint for verification.",
   "defs": {
     "main": {
@@ -66,6 +66,14 @@
         "subjectHandle": {
           "type": "string"
         },
+        "subjectDisplayName": {
+          "type": "string",
+          "description": "Resolved display name of the subject."
+        },
+        "subjectAvatarUrl": {
+          "type": "string",
+          "description": "Resolved avatar URL of the subject, or null when not set."
+        },
         "type": {
           "type": "string"
         },
@@ -84,6 +92,7 @@
         "rkey",
         "subjectDid",
         "subjectHandle",
+        "subjectDisplayName",
         "type",
         "claim",
         "issuedAt"

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listMembers",
-  "revision": 2,
+  "revision": 3,
   "description": "List members of a community. Requires auth. Private communities restrict access to members, owner, or admin. Each member may carry optional semantic `kind`, `tags`, and `attributes` fields orthogonal to `role` — see issue #50.",
   "defs": {
     "main": {
@@ -64,6 +64,14 @@
           "type": "string",
           "description": "The member's handle."
         },
+        "displayName": {
+          "type": "string",
+          "description": "Resolved display name. Precedence: custom *.actor.profile → app.bsky.actor.profile → handle."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Resolved avatar URL, or null when not set."
+        },
         "role": {
           "type": "string",
           "description": "The member's role in the community (authorization-oriented: owner, moderator, member, or a custom role rkey reference)."
@@ -96,6 +104,7 @@
       "required": [
         "did",
         "handle",
+        "displayName",
         "role",
         "joinedAt"
       ]

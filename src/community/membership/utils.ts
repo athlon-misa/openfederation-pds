@@ -4,6 +4,7 @@ import { MEMBER_COLLECTION, findRoleRkeyByName } from '../../auth/permissions.js
 import { RepoEngine } from '../../repo/repo-engine.js';
 import { getKeypairForDid } from '../../repo/keypair-utils.js';
 import { throwXrpc } from '../../xrpc/errors.js';
+import { resolveDisplayFields } from '../display-projection.js';
 
 export function requireString(value: unknown, nsid: string, message: string): string {
   if (typeof value !== 'string' || value.length === 0) {
@@ -110,10 +111,11 @@ export async function createMemberRecordForDid(
   const keypair = await getKeypairForDid(communityDid);
   const rkey = RepoEngine.generateTid();
   const memberRoleRkey = await findRoleRkeyByName(communityDid, 'member', query);
+  const role = memberRoleRkey ? undefined : 'member';
   const memberRecord: Record<string, unknown> = {
     did: memberDid,
     handle,
-    ...(memberRoleRkey ? { roleRkey: memberRoleRkey } : { role: 'member' }),
+    ...(memberRoleRkey ? { roleRkey: memberRoleRkey } : { role }),
     joinedAt: new Date().toISOString(),
   };
   if (semantic.kind) memberRecord.kind = semantic.kind;
@@ -123,4 +125,32 @@ export async function createMemberRecordForDid(
   }
 
   await engine.putRecord(keypair, MEMBER_COLLECTION, rkey, memberRecord);
+
+  // Resolve display fields and sync to the projection row that putRecord
+  // created in members_unique via the repo write path.
+  const display = await resolveDisplayFields(memberDid, handle);
+  await query(
+    `UPDATE members_unique
+     SET display_name = $1,
+         avatar_url   = $2,
+         role         = $3,
+         role_rkey    = $4,
+         kind         = $5,
+         tags         = $6,
+         attributes   = $7
+     WHERE community_did = $8 AND member_did = $9`,
+    [
+      display.displayName,
+      display.avatarUrl,
+      role ?? null,
+      memberRoleRkey ?? null,
+      semantic.kind ?? null,
+      semantic.tags?.length ? JSON.stringify(semantic.tags) : null,
+      semantic.attributes && Object.keys(semantic.attributes).length
+        ? JSON.stringify(semantic.attributes)
+        : null,
+      communityDid,
+      memberDid,
+    ],
+  );
 }

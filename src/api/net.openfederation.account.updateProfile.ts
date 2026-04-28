@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { fanOutDisplayFields } from '../community/display-projection.js';
 
 const DEFAULT_COLLECTION = 'app.bsky.actor.profile';
 
@@ -56,6 +57,9 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
     }
 
     const result = await engine.putRecord(keypair, targetCollection, 'self', finalRecord);
+
+    // Fan out updated display fields to every community this user belongs to
+    await fanOutDisplayFields(did, req.auth!.handle);
 
     res.status(200).json({ uri: result.uri, cid: result.cid });
   } catch (error) {
