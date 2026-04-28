@@ -1,6 +1,6 @@
 {
   "name": "@open-federation/lexicon",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "ATProto Lexicon schemas for the OpenFederation protocol",
   "type": "module",
   "main": "./dist/index.cjs",
