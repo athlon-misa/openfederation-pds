@@ -96,8 +96,8 @@ export default async function listAccounts(req: AuthRequest, res: Response): Pro
       did: u.did,
       status: u.status,
       roles: rolesMap[u.id] || [],
-      createdAt: u.created_at,
-      approvedAt: u.approved_at,
+      createdAt: new Date(u.created_at).toISOString(),
+      approvedAt: u.approved_at ? new Date(u.approved_at).toISOString() : undefined,
     }));
 
     res.status(200).json({ users, total, limit, offset });
