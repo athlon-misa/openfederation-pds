@@ -45,8 +45,23 @@ export default async function deleteAttestation(req: AuthRequest, res: Response)
     const keypair = await getKeypairForDid(communityDid);
     await engine.deleteRecord(keypair, ATTESTATION_COLLECTION, rkey);
 
+    const revokedResult = await query<{ count: string }>(
+      `UPDATE viewing_grants SET status = 'revoked'
+       WHERE attestation_community_did = $1 AND attestation_rkey = $2 AND status = 'active'
+       RETURNING 1`,
+      [communityDid, rkey]
+    );
+    const revokedGrants = revokedResult.rows.length;
+
+    await query(
+      `DELETE FROM attestation_encryption WHERE community_did = $1 AND rkey = $2`,
+      [communityDid, rkey]
+    );
+
     await auditLog('community.deleteAttestation', req.auth!.userId, communityDid, {
-      rkey, ...(reason ? { reason } : {}),
+      rkey,
+      revokedGrants,
+      ...(reason ? { reason } : {}),
     });
 
     res.status(200).json({ success: true });

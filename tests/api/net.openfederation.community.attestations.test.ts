@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
-  xrpcPost, xrpcGet, xrpcAuthPost,
-  createTestUser, isPLCAvailable, uniqueHandle,
+  xrpcPost, xrpcGet, xrpcAuthPost, xrpcAuthGet,
+  createTestUser, isPLCAvailable, uniqueHandle, getAdminToken,
 } from './helpers.js';
 
 describe('Community Attestations', () => {
@@ -155,6 +155,109 @@ describe('Community Attestations', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body.valid).toBe(false);
+    });
+  });
+
+  describe('deleteAttestation cascade (issue #58)', () => {
+    let viewer: { accessJwt: string; did: string; handle: string };
+    let cascadeCommDid: string;
+
+    beforeAll(async () => {
+      if (!plcAvailable) return;
+      viewer = await createTestUser(uniqueHandle('cascade-viewer'));
+      const commRes = await xrpcAuthPost('net.openfederation.community.create', owner.accessJwt, {
+        handle: uniqueHandle('cascade-comm'),
+        didMethod: 'plc',
+        visibility: 'public',
+        joinPolicy: 'open',
+      });
+      cascadeCommDid = commRes.body.did;
+      await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { did: cascadeCommDid });
+      await xrpcAuthPost('net.openfederation.community.join', viewer.accessJwt, { did: cascadeCommDid });
+    });
+
+    it('revokes all viewing_grants when attestation is deleted', async () => {
+      if (!plcAvailable) return;
+      const attRes = await xrpcAuthPost('net.openfederation.community.issueAttestation', owner.accessJwt, {
+        communityDid: cascadeCommDid, subjectDid: member.did, subjectHandle: member.handle,
+        type: 'credential', claim: { level: '3' },
+        visibility: 'private',
+        accessPolicy: { type: 'community-member', communityDid: cascadeCommDid },
+      });
+      expect(attRes.status).toBe(200);
+      const rkey = attRes.body.rkey;
+
+      const grantRes = await xrpcAuthPost('net.openfederation.attestation.createViewingGrant', member.accessJwt, {
+        communityDid: cascadeCommDid, rkey, grantedToDid: viewer.did, expiresInMinutes: 60,
+      });
+      expect(grantRes.status).toBe(200);
+      const grantId = grantRes.body.grantId;
+
+      const beforeStatus = await xrpcAuthGet('net.openfederation.disclosure.grantStatus', member.accessJwt, { grantId });
+      expect(beforeStatus.body.active).toBe(true);
+
+      await xrpcAuthPost('net.openfederation.community.deleteAttestation', owner.accessJwt, {
+        communityDid: cascadeCommDid, rkey,
+      });
+
+      const afterStatus = await xrpcAuthGet('net.openfederation.disclosure.grantStatus', member.accessJwt, { grantId });
+      expect(afterStatus.body.active).toBe(false);
+    });
+
+    it('deletes wrapped DEK material (attestation_encryption) when attestation is deleted', async () => {
+      if (!plcAvailable) return;
+      const attRes = await xrpcAuthPost('net.openfederation.community.issueAttestation', owner.accessJwt, {
+        communityDid: cascadeCommDid, subjectDid: member.did, subjectHandle: member.handle,
+        type: 'credential', claim: { level: '3' },
+        visibility: 'private',
+        accessPolicy: { type: 'community-member', communityDid: cascadeCommDid },
+      });
+      expect(attRes.status).toBe(200);
+      const rkey = attRes.body.rkey;
+
+      const beforeCommit = await xrpcGet('net.openfederation.attestation.verifyCommitment', {
+        communityDid: cascadeCommDid, rkey,
+      });
+      expect(beforeCommit.status).toBe(200);
+
+      await xrpcAuthPost('net.openfederation.community.deleteAttestation', owner.accessJwt, {
+        communityDid: cascadeCommDid, rkey,
+      });
+
+      const afterCommit = await xrpcGet('net.openfederation.attestation.verifyCommitment', {
+        communityDid: cascadeCommDid, rkey,
+      });
+      expect(afterCommit.status).toBe(404);
+    });
+
+    it('records revokedGrants count in the audit entry', async () => {
+      if (!plcAvailable) return;
+      const attRes = await xrpcAuthPost('net.openfederation.community.issueAttestation', owner.accessJwt, {
+        communityDid: cascadeCommDid, subjectDid: member.did, subjectHandle: member.handle,
+        type: 'credential', claim: { level: '3' },
+        visibility: 'private',
+        accessPolicy: { type: 'community-member', communityDid: cascadeCommDid },
+      });
+      const rkey = attRes.body.rkey;
+
+      await xrpcAuthPost('net.openfederation.attestation.createViewingGrant', member.accessJwt, {
+        communityDid: cascadeCommDid, rkey, grantedToDid: viewer.did, expiresInMinutes: 60,
+      });
+
+      await xrpcAuthPost('net.openfederation.community.deleteAttestation', owner.accessJwt, {
+        communityDid: cascadeCommDid, rkey,
+      });
+
+      const adminToken = await getAdminToken();
+      const auditRes = await xrpcAuthGet('net.openfederation.audit.list', adminToken, {
+        action: 'community.deleteAttestation',
+        targetId: cascadeCommDid,
+        limit: '10',
+      });
+      expect(auditRes.status).toBe(200);
+      const entry = auditRes.body.entries.find((e: any) => e.meta?.rkey === rkey);
+      expect(entry).toBeDefined();
+      expect(entry.meta.revokedGrants).toBe(1);
     });
   });
 });
