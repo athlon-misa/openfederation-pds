@@ -3,6 +3,7 @@ import { Secp256k1Keypair } from '@atproto/crypto';
 import {
   xrpcAuthGet,
   xrpcAuthPost,
+  xrpcGet,
   xrpcPost,
   getAdminToken,
   uniqueHandle,
@@ -109,7 +110,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
 
   describe('com.atproto.server.getServiceAuth', () => {
     it('rejects unauthenticated callers', async () => {
-      const res = await xrpcPost('com.atproto.server.getServiceAuth');
+      const res = await xrpcGet('com.atproto.server.getServiceAuth', { aud: 'did:example:service' });
       expect(res.status).toBe(401);
     });
 

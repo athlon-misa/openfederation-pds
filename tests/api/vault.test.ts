@@ -23,12 +23,17 @@ describe('Vault Service', () => {
   });
 
   it('vault.registerEscrow requires auth', async () => {
-    const res = await xrpcPost('net.openfederation.vault.registerEscrow');
+    const res = await xrpcPost('net.openfederation.vault.registerEscrow', {
+      escrowProviderDid: 'did:example:escrow',
+      escrowProviderName: 'Test Escrow',
+    });
     expect(res.status).toBe(401);
   });
 
   it('vault.exportRecoveryKey requires auth', async () => {
-    const res = await xrpcPost('net.openfederation.vault.exportRecoveryKey');
+    const res = await xrpcPost('net.openfederation.vault.exportRecoveryKey', {
+      verificationToken: 'any-token',
+    });
     expect(res.status).toBe(401);
   });
 

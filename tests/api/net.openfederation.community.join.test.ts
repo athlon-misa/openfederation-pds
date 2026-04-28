@@ -15,8 +15,8 @@ describe('net.openfederation.community.join', () => {
     plcAvailable = await isPLCAvailable();
   });
 
-  it('rejects unauthenticated requests before parsing', async () => {
-    const res = await xrpcPost('net.openfederation.community.join', {});
+  it('rejects unauthenticated requests', async () => {
+    const res = await xrpcPost('net.openfederation.community.join', { did: 'did:plc:example' });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('Unauthorized');

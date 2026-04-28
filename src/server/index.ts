@@ -547,19 +547,12 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
     enforceXrpcErrorResponses(nsid, res);
 
     const validationTarget = req.method === 'GET' ? req.query : req.body ?? {};
-    const hasCredential =
-      (typeof req.headers.authorization === 'string' && req.headers.authorization.length > 0) ||
-      (typeof req.headers['x-partner-key'] === 'string' && req.headers['x-partner-key'].length > 0) ||
-      (typeof req.headers['x-oracle-key'] === 'string' && req.headers['x-oracle-key'].length > 0);
-    const shouldValidate = hasCredential;
-    if (shouldValidate) {
-      const validation = validateXrpcInput(nsid, validationTarget);
-      if (!validation.ok) {
-        return res.status(400).json({
-          error: 'InvalidRequest',
-          message: validation.message,
-        });
-      }
+    const validation = validateXrpcInput(nsid, validationTarget);
+    if (!validation.ok) {
+      return res.status(400).json({
+        error: 'InvalidRequest',
+        message: validation.message,
+      });
     }
 
     // Apply endpoint-specific rate limiter if configured

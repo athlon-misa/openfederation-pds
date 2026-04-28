@@ -267,19 +267,19 @@ describe('submitProof Endpoint', () => {
   });
 
   it('should reject missing chainId', async () => {
-    // Without a valid Oracle key, we either get 401 (key validation fails) or 500 (DB down)
-    // With no X-Oracle-Key header at all, we get 401 before any DB call
     const res = await xrpcPost('net.openfederation.oracle.submitProof', {
       transactionHash: '0xabc123',
     });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('InvalidRequest');
   });
 
   it('should reject missing transactionHash', async () => {
     const res = await xrpcPost('net.openfederation.oracle.submitProof', {
       chainId: 'eip155:1',
     });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('InvalidRequest');
   });
 
   // Full flow test with real Oracle key (requires PLC for user creation)

@@ -80,4 +80,16 @@ describe('com.atproto.identity.resolveHandle (issue #52)', () => {
     const res = await xrpcGet('com.atproto.identity.resolveHandle', { handle: user.handle });
     expect(res.status).toBe(200);
   });
+
+  it('rejects undeclared query params on public (unauthenticated) requests', async () => {
+    // Bug #63: lexicon validation was gated on hasCredential, so unauthenticated
+    // requests could pass undeclared fields that the handler silently ignores.
+    const res = await xrpcGet('com.atproto.identity.resolveHandle', {
+      handle: 'some-valid-looking-handle',
+      undeclaredParam: 'injected',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('InvalidRequest');
+    expect(res.body.message).toMatch(/not declared by the lexicon/i);
+  });
 });
