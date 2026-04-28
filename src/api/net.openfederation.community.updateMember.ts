@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
-import { updateMemberLifecycle } from '../community/membership.js';
+import { updateMemberLifecycle } from '../community/membership/update.js';
 import { renderXrpcError } from '../xrpc/errors.js';
 import type { NetOpenfederationCommunityUpdateMemberOutput } from '../lexicon/generated.js';
 

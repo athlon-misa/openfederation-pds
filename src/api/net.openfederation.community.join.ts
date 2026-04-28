@@ -2,7 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { renderXrpcError } from '../xrpc/errors.js';
-import { joinCommunityLifecycle } from '../community/membership.js';
+import { joinCommunityLifecycle } from '../community/membership/join.js';
 import type { NetOpenfederationCommunityJoinOutput } from '../lexicon/generated.js';
 
 const NSID = 'net.openfederation.community.join';

@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
-import { resolveJoinRequestLifecycle } from '../community/membership.js';
+import { resolveJoinRequestLifecycle } from '../community/membership/resolve.js';
 import { renderXrpcError } from '../xrpc/errors.js';
 
 const NSID = 'net.openfederation.community.resolveJoinRequest';

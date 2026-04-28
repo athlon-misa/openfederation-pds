@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
-import { removeMemberLifecycle } from '../community/membership.js';
+import { removeMemberLifecycle } from '../community/membership/remove.js';
 import { renderXrpcError } from '../xrpc/errors.js';
 
 const NSID = 'net.openfederation.community.removeMember';
