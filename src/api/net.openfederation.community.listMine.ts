@@ -48,7 +48,7 @@ export default async function listMyCommunities(req: AuthRequest, res: Response)
     didMethod: c.did_method,
     displayName: c.profile_display_name || c.handle,
     description: c.profile_description || '',
-    createdAt: c.created_at,
+    createdAt: new Date(c.created_at).toISOString(),
     role: c.member_role || 'member',
   }));
 

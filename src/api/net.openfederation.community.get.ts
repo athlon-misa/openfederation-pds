@@ -104,7 +104,7 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       visibility,
       joinPolicy,
       memberCount,
-      createdAt: community.created_at,
+      createdAt: new Date(community.created_at).toISOString(),
       status: community.status,
       statusReason: community.status_reason,
       isOwner,

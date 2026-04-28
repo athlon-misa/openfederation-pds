@@ -155,7 +155,7 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
       visibility: c.settings?.visibility || 'public',
       joinPolicy: c.settings?.joinPolicy || 'open',
       memberCount: c.member_count,
-      createdAt: c.created_at,
+      createdAt: new Date(c.created_at).toISOString(),
       status: c.community_status || 'active',
       isMember: c.is_member,
       joinRequestStatus: c.join_request_status || null,
