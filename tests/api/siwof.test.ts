@@ -68,7 +68,7 @@ describe('Sign-In With OpenFederation', () => {
         [did]
       );
       if (keyRes.rows.length === 0) throw new Error(`no signing key for ${did}`);
-      const decrypted = await decryptKeyBytes(keyRes.rows[0].signing_key_bytes);
+      const decrypted = await decryptKeyBytes(keyRes.rows[0].signing_key_bytes, 'identity.signing-key');
       const kp = await Secp256k1Keypair.import(decrypted);
       return kp.did(); // did:key:zQ3sh...
     };

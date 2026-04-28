@@ -1,58 +1,23 @@
-import crypto from 'crypto';
-import { promisify } from 'util';
-import { config } from '../config.js';
+import {
+  wrapKeyBytes,
+  unwrapKeyBytes,
+  type KeyWrapPurpose,
+} from '../crypto/key-wrap.js';
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
-const SALT_LENGTH = 32;
-const KEY_LENGTH = 32;
-const ITERATIONS = 100000;
-
-const pbkdf2 = promisify(crypto.pbkdf2);
-
-async function deriveKey(secret: string, salt: Buffer): Promise<Buffer> {
-  return pbkdf2(secret, salt, ITERATIONS, KEY_LENGTH, 'sha512');
+/**
+ * Compatibility export for older callers. New code should import
+ * wrapKeyBytes/unwrapKeyBytes from src/crypto/key-wrap.ts directly.
+ */
+export async function encryptKeyBytes(plaintext: Buffer, purpose: KeyWrapPurpose): Promise<Buffer> {
+  return wrapKeyBytes(plaintext, purpose);
 }
 
 /**
- * Encrypt data using AES-256-GCM with a derived key from KEY_ENCRYPTION_SECRET.
- * Returns a buffer: [salt (32)] [iv (16)] [authTag (16)] [ciphertext (...)]
+ * Decrypt data encrypted with encryptKeyBytes. Legacy ciphertexts without a
+ * purpose-bound envelope still decrypt for existing database rows.
  */
-export async function encryptKeyBytes(plaintext: Buffer): Promise<Buffer> {
-  const secret = config.keyEncryptionSecret;
-  if (!secret) {
-    throw new Error('KEY_ENCRYPTION_SECRET must be set to encrypt keys at rest');
-  }
-
-  const salt = crypto.randomBytes(SALT_LENGTH);
-  const key = await deriveKey(secret, salt);
-  const iv = crypto.randomBytes(IV_LENGTH);
-
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-
-  return Buffer.concat([salt, iv, authTag, encrypted]);
+export async function decryptKeyBytes(cipherBundle: Buffer, purpose: KeyWrapPurpose): Promise<Buffer> {
+  return unwrapKeyBytes(cipherBundle, purpose);
 }
 
-/**
- * Decrypt data that was encrypted with encryptKeyBytes.
- */
-export async function decryptKeyBytes(cipherBundle: Buffer): Promise<Buffer> {
-  const secret = config.keyEncryptionSecret;
-  if (!secret) {
-    throw new Error('KEY_ENCRYPTION_SECRET must be set to decrypt keys at rest');
-  }
-
-  const salt = cipherBundle.subarray(0, SALT_LENGTH);
-  const iv = cipherBundle.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
-  const authTag = cipherBundle.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
-  const encrypted = cipherBundle.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
-
-  const key = await deriveKey(secret, salt);
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
-
-  return Buffer.concat([decipher.update(encrypted), decipher.final()]);
-}
+export type { KeyWrapPurpose };

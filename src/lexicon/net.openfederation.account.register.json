@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.register",
-  "revision": 1,
+  "revision": 2,
   "description": "Register a new account. Requires an invite code if the server has invite-only registration enabled.",
   "defs": {
     "main": {
@@ -87,6 +87,14 @@
         {
           "name": "AccountExists",
           "description": "Handle or email already in use."
+        },
+        {
+          "name": "InviteBound",
+          "description": "Invite code is bound to a different email address."
+        },
+        {
+          "name": "IdentityCreationFailed",
+          "description": "Failed to create required identity material."
         }
       ]
     }

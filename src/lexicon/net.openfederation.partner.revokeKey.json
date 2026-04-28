@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.partner.revokeKey",
+  "revision": 1,
+  "description": "Generated XRPC contract for net.openfederation.partner.revokeKey.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for net.openfederation.partner.revokeKey.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "errors": [
+        {
+          "name": "AlreadyRevoked",
+          "description": "Resource is already revoked."
+        },
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
+    }
+  }
+}

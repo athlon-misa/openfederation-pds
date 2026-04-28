@@ -98,7 +98,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
       [user.did]
     );
     expect(keyRes.rows.length).toBe(1);
-    const decrypted = await decryptKeyBytes(keyRes.rows[0].signing_key_bytes);
+    const decrypted = await decryptKeyBytes(keyRes.rows[0].signing_key_bytes, 'identity.signing-key');
     userKeypair = await Secp256k1Keypair.import(decrypted, { exportable: true });
   });
 

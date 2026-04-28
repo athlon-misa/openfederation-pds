@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 import type { AuthRequest, AuthContext, UserRole, CommunityRole, CommunityStatus } from './types.js';
 import { query } from '../db/client.js';
-import { ROLE_COLLECTION, MEMBER_COLLECTION } from './permissions.js';
+import { getCallerCommunityCapabilities } from '../community/visibility.js';
 
 export function requireAuth(req: AuthRequest, res: Response): req is AuthRequest & { auth: AuthContext } {
   if (!req.auth) {
@@ -205,78 +205,23 @@ export async function requireCommunityPermission(
   communityDid: string,
   permission: string
 ): Promise<boolean> {
-  // PDS admin always has access
-  if (req.auth.roles.includes('admin')) {
-    return true;
-  }
+  const capabilities = await getCallerCommunityCapabilities({
+    communityDid,
+    caller: req.auth,
+  });
 
-  // Check if user is community creator (always has all permissions)
-  const communityResult = await query<{ created_by: string }>(
-    'SELECT created_by FROM communities WHERE did = $1',
-    [communityDid]
-  );
-
-  if (communityResult.rows.length === 0) {
+  if (!capabilities.exists) {
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
     return false;
   }
 
-  if (communityResult.rows[0].created_by === req.auth.userId) {
+  if (capabilities.hasAllPermissions || capabilities.permissions.includes(permission)) {
     return true;
   }
 
-  // Find member record
-  const memberResult = await query<{ record_rkey: string }>(
-    'SELECT record_rkey FROM members_unique WHERE community_did = $1 AND member_did = $2',
-    [communityDid, req.auth.did]
-  );
-
-  if (memberResult.rows.length === 0) {
+  if (capabilities.membership?.status !== 'member') {
     res.status(403).json({ error: 'NotMember', message: 'You must be a member of this community' });
     return false;
-  }
-
-  // Get member record to find roleRkey
-  const memberRecord = await query<{ record: { roleRkey?: string; role?: string } }>(
-    `SELECT record FROM records_index
-     WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
-    [communityDid, MEMBER_COLLECTION, memberResult.rows[0].record_rkey]
-  );
-
-  const member = memberRecord.rows[0]?.record;
-  const roleRkey = member?.roleRkey;
-
-  // Backwards compat: if no roleRkey, fall back to old role string
-  if (!roleRkey) {
-    const oldRole = member?.role || 'member';
-    if (oldRole === 'owner') return true;
-    if (oldRole === 'moderator') {
-      const modPermissions = [
-        'community.profile.write', 'community.member.read', 'community.member.write',
-        'community.member.delete', 'community.role.read', 'community.attestation.write',
-        'community.attestation.delete', 'community.governance.write',
-      ];
-      if (modPermissions.includes(permission)) return true;
-    }
-    if (oldRole === 'member') {
-      const memberPermissions = ['community.member.read', 'community.role.read'];
-      if (memberPermissions.includes(permission)) return true;
-    }
-    res.status(403).json({ error: 'Forbidden', message: 'Insufficient community privileges' });
-    return false;
-  }
-
-  // Resolve roleRkey → role record → permissions
-  const roleResult = await query<{ record: { permissions?: string[] } }>(
-    `SELECT record FROM records_index
-     WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
-    [communityDid, ROLE_COLLECTION, roleRkey]
-  );
-
-  const permissions = roleResult.rows[0]?.record?.permissions || [];
-
-  if (permissions.includes(permission)) {
-    return true;
   }
 
   res.status(403).json({ error: 'Forbidden', message: 'Insufficient community privileges' });

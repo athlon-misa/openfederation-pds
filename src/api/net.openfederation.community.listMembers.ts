@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { canViewPrivateCommunity, getCommunityAccess } from '../community/visibility.js';
 
 /**
  * net.openfederation.community.listMembers
@@ -23,35 +24,15 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Check community exists
-    const communityResult = await query<{ created_by: string }>(
-      'SELECT created_by FROM communities WHERE did = $1',
-      [did]
-    );
-    if (communityResult.rows.length === 0) {
+    const access = await getCommunityAccess({ communityDid: did, caller: req.auth });
+    if (!access.exists) {
       res.status(404).json({ error: 'NotFound', message: 'Community not found' });
       return;
     }
 
-    // Check visibility — for private communities, only members/owner/admin
-    const settingsResult = await query<{ record: { visibility?: string } }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
-      [did]
-    );
-    const visibility = settingsResult.rows[0]?.record?.visibility || 'public';
-    const isOwner = communityResult.rows[0].created_by === req.auth.userId;
-    const isAdmin = req.auth.roles.includes('admin');
-
-    if (visibility === 'private' && !isOwner && !isAdmin) {
-      const memberCheck = await query(
-        'SELECT 1 FROM members_unique WHERE community_did = $1 AND member_did = $2',
-        [did, req.auth.did]
-      );
-      if (memberCheck.rows.length === 0) {
-        res.status(403).json({ error: 'Forbidden', message: 'You cannot view members of this private community' });
-        return;
-      }
+    if (access.visibility === 'private' && !canViewPrivateCommunity(access)) {
+      res.status(403).json({ error: 'Forbidden', message: 'You cannot view members of this private community' });
+      return;
     }
 
     // Fetch members and total count in parallel (independent queries)

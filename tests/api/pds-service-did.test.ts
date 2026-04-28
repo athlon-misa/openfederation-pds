@@ -65,7 +65,7 @@ describe('/.well-known/did.json — PDS service DID', () => {
     );
     expect(row.rows.length).toBe(1);
 
-    const decrypted = await decryptKeyBytes(row.rows[0].private_key_encrypted);
+    const decrypted = await decryptKeyBytes(row.rows[0].private_key_encrypted, 'identity.pds-service-key');
     const kp = await Secp256k1Keypair.import(decrypted, { exportable: false });
     const { toMultibaseMultikeySecp256k1 } = await import('../../src/identity/manager.js');
     expect(toMultibaseMultikeySecp256k1(kp.publicKeyBytes())).toBe(

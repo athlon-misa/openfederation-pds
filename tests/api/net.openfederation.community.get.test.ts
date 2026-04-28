@@ -5,7 +5,9 @@ describe('net.openfederation.community.get', () => {
   let adminToken: string;
   let plcAvailable: boolean;
   let communityDid: string | null = null;
+  let approvalCommunityDid: string | null = null;
   let userToken: string | null = null;
+  let requesterToken: string | null = null;
 
   beforeAll(async () => {
     adminToken = await getAdminToken();
@@ -27,6 +29,24 @@ describe('net.openfederation.community.get', () => {
 
       if (createRes.status === 201) {
         communityDid = createRes.body.did;
+      }
+
+      const requester = await createTestUser(uniqueHandle('cget-requester'));
+      requesterToken = requester.accessJwt;
+
+      const approvalCreateRes = await xrpcAuthPost('net.openfederation.community.create', user.accessJwt, {
+        handle: uniqueHandle('cget-approval'),
+        didMethod: 'plc',
+        displayName: 'Approval Community',
+        visibility: 'public',
+        joinPolicy: 'approval',
+      });
+
+      if (approvalCreateRes.status === 201) {
+        approvalCommunityDid = approvalCreateRes.body.did;
+        await xrpcAuthPost('net.openfederation.community.join', requester.accessJwt, {
+          did: approvalCommunityDid,
+        });
       }
     }
   });
@@ -70,6 +90,22 @@ describe('net.openfederation.community.get', () => {
     expect(res.status).toBe(200);
     expect(res.body.isOwner).toBe(true);
     expect(res.body.isMember).toBe(true);
+    expect(res.body.myMembership).toMatchObject({
+      status: 'member',
+    });
+    expect(res.body.myMembership.role).toBeTruthy();
+  });
+
+  it('should include pending myMembership for requester', async () => {
+    if (!approvalCommunityDid || !requesterToken) return;
+    const res = await xrpcAuthGet('net.openfederation.community.get', requesterToken, { did: approvalCommunityDid });
+    expect(res.status).toBe(200);
+    expect(res.body.isMember).toBe(false);
+    expect(res.body.joinRequestStatus).toBe('pending');
+    expect(res.body.myMembership).toEqual({
+      status: 'pending',
+      joinRequestStatus: 'pending',
+    });
   });
 
   it('should show non-member status for admin', async () => {

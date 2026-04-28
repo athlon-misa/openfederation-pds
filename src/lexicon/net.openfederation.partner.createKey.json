@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.partner.createKey",
+  "revision": 1,
+  "description": "Generated XRPC contract for net.openfederation.partner.createKey.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for net.openfederation.partner.createKey.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "errors": []
+    }
+  }
+}

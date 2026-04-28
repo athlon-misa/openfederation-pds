@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.updateRole",
-  "revision": 1,
+  "revision": 2,
   "description": "Update a community role's name, description, or permissions.",
   "defs": {
     "main": {
@@ -68,6 +68,10 @@
         {
           "name": "OwnerLockout",
           "description": "Cannot remove required permissions from owner role."
+        },
+        {
+          "name": "RoleNameTaken",
+          "description": "A role with this name already exists."
         }
       ]
     }

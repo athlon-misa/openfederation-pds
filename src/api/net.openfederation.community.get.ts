@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { getCallerMembership } from '../community/visibility.js';
 
 /**
  * net.openfederation.community.get
@@ -90,25 +91,9 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       }
     }
 
-    let isMember = false;
-    let joinRequestStatus: string | null = null;
-
-    if (userId) {
-      const [memberResult, requestResult] = await Promise.all([
-        query(
-          'SELECT 1 FROM members_unique WHERE community_did = $1 AND member_did = $2',
-          [did, req.auth!.did]
-        ),
-        query<{ status: string }>(
-          'SELECT status FROM join_requests WHERE community_did = $1 AND user_id = $2',
-          [did, userId]
-        ),
-      ]);
-      isMember = memberResult.rows.length > 0;
-      if (!isMember) {
-        joinRequestStatus = requestResult.rows[0]?.status || null;
-      }
-    }
+    const myMembership = await getCallerMembership({ communityDid: did, caller: req.auth });
+    const isMember = myMembership?.status === 'member';
+    const joinRequestStatus = myMembership?.joinRequestStatus || null;
 
     res.status(200).json({
       did: community.did,
@@ -125,6 +110,7 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       isOwner,
       isMember,
       joinRequestStatus,
+      ...(myMembership ? { myMembership } : {}),
     });
   } catch (error) {
     console.error('Error getting community:', error);

@@ -65,7 +65,7 @@ export async function storeCustodialKey(
   walletAddress: string,
   privateKey: Buffer
 ): Promise<void> {
-  const encrypted = await encryptKeyBytes(privateKey);
+  const encrypted = await encryptKeyBytes(privateKey, 'wallet.custodial-key');
   await query(
     `INSERT INTO wallet_custody (user_did, chain, wallet_address, private_key_encrypted)
      VALUES ($1, $2, $3, $4)`,
@@ -89,7 +89,7 @@ export async function loadCustodialKey(
     [userDid, chain, walletAddress]
   );
   if (result.rows.length === 0) return null;
-  return decryptKeyBytes(result.rows[0].private_key_encrypted);
+  return decryptKeyBytes(result.rows[0].private_key_encrypted, 'wallet.custodial-key');
 }
 
 /**

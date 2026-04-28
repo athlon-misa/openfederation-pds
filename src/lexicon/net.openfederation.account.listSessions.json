@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.listSessions",
-  "revision": 1,
+  "revision": 2,
   "description": "List active sessions for the authenticated user. Admins can list sessions for any user by DID.",
   "defs": {
     "main": {
@@ -33,7 +33,13 @@
             }
           }
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
     },
     "sessionInfo": {
       "type": "object",

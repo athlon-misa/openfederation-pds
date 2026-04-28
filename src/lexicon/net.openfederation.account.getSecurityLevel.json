@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.getSecurityLevel",
-  "revision": 2,
+  "revision": 3,
   "description": "Get the current security posture and recovery tier for the authenticated user.",
   "defs": {
     "main": {
@@ -26,7 +26,11 @@
             "tierName": {
               "type": "string",
               "description": "Human-readable tier name.",
-              "enum": ["standard", "enhanced", "self-custodial"]
+              "enum": [
+                "standard",
+                "enhanced",
+                "self-custodial"
+              ]
             },
             "checklist": {
               "type": "ref",
@@ -38,12 +42,24 @@
             }
           }
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
     },
     "securityChecklist": {
       "type": "object",
       "description": "Per-feature boolean flags describing which security upgrades the user has completed.",
-      "required": ["passkey", "recoveryEmail", "vaultShares", "escrowRegistered", "keyExported"],
+      "required": [
+        "passkey",
+        "recoveryEmail",
+        "vaultShares",
+        "escrowRegistered",
+        "keyExported"
+      ],
       "properties": {
         "passkey": {
           "type": "boolean",

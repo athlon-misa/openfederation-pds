@@ -53,6 +53,9 @@ jobs:
       - name: Validate lexicon revision fields
         run: npm run lexicon:validate
 
+      - name: Check generated lexicon contracts
+        run: npm run lexicon:check
+
       - name: Run unit tests
         run: npm run test:unit
         env:

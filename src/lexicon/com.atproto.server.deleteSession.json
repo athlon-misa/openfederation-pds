@@ -1,0 +1,25 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.deleteSession",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.server.deleteSession.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for com.atproto.server.deleteSession.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": []
+    }
+  }
+}

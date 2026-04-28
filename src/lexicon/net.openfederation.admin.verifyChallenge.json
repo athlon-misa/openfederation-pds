@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.verifyChallenge",
+  "revision": 1,
+  "description": "Generated XRPC contract for net.openfederation.admin.verifyChallenge.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for net.openfederation.admin.verifyChallenge.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidNonce",
+          "description": "Verification nonce is invalid."
+        },
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
+    }
+  }
+}

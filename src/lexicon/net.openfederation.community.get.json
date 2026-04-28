@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.get",
-  "revision": 1,
+  "revision": 2,
   "description": "Get community details by DID. No auth required; optional auth enriches response with membership info.",
   "defs": {
     "main": {
@@ -80,6 +80,11 @@
             "joinRequestStatus": {
               "type": "string",
               "description": "Status of the user's join request (pending, approved, rejected), or null."
+            },
+            "myMembership": {
+              "type": "ref",
+              "ref": "#myMembership",
+              "description": "Caller-specific Membership shape, present when the caller is a member or has a join request."
             }
           },
           "required": [
@@ -109,6 +114,46 @@
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
         }
+      ]
+    },
+    "myMembership": {
+      "type": "object",
+      "description": "Caller-specific Membership shape, present when the caller is a member or has a join request.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Membership state for the caller: member, pending, approved, or rejected."
+        },
+        "role": {
+          "type": "string",
+          "description": "Resolved Member Role name for members."
+        },
+        "roleRkey": {
+          "type": "string",
+          "description": "Role record rkey when the member references a custom role."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Optional Member Kind."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional Member Tags."
+        },
+        "attributes": {
+          "type": "unknown",
+          "description": "Optional Member Attributes."
+        },
+        "joinRequestStatus": {
+          "type": "string",
+          "description": "Join request status for non-members with a request."
+        }
+      },
+      "required": [
+        "status"
       ]
     }
   }

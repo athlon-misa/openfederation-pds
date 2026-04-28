@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.repo.getRecord",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.repo.getRecord.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Generated contract for com.atproto.repo.getRecord.",
+      "parameters": {
+        "type": "params",
+        "properties": {}
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": [
+        {
+          "name": "RecordNotFound",
+          "description": "Record was not found."
+        }
+      ]
+    }
+  }
+}

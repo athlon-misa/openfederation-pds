@@ -88,7 +88,7 @@ export async function createUserIdentity(handle: string): Promise<UserIdentityRe
  */
 export async function storeUserSigningKey(userDid: string, signingKeyBase64: string): Promise<void> {
   const keyBuf = Buffer.from(signingKeyBase64, 'base64');
-  const encrypted = await encryptKeyBytes(keyBuf);
+  const encrypted = await encryptKeyBytes(keyBuf, 'identity.signing-key');
   await query(
     `INSERT INTO user_signing_keys (user_did, signing_key_bytes)
      VALUES ($1, $2)
@@ -106,6 +106,6 @@ export async function getUserSigningKey(userDid: string): Promise<string | null>
     [userDid]
   );
   if (result.rows.length === 0) return null;
-  const decrypted = await decryptKeyBytes(result.rows[0].signing_key_bytes);
+  const decrypted = await decryptKeyBytes(result.rows[0].signing_key_bytes, 'identity.signing-key');
   return decrypted.toString('base64');
 }

@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.repo.putRecord",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.repo.putRecord.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for com.atproto.repo.putRecord.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": [
+        {
+          "name": "GovernanceDenied",
+          "description": "Governance policy denied this repository operation."
+        }
+      ]
+    }
+  }
+}

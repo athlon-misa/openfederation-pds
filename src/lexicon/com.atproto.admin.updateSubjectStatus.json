@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.admin.updateSubjectStatus",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.admin.updateSubjectStatus.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for com.atproto.admin.updateSubjectStatus.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": [
+        {
+          "name": "AlreadySuspended",
+          "description": "Resource is already suspended."
+        },
+        {
+          "name": "AlreadyTakenDown",
+          "description": "Resource has already been taken down."
+        },
+        {
+          "name": "ExportRequired",
+          "description": "An export is required before this operation can continue."
+        },
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        },
+        {
+          "name": "NotSuspended",
+          "description": "Resource is not suspended."
+        },
+        {
+          "name": "NotTakenDown",
+          "description": "Resource is not taken down."
+        }
+      ]
+    }
+  }
+}

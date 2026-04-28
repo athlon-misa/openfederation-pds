@@ -1,0 +1,34 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.activateAccount",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.server.activateAccount.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for com.atproto.server.activateAccount.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidStatus",
+          "description": "Requested status transition is invalid."
+        },
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
+    }
+  }
+}

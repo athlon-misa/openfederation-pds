@@ -1,0 +1,117 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.partner.register",
+  "revision": 1,
+  "description": "Register a new account using a verified partner key. Partner-created accounts are auto-approved and receive session tokens.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Create a user account on behalf of a verified partner application.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "string",
+              "description": "Requested handle."
+            },
+            "email": {
+              "type": "string",
+              "description": "Email address."
+            },
+            "password": {
+              "type": "string",
+              "description": "Initial account password."
+            }
+          },
+          "required": [
+            "handle",
+            "email",
+            "password"
+          ]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "did": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "accessJwt": {
+              "type": "string"
+            },
+            "refreshJwt": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "handle",
+            "did",
+            "email",
+            "status",
+            "accessJwt",
+            "refreshJwt",
+            "active"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "PartnerKeyMissing",
+          "description": "X-Partner-Key header was not supplied."
+        },
+        {
+          "name": "PartnerKeyInvalid",
+          "description": "Partner key is invalid."
+        },
+        {
+          "name": "PartnerKeyRevoked",
+          "description": "Partner key has been revoked."
+        },
+        {
+          "name": "PartnerKeyUnverified",
+          "description": "Partner key has not completed domain ownership verification."
+        },
+        {
+          "name": "OriginNotAllowed",
+          "description": "Request origin is not allowed for the partner key."
+        },
+        {
+          "name": "PermissionDenied",
+          "description": "Partner key does not grant registration permission."
+        },
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields or validation failed."
+        },
+        {
+          "name": "AccountExists",
+          "description": "Handle or email already in use."
+        },
+        {
+          "name": "IdentityCreationFailed",
+          "description": "Failed to create account identity material."
+        }
+      ]
+    }
+  }
+}

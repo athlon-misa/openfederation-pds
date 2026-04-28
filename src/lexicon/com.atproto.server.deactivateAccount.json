@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.deactivateAccount",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.server.deactivateAccount.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for com.atproto.server.deactivateAccount.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": [
+        {
+          "name": "AlreadyDeactivated",
+          "description": "Resource is already deactivated."
+        },
+        {
+          "name": "InvalidStatus",
+          "description": "Requested status transition is invalid."
+        },
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
+    }
+  }
+}

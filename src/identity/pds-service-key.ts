@@ -38,7 +38,7 @@ export async function ensurePdsServiceKey(hostname: string): Promise<PdsServiceK
   const keypair = await Secp256k1Keypair.create({ exportable: true });
   const privateKeyBytes = Buffer.from(await keypair.export());
   const publicKeyMultibase = toMultibaseMultikeySecp256k1(keypair.publicKeyBytes());
-  const encrypted = await encryptKeyBytes(privateKeyBytes);
+  const encrypted = await encryptKeyBytes(privateKeyBytes, 'identity.pds-service-key');
 
   // Insert; if another boot racer beat us to it, silently keep their row and
   // return the DB's version to stay consistent.
@@ -66,6 +66,6 @@ export async function loadPdsServiceKeypair(hostname: string): Promise<Secp256k1
     [hostname]
   );
   if (row.rows.length === 0) return null;
-  const privateKey = await decryptKeyBytes(row.rows[0].private_key_encrypted);
+  const privateKey = await decryptKeyBytes(row.rows[0].private_key_encrypted, 'identity.pds-service-key');
   return Secp256k1Keypair.import(privateKey, { exportable: false });
 }

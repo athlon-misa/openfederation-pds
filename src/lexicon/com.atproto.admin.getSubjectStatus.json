@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.admin.getSubjectStatus",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.admin.getSubjectStatus.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Generated contract for com.atproto.admin.getSubjectStatus.",
+      "parameters": {
+        "type": "params",
+        "properties": {}
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
+    }
+  }
+}

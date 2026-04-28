@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { getCommunityAccess } from '../community/visibility.js';
 
 /**
  * net.openfederation.community.listJoinRequests
@@ -24,20 +25,13 @@ export default async function listJoinRequests(req: AuthRequest, res: Response):
       return;
     }
 
-    // Verify community exists and check authorization
-    const communityResult = await query<{ created_by: string }>(
-      'SELECT created_by FROM communities WHERE did = $1',
-      [did]
-    );
-    if (communityResult.rows.length === 0) {
+    const access = await getCommunityAccess({ communityDid: did, caller: req.auth });
+    if (!access.exists) {
       res.status(404).json({ error: 'NotFound', message: 'Community not found' });
       return;
     }
 
-    const isOwner = communityResult.rows[0].created_by === req.auth.userId;
-    const isAdmin = req.auth.roles.includes('admin');
-
-    if (!isOwner && !isAdmin) {
+    if (!access.isOwner && !access.isAdmin) {
       res.status(403).json({ error: 'Forbidden', message: 'Only the community owner or admin can view join requests' });
       return;
     }

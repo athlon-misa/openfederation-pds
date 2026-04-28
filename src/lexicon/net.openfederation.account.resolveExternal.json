@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.resolveExternal",
+  "revision": 1,
+  "description": "Generated XRPC contract for net.openfederation.account.resolveExternal.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for net.openfederation.account.resolveExternal.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "errors": [
+        {
+          "name": "ResolutionFailed",
+          "description": "External account resolution failed."
+        },
+        {
+          "name": "ServiceUnavailable",
+          "description": "External resolution service is unavailable."
+        }
+      ]
+    }
+  }
+}

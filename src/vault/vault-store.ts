@@ -16,7 +16,7 @@ export async function storeShare(
   recoveryTier: number = 1
 ): Promise<void> {
   const plaintext = Buffer.from(shareData, 'utf-8');
-  const encrypted = await encryptKeyBytes(plaintext);
+  const encrypted = await encryptKeyBytes(plaintext, 'vault.share');
   const id = crypto.randomUUID();
 
   await query(
@@ -42,7 +42,7 @@ export async function getShare(userDid: string, shareIndex: number): Promise<str
     [userDid, shareIndex]
   );
   if (result.rows.length === 0) return null;
-  const decrypted = await decryptKeyBytes(result.rows[0].encrypted_share);
+  const decrypted = await decryptKeyBytes(result.rows[0].encrypted_share, 'vault.share');
   return decrypted.toString('utf-8');
 }
 

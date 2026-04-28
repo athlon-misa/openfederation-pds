@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.setGovernanceModel",
-  "revision": 1,
+  "revision": 2,
   "description": "Switch a community's governance model.",
   "defs": {
     "main": {
@@ -28,6 +28,10 @@
         {
           "name": "GovernanceDowngradeBlocked",
           "description": "Cannot downgrade from on-chain without admin override."
+        },
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
         }
       ]
     },

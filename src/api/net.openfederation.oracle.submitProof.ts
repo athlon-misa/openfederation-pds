@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { validateOracleKey } from '../auth/oracle-guard.js';
+import { verifyOracleKey } from '../auth/verification.js';
 import { getAdapter } from '../governance/chain-adapter.js';
 import { getCachedVerification, cacheVerification } from '../governance/proof-cache.js';
 import { auditLog } from '../db/audit.js';
@@ -8,11 +8,15 @@ import type { GovernanceProof } from '../governance/chain-adapter.js';
 export default async function submitProof(req: Request, res: Response): Promise<void> {
   try {
     // 1. Validate Oracle key
-    const oracle = await validateOracleKey(req);
-    if (!oracle) {
+    const oracleAuth = await verifyOracleKey({
+      rawKey: req.headers['x-oracle-key'] as string | undefined,
+      origin: req.headers.origin as string | undefined,
+    });
+    if (!oracleAuth.ok) {
       res.status(401).json({ error: 'AuthRequired', message: 'Valid X-Oracle-Key header required.' });
       return;
     }
+    const oracle = oracleAuth.oracle;
 
     // 2. Validate input
     const { chainId, transactionHash, blockNumber, contractAddress, expectedOutcome } = req.body || {};

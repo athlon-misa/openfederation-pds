@@ -38,7 +38,7 @@ async function getOrCreateApKeys(did: string): Promise<{ publicKey: string; priv
 
   if (result.rows.length > 0) {
     const row = result.rows[0];
-    const privateKey = (await decryptKeyBytes(row.encrypted_private_key)).toString('utf-8');
+    const privateKey = (await decryptKeyBytes(row.encrypted_private_key, 'activitypub.signing-key')).toString('utf-8');
     const keys = { publicKey: row.public_key_pem, privateKey };
     rsaKeyCache.set(did, keys);
     return keys;
@@ -52,7 +52,7 @@ async function getOrCreateApKeys(did: string): Promise<{ publicKey: string; priv
   });
 
   // Encrypt private key before storing
-  const encryptedPrivateKey = await encryptKeyBytes(Buffer.from(privateKey, 'utf-8'));
+  const encryptedPrivateKey = await encryptKeyBytes(Buffer.from(privateKey, 'utf-8'), 'activitypub.signing-key');
 
   await query(
     'INSERT INTO ap_signing_keys (did, public_key_pem, encrypted_private_key) VALUES ($1, $2, $3) ON CONFLICT (did) DO NOTHING',

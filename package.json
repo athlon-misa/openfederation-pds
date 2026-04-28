@@ -27,6 +27,8 @@
     "db:check": "node --loader ts-node/esm scripts/check-db.ts",
     "db:seed-admin": "node --loader ts-node/esm scripts/seed-bootstrap-admin.ts",
     "lexicon:validate": "node --loader ts-node/esm scripts/validate-lexicon-revisions.ts",
+    "lexicon:generate": "node --loader ts-node/esm scripts/generate-lexicon-contracts.ts",
+    "lexicon:check": "npm run lexicon:validate && node --loader ts-node/esm scripts/generate-lexicon-contracts.ts --check",
     "validate:lexicon": "node --loader ts-node/esm scripts/build-lexicon-package.ts --validate-only",
     "build:lexicon": "node --loader ts-node/esm scripts/build-lexicon-package.ts && cd packages/openfederation-lexicon && NPM_CONFIG_PRODUCTION=false npm install && npm run build",
     "build:lexicon-docs": "node --loader ts-node/esm scripts/build-lexicon-docs.ts",

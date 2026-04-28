@@ -158,6 +158,9 @@ import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { decryptKeyBytes } from '../auth/encryption.js';
 import { apRouter } from '../activitypub/ap-routes.js';
+import { enforceXrpcErrorResponses, renderXrpcError } from '../xrpc/errors.js';
+import { validateXrpcInput } from '../lexicon/runtime.js';
+import type { LexiconNsid } from '../lexicon/generated.js';
 
 const app = express();
 
@@ -296,9 +299,10 @@ app.get('/', (_req, res) => {
 
 // XRPC Handler type
 export type XRPCHandler = (req: Request, res: Response) => Promise<void> | void;
+type HandlerEntry = { handler: XRPCHandler; limiter?: ReturnType<typeof rateLimit> };
 
 // Static handler registry (frozen after initialization to prevent runtime modification)
-const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: ReturnType<typeof rateLimit> }>> = Object.freeze({
+const handlers = Object.freeze({
   // Custom OpenFederation methods
   'net.openfederation.community.create': { handler: createCommunity, limiter: createLimiter },
   'net.openfederation.account.register': { handler: registerAccount, limiter: registrationLimiter },
@@ -488,7 +492,8 @@ const handlers: Readonly<Record<string, { handler: XRPCHandler; limiter?: Return
   'net.openfederation.disclosure.grantStatus': { handler: disclosureGrantStatus },
   'net.openfederation.disclosure.revokeGrant': { handler: disclosureRevokeGrant },
   'net.openfederation.disclosure.auditLog': { handler: disclosureAuditLog },
-});
+} satisfies Readonly<Partial<Record<LexiconNsid, HandlerEntry>>>);
+const handlerRegistry: Readonly<Record<string, HandlerEntry | undefined>> = handlers;
 
 // Blob serve route — serves binary blobs by DID + CID
 app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
@@ -530,13 +535,31 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
   }
 
   try {
-    const entry = handlers[nsid];
+    const entry = handlerRegistry[nsid];
 
     if (!entry) {
       return res.status(404).json({
         error: 'MethodNotFound',
         message: 'XRPC method not found'
       });
+    }
+
+    enforceXrpcErrorResponses(nsid, res);
+
+    const validationTarget = req.method === 'GET' ? req.query : req.body ?? {};
+    const hasCredential =
+      (typeof req.headers.authorization === 'string' && req.headers.authorization.length > 0) ||
+      (typeof req.headers['x-partner-key'] === 'string' && req.headers['x-partner-key'].length > 0) ||
+      (typeof req.headers['x-oracle-key'] === 'string' && req.headers['x-oracle-key'].length > 0);
+    const shouldValidate = hasCredential;
+    if (shouldValidate) {
+      const validation = validateXrpcInput(nsid, validationTarget);
+      if (!validation.ok) {
+        return res.status(400).json({
+          error: 'InvalidRequest',
+          message: validation.message,
+        });
+      }
     }
 
     // Apply endpoint-specific rate limiter if configured
@@ -554,11 +577,7 @@ app.all('/xrpc/:nsid', async (req: Request, res: Response) => {
     await entry.handler(req, res);
   } catch (err) {
     if (!res.headersSent) {
-      console.error(`Error handling XRPC request for ${nsid}:`, err);
-      res.status(500).json({
-        error: 'InternalServerError',
-        message: 'An internal error occurred'
-      });
+      renderXrpcError(nsid, res, err);
     }
   }
 });
@@ -631,7 +650,7 @@ app.get('/.well-known/did.json', discoveryLimiter, async (req: Request, res: Res
       return res.status(500).json({ error: 'InternalServerError', message: 'Signing key not found' });
     }
 
-    const decrypted = await decryptKeyBytes(keyResult.rows[0].signing_key_bytes);
+    const decrypted = await decryptKeyBytes(keyResult.rows[0].signing_key_bytes, 'identity.signing-key');
     const keypair = await Secp256k1Keypair.import(decrypted, { exportable: false });
     const publicKeyMultibase = toMultibaseMultikeySecp256k1(keypair.publicKeyBytes());
 

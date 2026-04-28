@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.importRepo",
-  "revision": 1,
+  "revision": 2,
   "description": "Import a CAR file to create or restore a repository on this PDS. Admin only.",
   "defs": {
     "main": {
@@ -45,6 +45,10 @@
         {
           "name": "InvalidCar",
           "description": "CAR data is malformed or cannot be parsed."
+        },
+        {
+          "name": "PayloadTooLarge",
+          "description": "Request payload exceeds the accepted size limit."
         }
       ]
     }

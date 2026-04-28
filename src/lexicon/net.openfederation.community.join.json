@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.join",
-  "revision": 2,
+  "revision": 3,
   "description": "Join a community or submit a join request. Requires an approved user account. Optional `kind`, `tags`, and `attributes` classify the membership semantically (see issue #50).",
   "defs": {
     "main": {
@@ -68,6 +68,10 @@
         {
           "name": "AlreadyRequested",
           "description": "User has already submitted a pending join request."
+        },
+        {
+          "name": "PayloadTooLarge",
+          "description": "Membership attributes exceed the maximum serialized size."
         }
       ]
     }

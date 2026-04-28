@@ -58,7 +58,7 @@ export async function createPlcIdentity(handle: string): Promise<PlcIdentityResu
 
   // 4. Encrypt recovery key for storage at rest
   const recoveryKeyBuf = Buffer.from(recoveryKeyExport);
-  const encryptedRecoveryKey = await encryptKeyBytes(recoveryKeyBuf);
+  const encryptedRecoveryKey = await encryptKeyBytes(recoveryKeyBuf, 'identity.recovery-key');
 
   return {
     did,
@@ -146,7 +146,7 @@ export async function createWebIdentity(domain: string): Promise<WebIdentityResu
  */
 export async function storeSigningKey(communityDid: string, signingKeyBase64: string): Promise<void> {
   const keyBuf = Buffer.from(signingKeyBase64, 'base64');
-  const encrypted = await encryptKeyBytes(keyBuf);
+  const encrypted = await encryptKeyBytes(keyBuf, 'identity.signing-key');
   await query(
     `INSERT INTO signing_keys (community_did, signing_key_bytes)
      VALUES ($1, $2)
@@ -164,7 +164,7 @@ export async function getSigningKey(communityDid: string): Promise<string | null
     [communityDid]
   );
   if (result.rows.length === 0) return null;
-  const decrypted = await decryptKeyBytes(result.rows[0].signing_key_bytes);
+  const decrypted = await decryptKeyBytes(result.rows[0].signing_key_bytes, 'identity.signing-key');
   return decrypted.toString('base64');
 }
 
@@ -178,7 +178,6 @@ export async function getRecoveryKey(communityDid: string): Promise<Secp256k1Key
   );
   if (result.rows.length === 0) return null;
 
-  const decrypted = await decryptKeyBytes(result.rows[0].recovery_key_bytes);
+  const decrypted = await decryptKeyBytes(result.rows[0].recovery_key_bytes, 'identity.recovery-key');
   return Secp256k1Keypair.import(decrypted, { exportable: true });
 }
-

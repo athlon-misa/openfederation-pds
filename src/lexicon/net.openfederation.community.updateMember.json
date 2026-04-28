@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.updateMember",
-  "revision": 1,
+  "revision": 2,
   "description": "Partially update a community member record. Any subset of `role`/`roleRkey`, `kind`, `tags`, and `attributes` may be supplied. Requires `community.member.write` permission on the target community.",
   "defs": {
     "main": {
@@ -27,12 +27,24 @@
           "description": "Missing required fields or no updatable field supplied."
         },
         {
+          "name": "NotFound",
+          "description": "Community not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller lacks permission to update members."
+        },
+        {
           "name": "RoleNotFound",
           "description": "Supplied roleRkey does not correspond to a role record in the community."
         },
         {
           "name": "NotMember",
           "description": "Target DID is not a member of this community."
+        },
+        {
+          "name": "PayloadTooLarge",
+          "description": "Supplied attributes JSON exceeds the storage limit."
         },
         {
           "name": "CannotChangeOwner",

@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.admin.deleteAccount",
+  "revision": 1,
+  "description": "Generated XRPC contract for com.atproto.admin.deleteAccount.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Generated contract for com.atproto.admin.deleteAccount.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "unknown"
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "Referenced resource was not found."
+        }
+      ]
+    }
+  }
+}

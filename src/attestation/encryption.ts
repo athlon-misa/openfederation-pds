@@ -69,11 +69,11 @@ export function createCommitment(claim: Record<string, unknown>): { hash: string
 }
 
 /**
- * Wrap (encrypt) a DEK using the server's KEY_ENCRYPTION_SECRET via encryptKeyBytes.
+ * Wrap (encrypt) a DEK using the server's KEY_ENCRYPTION_SECRET.
  * Returns the wrapped DEK as a base64 string.
  */
 export async function wrapDEK(dek: Buffer): Promise<string> {
-  const wrapped = await encryptKeyBytes(dek);
+  const wrapped = await encryptKeyBytes(dek, 'attestation.dek');
   return wrapped.toString('base64');
 }
 
@@ -81,5 +81,5 @@ export async function wrapDEK(dek: Buffer): Promise<string> {
  * Unwrap (decrypt) a wrapped DEK using the server's KEY_ENCRYPTION_SECRET.
  */
 export async function unwrapDEK(wrappedBase64: string): Promise<Buffer> {
-  return decryptKeyBytes(Buffer.from(wrappedBase64, 'base64'));
+  return decryptKeyBytes(Buffer.from(wrappedBase64, 'base64'), 'attestation.dek');
 }
