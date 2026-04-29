@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Contact graph** (`net.openfederation.contact.*`): bidirectional contact relationships with explicit consent — sendRequest, respondToRequest (accept/reject), removeContact, list, listIncomingRequests, listOutgoingRequests (closes #67)
+- **Write-time member display projection** (#66): `members_unique` now stores denormalized display/role/kind columns; new `community_attestation_index` table; `listMembers` and `listAttestations` include resolved `displayName`/`avatarUrl` fields without N+1 fetches
+- **XRPC output shape smoke tests** (#65): CI-time validation that handler responses match their lexicon schemas; catches handler/schema drift before production
+
+### Fixed
+- `account.list` was returning raw pg-node `Date` objects for `createdAt`/`approvedAt` instead of ISO strings (#65)
+- XRPC input validation now runs for all requests including unauthenticated endpoints (#63)
+- Cascade revocation on `deleteAttestation` — revokes all active viewing grants for the deleted attestation (#58)
+
+### Changed
+- `membership.ts` (662 lines) decomposed into per-lifecycle modules under `src/community/membership/` (#62)
+- `listMembers` lexicon bumped to revision 3 (adds required `displayName`, optional `avatarUrl`)
+- `listAttestations` lexicon bumped to revision 2 (adds required `subjectDisplayName`, optional `subjectAvatarUrl`)
+
 ## [1.0.0] - 2026-03-28
 
 ### Added
