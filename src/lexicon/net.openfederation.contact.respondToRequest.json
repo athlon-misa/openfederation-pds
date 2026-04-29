@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.respondToRequest",
+  "revision": 1,
+  "description": "Accept or reject an incoming contact request.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Respond to a contact request addressed to the caller.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["rkey", "action"],
+          "properties": {
+            "rkey": {
+              "type": "string",
+              "description": "rkey of the request record (as returned by listIncomingRequests)."
+            },
+            "action": {
+              "type": "string",
+              "description": "Either 'accept' or 'reject'."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["success"],
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing rkey/action or invalid action value."
+        },
+        {
+          "name": "NotFound",
+          "description": "No incoming request with the given rkey."
+        }
+      ]
+    }
+  }
+}

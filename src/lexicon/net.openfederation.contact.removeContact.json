@@ -1,0 +1,47 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.removeContact",
+  "revision": 1,
+  "description": "Remove an accepted contact. Cooperatively removes the contact record from the counterpart's repo.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Remove a contact from the caller's contact list.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject"],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "DID of the contact to remove."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["success"],
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing subject DID."
+        },
+        {
+          "name": "NotFound",
+          "description": "No accepted contact relationship with the given DID."
+        }
+      ]
+    }
+  }
+}

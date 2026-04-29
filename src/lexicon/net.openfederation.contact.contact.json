@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.contact",
+  "revision": 1,
+  "description": "An accepted contact relationship. Lives on both parties' repos after acceptance.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Accepted contact record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "acceptedAt"],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the other party."
+          },
+          "tags": {
+            "type": "array",
+            "maxLength": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "description": "Optional user-defined groupings (e.g. 'close', 'guildmates'). Reserved for future use."
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

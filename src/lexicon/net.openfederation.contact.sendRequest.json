@@ -1,0 +1,58 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.sendRequest",
+  "revision": 1,
+  "description": "Send a contact request to another user. Creates a request record on the caller's repo.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Send a contact request.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject"],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "DID of the user to send a request to."
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 280,
+              "description": "Optional message attached to the request."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["rkey", "uri"],
+          "properties": {
+            "rkey": {
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            },
+            "cid": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid subject DID, or cannot request yourself."
+        },
+        {
+          "name": "AlreadyExists",
+          "description": "A pending request or accepted contact already exists between these users."
+        }
+      ]
+    }
+  }
+}

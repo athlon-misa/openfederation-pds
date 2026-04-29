@@ -1,0 +1,78 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.list",
+  "revision": 1,
+  "description": "List the caller's accepted contacts, paginated.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve the caller's accepted contact list.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      }
+    },
+    "contactItem": {
+      "type": "object",
+      "required": ["did", "handle", "acceptedAt"],
+      "properties": {
+        "did": {
+          "type": "string"
+        },
+        "handle": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "avatarUrl": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "acceptedAt": {
+          "type": "string",
+          "format": "datetime"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["contacts"],
+      "properties": {
+        "contacts": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#contactItem"
+          }
+        },
+        "cursor": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

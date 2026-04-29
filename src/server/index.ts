@@ -147,6 +147,12 @@ import disclosureRedeemGrant from '../api/net.openfederation.disclosure.redeemGr
 import disclosureGrantStatus from '../api/net.openfederation.disclosure.grantStatus.js';
 import disclosureRevokeGrant from '../api/net.openfederation.disclosure.revokeGrant.js';
 import disclosureAuditLog from '../api/net.openfederation.disclosure.auditLog.js';
+import sendContactRequest from '../api/net.openfederation.contact.sendRequest.js';
+import respondToContactRequest from '../api/net.openfederation.contact.respondToRequest.js';
+import removeContactHandler from '../api/net.openfederation.contact.removeContact.js';
+import listContacts from '../api/net.openfederation.contact.list.js';
+import listIncomingContactRequests from '../api/net.openfederation.contact.listIncomingRequests.js';
+import listOutgoingContactRequests from '../api/net.openfederation.contact.listOutgoingRequests.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -492,6 +498,14 @@ const handlers = Object.freeze({
   'net.openfederation.disclosure.grantStatus': { handler: disclosureGrantStatus },
   'net.openfederation.disclosure.revokeGrant': { handler: disclosureRevokeGrant },
   'net.openfederation.disclosure.auditLog': { handler: disclosureAuditLog },
+
+  // Contact graph
+  'net.openfederation.contact.sendRequest': { handler: sendContactRequest },
+  'net.openfederation.contact.respondToRequest': { handler: respondToContactRequest },
+  'net.openfederation.contact.removeContact': { handler: removeContactHandler },
+  'net.openfederation.contact.list': { handler: listContacts },
+  'net.openfederation.contact.listIncomingRequests': { handler: listIncomingContactRequests },
+  'net.openfederation.contact.listOutgoingRequests': { handler: listOutgoingContactRequests },
 } satisfies Readonly<Partial<Record<LexiconNsid, HandlerEntry>>>);
 const handlerRegistry: Readonly<Record<string, HandlerEntry | undefined>> = handlers;
 

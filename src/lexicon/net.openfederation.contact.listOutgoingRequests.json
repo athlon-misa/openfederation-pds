@@ -1,0 +1,78 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.listOutgoingRequests",
+  "revision": 1,
+  "description": "List pending contact requests sent by the caller.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve pending outgoing contact requests.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Pagination cursor."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      }
+    },
+    "requestItem": {
+      "type": "object",
+      "required": ["rkey", "toDid", "toHandle", "createdAt"],
+      "properties": {
+        "rkey": {
+          "type": "string"
+        },
+        "toDid": {
+          "type": "string"
+        },
+        "toHandle": {
+          "type": "string"
+        },
+        "toDisplayName": {
+          "type": "string"
+        },
+        "toAvatarUrl": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["requests"],
+      "properties": {
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#requestItem"
+          }
+        },
+        "cursor": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
