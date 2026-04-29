@@ -686,6 +686,8 @@ export type NetOpenfederationCommunityListAttestationsOutput = {
   "rkey": string;
   "subjectDid": string;
   "subjectHandle": string;
+  "subjectDisplayName": string;
+  "subjectAvatarUrl"?: string;
   "type": string;
   "claim": unknown;
   "issuedAt": string;
@@ -724,6 +726,8 @@ export type NetOpenfederationCommunityListMembersOutput = {
   "members": Array<{
   "did": string;
   "handle": string;
+  "displayName": string;
+  "avatarUrl"?: string;
   "role": string;
   "roleRkey"?: string;
   "kind"?: string;
@@ -973,6 +977,163 @@ export type NetOpenfederationCommunityVoteOnProposalOutput = {
   "applied"?: boolean;
 };
 export type NetOpenfederationCommunityVoteOnProposalError = "AlreadyVoted" | "InvalidRequest" | "ProposalClosed" | "ProposalNotFound";
+
+export type NetOpenfederationContactBlockInput = {
+  "subject": string;
+};
+export type NetOpenfederationContactBlockOutput = {
+  "success": boolean;
+};
+export type NetOpenfederationContactBlockError = "InvalidRequest";
+
+export type NetOpenfederationContactContactInput = undefined;
+export type NetOpenfederationContactContactOutput = undefined;
+export type NetOpenfederationContactContactError = never;
+
+export type NetOpenfederationContactListInput = {
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListOutput = {
+  "contacts": Array<{
+  "did": string;
+  "handle": string;
+  "displayName"?: string;
+  "avatarUrl"?: string;
+  "tags"?: Array<string>;
+  "acceptedAt": string;
+}>;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListError = never;
+
+export type NetOpenfederationContactListBlocksInput = {
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListBlocksOutput = {
+  "blocks": Array<{
+  "did": string;
+  "handle"?: string;
+  "createdAt": string;
+}>;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListBlocksError = never;
+
+export type NetOpenfederationContactListFriendOfFriendsInput = {
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListFriendOfFriendsOutput = {
+  "suggestions": Array<{
+  "did": string;
+  "handle": string;
+  "displayName"?: string;
+  "mutualCount": number;
+}>;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListFriendOfFriendsError = never;
+
+export type NetOpenfederationContactListIncomingRequestsInput = {
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListIncomingRequestsOutput = {
+  "requests": Array<{
+  "rkey": string;
+  "fromDid": string;
+  "fromHandle": string;
+  "fromDisplayName"?: string;
+  "fromAvatarUrl"?: string;
+  "note"?: string;
+  "createdAt": string;
+}>;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListIncomingRequestsError = never;
+
+export type NetOpenfederationContactListMutualContactsInput = {
+  "subject": string;
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListMutualContactsOutput = {
+  "contacts": Array<{
+  "did": string;
+  "handle": string;
+  "displayName"?: string;
+}>;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListMutualContactsError = "NotFound";
+
+export type NetOpenfederationContactListOutgoingRequestsInput = {
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListOutgoingRequestsOutput = {
+  "requests": Array<{
+  "rkey": string;
+  "toDid": string;
+  "toHandle": string;
+  "toDisplayName"?: string;
+  "toAvatarUrl"?: string;
+  "note"?: string;
+  "createdAt": string;
+}>;
+  "cursor"?: string;
+};
+export type NetOpenfederationContactListOutgoingRequestsError = never;
+
+export type NetOpenfederationContactRemoveContactInput = {
+  "subject": string;
+};
+export type NetOpenfederationContactRemoveContactOutput = {
+  "success": boolean;
+};
+export type NetOpenfederationContactRemoveContactError = "InvalidRequest" | "NotFound";
+
+export type NetOpenfederationContactRequestInput = undefined;
+export type NetOpenfederationContactRequestOutput = undefined;
+export type NetOpenfederationContactRequestError = never;
+
+export type NetOpenfederationContactRespondToRequestInput = {
+  "rkey": string;
+  "action": string;
+};
+export type NetOpenfederationContactRespondToRequestOutput = {
+  "success": boolean;
+};
+export type NetOpenfederationContactRespondToRequestError = "InvalidRequest" | "NotFound";
+
+export type NetOpenfederationContactSendRequestInput = {
+  "subject": string;
+  "note"?: string;
+};
+export type NetOpenfederationContactSendRequestOutput = {
+  "rkey": string;
+  "uri": string;
+  "cid"?: string;
+};
+export type NetOpenfederationContactSendRequestError = "AlreadyExists" | "Blocked" | "InvalidRequest";
+
+export type NetOpenfederationContactUnblockInput = {
+  "subject": string;
+};
+export type NetOpenfederationContactUnblockOutput = {
+  "success": boolean;
+};
+export type NetOpenfederationContactUnblockError = "NotFound";
+
+export type NetOpenfederationContactWithdrawRequestInput = {
+  "rkey": string;
+};
+export type NetOpenfederationContactWithdrawRequestOutput = {
+  "success": boolean;
+};
+export type NetOpenfederationContactWithdrawRequestError = "NotFound";
 
 export type NetOpenfederationDisclosureAuditLogInput = {
   "communityDid"?: string;
@@ -1287,6 +1448,39 @@ export type NetOpenfederationInviteListOutput = {
   "offset": number;
 };
 export type NetOpenfederationInviteListError = "InvalidRequest";
+
+export type NetOpenfederationNotificationListInput = {
+  "category"?: string;
+  "unreadOnly"?: boolean;
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationNotificationListOutput = {
+  "notifications": Array<{
+  "id": string;
+  "category": string;
+  "payload": unknown;
+  "createdAt": string;
+  "readAt"?: string;
+}>;
+  "cursor"?: string;
+};
+export type NetOpenfederationNotificationListError = never;
+
+export type NetOpenfederationNotificationMarkReadInput = {
+  "ids": unknown;
+};
+export type NetOpenfederationNotificationMarkReadOutput = {
+  "marked": number;
+};
+export type NetOpenfederationNotificationMarkReadError = never;
+
+export type NetOpenfederationNotificationUnreadCountInput = JsonObject;
+export type NetOpenfederationNotificationUnreadCountOutput = {
+  "count": number;
+  "byCategory"?: unknown;
+};
+export type NetOpenfederationNotificationUnreadCountError = never;
 
 export type NetOpenfederationOracleCreateCredentialInput = {
   "communityDid": string;
@@ -1678,6 +1872,20 @@ export interface LexiconInputMap {
   'net.openfederation.community.verifyAttestation': NetOpenfederationCommunityVerifyAttestationInput;
   'net.openfederation.community.verifyMembership': NetOpenfederationCommunityVerifyMembershipInput;
   'net.openfederation.community.voteOnProposal': NetOpenfederationCommunityVoteOnProposalInput;
+  'net.openfederation.contact.block': NetOpenfederationContactBlockInput;
+  'net.openfederation.contact.contact': NetOpenfederationContactContactInput;
+  'net.openfederation.contact.list': NetOpenfederationContactListInput;
+  'net.openfederation.contact.listBlocks': NetOpenfederationContactListBlocksInput;
+  'net.openfederation.contact.listFriendOfFriends': NetOpenfederationContactListFriendOfFriendsInput;
+  'net.openfederation.contact.listIncomingRequests': NetOpenfederationContactListIncomingRequestsInput;
+  'net.openfederation.contact.listMutualContacts': NetOpenfederationContactListMutualContactsInput;
+  'net.openfederation.contact.listOutgoingRequests': NetOpenfederationContactListOutgoingRequestsInput;
+  'net.openfederation.contact.removeContact': NetOpenfederationContactRemoveContactInput;
+  'net.openfederation.contact.request': NetOpenfederationContactRequestInput;
+  'net.openfederation.contact.respondToRequest': NetOpenfederationContactRespondToRequestInput;
+  'net.openfederation.contact.sendRequest': NetOpenfederationContactSendRequestInput;
+  'net.openfederation.contact.unblock': NetOpenfederationContactUnblockInput;
+  'net.openfederation.contact.withdrawRequest': NetOpenfederationContactWithdrawRequestInput;
   'net.openfederation.disclosure.auditLog': NetOpenfederationDisclosureAuditLogInput;
   'net.openfederation.disclosure.grantStatus': NetOpenfederationDisclosureGrantStatusInput;
   'net.openfederation.disclosure.redeemGrant': NetOpenfederationDisclosureRedeemGrantInput;
@@ -1702,6 +1910,9 @@ export interface LexiconInputMap {
   'net.openfederation.identity.unlinkWallet': NetOpenfederationIdentityUnlinkWalletInput;
   'net.openfederation.invite.create': NetOpenfederationInviteCreateInput;
   'net.openfederation.invite.list': NetOpenfederationInviteListInput;
+  'net.openfederation.notification.list': NetOpenfederationNotificationListInput;
+  'net.openfederation.notification.markRead': NetOpenfederationNotificationMarkReadInput;
+  'net.openfederation.notification.unreadCount': NetOpenfederationNotificationUnreadCountInput;
   'net.openfederation.oracle.createCredential': NetOpenfederationOracleCreateCredentialInput;
   'net.openfederation.oracle.listCredentials': NetOpenfederationOracleListCredentialsInput;
   'net.openfederation.oracle.revokeCredential': NetOpenfederationOracleRevokeCredentialInput;
@@ -1817,6 +2028,20 @@ export interface LexiconOutputMap {
   'net.openfederation.community.verifyAttestation': NetOpenfederationCommunityVerifyAttestationOutput;
   'net.openfederation.community.verifyMembership': NetOpenfederationCommunityVerifyMembershipOutput;
   'net.openfederation.community.voteOnProposal': NetOpenfederationCommunityVoteOnProposalOutput;
+  'net.openfederation.contact.block': NetOpenfederationContactBlockOutput;
+  'net.openfederation.contact.contact': NetOpenfederationContactContactOutput;
+  'net.openfederation.contact.list': NetOpenfederationContactListOutput;
+  'net.openfederation.contact.listBlocks': NetOpenfederationContactListBlocksOutput;
+  'net.openfederation.contact.listFriendOfFriends': NetOpenfederationContactListFriendOfFriendsOutput;
+  'net.openfederation.contact.listIncomingRequests': NetOpenfederationContactListIncomingRequestsOutput;
+  'net.openfederation.contact.listMutualContacts': NetOpenfederationContactListMutualContactsOutput;
+  'net.openfederation.contact.listOutgoingRequests': NetOpenfederationContactListOutgoingRequestsOutput;
+  'net.openfederation.contact.removeContact': NetOpenfederationContactRemoveContactOutput;
+  'net.openfederation.contact.request': NetOpenfederationContactRequestOutput;
+  'net.openfederation.contact.respondToRequest': NetOpenfederationContactRespondToRequestOutput;
+  'net.openfederation.contact.sendRequest': NetOpenfederationContactSendRequestOutput;
+  'net.openfederation.contact.unblock': NetOpenfederationContactUnblockOutput;
+  'net.openfederation.contact.withdrawRequest': NetOpenfederationContactWithdrawRequestOutput;
   'net.openfederation.disclosure.auditLog': NetOpenfederationDisclosureAuditLogOutput;
   'net.openfederation.disclosure.grantStatus': NetOpenfederationDisclosureGrantStatusOutput;
   'net.openfederation.disclosure.redeemGrant': NetOpenfederationDisclosureRedeemGrantOutput;
@@ -1841,6 +2066,9 @@ export interface LexiconOutputMap {
   'net.openfederation.identity.unlinkWallet': NetOpenfederationIdentityUnlinkWalletOutput;
   'net.openfederation.invite.create': NetOpenfederationInviteCreateOutput;
   'net.openfederation.invite.list': NetOpenfederationInviteListOutput;
+  'net.openfederation.notification.list': NetOpenfederationNotificationListOutput;
+  'net.openfederation.notification.markRead': NetOpenfederationNotificationMarkReadOutput;
+  'net.openfederation.notification.unreadCount': NetOpenfederationNotificationUnreadCountOutput;
   'net.openfederation.oracle.createCredential': NetOpenfederationOracleCreateCredentialOutput;
   'net.openfederation.oracle.listCredentials': NetOpenfederationOracleListCredentialsOutput;
   'net.openfederation.oracle.revokeCredential': NetOpenfederationOracleRevokeCredentialOutput;
@@ -1956,6 +2184,20 @@ export interface LexiconErrorMap {
   'net.openfederation.community.verifyAttestation': NetOpenfederationCommunityVerifyAttestationError;
   'net.openfederation.community.verifyMembership': NetOpenfederationCommunityVerifyMembershipError;
   'net.openfederation.community.voteOnProposal': NetOpenfederationCommunityVoteOnProposalError;
+  'net.openfederation.contact.block': NetOpenfederationContactBlockError;
+  'net.openfederation.contact.contact': NetOpenfederationContactContactError;
+  'net.openfederation.contact.list': NetOpenfederationContactListError;
+  'net.openfederation.contact.listBlocks': NetOpenfederationContactListBlocksError;
+  'net.openfederation.contact.listFriendOfFriends': NetOpenfederationContactListFriendOfFriendsError;
+  'net.openfederation.contact.listIncomingRequests': NetOpenfederationContactListIncomingRequestsError;
+  'net.openfederation.contact.listMutualContacts': NetOpenfederationContactListMutualContactsError;
+  'net.openfederation.contact.listOutgoingRequests': NetOpenfederationContactListOutgoingRequestsError;
+  'net.openfederation.contact.removeContact': NetOpenfederationContactRemoveContactError;
+  'net.openfederation.contact.request': NetOpenfederationContactRequestError;
+  'net.openfederation.contact.respondToRequest': NetOpenfederationContactRespondToRequestError;
+  'net.openfederation.contact.sendRequest': NetOpenfederationContactSendRequestError;
+  'net.openfederation.contact.unblock': NetOpenfederationContactUnblockError;
+  'net.openfederation.contact.withdrawRequest': NetOpenfederationContactWithdrawRequestError;
   'net.openfederation.disclosure.auditLog': NetOpenfederationDisclosureAuditLogError;
   'net.openfederation.disclosure.grantStatus': NetOpenfederationDisclosureGrantStatusError;
   'net.openfederation.disclosure.redeemGrant': NetOpenfederationDisclosureRedeemGrantError;
@@ -1980,6 +2222,9 @@ export interface LexiconErrorMap {
   'net.openfederation.identity.unlinkWallet': NetOpenfederationIdentityUnlinkWalletError;
   'net.openfederation.invite.create': NetOpenfederationInviteCreateError;
   'net.openfederation.invite.list': NetOpenfederationInviteListError;
+  'net.openfederation.notification.list': NetOpenfederationNotificationListError;
+  'net.openfederation.notification.markRead': NetOpenfederationNotificationMarkReadError;
+  'net.openfederation.notification.unreadCount': NetOpenfederationNotificationUnreadCountError;
   'net.openfederation.oracle.createCredential': NetOpenfederationOracleCreateCredentialError;
   'net.openfederation.oracle.listCredentials': NetOpenfederationOracleListCredentialsError;
   'net.openfederation.oracle.revokeCredential': NetOpenfederationOracleRevokeCredentialError;
@@ -2075,9 +2320,9 @@ export const lexiconContracts = {
   'net.openfederation.community.linkApplication': { revision: 1, errors: ["Conflict", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listAll': { revision: 1, errors: [] as const },
   'net.openfederation.community.listApplications': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.listAttestations': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.community.listAttestations': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.listJoinRequests': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.listMembers': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.listMembers': { revision: 3, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listMine': { revision: 1, errors: [] as const },
   'net.openfederation.community.listProposals': { revision: 1, errors: [] as const },
   'net.openfederation.community.listRoles': { revision: 1, errors: ["InvalidRequest"] as const },
@@ -2097,6 +2342,20 @@ export const lexiconContracts = {
   'net.openfederation.community.verifyAttestation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.verifyMembership': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.voteOnProposal': { revision: 1, errors: ["AlreadyVoted", "InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
+  'net.openfederation.contact.block': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.contact.contact': { revision: 1, errors: [] as const },
+  'net.openfederation.contact.list': { revision: 1, errors: [] as const },
+  'net.openfederation.contact.listBlocks': { revision: 1, errors: [] as const },
+  'net.openfederation.contact.listFriendOfFriends': { revision: 1, errors: [] as const },
+  'net.openfederation.contact.listIncomingRequests': { revision: 1, errors: [] as const },
+  'net.openfederation.contact.listMutualContacts': { revision: 1, errors: ["NotFound"] as const },
+  'net.openfederation.contact.listOutgoingRequests': { revision: 1, errors: [] as const },
+  'net.openfederation.contact.removeContact': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
+  'net.openfederation.contact.request': { revision: 1, errors: [] as const },
+  'net.openfederation.contact.respondToRequest': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
+  'net.openfederation.contact.sendRequest': { revision: 2, errors: ["AlreadyExists", "Blocked", "InvalidRequest"] as const },
+  'net.openfederation.contact.unblock': { revision: 1, errors: ["NotFound"] as const },
+  'net.openfederation.contact.withdrawRequest': { revision: 1, errors: ["NotFound"] as const },
   'net.openfederation.disclosure.auditLog': { revision: 1, errors: ["Forbidden", "InvalidRequest"] as const },
   'net.openfederation.disclosure.grantStatus': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.disclosure.redeemGrant': { revision: 1, errors: ["Forbidden", "GrantExpired", "GrantRevoked", "InvalidRequest", "NotFound"] as const },
@@ -2121,6 +2380,9 @@ export const lexiconContracts = {
   'net.openfederation.identity.unlinkWallet': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.invite.create': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.invite.list': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.notification.list': { revision: 1, errors: [] as const },
+  'net.openfederation.notification.markRead': { revision: 1, errors: [] as const },
+  'net.openfederation.notification.unreadCount': { revision: 1, errors: [] as const },
   'net.openfederation.oracle.createCredential': { revision: 1, errors: ["CredentialExists", "InvalidRequest"] as const },
   'net.openfederation.oracle.listCredentials': { revision: 1, errors: [] as const },
   'net.openfederation.oracle.revokeCredential': { revision: 1, errors: ["NotFound"] as const },
