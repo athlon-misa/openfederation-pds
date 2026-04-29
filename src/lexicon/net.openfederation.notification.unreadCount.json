@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.notification.unreadCount",
+  "revision": 1,
+  "description": "Return the caller's unread notification count, broken down by category.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Quick badge-count endpoint — no pagination needed.",
+      "parameters": {
+        "type": "params",
+        "properties": {}
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["count"],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "description": "Total unread notifications."
+            },
+            "byCategory": {
+              "type": "unknown",
+              "description": "Map of category → unread count."
+            }
+          }
+        }
+      }
+    }
+  }
+}

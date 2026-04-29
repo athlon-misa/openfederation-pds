@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.contact.sendRequest",
-  "revision": 1,
+  "revision": 2,
   "description": "Send a contact request to another user. Creates a request record on the caller's repo.",
   "defs": {
     "main": {
@@ -51,6 +51,10 @@
         {
           "name": "AlreadyExists",
           "description": "A pending request or accepted contact already exists between these users."
+        },
+        {
+          "name": "Blocked",
+          "description": "One party has blocked the other."
         }
       ]
     }

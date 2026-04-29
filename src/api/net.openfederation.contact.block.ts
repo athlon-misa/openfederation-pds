@@ -1,0 +1,22 @@
+import { Response } from 'express';
+import type { AuthRequest } from '../auth/types.js';
+import { requireAuth } from '../auth/guards.js';
+import { renderXrpcError, XrpcError } from '../xrpc/errors.js';
+import { blockContact } from '../contact/index.js';
+
+const NSID = 'net.openfederation.contact.block';
+
+export default async function block(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!requireAuth(req, res)) return;
+    const { subject } = req.body ?? {};
+    if (!subject) { res.status(400).json({ error: 'InvalidRequest', message: 'Missing required field: subject' }); return; }
+    await blockContact(req.auth!, subject).catch(err => {
+      if (err.code && err.status) throw new XrpcError(NSID, err.code, err.status, err.message);
+      throw err;
+    });
+    res.status(200).json({ success: true });
+  } catch (error) {
+    renderXrpcError(NSID, res, error);
+  }
+}

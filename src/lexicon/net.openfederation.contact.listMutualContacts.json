@@ -1,0 +1,64 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.listMutualContacts",
+  "revision": 1,
+  "description": "List contacts shared between the caller and another user. Requires an accepted contact relationship with the subject.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve DIDs that appear in both the caller's and the subject's contact list.",
+      "parameters": {
+        "type": "params",
+        "required": ["subject"],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "DID of the other party (must be an accepted contact of the caller)."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "Subject is not an accepted contact of the caller."
+        }
+      ]
+    },
+    "contactItem": {
+      "type": "object",
+      "required": ["did", "handle"],
+      "properties": {
+        "did": { "type": "string" },
+        "handle": { "type": "string" },
+        "displayName": { "type": "string" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["contacts"],
+      "properties": {
+        "contacts": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "#contactItem" }
+        },
+        "cursor": { "type": "string" }
+      }
+    }
+  }
+}

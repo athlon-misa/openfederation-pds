@@ -153,6 +153,15 @@ import removeContactHandler from '../api/net.openfederation.contact.removeContac
 import listContacts from '../api/net.openfederation.contact.list.js';
 import listIncomingContactRequests from '../api/net.openfederation.contact.listIncomingRequests.js';
 import listOutgoingContactRequests from '../api/net.openfederation.contact.listOutgoingRequests.js';
+import withdrawContactRequest from '../api/net.openfederation.contact.withdrawRequest.js';
+import blockContact from '../api/net.openfederation.contact.block.js';
+import unblockContact from '../api/net.openfederation.contact.unblock.js';
+import listBlocksHandler from '../api/net.openfederation.contact.listBlocks.js';
+import listMutualContactsHandler from '../api/net.openfederation.contact.listMutualContacts.js';
+import listFriendOfFriendsHandler from '../api/net.openfederation.contact.listFriendOfFriends.js';
+import listNotificationsHandler from '../api/net.openfederation.notification.list.js';
+import markReadHandler from '../api/net.openfederation.notification.markRead.js';
+import unreadCountHandler from '../api/net.openfederation.notification.unreadCount.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -503,9 +512,20 @@ const handlers = Object.freeze({
   'net.openfederation.contact.sendRequest': { handler: sendContactRequest },
   'net.openfederation.contact.respondToRequest': { handler: respondToContactRequest },
   'net.openfederation.contact.removeContact': { handler: removeContactHandler },
+  'net.openfederation.contact.withdrawRequest': { handler: withdrawContactRequest },
   'net.openfederation.contact.list': { handler: listContacts },
   'net.openfederation.contact.listIncomingRequests': { handler: listIncomingContactRequests },
   'net.openfederation.contact.listOutgoingRequests': { handler: listOutgoingContactRequests },
+  'net.openfederation.contact.block': { handler: blockContact },
+  'net.openfederation.contact.unblock': { handler: unblockContact },
+  'net.openfederation.contact.listBlocks': { handler: listBlocksHandler },
+  'net.openfederation.contact.listMutualContacts': { handler: listMutualContactsHandler },
+  'net.openfederation.contact.listFriendOfFriends': { handler: listFriendOfFriendsHandler },
+
+  // Notifications
+  'net.openfederation.notification.list': { handler: listNotificationsHandler },
+  'net.openfederation.notification.markRead': { handler: markReadHandler },
+  'net.openfederation.notification.unreadCount': { handler: unreadCountHandler },
 } satisfies Readonly<Partial<Record<LexiconNsid, HandlerEntry>>>);
 const handlerRegistry: Readonly<Record<string, HandlerEntry | undefined>> = handlers;
 

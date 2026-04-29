@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
+import { resolveExternalHandle } from '../identity/external-handle-resolver.js';
 
 /**
  * com.atproto.identity.resolveHandle
@@ -51,16 +52,23 @@ export default async function resolveHandle(req: Request, res: Response): Promis
       query<{ did: string }>('SELECT did FROM communities WHERE handle = $1', [bare]),
     ]);
 
-    const did = userResult.rows[0]?.did ?? communityResult.rows[0]?.did;
-    if (!did) {
-      res.status(400).json({
-        error: 'HandleNotFound',
-        message: `No user or community on this PDS has the handle "${rawHandle}"`,
-      });
+    const localDid = userResult.rows[0]?.did ?? communityResult.rows[0]?.did;
+    if (localDid) {
+      res.status(200).json({ did: localDid });
       return;
     }
 
-    res.status(200).json({ did });
+    // Fall back to cross-PDS resolution via DNS TXT / well-known (#69)
+    const externalDid = await resolveExternalHandle(normalized);
+    if (externalDid) {
+      res.status(200).json({ did: externalDid });
+      return;
+    }
+
+    res.status(400).json({
+      error: 'HandleNotFound',
+      message: `Could not resolve handle "${rawHandle}"`,
+    });
   } catch (err) {
     console.error('Error resolving handle:', err);
     res.status(500).json({

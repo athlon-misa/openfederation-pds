@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.withdrawRequest",
+  "revision": 1,
+  "description": "Withdraw an outgoing contact request before it has been accepted or rejected.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Cancel a pending outgoing contact request.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["rkey"],
+          "properties": {
+            "rkey": {
+              "type": "string",
+              "description": "rkey of the caller's own request record (as returned by listOutgoingRequests)."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["success"],
+          "properties": {
+            "success": { "type": "boolean" }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "No outgoing request with the given rkey, or already resolved."
+        }
+      ]
+    }
+  }
+}

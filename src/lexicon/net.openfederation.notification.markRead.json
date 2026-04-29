@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.notification.markRead",
+  "revision": 1,
+  "description": "Mark one or more notifications as read.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Mark notifications read by ID list or all at once.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["ids"],
+          "properties": {
+            "ids": {
+              "type": "union",
+              "refs": [],
+              "description": "Array of notification UUIDs, or the string 'all' to mark every unread notification as read."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["marked"],
+          "properties": {
+            "marked": {
+              "type": "integer",
+              "description": "Number of notifications marked as read."
+            }
+          }
+        }
+      }
+    }
+  }
+}

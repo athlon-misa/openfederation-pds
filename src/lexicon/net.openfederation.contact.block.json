@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.block",
+  "revision": 1,
+  "description": "Block a user. Creates a block record on the caller's repo, removes any existing contact or pending request, and prevents future contact requests from the blocked DID.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Block a user.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject"],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "DID of the user to block."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["success"],
+          "properties": {
+            "success": { "type": "boolean" }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid subject DID, or cannot block yourself."
+        }
+      ]
+    }
+  }
+}

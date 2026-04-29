@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.listBlocks",
+  "revision": 1,
+  "description": "List the caller's blocked DIDs, paginated.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Retrieve the caller's block list.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      }
+    },
+    "blockItem": {
+      "type": "object",
+      "required": ["did", "createdAt"],
+      "properties": {
+        "did": { "type": "string" },
+        "handle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "datetime" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["blocks"],
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "items": { "type": "ref", "ref": "#blockItem" }
+        },
+        "cursor": { "type": "string" }
+      }
+    }
+  }
+}

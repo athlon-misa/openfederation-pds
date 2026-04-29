@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.contact.unblock",
+  "revision": 1,
+  "description": "Remove a block. Does not restore any prior contact relationship.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Unblock a previously blocked user.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["subject"],
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "DID of the user to unblock."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["success"],
+          "properties": {
+            "success": { "type": "boolean" }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "The given DID is not blocked."
+        }
+      ]
+    }
+  }
+}
