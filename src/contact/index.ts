@@ -2,7 +2,7 @@ import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import type { AuthContext } from '../auth/types.js';
-import { resolveDisplayFields } from '../community/display-projection.js';
+import { resolveDisplayFields, batchResolveOptionalDisplayFields } from '../community/display-projection.js';
 import { createNotification } from '../notification/index.js';
 
 const REQUEST_COLLECTION = 'net.openfederation.contact.request';
@@ -241,12 +241,19 @@ export async function listContacts(
     nextCursor = rows[rows.length - 1].rkey;
   }
 
-  const contacts = rows.map(row => ({
-    did: row.contact_did,
-    handle: row.handle ?? row.contact_did,
-    acceptedAt: new Date(row.accepted_at).toISOString(),
-    ...(Array.isArray(row.tags) && row.tags.length > 0 ? { tags: row.tags } : {}),
-  }));
+  const displayMap = await batchResolveOptionalDisplayFields(rows.map(r => r.contact_did));
+
+  const contacts = rows.map(row => {
+    const display = displayMap.get(row.contact_did) ?? {};
+    return {
+      did: row.contact_did,
+      handle: row.handle ?? row.contact_did,
+      ...(display.displayName ? { displayName: display.displayName } : {}),
+      ...(display.avatarUrl ? { avatarUrl: display.avatarUrl } : {}),
+      acceptedAt: new Date(row.accepted_at).toISOString(),
+      ...(Array.isArray(row.tags) && row.tags.length > 0 ? { tags: row.tags } : {}),
+    };
+  });
 
   return {
     contacts,
@@ -295,13 +302,20 @@ export async function listIncomingRequests(
     nextCursor = rows[rows.length - 1].rkey;
   }
 
-  const requests = rows.map(row => ({
-    rkey: row.rkey,
-    fromDid: row.from_did,
-    fromHandle: row.handle ?? row.from_did,
-    createdAt: new Date(row.created_at).toISOString(),
-    ...(row.note ? { note: row.note } : {}),
-  }));
+  const displayMap = await batchResolveOptionalDisplayFields(rows.map(r => r.from_did));
+
+  const requests = rows.map(row => {
+    const display = displayMap.get(row.from_did) ?? {};
+    return {
+      rkey: row.rkey,
+      fromDid: row.from_did,
+      fromHandle: row.handle ?? row.from_did,
+      ...(display.displayName ? { fromDisplayName: display.displayName } : {}),
+      ...(display.avatarUrl ? { fromAvatarUrl: display.avatarUrl } : {}),
+      createdAt: new Date(row.created_at).toISOString(),
+      ...(row.note ? { note: row.note } : {}),
+    };
+  });
 
   return {
     requests,
@@ -350,13 +364,20 @@ export async function listOutgoingRequests(
     nextCursor = rows[rows.length - 1].rkey;
   }
 
-  const requests = rows.map(row => ({
-    rkey: row.rkey,
-    toDid: row.to_did,
-    toHandle: row.handle ?? row.to_did,
-    createdAt: new Date(row.created_at).toISOString(),
-    ...(row.note ? { note: row.note } : {}),
-  }));
+  const displayMap = await batchResolveOptionalDisplayFields(rows.map(r => r.to_did));
+
+  const requests = rows.map(row => {
+    const display = displayMap.get(row.to_did) ?? {};
+    return {
+      rkey: row.rkey,
+      toDid: row.to_did,
+      toHandle: row.handle ?? row.to_did,
+      ...(display.displayName ? { toDisplayName: display.displayName } : {}),
+      ...(display.avatarUrl ? { toAvatarUrl: display.avatarUrl } : {}),
+      createdAt: new Date(row.created_at).toISOString(),
+      ...(row.note ? { note: row.note } : {}),
+    };
+  });
 
   return {
     requests,

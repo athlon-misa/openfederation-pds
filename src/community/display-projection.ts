@@ -5,6 +5,48 @@ export type DisplayFields = {
   avatarUrl: string | null;
 };
 
+export type OptionalDisplayFields = {
+  displayName?: string;
+  avatarUrl?: string;
+};
+
+/**
+ * Batch-resolve optional display fields for a list of DIDs.
+ * Returns a Map keyed by DID. Fields are absent (not null) when no profile record exists.
+ * One SQL query for the entire batch — safe for up to ~100 DIDs.
+ */
+export async function batchResolveOptionalDisplayFields(
+  dids: string[],
+): Promise<Map<string, OptionalDisplayFields>> {
+  const result = new Map<string, OptionalDisplayFields>();
+  if (dids.length === 0) return result;
+
+  const rows = await query<{ community_did: string; collection: string; record: any }>(
+    `SELECT community_did, collection, record
+     FROM records_index
+     WHERE community_did = ANY($1)
+       AND collection LIKE '%.actor.profile'
+       AND rkey = 'self'
+     ORDER BY community_did,
+              CASE WHEN collection = 'app.bsky.actor.profile' THEN 1 ELSE 0 END ASC`,
+    [dids],
+  );
+
+  // For each DID take the first row (non-bsky sorted first = higher priority)
+  for (const row of rows.rows) {
+    if (result.has(row.community_did)) continue;
+    const profile = row.record ?? {};
+    const fields: OptionalDisplayFields = {};
+    const dn = profile.displayName;
+    const av = profile.avatarUrl ?? profile.avatar;
+    if (dn) fields.displayName = dn;
+    if (av) fields.avatarUrl = av;
+    result.set(row.community_did, fields);
+  }
+
+  return result;
+}
+
 /**
  * Resolve the display name and avatar URL for a user DID by looking at
  * their profile records in records_index.
