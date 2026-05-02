@@ -4,6 +4,7 @@ import type { UserRole } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 
 const VALID_ROLES: UserRole[] = ['admin', 'moderator', 'partner-manager', 'auditor', 'user'];
 
@@ -93,6 +94,8 @@ export default async function updateRoles(req: AuthRequest, res: Response): Prom
       removed: toRemove.length > 0 ? toRemove : undefined,
       currentRoles,
     });
+
+    invalidateAuthContext(user.did);
 
     res.status(200).json({
       did: user.did,

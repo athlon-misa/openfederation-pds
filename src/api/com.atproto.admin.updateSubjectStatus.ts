@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 
 /**
  * com.atproto.admin.updateSubjectStatus
@@ -186,6 +187,11 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
     );
 
     const currentStatus = updated.rows[0]?.status || user.status;
+
+    // Cached AuthContext entries for OAuth/service-auth callers carry
+    // the old status — invalidate so the new state takes effect on the
+    // next request rather than after the 60s TTL.
+    invalidateAuthContext(did);
 
     res.status(200).json({
       subject: { $type: 'com.atproto.admin.defs#repoRef', did },

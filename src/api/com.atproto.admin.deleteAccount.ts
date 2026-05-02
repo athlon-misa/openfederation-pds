@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 
 /**
  * com.atproto.admin.deleteAccount
@@ -77,6 +78,8 @@ export default async function adminDeleteAccount(req: AuthRequest, res: Response
       // Delete the user record
       await client.query('DELETE FROM users WHERE id = $1', [user.id]);
     });
+
+    invalidateAuthContext(user.did);
 
     res.status(200).json({ success: true });
   } catch (error) {

@@ -12,6 +12,7 @@ import { isValidPartnerKeyFormat, hashPartnerKey } from './partner-keys.js';
 import { isValidOracleKeyFormat, hashOracleKey } from './oracle-keys.js';
 import type { PartnerContext } from './partner-guard.js';
 import type { OracleContext } from './oracle-guard.js';
+import { getCachedAuthContext, setCachedAuthContext } from './auth-context-cache.js';
 
 type OAuthVerifier = {
   authenticateRequest(
@@ -160,6 +161,12 @@ async function authContextForLocalDid(
   did: string,
   authMethod: 'oauth' | 'service-auth',
 ): Promise<AuthContext | null> {
+  const cached = getCachedAuthContext(authMethod, did);
+  if (cached) return cached;
+
+  // Two queries on cache miss (sequential because the second one needs
+  // user.id from the first). The cache absorbs the cost across the next
+  // 60s of requests for the same DID.
   const userResult = await query<{ id: string; handle: string; email: string; status: string }>(
     'SELECT id, handle, email, status FROM users WHERE did = $1',
     [did],
@@ -173,7 +180,7 @@ async function authContextForLocalDid(
     [user.id],
   );
 
-  return {
+  const context: AuthContext = {
     userId: user.id,
     handle: user.handle,
     email: user.email || '',
@@ -182,6 +189,8 @@ async function authContextForLocalDid(
     roles: roleResult.rows.map(r => r.role) as UserRole[],
     authMethod,
   };
+  setCachedAuthContext(authMethod, did, context);
+  return context;
 }
 
 interface PartnerRow {
