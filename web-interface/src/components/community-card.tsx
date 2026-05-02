@@ -1,4 +1,8 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import type { CommunityListItem } from '@/lib/api/types';
 import {
   Card,
@@ -7,10 +11,29 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { communityKeys } from '@/hooks/use-communities';
+import { getCommunity } from '@/lib/api/communities';
+import { unwrapApi } from '@/lib/api/unwrap';
 
 export function CommunityCard({ community }: { community: CommunityListItem }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const href = `/communities/${encodeURIComponent(community.did)}`;
+
+  // Prefetch the route bundle + the detail data the moment the user
+  // intends to navigate (hover or focus). On click the page renders
+  // from cache instead of waiting for the round-trip.
+  const prefetch = () => {
+    router.prefetch(href);
+    queryClient.prefetchQuery({
+      queryKey: communityKeys.detail(community.did),
+      queryFn: async () => unwrapApi(await getCommunity(community.did)),
+      staleTime: 60 * 1000,
+    });
+  };
+
   return (
-    <Link href={`/communities/${encodeURIComponent(community.did)}`}>
+    <Link href={href} prefetch onMouseEnter={prefetch} onFocus={prefetch}>
       <Card className="hover:bg-muted/50 transition-colors">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
