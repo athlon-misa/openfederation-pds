@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requirePartnerAuth } from '../auth/guards.js';
-import { getClient, query } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
 import { createUserIdentity } from '../identity/user-identity.js';
@@ -24,7 +24,7 @@ interface PartnerRegisterInput {
 
 export default async function partnerRegister(req: AuthRequest, res: Response): Promise<void> {
   if (!requirePartnerAuth(req, res, 'register')) return;
-  const partner = req.partnerAuth;
+  const partner = req.partnerAuth!;
 
   const input: PartnerRegisterInput = req.body;
 
@@ -45,7 +45,7 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
     `SELECT COUNT(*) as count FROM users
      WHERE created_by_partner = $1
      AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
-    [partner.partnerId]
+    [partner.partnerId],
   );
   const recentCount = parseInt(rateResult.rows[0].count, 10);
   if (recentCount >= partner.rateLimitPerHour) {
@@ -56,67 +56,53 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
     return;
   }
 
-  const client = await getClient();
   try {
-    await client.query('BEGIN');
-
-    try {
+    const result = await withTransaction(async (client) => {
       await ensureHandleEmailAvailable(client, handle, email);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      if (err instanceof RegistrationValidationError) {
-        res.status(err.status).json({ error: err.code, message: err.message });
-        return;
+
+      let identity;
+      let passwordHash: string;
+      try {
+        [identity, passwordHash] = await Promise.all([
+          createUserIdentity(handle),
+          hashPassword(password),
+        ]);
+      } catch (err) {
+        console.error('Error creating user identity (partner register):', err);
+        throw new RegistrationValidationError(
+          500,
+          'IdentityCreationFailed',
+          'Failed to create user identity. Please try again.',
+        );
       }
-      throw err;
-    }
 
-    // Create identity and hash password in parallel (independent operations)
-    let identity;
-    let passwordHash: string;
-    try {
-      [identity, passwordHash] = await Promise.all([
-        createUserIdentity(handle),
-        hashPassword(password),
-      ]);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      console.error('Error creating user identity (partner register):', err);
-      res.status(500).json({
-        error: 'IdentityCreationFailed',
-        message: 'Failed to create user identity. Please try again.',
+      const userId = crypto.randomUUID();
+
+      await insertUserWithRole(client, {
+        userId,
+        handle,
+        email,
+        passwordHash,
+        did: identity.did,
+        status: 'approved',
+        createdByPartner: partner.partnerId,
       });
-      return;
-    }
 
-    const userId = crypto.randomUUID();
+      await client.query(
+        `UPDATE partner_keys SET total_registrations = total_registrations + 1 WHERE id = $1`,
+        [partner.partnerId],
+      );
 
-    await insertUserWithRole(client, {
-      userId,
-      handle,
-      email,
-      passwordHash,
-      did: identity.did,
-      status: 'approved',
-      createdByPartner: partner.partnerId,
+      return { userId, identity };
     });
 
-    // Increment partner registration count
-    await client.query(
-      `UPDATE partner_keys SET total_registrations = total_registrations + 1 WHERE id = $1`,
-      [partner.partnerId]
-    );
+    await initializeUserRepoAsync(result.identity.did, handle, result.identity.signingKeyBase64);
 
-    await client.query('COMMIT');
-
-    await initializeUserRepoAsync(identity.did, handle, identity.signingKeyBase64);
-
-    // Create session and issue tokens
     const accessJwt = await signAccessToken({
-      userId,
+      userId: result.userId,
       handle,
       email,
-      did: identity.did,
+      did: result.identity.did,
       status: 'approved' as UserStatus,
       roles: ['user'],
     });
@@ -128,34 +114,34 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
     await query(
       `INSERT INTO sessions (id, user_id, refresh_token_hash, expires_at)
        VALUES ($1, $2, $3, $4)`,
-      [sessionId, userId, hash, expiresAt.toISOString()]
+      [sessionId, result.userId, hash, expiresAt.toISOString()],
     );
 
-    // Audit log (fire-and-forget)
-    auditLog('partner.register', partner.partnerId, userId, {
+    auditLog('partner.register', partner.partnerId, result.userId, {
       handle,
       partnerName: partner.partnerName,
-      did: identity.did,
+      did: result.identity.did,
     }).catch(() => {});
 
     res.status(201).json({
-      id: userId,
+      id: result.userId,
       handle,
-      did: identity.did,
+      did: result.identity.did,
       email,
       status: 'approved',
       accessJwt,
       refreshJwt,
       active: true,
     });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error in partner registration:', error);
+  } catch (err) {
+    if (err instanceof RegistrationValidationError) {
+      res.status(err.status).json({ error: err.code, message: err.message });
+      return;
+    }
+    console.error('Error in partner registration:', err);
     res.status(500).json({
       error: 'InternalServerError',
       message: 'Failed to register account',
     });
-  } finally {
-    client.release();
   }
 }
