@@ -31,18 +31,17 @@ export async function validatePartnerKey(
   return result.partner;
 }
 
-// Cached partner origins for CORS (5-min TTL)
+// Cached partner origins for CORS (5-min TTL).
+// `inFlight` deduplicates concurrent refreshes: when the TTL expires
+// under load, every arriving request would otherwise trigger its own
+// SELECT. With dedup, the first miss owns the refresh and the rest
+// await the same promise.
 let cachedOrigins: string[] = [];
 let cachedAt = 0;
+let inFlight: Promise<string[]> | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/**
- * Get all allowed origins from active partner keys (cached 5 min).
- */
-export async function getCachedPartnerOrigins(): Promise<string[]> {
-  if (Date.now() - cachedAt < CACHE_TTL_MS) {
-    return cachedOrigins;
-  }
+async function refreshPartnerOrigins(): Promise<string[]> {
   try {
     const result = await query<{ allowed_origins: string[] | null }>(
       `SELECT allowed_origins FROM partner_keys
@@ -62,4 +61,18 @@ export async function getCachedPartnerOrigins(): Promise<string[]> {
     // On error, keep stale cache rather than breaking CORS
   }
   return cachedOrigins;
+}
+
+/**
+ * Get all allowed origins from active partner keys (cached 5 min).
+ */
+export async function getCachedPartnerOrigins(): Promise<string[]> {
+  if (Date.now() - cachedAt < CACHE_TTL_MS) {
+    return cachedOrigins;
+  }
+  if (inFlight) return inFlight;
+  inFlight = refreshPartnerOrigins().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
 }

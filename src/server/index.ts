@@ -227,6 +227,11 @@ app.use(async (req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, DPoP, X-Partner-Key');
   res.setHeader('Access-Control-Expose-Headers', 'DPoP-Nonce, WWW-Authenticate');
+  // Cache the CORS preflight for 24h so cross-origin POSTs from the SDK
+  // and Web UI don't pay an OPTIONS round-trip on every call. Vary by
+  // origin so browsers don't cross-pollinate per-origin responses.
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Vary', 'Origin');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   next();
 });
