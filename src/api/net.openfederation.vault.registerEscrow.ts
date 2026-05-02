@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth, requireApprovedUser } from '../auth/guards.js';
 import { logVaultAudit, getUserShares } from '../vault/vault-store.js';
-import { getClient } from '../db/client.js';
+import { withTransaction } from '../db/client.js';
 
 const DID_PATTERN = /^did:[a-z]+:.+$/;
 
@@ -56,10 +56,7 @@ export default async function registerEscrow(req: AuthRequest, res: Response): P
     }
 
     // Wrap all mutations in a transaction to prevent partial state
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Register escrow provider if not already registered
       const existingProvider = await client.query(
         'SELECT id FROM escrow_providers WHERE did = $1',
@@ -88,14 +85,7 @@ export default async function registerEscrow(req: AuthRequest, res: Response): P
          WHERE user_did = $2`,
         [2, userDid]
       );
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
 
     // Audit the escrow registration (outside transaction — non-critical)
     await logVaultAudit(userDid, 'escrow.registered', userDid, 3, {

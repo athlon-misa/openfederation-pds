@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
-import { query, getClient } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 
 /**
@@ -56,10 +56,7 @@ export default async function adminDeleteAccount(req: AuthRequest, res: Response
     });
 
     // Delete all associated data in a transaction
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Delete user repo data
       await client.query('DELETE FROM user_signing_keys WHERE user_did = $1', [user.did]);
       await client.query('DELETE FROM records_index WHERE community_did = $1', [user.did]);
@@ -79,14 +76,7 @@ export default async function adminDeleteAccount(req: AuthRequest, res: Response
 
       // Delete the user record
       await client.query('DELETE FROM users WHERE id = $1', [user.id]);
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
 
     res.status(200).json({ success: true });
   } catch (error) {

@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
-import { query, getClient } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 
 /**
@@ -43,10 +43,7 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
     }
 
     // Delete all associated data in a transaction to prevent partial deletes
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Delete in correct order (foreign key constraints)
       await client.query('DELETE FROM join_requests WHERE community_did = $1', [did]);
       await client.query('DELETE FROM members_unique WHERE community_did = $1', [did]);
@@ -57,14 +54,7 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
       await client.query('DELETE FROM signing_keys WHERE community_did = $1', [did]);
       await client.query('DELETE FROM plc_keys WHERE community_did = $1', [did]);
       await client.query('DELETE FROM communities WHERE did = $1', [did]);
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
 
     await auditLog('community.delete', req.auth!.userId, did, {
       handle: communityResult.rows[0].handle,

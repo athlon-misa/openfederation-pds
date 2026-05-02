@@ -35,7 +35,7 @@ import type {
   ClientId,
 } from '@atproto/oauth-provider';
 
-import { query, getClient } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
 import { normalizeHandle } from '../auth/utils.js';
 import { createUserIdentity } from '../identity/user-identity.js';
@@ -71,26 +71,21 @@ export class PgAccountStore implements AccountStore {
       if (inv.expires_at && new Date(inv.expires_at) < new Date()) throw new Error('Invite code expired');
     }
 
-    const client = await getClient();
-    let identity: Awaited<ReturnType<typeof createUserIdentity>>;
     const userId = crypto.randomUUID();
-    try {
-      await client.query('BEGIN');
-
+    const identity = await withTransaction(async (client) => {
       await ensureHandleEmailAvailable(client, handle, email);
 
       const [createdIdentity, passwordHash] = await Promise.all([
         createUserIdentity(handle),
         hashPassword(password),
       ]);
-      identity = createdIdentity;
 
       await insertUserWithRole(client, {
         userId,
         handle,
         email,
         passwordHash,
-        did: identity.did,
+        did: createdIdentity.did,
         status: 'pending',
       });
 
@@ -101,13 +96,8 @@ export class PgAccountStore implements AccountStore {
         );
       }
 
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+      return createdIdentity;
+    });
 
     // Initialize signing key + repo outside the user-insert transaction.
     // Previously the OAuth path only stored the signing key and skipped
@@ -393,10 +383,7 @@ export class PgRequestStore implements RequestStore {
 
   async consumeRequestCode(code: Code): Promise<FoundRequestResult | null> {
     // Atomic: SELECT FOR UPDATE SKIP LOCKED to prevent concurrent consumption
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    return withTransaction(async (client) => {
       const result = await client.query<{ id: string; data: RequestData }>(
         `SELECT id, data FROM oauth_requests
          WHERE data->>'code' = $1
@@ -406,7 +393,6 @@ export class PgRequestStore implements RequestStore {
       );
 
       if (result.rows.length === 0) {
-        await client.query('ROLLBACK');
         return null;
       }
 
@@ -417,18 +403,11 @@ export class PgRequestStore implements RequestStore {
       // Delete bound device accounts
       await client.query('DELETE FROM oauth_device_accounts WHERE request_id = $1', [row.id]);
 
-      await client.query('COMMIT');
-
       return {
         requestId: row.id as RequestId,
         data: deserializeRequestData(row.data),
       };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
   }
 }
 
@@ -503,10 +482,7 @@ export class PgTokenStore implements TokenStore {
     newRefreshToken: RefreshToken,
     newData: NewTokenData
   ): Promise<void> {
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Get current token
       const current = await client.query<{ data: any; current_refresh_token: string | null }>(
         'SELECT data, current_refresh_token FROM oauth_tokens WHERE id = $1 FOR UPDATE',
@@ -514,7 +490,6 @@ export class PgTokenStore implements TokenStore {
       );
 
       if (current.rows.length === 0) {
-        await client.query('ROLLBACK');
         throw new Error('Token not found');
       }
 
@@ -538,14 +513,7 @@ export class PgTokenStore implements TokenStore {
         `UPDATE oauth_tokens SET id = $1, data = $2, current_refresh_token = $3 WHERE id = $4`,
         [newTokenId, JSON.stringify(mergedData), newRefreshToken, tokenId]
       );
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async findTokenByRefreshToken(refreshToken: RefreshToken): Promise<null | TokenInfo> {

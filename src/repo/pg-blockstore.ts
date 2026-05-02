@@ -8,7 +8,7 @@
 
 import { CID } from 'multiformats/cid';
 import { ReadableBlockstore, RepoStorage, BlockMap, CommitData } from '@atproto/repo';
-import { getClient, query } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
 
 export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
   constructor(private did: string) {
@@ -80,10 +80,7 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
   async putMany(blocks: BlockMap, rev: string): Promise<void> {
     if (blocks.size === 0) return;
 
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Batch blocks into multi-row INSERTs (max 100 per statement to stay
       // well under PostgreSQL's ~65535 parameter limit: 100 rows * 4 params = 400)
       const entries = Array.from(blocks);
@@ -108,14 +105,7 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
           values
         );
       }
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async updateRoot(cid: CID, rev: string): Promise<void> {
@@ -129,10 +119,7 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
   }
 
   async applyCommit(commit: CommitData): Promise<void> {
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Batch-insert new blocks
       const newEntries = Array.from(commit.newBlocks);
       const BATCH_SIZE = 100;
@@ -175,13 +162,6 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
          ON CONFLICT (did) DO UPDATE SET root_cid = $2, rev = $3, updated_at = CURRENT_TIMESTAMP`,
         [this.did, cidStr, commit.rev]
       );
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
   }
 }

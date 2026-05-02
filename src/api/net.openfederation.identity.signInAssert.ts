@@ -1,7 +1,10 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
-import { query, getClient } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
+import { XrpcError, renderXrpcError } from '../xrpc/errors.js';
+
+const NSID = 'net.openfederation.identity.signInAssert';
 import { auditLog } from '../db/audit.js';
 import { parseSiwofMessage, normalizeSiwofAudience } from '../identity/siwof.js';
 import { verifyEthereumSignature } from '../identity/adapters/ethereum-verifier.js';
@@ -90,11 +93,12 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
 
     // Look up + atomically consume the server-issued challenge. We match on
     // the exact message text so a dApp-tampered message (e.g. swapped audience
-    // or nonce) won't find a row.
-    const client = await getClient();
-    let audienceFromDb: string | null = null;
-    try {
-      await client.query('BEGIN');
+    // or nonce) won't find a row. Both the "valid" and "expired" branches
+    // commit the DELETE — only the "not found" branch can roll back, so we
+    // throw before any mutation runs.
+    const consume = await withTransaction<
+      { outcome: 'valid'; audience: string | null } | { outcome: 'expired' }
+    >(async (client) => {
       const ch = await client.query<{ id: string; expired: boolean; audience: string | null }>(
         `SELECT id, (expires_at < NOW()) AS expired, audience
          FROM wallet_link_challenges
@@ -104,26 +108,21 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
         [userDid, chain, addr, message]
       );
       if (ch.rows.length === 0) {
-        await client.query('ROLLBACK');
-        res.status(404).json({ error: 'ChallengeNotFound', message: 'No matching SIWOF challenge for this DID + wallet + message' });
-        return;
+        throw new XrpcError(NSID, 'ChallengeNotFound', 404, 'No matching SIWOF challenge for this DID + wallet + message');
       }
-      if (ch.rows[0].expired) {
-        await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [ch.rows[0].id]);
-        await client.query('COMMIT');
-        res.status(401).json({ error: 'ChallengeExpired', message: 'SIWOF challenge has expired' });
-        return;
-      }
-      audienceFromDb = ch.rows[0].audience;
-      // One-shot use: consume the challenge so the message can't be replayed.
+      // One-shot use: consume the challenge whether or not it's expired.
       await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [ch.rows[0].id]);
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+      if (ch.rows[0].expired) {
+        return { outcome: 'expired' };
+      }
+      return { outcome: 'valid', audience: ch.rows[0].audience };
+    });
+
+    if (consume.outcome === 'expired') {
+      res.status(401).json({ error: 'ChallengeExpired', message: 'SIWOF challenge has expired' });
+      return;
     }
+    const audienceFromDb = consume.audience;
 
     // Defense in depth: message URI must agree with the audience the challenge
     // was issued against.
@@ -178,9 +177,7 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
       audience: messageAudience.uri,
     });
   } catch (err) {
-    console.error('Error in signInAssert:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'InternalServerError', message: 'Failed to assert sign-in' });
-    }
+    if (res.headersSent) return;
+    renderXrpcError(NSID, res, err);
   }
 }

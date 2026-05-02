@@ -2,9 +2,12 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { verifyPassword } from '../auth/password.js';
-import { getClient, query } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { isWalletChain, isCustodyTier } from '../wallet/index.js';
+import { XrpcError, renderXrpcError } from '../xrpc/errors.js';
+
+const NSID = 'net.openfederation.wallet.finalizeTierChange';
 
 const MAX_BLOB_LEN = 65536; // matches custodial_secrets TEXT blob cap
 
@@ -97,10 +100,7 @@ export default async function finalizeTierChange(req: AuthRequest, res: Response
       return;
     }
 
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    const previousTier = await withTransaction<string>(async (client) => {
       const tierRow = await client.query<{ custody_tier: string; custody_status: string }>(
         `SELECT custody_tier, custody_status FROM wallet_links
          WHERE user_did = $1 AND chain = $2 AND wallet_address = $3
@@ -108,14 +108,10 @@ export default async function finalizeTierChange(req: AuthRequest, res: Response
         [userDid, chain, addr]
       );
       if (tierRow.rows.length === 0) {
-        await client.query('ROLLBACK');
-        res.status(404).json({ error: 'WalletNotFound', message: 'No such wallet for this DID' });
-        return;
+        throw new XrpcError(NSID, 'WalletNotFound', 404, 'No such wallet for this DID');
       }
       if (tierRow.rows[0].custody_status !== 'active') {
-        await client.query('ROLLBACK');
-        res.status(409).json({ error: 'WalletInactive', message: `Wallet is ${tierRow.rows[0].custody_status}` });
-        return;
+        throw new XrpcError(NSID, 'WalletInactive', 409, `Wallet is ${tierRow.rows[0].custody_status}`);
       }
 
       const currentTier = tierRow.rows[0].custody_tier;
@@ -125,12 +121,12 @@ export default async function finalizeTierChange(req: AuthRequest, res: Response
         (currentTier === 'custodial' && (newTier === 'user_encrypted' || newTier === 'self_custody')) ||
         (currentTier === 'user_encrypted' && newTier === 'self_custody');
       if (!allowed) {
-        await client.query('ROLLBACK');
-        res.status(409).json({
-          error: 'UnsupportedTransition',
-          message: `Cannot transition ${currentTier} → ${newTier}; tier upgrades are one-way (1→2, 1→3, 2→3). Create a new wallet for other transitions.`,
-        });
-        return;
+        throw new XrpcError(
+          NSID,
+          'UnsupportedTransition',
+          409,
+          `Cannot transition ${currentTier} → ${newTier}; tier upgrades are one-way (1→2, 1→3, 2→3). Create a new wallet for other transitions.`,
+        );
       }
 
       // 1. Drop the existing custody record for the current tier.
@@ -181,31 +177,24 @@ export default async function finalizeTierChange(req: AuthRequest, res: Response
         [userDid, chain, addr]
       );
 
-      await client.query('COMMIT');
+      return currentTier;
+    });
 
-      await auditLog('wallet.tierChange', userId, userDid, {
-        chain,
-        walletAddress: addr,
-        from: currentTier,
-        to: newTier,
-      });
+    await auditLog('wallet.tierChange', userId, userDid, {
+      chain,
+      walletAddress: addr,
+      from: previousTier,
+      to: newTier,
+    });
 
-      res.status(200).json({
-        chain,
-        walletAddress: addr,
-        previousTier: currentTier,
-        newTier,
-      });
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    res.status(200).json({
+      chain,
+      walletAddress: addr,
+      previousTier,
+      newTier,
+    });
   } catch (err) {
-    console.error('Error in finalizeTierChange:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'InternalServerError', message: 'Failed to finalize tier change' });
-    }
+    if (res.headersSent) return;
+    renderXrpcError(NSID, res, err);
   }
 }
