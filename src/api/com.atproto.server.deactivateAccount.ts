@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 
 /**
  * com.atproto.server.deactivateAccount
@@ -64,6 +65,7 @@ export default async function deactivateAccount(req: AuthRequest, res: Response)
     );
 
     await auditLog('account.deactivate', userId, userId, { did: userDid });
+    invalidateAuthContext(userDid);
 
     res.status(200).json({ success: true });
   } catch (error) {

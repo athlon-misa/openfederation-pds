@@ -8,7 +8,8 @@
 
 import { CID } from 'multiformats/cid';
 import { ReadableBlockstore, RepoStorage, BlockMap, CommitData } from '@atproto/repo';
-import { getClient, query } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
+import { blockCacheGet, blockCacheSet, blockCacheDelete } from './block-cache.js';
 
 export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
   constructor(private did: string) {
@@ -26,12 +27,17 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
 
   async getBytes(cid: CID): Promise<Uint8Array | null> {
     const cidStr = cid.toString();
+    const cached = blockCacheGet(this.did, cidStr);
+    if (cached) return cached;
+
     const result = await query<{ block_bytes: Buffer }>(
       'SELECT block_bytes FROM repo_blocks WHERE community_did = $1 AND cid = $2',
       [this.did, cidStr]
     );
     if (result.rows.length === 0) return null;
-    return new Uint8Array(result.rows[0].block_bytes);
+    const bytes = new Uint8Array(result.rows[0].block_bytes);
+    blockCacheSet(this.did, cidStr, bytes);
+    return bytes;
   }
 
   async has(cid: CID): Promise<boolean> {
@@ -48,22 +54,40 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
       return { blocks: new BlockMap(), missing: [] };
     }
 
-    const cidStrs = cids.map(c => c.toString());
+    const blocks = new BlockMap();
+    const toFetch: CID[] = [];
+
+    // Serve cached blocks immediately; only query for misses.
+    for (const cid of cids) {
+      const cidStr = cid.toString();
+      const cached = blockCacheGet(this.did, cidStr);
+      if (cached) {
+        blocks.set(cid, cached);
+      } else {
+        toFetch.push(cid);
+      }
+    }
+
+    if (toFetch.length === 0) {
+      return { blocks, missing: [] };
+    }
+
+    const cidStrs = toFetch.map(c => c.toString());
     const result = await query<{ cid: string; block_bytes: Buffer }>(
       'SELECT cid, block_bytes FROM repo_blocks WHERE community_did = $1 AND cid = ANY($2)',
       [this.did, cidStrs]
     );
 
-    const blocks = new BlockMap();
     const foundSet = new Set<string>();
-
     for (const row of result.rows) {
       foundSet.add(row.cid);
       const cid = CID.parse(row.cid);
-      blocks.set(cid, new Uint8Array(row.block_bytes));
+      const bytes = new Uint8Array(row.block_bytes);
+      blocks.set(cid, bytes);
+      blockCacheSet(this.did, row.cid, bytes);
     }
 
-    const missing = cids.filter(c => !foundSet.has(c.toString()));
+    const missing = toFetch.filter(c => !foundSet.has(c.toString()));
     return { blocks, missing };
   }
 
@@ -75,15 +99,15 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
        ON CONFLICT (community_did, cid) DO UPDATE SET block_bytes = $3, rev = $4`,
       [this.did, cidStr, Buffer.from(block), rev]
     );
+    // Populate cache so the immediately-following Repo.load reads from
+    // memory instead of round-tripping to Postgres.
+    blockCacheSet(this.did, cidStr, block);
   }
 
   async putMany(blocks: BlockMap, rev: string): Promise<void> {
     if (blocks.size === 0) return;
 
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Batch blocks into multi-row INSERTs (max 100 per statement to stay
       // well under PostgreSQL's ~65535 parameter limit: 100 rows * 4 params = 400)
       const entries = Array.from(blocks);
@@ -108,13 +132,11 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
           values
         );
       }
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+    });
+    // Populate cache after the transaction commits, so cached entries
+    // never lead a reader to assume a block is durable when it isn't.
+    for (const [cid, bytes] of blocks) {
+      blockCacheSet(this.did, cid.toString(), bytes);
     }
   }
 
@@ -129,10 +151,7 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
   }
 
   async applyCommit(commit: CommitData): Promise<void> {
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       // Batch-insert new blocks
       const newEntries = Array.from(commit.newBlocks);
       const BATCH_SIZE = 100;
@@ -175,13 +194,16 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
          ON CONFLICT (did) DO UPDATE SET root_cid = $2, rev = $3, updated_at = CURRENT_TIMESTAMP`,
         [this.did, cidStr, commit.rev]
       );
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+    });
+    // Populate cache for the new blocks so the next Repo.load() walks
+    // the MST entirely from memory.
+    for (const [cid, bytes] of commit.newBlocks) {
+      blockCacheSet(this.did, cid.toString(), bytes);
+    }
+    // Drop removed blocks so we don't pay RAM for content that's been
+    // unlinked from the current MST.
+    for (const cid of commit.removedCids.toList()) {
+      blockCacheDelete(this.did, cid.toString());
     }
   }
 }

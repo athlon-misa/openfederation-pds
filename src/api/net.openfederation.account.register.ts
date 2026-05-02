@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { config } from '../config.js';
-import { getClient } from '../db/client.js';
+import { withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { createUserIdentity } from '../identity/user-identity.js';
 import {
@@ -42,143 +42,116 @@ export default async function registerAccount(req: Request, res: Response): Prom
     return;
   }
 
-  const client = await getClient();
   try {
-    await client.query('BEGIN');
-    let inviteCodeToUse: string | null = null;
-    let inviteMaxUses: number | null = null;
-
-    try {
+    const result = await withTransaction(async (client) => {
       await ensureHandleEmailAvailable(client, handle, email);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      if (err instanceof RegistrationValidationError) {
-        res.status(err.status).json({ error: err.code, message: err.message });
-        return;
-      }
-      throw err;
-    }
 
-    if (config.auth.inviteRequired) {
-      const inviteResult = await client.query<{
-        code: string;
-        max_uses: number;
-        uses_count: number;
-        expires_at: string | null;
-        bound_to: string | null;
-      }>(
-        `SELECT code, max_uses, uses_count, expires_at, bound_to
-         FROM invites
-         WHERE code = $1
-         FOR UPDATE`,
-        [input.inviteCode]
-      );
+      let inviteCodeToUse: string | null = null;
+      let inviteMaxUses: number | null = null;
 
-      if (inviteResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        res.status(403).json({
-          error: 'InviteInvalid',
-          message: 'Invite code is invalid',
-        });
-        return;
-      }
+      if (config.auth.inviteRequired) {
+        const inviteResult = await client.query<{
+          code: string;
+          max_uses: number;
+          uses_count: number;
+          expires_at: string | null;
+          bound_to: string | null;
+        }>(
+          `SELECT code, max_uses, uses_count, expires_at, bound_to
+           FROM invites
+           WHERE code = $1
+           FOR UPDATE`,
+          [input.inviteCode],
+        );
 
-      const invite = inviteResult.rows[0];
-      inviteCodeToUse = invite.code;
-      inviteMaxUses = invite.max_uses;
-      if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
-        await client.query('ROLLBACK');
-        res.status(403).json({
-          error: 'InviteExpired',
-          message: 'Invite code has expired',
-        });
-        return;
-      }
-
-      if (invite.uses_count >= invite.max_uses) {
-        await client.query('ROLLBACK');
-        res.status(403).json({
-          error: 'InviteUsed',
-          message: 'Invite code has already been used',
-        });
-        return;
-      }
-
-      // Check email binding
-      if (invite.bound_to) {
-        const normalizedBound = invite.bound_to.toLowerCase().trim();
-        const normalizedEmail = input.email.toLowerCase().trim();
-        if (normalizedBound !== normalizedEmail) {
-          await client.query('ROLLBACK');
-          res.status(403).json({
-            error: 'InviteBound',
-            message: 'This invite code is bound to a specific email address.',
-          });
-          return;
+        if (inviteResult.rows.length === 0) {
+          throw new RegistrationValidationError(403, 'InviteInvalid', 'Invite code is invalid');
         }
+
+        const invite = inviteResult.rows[0];
+        if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
+          throw new RegistrationValidationError(403, 'InviteExpired', 'Invite code has expired');
+        }
+        if (invite.uses_count >= invite.max_uses) {
+          throw new RegistrationValidationError(403, 'InviteUsed', 'Invite code has already been used');
+        }
+        if (invite.bound_to) {
+          const normalizedBound = invite.bound_to.toLowerCase().trim();
+          const normalizedEmail = input.email.toLowerCase().trim();
+          if (normalizedBound !== normalizedEmail) {
+            throw new RegistrationValidationError(
+              403,
+              'InviteBound',
+              'This invite code is bound to a specific email address.',
+            );
+          }
+        }
+
+        inviteCodeToUse = invite.code;
+        inviteMaxUses = invite.max_uses;
       }
-    }
 
-    // Create identity and hash password in parallel (independent operations)
-    let identity;
-    let passwordHash: string;
-    try {
-      [identity, passwordHash] = await Promise.all([
-        createUserIdentity(handle),
-        hashPassword(password),
-      ]);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      console.error('Error creating user identity:', err);
-      res.status(500).json({
-        error: 'IdentityCreationFailed',
-        message: 'Failed to create user identity. Please try again.',
+      // Create identity and hash password in parallel (independent operations)
+      let identity;
+      let passwordHash: string;
+      try {
+        [identity, passwordHash] = await Promise.all([
+          createUserIdentity(handle),
+          hashPassword(password),
+        ]);
+      } catch (err) {
+        console.error('Error creating user identity:', err);
+        throw new RegistrationValidationError(
+          500,
+          'IdentityCreationFailed',
+          'Failed to create user identity. Please try again.',
+        );
+      }
+
+      const userId = crypto.randomUUID();
+
+      await insertUserWithRole(client, {
+        userId,
+        handle,
+        email,
+        passwordHash,
+        did: identity.did,
+        status: 'pending',
       });
-      return;
-    }
 
-    const userId = crypto.randomUUID();
+      if (inviteCodeToUse) {
+        const usedBy = inviteMaxUses === 1 ? userId : null;
+        await client.query(
+          `UPDATE invites
+           SET uses_count = uses_count + 1,
+               used_by = COALESCE($2, used_by),
+               used_at = CURRENT_TIMESTAMP
+           WHERE code = $1`,
+          [inviteCodeToUse, usedBy],
+        );
+      }
 
-    await insertUserWithRole(client, {
-      userId,
-      handle,
-      email,
-      passwordHash,
-      did: identity.did,
-      status: 'pending',
+      return { userId, identity };
     });
 
-    if (inviteCodeToUse) {
-      const usedBy = inviteMaxUses === 1 ? userId : null;
-      await client.query(
-        `UPDATE invites
-         SET uses_count = uses_count + 1,
-             used_by = COALESCE($2, used_by),
-             used_at = CURRENT_TIMESTAMP
-         WHERE code = $1`,
-        [inviteCodeToUse, usedBy]
-      );
-    }
-
-    await client.query('COMMIT');
-
-    await initializeUserRepoAsync(identity.did, handle, identity.signingKeyBase64);
+    await initializeUserRepoAsync(result.identity.did, handle, result.identity.signingKeyBase64);
 
     res.status(201).json({
-      id: userId,
+      id: result.userId,
       handle,
-      did: identity.did,
+      did: result.identity.did,
       email,
       status: 'pending',
     });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error registering account:', error);
+  } catch (err) {
+    if (err instanceof RegistrationValidationError) {
+      res.status(err.status).json({ error: err.code, message: err.message });
+      return;
+    }
+    console.error('Error registering account:', err);
     res.status(500).json({
       error: 'InternalServerError',
       message: 'Failed to register account',
     });
-  } finally {
-    client.release();
   }
 }

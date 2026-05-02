@@ -6,7 +6,13 @@
  */
 
 import { randomUUID, randomBytes } from 'crypto';
-import { query, getClient } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
+
+class WalletLinkRejection extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
+}
 import { verifyEthereumSignature } from './adapters/ethereum-verifier.js';
 import { verifySolanaSignature } from './adapters/solana-verifier.js';
 
@@ -85,91 +91,95 @@ export async function verifyAndLink(
     return { success: false, error: 'Signature verification failed' };
   }
 
-  // 2. Use a transaction for all DB operations to prevent TOCTOU races
-  const client = await getClient();
+  // 2. Use a transaction for all DB operations to prevent TOCTOU races.
+  // The expired-challenge branch commits the DELETE then signals failure
+  // via a discriminated return; other rejections throw WalletLinkRejection
+  // to roll back.
   try {
-    await client.query('BEGIN');
-
-    // Lock the challenge row to serialize concurrent attempts.
-    // Compare expires_at to server-side NOW() to avoid JS/pg TZ drift on
-    // plain TIMESTAMP columns (client-side `new Date(row.expires_at)`
-    // silently reinterprets a naive timestamp as local time).
-    const challengeResult = await client.query<{
-      id: string;
-      expired: boolean;
-    }>(
-      `SELECT id, (expires_at < NOW()) AS expired FROM wallet_link_challenges
-       WHERE user_did = $1 AND chain = $2 AND wallet_address = $3 AND challenge = $4
-       FOR UPDATE`,
-      [userDid, chain, normalizedAddress, challenge]
-    );
-
-    if (challengeResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return { success: false, error: 'Challenge not found or does not match' };
-    }
-
-    const row = challengeResult.rows[0];
-    if (row.expired) {
-      await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
-      await client.query('COMMIT');
-      return { success: false, error: 'Challenge has expired' };
-    }
-
-    // Check wallet is not already linked to a different DID
-    const existingLink = await client.query<{ user_did: string }>(
-      `SELECT user_did FROM wallet_links WHERE chain = $1 AND wallet_address = $2 FOR UPDATE`,
-      [chain, normalizedAddress]
-    );
-
-    if (existingLink.rows.length > 0 && existingLink.rows[0].user_did !== userDid) {
-      await client.query('ROLLBACK');
-      return { success: false, error: 'Wallet is already linked to a different identity' };
-    }
-
-    // Check label uniqueness for this user (if label provided)
-    if (label) {
-      const existingLabel = await client.query<{ id: string; chain: string; wallet_address: string }>(
-        `SELECT id, chain, wallet_address FROM wallet_links WHERE user_did = $1 AND label = $2`,
-        [userDid, label]
+    const outcome = await withTransaction<
+      { kind: 'ok' } | { kind: 'expired' }
+    >(async (client) => {
+      // Lock the challenge row to serialize concurrent attempts.
+      // Compare expires_at to server-side NOW() to avoid JS/pg TZ drift on
+      // plain TIMESTAMP columns (client-side `new Date(row.expires_at)`
+      // silently reinterprets a naive timestamp as local time).
+      const challengeResult = await client.query<{
+        id: string;
+        expired: boolean;
+      }>(
+        `SELECT id, (expires_at < NOW()) AS expired FROM wallet_link_challenges
+         WHERE user_did = $1 AND chain = $2 AND wallet_address = $3 AND challenge = $4
+         FOR UPDATE`,
+        [userDid, chain, normalizedAddress, challenge]
       );
-      // Allow re-linking the same wallet with same label, reject different wallet with same label
-      if (existingLabel.rows.length > 0) {
-        const existing = existingLabel.rows[0];
-        if (existing.chain !== chain || existing.wallet_address !== normalizedAddress) {
-          await client.query('ROLLBACK');
-          return { success: false, error: 'Label already in use for a different wallet' };
+
+      if (challengeResult.rows.length === 0) {
+        throw new WalletLinkRejection('Challenge not found or does not match');
+      }
+
+      const row = challengeResult.rows[0];
+      if (row.expired) {
+        await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
+        return { kind: 'expired' };
+      }
+
+      // Check wallet is not already linked to a different DID
+      const existingLink = await client.query<{ user_did: string }>(
+        `SELECT user_did FROM wallet_links WHERE chain = $1 AND wallet_address = $2 FOR UPDATE`,
+        [chain, normalizedAddress]
+      );
+
+      if (existingLink.rows.length > 0 && existingLink.rows[0].user_did !== userDid) {
+        throw new WalletLinkRejection('Wallet is already linked to a different identity');
+      }
+
+      // Check label uniqueness for this user (if label provided)
+      if (label) {
+        const existingLabel = await client.query<{ id: string; chain: string; wallet_address: string }>(
+          `SELECT id, chain, wallet_address FROM wallet_links WHERE user_did = $1 AND label = $2`,
+          [userDid, label]
+        );
+        // Allow re-linking the same wallet with same label, reject different wallet with same label
+        if (existingLabel.rows.length > 0) {
+          const existing = existingLabel.rows[0];
+          if (existing.chain !== chain || existing.wallet_address !== normalizedAddress) {
+            throw new WalletLinkRejection('Label already in use for a different wallet');
+          }
         }
       }
+
+      // Create the link (upsert by chain+wallet_address)
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO wallet_links (id, user_did, chain, wallet_address, label, challenge, signature)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (chain, wallet_address) DO UPDATE SET
+           label = EXCLUDED.label,
+           challenge = EXCLUDED.challenge,
+           signature = EXCLUDED.signature,
+           linked_at = CURRENT_TIMESTAMP`,
+        [id, userDid, chain, normalizedAddress, label || null, challenge, signature]
+      );
+
+      // Clean up the challenge
+      await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
+
+      return { kind: 'ok' };
+    });
+
+    if (outcome.kind === 'expired') {
+      return { success: false, error: 'Challenge has expired' };
     }
-
-    // Create the link (upsert by chain+wallet_address)
-    const id = randomUUID();
-    await client.query(
-      `INSERT INTO wallet_links (id, user_did, chain, wallet_address, label, challenge, signature)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (chain, wallet_address) DO UPDATE SET
-         label = EXCLUDED.label,
-         challenge = EXCLUDED.challenge,
-         signature = EXCLUDED.signature,
-         linked_at = CURRENT_TIMESTAMP`,
-      [id, userDid, chain, normalizedAddress, label || null, challenge, signature]
-    );
-
-    // Clean up the challenge
-    await client.query('DELETE FROM wallet_link_challenges WHERE id = $1', [row.id]);
-
-    await client.query('COMMIT');
     return { success: true };
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (err instanceof WalletLinkRejection) {
+      return { success: false, error: err.reason };
+    }
     // Handle unique constraint violations gracefully
     if ((err as any)?.code === '23505') {
       return { success: false, error: 'Wallet link conflict — please retry' };
     }
     throw err;
-  } finally {
-    client.release();
   }
 }
 

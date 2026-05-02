@@ -92,37 +92,3 @@ export async function fanOutDisplayFields(
   );
 }
 
-/**
- * Sync the role / kind / tags / attributes columns on a single members_unique
- * row from the values that were just written to records_index.
- */
-export async function syncMemberRoleProjection(
-  communityDid: string,
-  memberDid: string,
-  fields: {
-    role?: string | null;
-    roleRkey?: string | null;
-    kind?: string | null;
-    tags?: string[] | null;
-    attributes?: Record<string, unknown> | null;
-  },
-): Promise<void> {
-  await query(
-    `UPDATE members_unique
-     SET role      = COALESCE($3, role),
-         role_rkey = $4,
-         kind      = $5,
-         tags      = $6,
-         attributes = $7
-     WHERE community_did = $1 AND member_did = $2`,
-    [
-      communityDid,
-      memberDid,
-      fields.role ?? null,
-      fields.roleRkey ?? null,
-      fields.kind ?? null,
-      fields.tags ? JSON.stringify(fields.tags) : null,
-      fields.attributes ? JSON.stringify(fields.attributes) : null,
-    ],
-  );
-}

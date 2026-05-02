@@ -39,6 +39,39 @@ export async function getClient(): Promise<PoolClient> {
   return pool.connect();
 }
 
+/**
+ * Run `fn` inside a database transaction. The callback receives the
+ * transaction client and may issue any queries on it. Returning a value
+ * commits the transaction; throwing rolls it back. The connection is
+ * always released, regardless of outcome.
+ *
+ * Throw a typed error (e.g. `RegistrationValidationError`) from the
+ * callback to signal a domain failure — the caller catches it after the
+ * rollback has already happened. Do not send HTTP responses from inside
+ * the callback; do that at the call site after `withTransaction` returns
+ * or rejects.
+ */
+export async function withTransaction<T>(
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Rollback failed after transaction error:', rollbackErr);
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function closePool(): Promise<void> {
   if (pool) {
     await pool.end();

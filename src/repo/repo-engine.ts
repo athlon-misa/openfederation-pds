@@ -21,7 +21,9 @@ import type {
 } from '@atproto/repo';
 import type { Keypair } from '@atproto/crypto';
 import { PgBlockstore } from './pg-blockstore.js';
-import { query, getClient } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
+
+const MEMBER_COLLECTION = 'net.openfederation.community.member';
 
 export class RepoEngine {
   private storage: PgBlockstore;
@@ -232,52 +234,72 @@ export class RepoEngine {
   }
 
   /**
-   * Sync the records_index cache after write operations.
-   * The MST is the source of truth; records_index is a denormalized read cache.
+   * Sync the records_index cache after write operations. The MST is the
+   * source of truth; records_index is a denormalized read cache. For
+   * member-collection records, also fan out role/kind/tags/attributes to
+   * the `members_unique` projection so handlers don't have to remember
+   * to sync separately. Display fields (display_name/avatar_url) are
+   * fanned out by `fanOutDisplayFields` from the profile-update handler
+   * — that projection crosses DIDs and lives outside the engine.
    */
   private async syncRecordsIndex(
     ops: Array<{ action: string; collection: string; rkey: string; record?: Record<string, unknown>; cid?: string }>
   ): Promise<void> {
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
+    await withTransaction(async (client) => {
       for (const op of ops) {
         if (op.action === WriteOpAction.Delete) {
           await client.query(
             'DELETE FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
             [this.did, op.collection, op.rkey]
           );
-        } else if (op.record) {
-          // Use pre-computed CID if available, otherwise compute
-          const cidStr = op.cid || (await cidForRecord(op.record)).toString();
+          continue;
+        }
+        if (!op.record) continue;
+
+        const cidStr = op.cid || (await cidForRecord(op.record)).toString();
+
+        await client.query(
+          `INSERT INTO records_index (community_did, collection, rkey, cid, record, updated_at)
+           VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+           ON CONFLICT (community_did, collection, rkey)
+           DO UPDATE SET cid = $4, record = $5, updated_at = CURRENT_TIMESTAMP`,
+          [this.did, op.collection, op.rkey, cidStr, JSON.stringify(op.record)]
+        );
+
+        if (op.collection === MEMBER_COLLECTION && op.record.did) {
+          const rec = op.record as {
+            did: string;
+            role?: string | null;
+            roleRkey?: string | null;
+            kind?: string | null;
+            tags?: string[] | null;
+            attributes?: Record<string, unknown> | null;
+          };
 
           await client.query(
-            `INSERT INTO records_index (community_did, collection, rkey, cid, record, updated_at)
-             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-             ON CONFLICT (community_did, collection, rkey)
-             DO UPDATE SET cid = $4, record = $5, updated_at = CURRENT_TIMESTAMP`,
-            [this.did, op.collection, op.rkey, cidStr, JSON.stringify(op.record)]
+            `INSERT INTO members_unique
+               (community_did, member_did, record_rkey, role, role_rkey, kind, tags, attributes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (community_did, member_did) DO UPDATE
+               SET record_rkey = EXCLUDED.record_rkey,
+                   role        = COALESCE(EXCLUDED.role, members_unique.role),
+                   role_rkey   = EXCLUDED.role_rkey,
+                   kind        = EXCLUDED.kind,
+                   tags        = EXCLUDED.tags,
+                   attributes  = EXCLUDED.attributes`,
+            [
+              this.did,
+              rec.did,
+              op.rkey,
+              rec.role ?? null,
+              rec.roleRkey ?? null,
+              rec.kind ?? null,
+              rec.tags ? JSON.stringify(rec.tags) : null,
+              rec.attributes ? JSON.stringify(rec.attributes) : null,
+            ],
           );
-
-          // Sync members_unique table for member records
-          if (op.collection === 'net.openfederation.community.member' && op.record.did) {
-            await client.query(
-              `INSERT INTO members_unique (community_did, member_did, record_rkey)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (community_did, member_did) DO NOTHING`,
-              [this.did, op.record.did as string, op.rkey]
-            );
-          }
         }
       }
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
   }
 }

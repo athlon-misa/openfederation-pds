@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const handle = useAuthStore((s) => s.handle);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const { data: myCommunities, isLoading: commLoading } = useMyCommunitiesQuery(6, 0);
-  const { data: serverConfig, isLoading: configLoading } = useServerConfigQuery();
+  const { data: serverConfig, isLoading: configLoading } = useServerConfigQuery({ enabled: isAdmin });
 
   return (
     <div>

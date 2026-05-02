@@ -3,13 +3,15 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { auditLog } from '../db/audit.js';
 import {
-  hasActiveConsent,
-  getWalletTier,
+  assertCustodialSigningEligible,
   isWalletChain,
   normalizeDappOrigin,
   signTransactionWithCustodialKey,
+  WalletEligibilityRejection,
   type EvmTransactionRequest,
 } from '../wallet/index.js';
+
+const NSID = 'net.openfederation.wallet.signTransaction';
 
 const MAX_EVM_DATA_HEX = 2 * 128 * 1024 + 2; // 128KB of bytes, plus 0x-prefix
 const MAX_SOL_MESSAGE_B64 = Math.ceil((128 * 1024 * 4) / 3); // 128KB of bytes
@@ -98,37 +100,19 @@ export default async function walletSignTransaction(req: AuthRequest, res: Respo
     const userId = req.auth!.userId;
     const normalizedAddress = chain === 'ethereum' ? walletAddress.toLowerCase() : walletAddress;
 
-    // Tier + status check — mirrors `wallet.sign`. Tier 1 only.
-    const tierInfo = await getWalletTier(userDid, chain, normalizedAddress);
-    if (!tierInfo) {
-      res.status(404).json({ error: 'WalletNotFound', message: 'No such wallet for this DID' });
-      return;
-    }
-    if (tierInfo.status !== 'active') {
-      res.status(409).json({ error: 'WalletInactive', message: `Wallet is ${tierInfo.status} and cannot be signed with` });
-      return;
-    }
-    if (tierInfo.tier !== 'custodial') {
-      res.status(409).json({
-        error: 'UnsupportedTier',
-        message:
-          tierInfo.tier === 'user_encrypted'
-            ? 'Tier 2 wallets must sign client-side via the SDK'
-            : 'Tier 3 wallets are self-custodial — use your own wallet software to sign',
+    try {
+      await assertCustodialSigningEligible({
+        userDid,
+        chain,
+        walletAddress: normalizedAddress,
+        dappOrigin: origin,
       });
-      return;
-    }
-
-    // Consent check.
-    const consented = await hasActiveConsent({
-      userDid,
-      dappOrigin: origin,
-      chain,
-      walletAddress: normalizedAddress,
-    });
-    if (!consented) {
-      res.status(403).json({ error: 'ConsentRequired', message: 'No active consent grants this dApp permission to sign with this wallet' });
-      return;
+    } catch (err) {
+      if (err instanceof WalletEligibilityRejection) {
+        res.status(err.status).json({ error: err.code, message: err.message });
+        return;
+      }
+      throw err;
     }
 
     // Sign.
@@ -161,7 +145,7 @@ export default async function walletSignTransaction(req: AuthRequest, res: Respo
       res.status(200).json({ chain, walletAddress: normalizedAddress, signature: result, dappOrigin: origin });
     }
   } catch (err) {
-    console.error('Error in walletSignTransaction:', err);
+    console.error(`Error in ${NSID}:`, err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'InternalServerError', message: 'Failed to sign transaction' });
     }

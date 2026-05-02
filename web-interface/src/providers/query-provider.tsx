@@ -9,8 +9,13 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30 * 1000,
-            gcTime: 5 * 60 * 1000,
+            // 60s default keeps tab-switches snappy without showing stale
+            // data for long. Hooks that touch slow-moving data (server
+            // config, peer communities) override with longer windows.
+            // refetchOnWindowFocus: true respects staleTime — focus only
+            // triggers a refetch when the data is actually stale.
+            staleTime: 60 * 1000,
+            gcTime: 10 * 60 * 1000,
             refetchOnWindowFocus: true,
             retry: 1,
           },
