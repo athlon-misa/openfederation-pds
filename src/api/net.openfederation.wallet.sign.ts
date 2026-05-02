@@ -4,10 +4,10 @@ import { requireApprovedUser } from '../auth/guards.js';
 import { auditLog } from '../db/audit.js';
 import {
   signWithCustodialKey,
-  hasActiveConsent,
-  getWalletTier,
   isWalletChain,
   normalizeDappOrigin,
+  assertCustodialSigningEligible,
+  WalletEligibilityRejection,
 } from '../wallet/index.js';
 
 /**
@@ -71,46 +71,22 @@ export default async function walletSign(req: AuthRequest, res: Response): Promi
     const userId = req.auth!.userId;
     const normalizedAddress = chain === 'ethereum' ? walletAddress.toLowerCase() : walletAddress;
 
-    // 1. Wallet must exist, belong to this user, and be Tier 1.
-    const tierInfo = await getWalletTier(userDid, chain, normalizedAddress);
-    if (!tierInfo) {
-      res.status(404).json({ error: 'WalletNotFound', message: 'No such wallet for this DID' });
-      return;
-    }
-    if (tierInfo.status !== 'active') {
-      res.status(409).json({
-        error: 'WalletInactive',
-        message: `Wallet is ${tierInfo.status} and cannot be signed with`,
+    try {
+      await assertCustodialSigningEligible({
+        userDid,
+        chain,
+        walletAddress: normalizedAddress,
+        dappOrigin: origin,
       });
-      return;
-    }
-    if (tierInfo.tier !== 'custodial') {
-      res.status(409).json({
-        error: 'UnsupportedTier',
-        message:
-          tierInfo.tier === 'user_encrypted'
-            ? 'Tier 2 wallets must sign client-side via the SDK (unlock + signMessage)'
-            : 'Tier 3 wallets are self-custodial — use your own wallet software to sign',
-      });
-      return;
+    } catch (err) {
+      if (err instanceof WalletEligibilityRejection) {
+        res.status(err.status).json({ error: err.code, message: err.message });
+        return;
+      }
+      throw err;
     }
 
-    // 2. Consent must exist for this dApp + wallet combination.
-    const consented = await hasActiveConsent({
-      userDid,
-      dappOrigin: origin,
-      chain,
-      walletAddress: normalizedAddress,
-    });
-    if (!consented) {
-      res.status(403).json({
-        error: 'ConsentRequired',
-        message: 'No active consent grants this dApp permission to sign with this wallet',
-      });
-      return;
-    }
-
-    // 3. Sign.
+    // Sign.
     const signature = await signWithCustodialKey({
       userDid,
       chain,
