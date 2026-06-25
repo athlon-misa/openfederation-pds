@@ -15,6 +15,8 @@ export const PERMISSIONS = {
   APPLICATION_WRITE: 'community.application.write',
   APPLICATION_DELETE: 'community.application.delete',
   GOVERNANCE_WRITE: 'community.governance.write',
+  FORUM_WRITE: 'community.forum.write',
+  CALENDAR_WRITE: 'community.calendar.write',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -63,6 +65,8 @@ export function getDefaultRoleRecords(): Array<{ name: string; record: RoleRecor
           PERMISSIONS.ATTESTATION_WRITE,
           PERMISSIONS.ATTESTATION_DELETE,
           PERMISSIONS.GOVERNANCE_WRITE,
+          PERMISSIONS.FORUM_WRITE,
+          PERMISSIONS.CALENDAR_WRITE,
         ],
       },
     },
@@ -74,6 +78,8 @@ export function getDefaultRoleRecords(): Array<{ name: string; record: RoleRecor
         permissions: [
           PERMISSIONS.MEMBER_READ,
           PERMISSIONS.ROLE_READ,
+          PERMISSIONS.FORUM_WRITE,
+          PERMISSIONS.CALENDAR_WRITE,
         ],
       },
     },

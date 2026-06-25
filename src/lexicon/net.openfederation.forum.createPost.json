@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.createPost",
-  "revision": 2,
+  "revision": 3,
   "description": "Create a forum post/reply. Member-only; writes a net.openfederation.forum.post record to the caller's repo.",
   "defs": {
     "main": {
@@ -35,6 +35,14 @@
         {
           "name": "ThreadNotFound",
           "description": "The thread root record does not exist."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller does not have the required community permission."
         }
       ]
     }

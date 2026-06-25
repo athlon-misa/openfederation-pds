@@ -163,8 +163,8 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - **Forum threads** (`net.openfederation.forum.thread`) stored as ATProto records in the author's user repo; **posts** (`net.openfederation.forum.post`) likewise author-repo records linking back to the thread URI
 - **Calendar events** (`community.lexicon.calendar.event`) stored in the community's own repo; **RSVPs** (`community.lexicon.calendar.rsvp`) stored in the attendee's user repo with `subject.uri` pointing to the event
 - Aggregation index: `forum_threads` + `forum_posts` + `event_rsvps` tables built from write-path hooks; `backfillForumIndex()` (`scripts/backfill-forum-index.ts`) reconstructs the index from `records_index` without touching the repos — run via `npx tsx scripts/backfill-forum-index.ts`
-- Moderation: `hideThread`, `hidePost` (soft-hide, record preserved), `deleteThread`, `deletePost` (full removal + signed commit)
-- 11 XRPC endpoints: `createThread`, `createPost`, `getThread`, `listThreads`, `deleteThread`, `deletePost`, `hideThread`, `hidePost`, `calendar.createEvent`, `calendar.rsvp`, `calendar.getEvent`
+- Moderation: `hidePost` (soft-hide, record preserved), `deletePost` (full removal + signed commit)
+- 10 XRPC endpoints: `createThread`, `createPost`, `getThread`, `listThreads`, `deletePost`, `hidePost`, `calendar.createEvent`, `calendar.listEvents`, `calendar.rsvp`, `calendar.listRsvps`
 - No ActivityPub content federation — identity layer only; forum content stays on-PDS
 
 ---

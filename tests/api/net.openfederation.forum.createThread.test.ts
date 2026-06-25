@@ -28,6 +28,29 @@ describe('net.openfederation.forum.createThread', () => {
     expect(res.body.rkey).toBeTruthy();
   });
 
+  it('non-owner member creates a thread', async () => {
+    if (!plc) return;
+    const owner = await createTestUser(uniqueHandle('ft-mo'));
+    const member = await createTestUser(uniqueHandle('ft-mm'));
+    const create = await xrpcAuthPost('net.openfederation.community.create', owner.accessJwt, {
+      handle: uniqueHandle('ft-comm3'), didMethod: 'plc', visibility: 'public', joinPolicy: 'open',
+    });
+    expect(create.status).toBe(201);
+    const communityDid = create.body.did;
+
+    // member joins the open community
+    const join = await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { did: communityDid });
+    expect(join.status).toBe(200);
+
+    // member (not owner) creates a thread — requires community.forum.write on the member role
+    const res = await xrpcAuthPost('net.openfederation.forum.createThread', member.accessJwt, {
+      community: communityDid, title: 'Member thread', tags: [],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.uri).toContain('net.openfederation.forum.thread');
+    expect(res.body.rkey).toBeTruthy();
+  });
+
   it('rejects a non-member', async () => {
     if (!plc) return;
     const owner = await createTestUser(uniqueHandle('ft-o2'));

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.createEvent",
-  "revision": 1,
+  "revision": 2,
   "description": "Create a community event. Writes a community.lexicon.calendar.event record to the community repo. Requires community.calendar.write.",
   "defs": {
     "main": {
@@ -34,7 +34,17 @@
             "rkey": { "type": "string" }
           }
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller does not have the required community permission."
+        }
+      ]
     }
   }
 }

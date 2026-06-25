@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.hidePost",
-  "revision": 1,
+  "revision": 2,
   "description": "Moderator overlay: hide or unhide a forum post from the community view. Does not delete the underlying record in the author's repo.",
   "defs": {
     "main": {
@@ -34,6 +34,14 @@
         {
           "name": "InvalidRequest",
           "description": "Invalid request parameters."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller does not have the required community permission."
         }
       ]
     }

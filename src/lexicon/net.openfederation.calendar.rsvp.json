@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.rsvp",
-  "revision": 1,
+  "revision": 2,
   "description": "RSVP to a community event. Writes a community.lexicon.calendar.rsvp record to the caller's repo.",
   "defs": {
     "main": {
@@ -29,7 +29,17 @@
             "rkey": { "type": "string" }
           }
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller does not have the required community permission."
+        }
+      ]
     }
   }
 }

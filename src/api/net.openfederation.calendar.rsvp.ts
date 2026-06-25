@@ -23,7 +23,7 @@ export default async function rsvp(req: AuthRequest, res: Response): Promise<voi
       return;
     }
     const hasPermission = await requireCommunityPermission(
-      req as AuthRequest & { auth: AuthContext }, res, community, 'community.forum.write'
+      req as AuthRequest & { auth: AuthContext }, res, community, 'community.calendar.write'
     );
     if (!hasPermission) return;
 

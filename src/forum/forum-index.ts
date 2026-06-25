@@ -42,10 +42,6 @@ export async function indexPost(p: {
   });
 }
 
-export async function deindexThread(uri: string): Promise<void> {
-  await query('DELETE FROM forum_threads WHERE uri = $1', [uri]);
-}
-
 export async function deindexPost(uri: string): Promise<void> {
   await withTransaction(async (client) => {
     const res = await client.query<{ thread_root_uri: string }>(
@@ -65,10 +61,6 @@ export async function setPostHidden(uri: string, hidden: boolean): Promise<void>
   await query('UPDATE forum_posts SET hidden = $2 WHERE uri = $1', [uri, hidden]);
 }
 
-export async function setThreadHidden(uri: string, hidden: boolean): Promise<void> {
-  await query('UPDATE forum_threads SET hidden = $2 WHERE uri = $1', [uri, hidden]);
-}
-
 export async function indexRsvp(r: {
   uri: string; eventUri: string; attendeeDid: string; status: string; createdAt: string;
 }): Promise<void> {
@@ -79,10 +71,6 @@ export async function indexRsvp(r: {
      DO UPDATE SET uri = $1, status = $4, created_at = $5`,
     [r.uri, r.eventUri, r.attendeeDid, r.status, r.createdAt]
   );
-}
-
-export async function deindexRsvp(uri: string): Promise<void> {
-  await query('DELETE FROM event_rsvps WHERE uri = $1', [uri]);
 }
 
 export async function listThreads(
