@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.calendar.listRsvps",
+  "revision": 1,
+  "description": "List RSVPs for an event with status counts.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "required": ["event"],
+        "properties": {
+          "event": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["counts", "rsvps"],
+          "properties": {
+            "counts": {
+              "type": "object",
+              "properties": {
+                "going": { "type": "integer" },
+                "interested": { "type": "integer" },
+                "notgoing": { "type": "integer" }
+              }
+            },
+            "rsvps": {
+              "type": "array",
+              "items": { "type": "unknown" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

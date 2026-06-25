@@ -5,6 +5,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
 import { auditLog } from '../db/audit.js';
+import { FORUM_THREAD, FORUM_POST, CALENDAR_EVENT, CALENDAR_RSVP } from '../forum/forum-index.js';
 
 /**
  * com.atproto.repo.deleteRecord
@@ -31,6 +32,15 @@ export default async function deleteRecord(req: AuthRequest, res: Response): Pro
       res.status(400).json({
         error: 'InvalidRequest',
         message: 'repo must be a valid DID',
+      });
+      return;
+    }
+
+    const DEDICATED = [FORUM_THREAD, FORUM_POST, CALENDAR_EVENT, CALENDAR_RSVP];
+    if (DEDICATED.includes(collection)) {
+      res.status(400).json({
+        error: 'UseDedicatedEndpoint',
+        message: `Records in "${collection}" must be written via their net.openfederation.forum.* / net.openfederation.calendar.* endpoint.`,
       });
       return;
     }

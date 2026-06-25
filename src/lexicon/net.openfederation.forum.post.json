@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.forum.post",
+  "revision": 1,
+  "description": "A forum post or reply. Lives in the author's user repo; references its thread via strongRef.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Forum post record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["community", "root", "text", "createdAt"],
+        "properties": {
+          "community": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community (denormalized for scoping)."
+          },
+          "root": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "The forum.thread this post belongs to."
+          },
+          "parent": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "The post being replied to; absent for top-level posts."
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 10000,
+            "maxGraphemes": 10000
+          },
+          "embeds": {
+            "type": "array",
+            "maxLength": 4,
+            "items": {
+              "type": "blob",
+              "accept": ["image/*"],
+              "maxSize": 1000000
+            },
+            "description": "Optional media attachments stored as blobs (see blob config)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

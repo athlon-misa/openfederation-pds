@@ -174,3 +174,20 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `net.openfederation.contact.list` | Yes | List the caller's accepted contacts, paginated |
 | GET  | `net.openfederation.contact.listIncomingRequests` | Yes | List pending requests addressed to the caller |
 | GET  | `net.openfederation.contact.listOutgoingRequests` | Yes | List pending requests sent by the caller |
+
+## OpenFederation Forum & Events
+
+Forum threads and posts are stored as ATProto records in the **author's** user repo (`net.openfederation.forum.thread` / `net.openfederation.forum.post`). Calendar events are stored in the **community's** repo (`community.lexicon.calendar.event`); RSVPs are stored in the **attendee's** user repo. All four collections are aggregated into index tables (`forum_threads`, `forum_posts`, `event_rsvps`) for efficient reads. Use `scripts/backfill-forum-index.ts` to rebuild the index from `records_index`.
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| POST | `net.openfederation.forum.createThread` | Member | Create a new forum thread in a community; stores record in author's repo |
+| POST | `net.openfederation.forum.createPost` | Member | Reply to a thread (or a specific post); stores record in author's repo |
+| GET  | `net.openfederation.forum.getThread` | No | Get thread metadata plus all non-hidden replies, paginated |
+| GET  | `net.openfederation.forum.listThreads` | No | List non-hidden threads for a community, ordered by recent activity |
+| POST | `net.openfederation.forum.deletePost` | Author/Mod | Delete a post record and decrement thread post count |
+| POST | `net.openfederation.forum.hidePost` | Mod/Admin | Hide an individual post without deleting the record |
+| POST | `net.openfederation.calendar.createEvent` | Member | Create a calendar event; stores record in the community's repo |
+| GET  | `net.openfederation.calendar.listEvents` | No | List calendar events for a community |
+| POST | `net.openfederation.calendar.rsvp` | Member | Submit or update an RSVP for a calendar event |
+| GET  | `net.openfederation.calendar.listRsvps` | No | List RSVPs for an event with per-status counts |

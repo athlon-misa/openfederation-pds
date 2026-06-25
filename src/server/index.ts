@@ -162,6 +162,16 @@ import listFriendOfFriendsHandler from '../api/net.openfederation.contact.listFr
 import listNotificationsHandler from '../api/net.openfederation.notification.list.js';
 import markReadHandler from '../api/net.openfederation.notification.markRead.js';
 import unreadCountHandler from '../api/net.openfederation.notification.unreadCount.js';
+import createThread from '../api/net.openfederation.forum.createThread.js';
+import createPost from '../api/net.openfederation.forum.createPost.js';
+import deletePost from '../api/net.openfederation.forum.deletePost.js';
+import listThreadsHandler from '../api/net.openfederation.forum.listThreads.js';
+import getThreadHandler from '../api/net.openfederation.forum.getThread.js';
+import hidePost from '../api/net.openfederation.forum.hidePost.js';
+import createEvent from '../api/net.openfederation.calendar.createEvent.js';
+import listEvents from '../api/net.openfederation.calendar.listEvents.js';
+import rsvp from '../api/net.openfederation.calendar.rsvp.js';
+import listRsvpsHandler from '../api/net.openfederation.calendar.listRsvps.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -526,6 +536,20 @@ const handlers = Object.freeze({
   'net.openfederation.contact.listBlocks': { handler: listBlocksHandler },
   'net.openfederation.contact.listMutualContacts': { handler: listMutualContactsHandler },
   'net.openfederation.contact.listFriendOfFriends': { handler: listFriendOfFriendsHandler },
+
+  // Forum
+  'net.openfederation.forum.createThread': { handler: createThread, limiter: createLimiter },
+  'net.openfederation.forum.createPost': { handler: createPost, limiter: createLimiter },
+  'net.openfederation.forum.deletePost': { handler: deletePost },
+  'net.openfederation.forum.hidePost': { handler: hidePost },
+  'net.openfederation.forum.listThreads': { handler: listThreadsHandler, limiter: discoveryLimiter },
+  'net.openfederation.forum.getThread': { handler: getThreadHandler, limiter: discoveryLimiter },
+
+  // Calendar
+  'net.openfederation.calendar.createEvent': { handler: createEvent, limiter: createLimiter },
+  'net.openfederation.calendar.listEvents': { handler: listEvents, limiter: discoveryLimiter },
+  'net.openfederation.calendar.rsvp': { handler: rsvp, limiter: createLimiter },
+  'net.openfederation.calendar.listRsvps': { handler: listRsvpsHandler, limiter: discoveryLimiter },
 
   // Notifications
   'net.openfederation.notification.list': { handler: listNotificationsHandler },

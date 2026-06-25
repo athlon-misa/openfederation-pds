@@ -85,7 +85,14 @@ export type AuditAction =
   | 'attestation.requestDisclosure'
   | 'attestation.createViewingGrant'
   | 'disclosure.redeem'
-  | 'disclosure.revoke';
+  | 'disclosure.revoke'
+  | 'forum.thread.create'
+  | 'forum.post.create'
+  | 'forum.post.delete'
+  | 'forum.post.hide'
+  | 'forum.post.unhide'
+  | 'calendar.event.create'
+  | 'calendar.rsvp';
 
 export async function auditLog(
   action: AuditAction,

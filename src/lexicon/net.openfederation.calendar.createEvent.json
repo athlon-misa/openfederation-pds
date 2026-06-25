@@ -1,0 +1,50 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.calendar.createEvent",
+  "revision": 2,
+  "description": "Create a community event. Writes a community.lexicon.calendar.event record to the community repo. Requires community.calendar.write.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["community", "name"],
+          "properties": {
+            "community": { "type": "string", "format": "did" },
+            "name": { "type": "string", "maxLength": 300 },
+            "description": { "type": "string", "maxLength": 10000 },
+            "startsAt": { "type": "string", "format": "datetime" },
+            "endsAt": { "type": "string", "format": "datetime" },
+            "mode": { "type": "string", "knownValues": ["inperson", "virtual", "hybrid"] },
+            "status": { "type": "string", "knownValues": ["scheduled", "cancelled", "postponed"] },
+            "location": { "type": "string", "maxLength": 1000 }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri", "cid", "rkey"],
+          "properties": {
+            "uri": { "type": "string" },
+            "cid": { "type": "string" },
+            "rkey": { "type": "string" }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller does not have the required community permission."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "community.lexicon.calendar.event",
+  "revision": 1,
+  "description": "A calendar event (community-maintained lexicon). Lives in the community repo.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Calendar event record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["name", "createdAt"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 300,
+            "maxGraphemes": 300
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000,
+            "maxGraphemes": 10000
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["inperson", "virtual", "hybrid"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["scheduled", "cancelled", "postponed"]
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}
