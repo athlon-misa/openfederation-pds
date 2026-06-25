@@ -1,0 +1,30 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.forum.deletePost",
+  "revision": 1,
+  "description": "Delete the caller's own forum post.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["rkey"],
+          "properties": {
+            "rkey": { "type": "string" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}
