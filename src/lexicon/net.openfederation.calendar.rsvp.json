@@ -1,0 +1,35 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.calendar.rsvp",
+  "revision": 1,
+  "description": "RSVP to a community event. Writes a community.lexicon.calendar.rsvp record to the caller's repo.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["community", "event", "status"],
+          "properties": {
+            "community": { "type": "string", "format": "did" },
+            "event": { "type": "ref", "ref": "com.atproto.repo.strongRef" },
+            "status": { "type": "string", "knownValues": ["going", "interested", "notgoing"] }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri", "cid", "rkey"],
+          "properties": {
+            "uri": { "type": "string" },
+            "cid": { "type": "string" },
+            "rkey": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

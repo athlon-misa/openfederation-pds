@@ -91,7 +91,8 @@ export type AuditAction =
   | 'forum.post.delete'
   | 'forum.post.hide'
   | 'forum.post.unhide'
-  | 'calendar.event.create';
+  | 'calendar.event.create'
+  | 'calendar.rsvp';
 
 export async function auditLog(
   action: AuditAction,

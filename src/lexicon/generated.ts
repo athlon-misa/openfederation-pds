@@ -440,6 +440,27 @@ export type NetOpenfederationCalendarListEventsOutput = {
 };
 export type NetOpenfederationCalendarListEventsError = never;
 
+export type NetOpenfederationCalendarRsvpInput = {
+  "community": string;
+  "event": { "uri": string; "cid": string };
+  "status": string;
+};
+export type NetOpenfederationCalendarRsvpOutput = {
+  "uri": string;
+  "cid": string;
+  "rkey": string;
+};
+export type NetOpenfederationCalendarRsvpError = never;
+
+export type NetOpenfederationCalendarListRsvpsInput = {
+  "event": string;
+};
+export type NetOpenfederationCalendarListRsvpsOutput = {
+  "counts": unknown;
+  "rsvps"?: Array<unknown>;
+};
+export type NetOpenfederationCalendarListRsvpsError = never;
+
 export type NetOpenfederationCommunityAmendProposalInput = {
   "communityDid": string;
   "proposalRkey": string;
@@ -1943,6 +1964,8 @@ export interface LexiconInputMap {
   'net.openfederation.audit.list': NetOpenfederationAuditListInput;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventInput;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsInput;
+  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpInput;
+  'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsInput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalInput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateInput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalInput;
@@ -2111,6 +2134,8 @@ export interface LexiconOutputMap {
   'net.openfederation.audit.list': NetOpenfederationAuditListOutput;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventOutput;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsOutput;
+  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpOutput;
+  'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsOutput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalOutput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateOutput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalOutput;
@@ -2279,6 +2304,8 @@ export interface LexiconErrorMap {
   'net.openfederation.audit.list': NetOpenfederationAuditListError;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventError;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsError;
+  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpError;
+  'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsError;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalError;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateError;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalError;
@@ -2449,6 +2476,8 @@ export const lexiconContracts = {
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
   'net.openfederation.calendar.createEvent': { revision: 1, errors: [] as const },
   'net.openfederation.calendar.listEvents': { revision: 1, errors: [] as const },
+  'net.openfederation.calendar.rsvp': { revision: 1, errors: [] as const },
+  'net.openfederation.calendar.listRsvps': { revision: 1, errors: [] as const },
   'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
   'net.openfederation.community.createProposal': { revision: 1, errors: ["GovernanceNotActive", "InvalidRequest"] as const },
