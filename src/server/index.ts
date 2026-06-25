@@ -164,6 +164,8 @@ import markReadHandler from '../api/net.openfederation.notification.markRead.js'
 import unreadCountHandler from '../api/net.openfederation.notification.unreadCount.js';
 import createThread from '../api/net.openfederation.forum.createThread.js';
 import createPost from '../api/net.openfederation.forum.createPost.js';
+import listThreadsHandler from '../api/net.openfederation.forum.listThreads.js';
+import getThreadHandler from '../api/net.openfederation.forum.getThread.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -532,6 +534,8 @@ const handlers = Object.freeze({
   // Forum
   'net.openfederation.forum.createThread': { handler: createThread, limiter: createLimiter },
   'net.openfederation.forum.createPost': { handler: createPost, limiter: createLimiter },
+  'net.openfederation.forum.listThreads': { handler: listThreadsHandler, limiter: discoveryLimiter },
+  'net.openfederation.forum.getThread': { handler: getThreadHandler, limiter: discoveryLimiter },
 
   // Notifications
   'net.openfederation.notification.list': { handler: listNotificationsHandler },

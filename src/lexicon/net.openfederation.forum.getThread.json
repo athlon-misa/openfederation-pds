@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.forum.getThread",
+  "revision": 1,
+  "description": "Get a forum thread with its posts.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "required": ["uri"],
+        "properties": {
+          "uri": { "type": "string" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 },
+          "after": { "type": "string" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "thread": { "type": "unknown" },
+            "posts": { "type": "array", "items": { "type": "unknown" } },
+            "cursor": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
