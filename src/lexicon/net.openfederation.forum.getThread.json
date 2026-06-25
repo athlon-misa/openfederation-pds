@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.getThread",
-  "revision": 1,
+  "revision": 2,
   "description": "Get a forum thread with its posts.",
   "defs": {
     "main": {
@@ -25,7 +25,13 @@
             "cursor": { "type": "string" }
           }
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "The requested thread was not found."
+        }
+      ]
     }
   }
 }

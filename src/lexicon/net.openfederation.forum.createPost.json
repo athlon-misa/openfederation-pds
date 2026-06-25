@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.createPost",
-  "revision": 1,
+  "revision": 2,
   "description": "Create a forum post/reply. Member-only; writes a net.openfederation.forum.post record to the caller's repo.",
   "defs": {
     "main": {
@@ -30,7 +30,13 @@
             "rkey": { "type": "string" }
           }
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "ThreadNotFound",
+          "description": "The thread root record does not exist."
+        }
+      ]
     }
   }
 }
