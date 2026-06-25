@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.forum.thread",
+  "revision": 1,
+  "description": "A forum thread root. Lives in the author's user repo; aggregated per-community by the forum index.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Forum thread root record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["community", "title", "createdAt"],
+        "properties": {
+          "community": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community this thread belongs to."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "maxGraphemes": 300
+          },
+          "tags": {
+            "type": "array",
+            "maxLength": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "community.lexicon.calendar.rsvp",
+  "revision": 1,
+  "description": "An RSVP to a calendar event (community-maintained lexicon). Lives in the attendee's user repo.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Calendar RSVP record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["subject", "status", "createdAt"],
+        "properties": {
+          "subject": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "The event being RSVP'd to."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["going", "interested", "notgoing"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}
