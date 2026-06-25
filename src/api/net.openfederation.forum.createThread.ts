@@ -28,7 +28,7 @@ export default async function createThread(req: AuthRequest, res: Response): Pro
     const createdAt = new Date().toISOString();
     const tagList: string[] = Array.isArray(tags) ? tags.slice(0, 20).map(String) : [];
 
-    const record = { community, title: title.trim(), tags: tagList, createdAt };
+    const record = { $type: FORUM_THREAD, community, title: title.trim(), tags: tagList, createdAt };
     const result = await engine.putRecord(keypair, FORUM_THREAD, rkey, record);
 
     await indexThread({
