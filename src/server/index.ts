@@ -162,6 +162,7 @@ import listFriendOfFriendsHandler from '../api/net.openfederation.contact.listFr
 import listNotificationsHandler from '../api/net.openfederation.notification.list.js';
 import markReadHandler from '../api/net.openfederation.notification.markRead.js';
 import unreadCountHandler from '../api/net.openfederation.notification.unreadCount.js';
+import createThread from '../api/net.openfederation.forum.createThread.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -526,6 +527,9 @@ const handlers = Object.freeze({
   'net.openfederation.contact.listBlocks': { handler: listBlocksHandler },
   'net.openfederation.contact.listMutualContacts': { handler: listMutualContactsHandler },
   'net.openfederation.contact.listFriendOfFriends': { handler: listFriendOfFriendsHandler },
+
+  // Forum
+  'net.openfederation.forum.createThread': { handler: createThread, limiter: createLimiter },
 
   // Notifications
   'net.openfederation.notification.list': { handler: listNotificationsHandler },

@@ -1197,6 +1197,10 @@ export type NetOpenfederationFederationListPeersInput = JsonObject;
 export type NetOpenfederationFederationListPeersOutput = JsonObject;
 export type NetOpenfederationFederationListPeersError = never;
 
+export type NetOpenfederationForumCreateThreadInput = JsonObject;
+export type NetOpenfederationForumCreateThreadOutput = JsonObject;
+export type NetOpenfederationForumCreateThreadError = never;
+
 export type NetOpenfederationIdentityDeleteExternalKeyInput = {
   "rkey": string;
 };
@@ -1892,6 +1896,7 @@ export interface LexiconInputMap {
   'net.openfederation.disclosure.revokeGrant': NetOpenfederationDisclosureRevokeGrantInput;
   'net.openfederation.federation.listPeerCommunities': NetOpenfederationFederationListPeerCommunitiesInput;
   'net.openfederation.federation.listPeers': NetOpenfederationFederationListPeersInput;
+  'net.openfederation.forum.createThread': NetOpenfederationForumCreateThreadInput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyInput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationInput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyInput;
@@ -2048,6 +2053,7 @@ export interface LexiconOutputMap {
   'net.openfederation.disclosure.revokeGrant': NetOpenfederationDisclosureRevokeGrantOutput;
   'net.openfederation.federation.listPeerCommunities': NetOpenfederationFederationListPeerCommunitiesOutput;
   'net.openfederation.federation.listPeers': NetOpenfederationFederationListPeersOutput;
+  'net.openfederation.forum.createThread': NetOpenfederationForumCreateThreadOutput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyOutput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationOutput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyOutput;
@@ -2204,6 +2210,7 @@ export interface LexiconErrorMap {
   'net.openfederation.disclosure.revokeGrant': NetOpenfederationDisclosureRevokeGrantError;
   'net.openfederation.federation.listPeerCommunities': NetOpenfederationFederationListPeerCommunitiesError;
   'net.openfederation.federation.listPeers': NetOpenfederationFederationListPeersError;
+  'net.openfederation.forum.createThread': NetOpenfederationForumCreateThreadError;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyError;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationError;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyError;
@@ -2362,6 +2369,7 @@ export const lexiconContracts = {
   'net.openfederation.disclosure.revokeGrant': { revision: 1, errors: ["AlreadyRevoked", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.federation.listPeerCommunities': { revision: 1, errors: [] as const },
   'net.openfederation.federation.listPeers': { revision: 1, errors: [] as const },
+  'net.openfederation.forum.createThread': { revision: 1, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
   'net.openfederation.identity.getDidAugmentation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.identity.getExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
