@@ -90,7 +90,8 @@ export type AuditAction =
   | 'forum.post.create'
   | 'forum.post.delete'
   | 'forum.post.hide'
-  | 'forum.post.unhide';
+  | 'forum.post.unhide'
+  | 'calendar.event.create';
 
 export async function auditLog(
   action: AuditAction,

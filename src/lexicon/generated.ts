@@ -415,6 +415,31 @@ export type NetOpenfederationAuditListOutput = {
 };
 export type NetOpenfederationAuditListError = never;
 
+export type NetOpenfederationCalendarCreateEventInput = {
+  "community": string;
+  "name": string;
+  "description"?: string;
+  "startsAt"?: string;
+  "endsAt"?: string;
+  "mode"?: string;
+  "status"?: string;
+  "location"?: string;
+};
+export type NetOpenfederationCalendarCreateEventOutput = {
+  "uri": string;
+  "cid": string;
+  "rkey": string;
+};
+export type NetOpenfederationCalendarCreateEventError = never;
+
+export type NetOpenfederationCalendarListEventsInput = {
+  "community": string;
+};
+export type NetOpenfederationCalendarListEventsOutput = {
+  "events"?: Array<unknown>;
+};
+export type NetOpenfederationCalendarListEventsError = never;
+
 export type NetOpenfederationCommunityAmendProposalInput = {
   "communityDid": string;
   "proposalRkey": string;
@@ -1916,6 +1941,8 @@ export interface LexiconInputMap {
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureInput;
   'net.openfederation.attestation.verifyCommitment': NetOpenfederationAttestationVerifyCommitmentInput;
   'net.openfederation.audit.list': NetOpenfederationAuditListInput;
+  'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventInput;
+  'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsInput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalInput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateInput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalInput;
@@ -2082,6 +2109,8 @@ export interface LexiconOutputMap {
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureOutput;
   'net.openfederation.attestation.verifyCommitment': NetOpenfederationAttestationVerifyCommitmentOutput;
   'net.openfederation.audit.list': NetOpenfederationAuditListOutput;
+  'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventOutput;
+  'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsOutput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalOutput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateOutput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalOutput;
@@ -2248,6 +2277,8 @@ export interface LexiconErrorMap {
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureError;
   'net.openfederation.attestation.verifyCommitment': NetOpenfederationAttestationVerifyCommitmentError;
   'net.openfederation.audit.list': NetOpenfederationAuditListError;
+  'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventError;
+  'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsError;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalError;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateError;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalError;
@@ -2416,6 +2447,8 @@ export const lexiconContracts = {
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.verifyCommitment': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
+  'net.openfederation.calendar.createEvent': { revision: 1, errors: [] as const },
+  'net.openfederation.calendar.listEvents': { revision: 1, errors: [] as const },
   'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
   'net.openfederation.community.createProposal': { revision: 1, errors: ["GovernanceNotActive", "InvalidRequest"] as const },

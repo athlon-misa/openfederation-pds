@@ -168,6 +168,8 @@ import deletePost from '../api/net.openfederation.forum.deletePost.js';
 import listThreadsHandler from '../api/net.openfederation.forum.listThreads.js';
 import getThreadHandler from '../api/net.openfederation.forum.getThread.js';
 import hidePost from '../api/net.openfederation.forum.hidePost.js';
+import createEvent from '../api/net.openfederation.calendar.createEvent.js';
+import listEvents from '../api/net.openfederation.calendar.listEvents.js';
 import { registerAdapter } from '../governance/chain-adapter.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
@@ -540,6 +542,10 @@ const handlers = Object.freeze({
   'net.openfederation.forum.hidePost': { handler: hidePost },
   'net.openfederation.forum.listThreads': { handler: listThreadsHandler, limiter: discoveryLimiter },
   'net.openfederation.forum.getThread': { handler: getThreadHandler, limiter: discoveryLimiter },
+
+  // Calendar
+  'net.openfederation.calendar.createEvent': { handler: createEvent, limiter: createLimiter },
+  'net.openfederation.calendar.listEvents': { handler: listEvents, limiter: discoveryLimiter },
 
   // Notifications
   'net.openfederation.notification.list': { handler: listNotificationsHandler },
