@@ -88,7 +88,9 @@ export type AuditAction =
   | 'disclosure.revoke'
   | 'forum.thread.create'
   | 'forum.post.create'
-  | 'forum.post.delete';
+  | 'forum.post.delete'
+  | 'forum.post.hide'
+  | 'forum.post.unhide';
 
 export async function auditLog(
   action: AuditAction,
