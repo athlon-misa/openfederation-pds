@@ -97,6 +97,14 @@ export type ComAtprotoSyncGetRepoInput = JsonObject;
 export type ComAtprotoSyncGetRepoOutput = unknown;
 export type ComAtprotoSyncGetRepoError = "RepoNotFound";
 
+export type CommunityLexiconCalendarEventInput = undefined;
+export type CommunityLexiconCalendarEventOutput = undefined;
+export type CommunityLexiconCalendarEventError = never;
+
+export type CommunityLexiconCalendarRsvpInput = undefined;
+export type CommunityLexiconCalendarRsvpOutput = undefined;
+export type CommunityLexiconCalendarRsvpError = never;
+
 export type NetOpenfederationAccountApproveInput = {
   "userId"?: string;
   "handle"?: string;
@@ -1197,9 +1205,38 @@ export type NetOpenfederationFederationListPeersInput = JsonObject;
 export type NetOpenfederationFederationListPeersOutput = JsonObject;
 export type NetOpenfederationFederationListPeersError = never;
 
-export type NetOpenfederationForumCreateThreadInput = JsonObject;
-export type NetOpenfederationForumCreateThreadOutput = JsonObject;
+export type NetOpenfederationForumCreatePostInput = {
+  "community": string;
+  "root": undefined;
+  "parent"?: undefined;
+  "text": string;
+};
+export type NetOpenfederationForumCreatePostOutput = {
+  "uri": string;
+  "cid": string;
+  "rkey": string;
+};
+export type NetOpenfederationForumCreatePostError = never;
+
+export type NetOpenfederationForumCreateThreadInput = {
+  "community": string;
+  "title": string;
+  "tags"?: Array<string>;
+};
+export type NetOpenfederationForumCreateThreadOutput = {
+  "uri": string;
+  "cid": string;
+  "rkey": string;
+};
 export type NetOpenfederationForumCreateThreadError = never;
+
+export type NetOpenfederationForumPostInput = undefined;
+export type NetOpenfederationForumPostOutput = undefined;
+export type NetOpenfederationForumPostError = never;
+
+export type NetOpenfederationForumThreadInput = undefined;
+export type NetOpenfederationForumThreadOutput = undefined;
+export type NetOpenfederationForumThreadError = never;
 
 export type NetOpenfederationIdentityDeleteExternalKeyInput = {
   "rkey": string;
@@ -1808,6 +1845,8 @@ export interface LexiconInputMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionInput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionInput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoInput;
+  'community.lexicon.calendar.event': CommunityLexiconCalendarEventInput;
+  'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpInput;
   'net.openfederation.account.approve': NetOpenfederationAccountApproveInput;
   'net.openfederation.account.changePassword': NetOpenfederationAccountChangePasswordInput;
   'net.openfederation.account.completeRecovery': NetOpenfederationAccountCompleteRecoveryInput;
@@ -1896,7 +1935,10 @@ export interface LexiconInputMap {
   'net.openfederation.disclosure.revokeGrant': NetOpenfederationDisclosureRevokeGrantInput;
   'net.openfederation.federation.listPeerCommunities': NetOpenfederationFederationListPeerCommunitiesInput;
   'net.openfederation.federation.listPeers': NetOpenfederationFederationListPeersInput;
+  'net.openfederation.forum.createPost': NetOpenfederationForumCreatePostInput;
   'net.openfederation.forum.createThread': NetOpenfederationForumCreateThreadInput;
+  'net.openfederation.forum.post': NetOpenfederationForumPostInput;
+  'net.openfederation.forum.thread': NetOpenfederationForumThreadInput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyInput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationInput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyInput;
@@ -1965,6 +2007,8 @@ export interface LexiconOutputMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionOutput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionOutput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoOutput;
+  'community.lexicon.calendar.event': CommunityLexiconCalendarEventOutput;
+  'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpOutput;
   'net.openfederation.account.approve': NetOpenfederationAccountApproveOutput;
   'net.openfederation.account.changePassword': NetOpenfederationAccountChangePasswordOutput;
   'net.openfederation.account.completeRecovery': NetOpenfederationAccountCompleteRecoveryOutput;
@@ -2053,7 +2097,10 @@ export interface LexiconOutputMap {
   'net.openfederation.disclosure.revokeGrant': NetOpenfederationDisclosureRevokeGrantOutput;
   'net.openfederation.federation.listPeerCommunities': NetOpenfederationFederationListPeerCommunitiesOutput;
   'net.openfederation.federation.listPeers': NetOpenfederationFederationListPeersOutput;
+  'net.openfederation.forum.createPost': NetOpenfederationForumCreatePostOutput;
   'net.openfederation.forum.createThread': NetOpenfederationForumCreateThreadOutput;
+  'net.openfederation.forum.post': NetOpenfederationForumPostOutput;
+  'net.openfederation.forum.thread': NetOpenfederationForumThreadOutput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyOutput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationOutput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyOutput;
@@ -2122,6 +2169,8 @@ export interface LexiconErrorMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionError;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionError;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoError;
+  'community.lexicon.calendar.event': CommunityLexiconCalendarEventError;
+  'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpError;
   'net.openfederation.account.approve': NetOpenfederationAccountApproveError;
   'net.openfederation.account.changePassword': NetOpenfederationAccountChangePasswordError;
   'net.openfederation.account.completeRecovery': NetOpenfederationAccountCompleteRecoveryError;
@@ -2210,7 +2259,10 @@ export interface LexiconErrorMap {
   'net.openfederation.disclosure.revokeGrant': NetOpenfederationDisclosureRevokeGrantError;
   'net.openfederation.federation.listPeerCommunities': NetOpenfederationFederationListPeerCommunitiesError;
   'net.openfederation.federation.listPeers': NetOpenfederationFederationListPeersError;
+  'net.openfederation.forum.createPost': NetOpenfederationForumCreatePostError;
   'net.openfederation.forum.createThread': NetOpenfederationForumCreateThreadError;
+  'net.openfederation.forum.post': NetOpenfederationForumPostError;
+  'net.openfederation.forum.thread': NetOpenfederationForumThreadError;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyError;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationError;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyError;
@@ -2281,6 +2333,8 @@ export const lexiconContracts = {
   'com.atproto.server.getSession': { revision: 1, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
   'com.atproto.sync.getRepo': { revision: 1, errors: ["RepoNotFound"] as const },
+  'community.lexicon.calendar.event': { revision: 1, errors: [] as const },
+  'community.lexicon.calendar.rsvp': { revision: 1, errors: [] as const },
   'net.openfederation.account.approve': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.changePassword': { revision: 1, errors: ["InvalidPassword", "NotFound", "WeakPassword"] as const },
   'net.openfederation.account.completeRecovery': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
@@ -2369,7 +2423,10 @@ export const lexiconContracts = {
   'net.openfederation.disclosure.revokeGrant': { revision: 1, errors: ["AlreadyRevoked", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.federation.listPeerCommunities': { revision: 1, errors: [] as const },
   'net.openfederation.federation.listPeers': { revision: 1, errors: [] as const },
+  'net.openfederation.forum.createPost': { revision: 1, errors: [] as const },
   'net.openfederation.forum.createThread': { revision: 1, errors: [] as const },
+  'net.openfederation.forum.post': { revision: 1, errors: [] as const },
+  'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
   'net.openfederation.identity.getDidAugmentation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.identity.getExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
