@@ -24,11 +24,11 @@ export type ComAtprotoIdentityResolveHandleError = "HandleNotFound";
 
 export type ComAtprotoRepoCreateRecordInput = unknown;
 export type ComAtprotoRepoCreateRecordOutput = unknown;
-export type ComAtprotoRepoCreateRecordError = "GovernanceDenied";
+export type ComAtprotoRepoCreateRecordError = "GovernanceDenied" | "UseDedicatedEndpoint";
 
 export type ComAtprotoRepoDeleteRecordInput = unknown;
 export type ComAtprotoRepoDeleteRecordOutput = unknown;
-export type ComAtprotoRepoDeleteRecordError = "GovernanceDenied";
+export type ComAtprotoRepoDeleteRecordError = "GovernanceDenied" | "UseDedicatedEndpoint";
 
 export type ComAtprotoRepoDescribeRepoInput = JsonObject;
 export type ComAtprotoRepoDescribeRepoOutput = unknown;
@@ -44,7 +44,7 @@ export type ComAtprotoRepoListRecordsError = never;
 
 export type ComAtprotoRepoPutRecordInput = unknown;
 export type ComAtprotoRepoPutRecordOutput = unknown;
-export type ComAtprotoRepoPutRecordError = "GovernanceDenied";
+export type ComAtprotoRepoPutRecordError = "GovernanceDenied" | "UseDedicatedEndpoint";
 
 export type ComAtprotoRepoUploadBlobInput = undefined;
 export type ComAtprotoRepoUploadBlobOutput = {
@@ -430,7 +430,7 @@ export type NetOpenfederationCalendarCreateEventOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCalendarCreateEventError = never;
+export type NetOpenfederationCalendarCreateEventError = "Forbidden" | "NotMember";
 
 export type NetOpenfederationCalendarListEventsInput = {
   "community": string;
@@ -440,9 +440,22 @@ export type NetOpenfederationCalendarListEventsOutput = {
 };
 export type NetOpenfederationCalendarListEventsError = never;
 
+export type NetOpenfederationCalendarListRsvpsInput = {
+  "event": string;
+};
+export type NetOpenfederationCalendarListRsvpsOutput = {
+  "counts": {
+  "going": number;
+  "interested": number;
+  "notgoing": number;
+};
+  "rsvps": Array<unknown>;
+};
+export type NetOpenfederationCalendarListRsvpsError = never;
+
 export type NetOpenfederationCalendarRsvpInput = {
   "community": string;
-  "event": { "uri": string; "cid": string };
+  "event": undefined;
   "status": string;
 };
 export type NetOpenfederationCalendarRsvpOutput = {
@@ -450,16 +463,7 @@ export type NetOpenfederationCalendarRsvpOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCalendarRsvpError = never;
-
-export type NetOpenfederationCalendarListRsvpsInput = {
-  "event": string;
-};
-export type NetOpenfederationCalendarListRsvpsOutput = {
-  "counts": unknown;
-  "rsvps"?: Array<unknown>;
-};
-export type NetOpenfederationCalendarListRsvpsError = never;
+export type NetOpenfederationCalendarRsvpError = "Forbidden" | "NotMember";
 
 export type NetOpenfederationCommunityAmendProposalInput = {
   "communityDid": string;
@@ -1262,7 +1266,7 @@ export type NetOpenfederationForumCreatePostOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationForumCreatePostError = never;
+export type NetOpenfederationForumCreatePostError = "Forbidden" | "NotMember" | "ThreadNotFound";
 
 export type NetOpenfederationForumCreateThreadInput = {
   "community": string;
@@ -1274,7 +1278,7 @@ export type NetOpenfederationForumCreateThreadOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationForumCreateThreadError = never;
+export type NetOpenfederationForumCreateThreadError = "Forbidden" | "NotMember";
 
 export type NetOpenfederationForumDeletePostInput = {
   "rkey": string;
@@ -1294,7 +1298,7 @@ export type NetOpenfederationForumGetThreadOutput = {
   "posts"?: Array<unknown>;
   "cursor"?: string;
 };
-export type NetOpenfederationForumGetThreadError = never;
+export type NetOpenfederationForumGetThreadError = "NotFound";
 
 export type NetOpenfederationForumHidePostInput = {
   "uri": string;
@@ -1303,7 +1307,7 @@ export type NetOpenfederationForumHidePostInput = {
 export type NetOpenfederationForumHidePostOutput = {
   "success"?: boolean;
 };
-export type NetOpenfederationForumHidePostError = "InvalidRequest" | "NotFound";
+export type NetOpenfederationForumHidePostError = "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
 
 export type NetOpenfederationForumListThreadsInput = {
   "community": string;
@@ -1964,8 +1968,8 @@ export interface LexiconInputMap {
   'net.openfederation.audit.list': NetOpenfederationAuditListInput;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventInput;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsInput;
-  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpInput;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsInput;
+  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpInput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalInput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateInput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalInput;
@@ -2134,8 +2138,8 @@ export interface LexiconOutputMap {
   'net.openfederation.audit.list': NetOpenfederationAuditListOutput;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventOutput;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsOutput;
-  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpOutput;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsOutput;
+  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpOutput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalOutput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateOutput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalOutput;
@@ -2304,8 +2308,8 @@ export interface LexiconErrorMap {
   'net.openfederation.audit.list': NetOpenfederationAuditListError;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventError;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsError;
-  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpError;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsError;
+  'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpError;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalError;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateError;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalError;
@@ -2428,12 +2432,12 @@ export const lexiconContracts = {
   'com.atproto.admin.getSubjectStatus': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.updateSubjectStatus': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "ExportRequired", "NotFound", "NotSuspended", "NotTakenDown"] as const },
   'com.atproto.identity.resolveHandle': { revision: 1, errors: ["HandleNotFound"] as const },
-  'com.atproto.repo.createRecord': { revision: 1, errors: ["GovernanceDenied"] as const },
-  'com.atproto.repo.deleteRecord': { revision: 1, errors: ["GovernanceDenied"] as const },
+  'com.atproto.repo.createRecord': { revision: 2, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
+  'com.atproto.repo.deleteRecord': { revision: 2, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.getRecord': { revision: 1, errors: ["RecordNotFound"] as const },
   'com.atproto.repo.listRecords': { revision: 1, errors: [] as const },
-  'com.atproto.repo.putRecord': { revision: 1, errors: ["GovernanceDenied"] as const },
+  'com.atproto.repo.putRecord': { revision: 2, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 1, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
   'com.atproto.server.createSession': { revision: 1, errors: ["AccountLocked", "ExternalAccount"] as const },
@@ -2474,10 +2478,10 @@ export const lexiconContracts = {
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.verifyCommitment': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
-  'net.openfederation.calendar.createEvent': { revision: 1, errors: [] as const },
+  'net.openfederation.calendar.createEvent': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.calendar.listEvents': { revision: 1, errors: [] as const },
-  'net.openfederation.calendar.rsvp': { revision: 1, errors: [] as const },
-  'net.openfederation.calendar.listRsvps': { revision: 1, errors: [] as const },
+  'net.openfederation.calendar.listRsvps': { revision: 2, errors: [] as const },
+  'net.openfederation.calendar.rsvp': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
   'net.openfederation.community.createProposal': { revision: 1, errors: ["GovernanceNotActive", "InvalidRequest"] as const },
@@ -2537,11 +2541,11 @@ export const lexiconContracts = {
   'net.openfederation.disclosure.revokeGrant': { revision: 1, errors: ["AlreadyRevoked", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.federation.listPeerCommunities': { revision: 1, errors: [] as const },
   'net.openfederation.federation.listPeers': { revision: 1, errors: [] as const },
-  'net.openfederation.forum.createPost': { revision: 1, errors: [] as const },
-  'net.openfederation.forum.createThread': { revision: 1, errors: [] as const },
+  'net.openfederation.forum.createPost': { revision: 3, errors: ["Forbidden", "NotMember", "ThreadNotFound"] as const },
+  'net.openfederation.forum.createThread': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.forum.deletePost': { revision: 1, errors: [] as const },
-  'net.openfederation.forum.getThread': { revision: 1, errors: [] as const },
-  'net.openfederation.forum.hidePost': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
+  'net.openfederation.forum.getThread': { revision: 2, errors: ["NotFound"] as const },
+  'net.openfederation.forum.hidePost': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.listThreads': { revision: 1, errors: [] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
