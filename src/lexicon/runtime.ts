@@ -159,6 +159,10 @@ function validateAgainstSchema(
       }
     }
     for (const field of Object.keys(value)) {
+      // Optional fields explicitly set to `undefined` are dropped by JSON
+      // serialization, so treat them as absent — mirrors the required-field
+      // check above (line ~157) which also treats `undefined` as missing.
+      if (value[field] === undefined) continue;
       const fieldSchema = properties[field];
       if (!fieldSchema) {
         return invalid(`${path}.${field} is not declared by the lexicon`);
