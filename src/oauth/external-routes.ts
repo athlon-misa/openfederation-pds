@@ -24,6 +24,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
+import { config } from '../config.js';
 import { getExternalOAuthClient, getClientMetadata } from './external-client.js';
 import { query } from '../db/client.js';
 import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
@@ -89,10 +90,7 @@ async function isAllowedRedirectOrigin(redirectUri: string): Promise<boolean> {
   }
 
   // Check static CORS origins
-  const staticOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
-    .split(',')
-    .map(o => o.trim())
-    .filter(Boolean);
+  const staticOrigins = config.cors.origins;
 
   if (staticOrigins.includes(origin)) return true;
 
@@ -194,7 +192,7 @@ export function createExternalOAuthRouter(): Router {
     try {
       // Set cookie so we know where to redirect after the OAuth callback
       const cookieValue = JSON.stringify({ redirectUri, state: state || '' });
-      const isProduction = process.env.NODE_ENV === 'production';
+      const isProduction = config.env.isProduction;
       res.setHeader('Set-Cookie', [
         `${REDIRECT_COOKIE}=${encodeURIComponent(cookieValue)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600${isProduction ? '; Secure' : ''}`,
       ]);
@@ -277,7 +275,7 @@ export function createExternalOAuthRouter(): Router {
         res.redirect(redirectUrl.toString());
       } else {
         // Web-interface flow: redirect to the web UI callback page
-        const frontendUrl = (process.env.CORS_ORIGINS || 'http://localhost:3001').split(',')[0].trim();
+        const frontendUrl = config.cors.origins[0];
         const redirectUrl = new URL('/callback', frontendUrl);
         redirectUrl.searchParams.set('code', tempCode);
         res.redirect(redirectUrl.toString());
@@ -299,7 +297,7 @@ export function createExternalOAuthRouter(): Router {
         }
       } else {
         // Web-interface flow: redirect to web UI with error
-        const frontendUrl = (process.env.CORS_ORIGINS || 'http://localhost:3001').split(',')[0].trim();
+        const frontendUrl = config.cors.origins[0];
         const errorUrl = new URL('/callback', frontendUrl);
         errorUrl.searchParams.set('error', 'oauth_callback_failed');
         res.redirect(errorUrl.toString());

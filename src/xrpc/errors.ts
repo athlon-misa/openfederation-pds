@@ -34,6 +34,23 @@ export class XrpcError extends Error {
   }
 }
 
+/**
+ * NSID-agnostic HTTP error for guards and shared modules that don't know
+ * which lexicon method they're serving. renderXrpcError validates the code
+ * against the method's declared errors at render time, exactly like XrpcError.
+ */
+export class HttpError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(status: number, code: string, message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'HttpError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 export function throwXrpc(nsid: string, code: string, status: number, message: string): never {
   assertDeclaredErrorCode(nsid, code);
   throw new XrpcError(nsid, code, status, message);
@@ -97,6 +114,24 @@ export function renderXrpcError(nsid: string, res: Response, error: unknown): vo
       return;
     }
 
+    res.status(error.status).json({
+      error: error.code,
+      message: error.message,
+    });
+    return;
+  }
+
+  if (error instanceof HttpError) {
+    try {
+      assertAllowedXrpcErrorCode(nsid, error.code);
+    } catch (validationError) {
+      console.error(`Undeclared XRPC error from ${nsid}:`, validationError);
+      res.status(500).json({
+        error: 'InternalServerError',
+        message: 'An internal error occurred',
+      });
+      return;
+    }
     res.status(error.status).json({
       error: error.code,
       message: error.message,

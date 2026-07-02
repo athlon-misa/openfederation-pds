@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { RepoEngine } from '../repo/repo-engine.js';
+import { parsePagination } from '../xrpc/pagination.js';
 
 /**
  * com.atproto.repo.listRecords
@@ -11,8 +12,7 @@ export default async function listRecords(req: Request, res: Response): Promise<
   try {
     const repo = String(req.query.repo || '');
     const collection = String(req.query.collection || '');
-    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1), 100);
-    const cursor = req.query.cursor ? String(req.query.cursor) : undefined;
+    const { limit, cursor } = parsePagination(req.query);
     const reverse = req.query.reverse === 'true';
 
     if (!repo || !repo.startsWith('did:')) {

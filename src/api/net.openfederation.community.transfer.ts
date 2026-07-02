@@ -2,6 +2,7 @@ import { Response } from 'express';
 import crypto from 'crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
+import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { auditLog } from '../db/audit.js';
@@ -135,7 +136,7 @@ export default async function transferCommunity(req: AuthRequest, res: Response)
       transferToken,
       transferExpiresAt,
       exportedAt: new Date().toISOString(),
-      sourcePds: process.env.PDS_HOSTNAME || 'localhost',
+      sourcePds: config.pds.hostname,
       community: {
         did: community.did,
         handle: community.handle,

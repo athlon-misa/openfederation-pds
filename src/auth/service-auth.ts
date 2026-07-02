@@ -72,7 +72,7 @@ export function looksLikeServiceAuthJwt(token: string): boolean {
 
 /** The service DID this PDS accepts in the `aud` claim of inbound JWTs. */
 export function getServiceDid(): string {
-  return process.env.PDS_SERVICE_DID?.trim() || `did:web:${config.pds.hostname}`;
+  return config.pds.serviceDid;
 }
 
 /**
@@ -254,7 +254,7 @@ export function _clearReplayCache(): void {
 // Federation calls should be constrained per calling DID so a single misbehaving
 // PDS can't saturate this server. Sliding-window counters keyed by iss.
 
-const DEFAULT_LIMIT_PER_MIN = parseInt(process.env.SERVICE_AUTH_RATE_LIMIT || '60', 10);
+const DEFAULT_LIMIT_PER_MIN = config.rateLimits.serviceAuthPerMin;
 const WINDOW_MS = 60 * 1000;
 
 type WindowState = { windowStart: number; count: number };

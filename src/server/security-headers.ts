@@ -4,8 +4,9 @@
  */
 
 import type { Response } from 'express';
+import { config } from '../config.js';
 
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const IS_PRODUCTION = config.env.isProduction;
 
 const STATIC_HEADERS: [string, string][] = [
   ['X-Content-Type-Options', 'nosniff'],

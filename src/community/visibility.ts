@@ -51,39 +51,68 @@ const LEGACY_ROLE_PERMISSIONS: Record<string, string[]> = {
   member: ['community.member.read', 'community.role.read'],
 };
 
-export async function getCallerMembership(opts: {
-  communityDid: string;
-  caller?: AuthContext;
-}): Promise<CallerMembership | null> {
-  const { communityDid, caller } = opts;
-  if (!caller) return null;
+type RoleRecord = { name?: string; permissions?: string[] };
 
-  const memberResult = await query<{ record_rkey: string }>(
-    'SELECT record_rkey FROM members_unique WHERE community_did = $1 AND member_did = $2',
-    [communityDid, caller.did],
+type CommunityContextRow = {
+  created_by: string | null;
+  visibility: string | null;
+  member_rkey: string | null;
+  member_record: MemberRecord | null;
+  role_record: RoleRecord | null;
+  join_request_status: CallerMembershipStatus | null;
+};
+
+/**
+ * One round-trip for everything the access/permission checks need:
+ * community row, settings visibility, caller's member record, the member's
+ * role record, and any join request. Uniqueness guarantees (members_unique
+ * and join_requests both have UNIQUE constraints per caller+community;
+ * records_index is unique per (community, collection, rkey)) mean this
+ * returns at most one row.
+ */
+async function loadCommunityContext(
+  communityDid: string,
+  caller?: AuthContext,
+): Promise<CommunityContextRow | null> {
+  const result = await query<CommunityContextRow>(
+    `SELECT
+       c.created_by,
+       s.record->>'visibility' AS visibility,
+       mu.record_rkey          AS member_rkey,
+       mr.record               AS member_record,
+       rr.record               AS role_record,
+       jr.status               AS join_request_status
+     FROM communities c
+     LEFT JOIN records_index s
+       ON s.community_did = c.did
+      AND s.collection = 'net.openfederation.community.settings'
+      AND s.rkey = 'self'
+     LEFT JOIN members_unique mu
+       ON mu.community_did = c.did AND mu.member_did = $2
+     LEFT JOIN records_index mr
+       ON mr.community_did = c.did AND mr.collection = $3 AND mr.rkey = mu.record_rkey
+     LEFT JOIN records_index rr
+       ON rr.community_did = c.did AND rr.collection = $4 AND rr.rkey = mr.record->>'roleRkey'
+     LEFT JOIN join_requests jr
+       ON jr.community_did = c.did AND jr.user_id = $5
+     WHERE c.did = $1`,
+    [communityDid, caller?.did ?? null, MEMBER_COLLECTION, ROLE_COLLECTION, caller?.userId ?? null],
   );
+  return result.rows[0] ?? null;
+}
 
-  if (memberResult.rows.length > 0) {
-    const memberRecord = await query<{ record: MemberRecord }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
-      [communityDid, MEMBER_COLLECTION, memberResult.rows[0].record_rkey],
-    );
+function membershipFromRow(row: CommunityContextRow | null): CallerMembership | null {
+  if (!row) return null;
 
-    const member = memberRecord.rows[0]?.record ?? {};
+  if (row.member_rkey) {
+    const member = row.member_record ?? {};
     const membership: CallerMembership = {
       status: 'member',
       role: member.role ?? (member.roleRkey ? 'custom' : 'member'),
     };
-
     if (member.roleRkey) {
       membership.roleRkey = member.roleRkey;
-      const roleResult = await query<{ record: { name?: string } }>(
-        `SELECT record FROM records_index
-         WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
-        [communityDid, ROLE_COLLECTION, member.roleRkey],
-      );
-      const roleName = roleResult.rows[0]?.record?.name;
+      const roleName = row.role_record?.name;
       if (roleName) membership.role = roleName;
     }
     if (member.kind) membership.kind = member.kind;
@@ -91,23 +120,20 @@ export async function getCallerMembership(opts: {
     if (member.attributes && Object.keys(member.attributes).length > 0) {
       membership.attributes = member.attributes;
     }
-
     return membership;
   }
 
-  const joinRequest = await query<{ status: CallerMembershipStatus }>(
-    `SELECT status FROM join_requests
-     WHERE community_did = $1 AND user_id = $2`,
-    [communityDid, caller.userId],
-  );
+  if (!row.join_request_status) return null;
+  return { status: row.join_request_status, joinRequestStatus: row.join_request_status };
+}
 
-  const status = joinRequest.rows[0]?.status;
-  if (!status) return null;
-
-  return {
-    status,
-    joinRequestStatus: status,
-  };
+export async function getCallerMembership(opts: {
+  communityDid: string;
+  caller?: AuthContext;
+}): Promise<CallerMembership | null> {
+  if (!opts.caller) return null;
+  const row = await loadCommunityContext(opts.communityDid, opts.caller);
+  return membershipFromRow(row);
 }
 
 export async function getCommunityAccess(opts: {
@@ -115,35 +141,19 @@ export async function getCommunityAccess(opts: {
   caller?: AuthContext;
 }): Promise<CommunityAccess> {
   const { communityDid, caller } = opts;
-  const [communityResult, settingsResult, membership] = await Promise.all([
-    query<{ created_by: string }>(
-      'SELECT created_by FROM communities WHERE did = $1',
-      [communityDid],
-    ),
-    query<{ record: { visibility?: string } }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
-      [communityDid],
-    ),
-    getCallerMembership({ communityDid, caller }),
-  ]);
+  const row = await loadCommunityContext(communityDid, caller);
+  const membership = caller ? membershipFromRow(row) : null;
 
-  const community = communityResult.rows[0];
-  if (!community) {
-    return {
-      exists: false,
-      isAdmin: false,
-      isOwner: false,
-      membership,
-    };
+  if (!row) {
+    return { exists: false, isAdmin: false, isOwner: false, membership };
   }
 
   return {
     exists: true,
-    createdBy: community.created_by,
-    visibility: settingsResult.rows[0]?.record?.visibility || 'public',
+    createdBy: row.created_by ?? undefined,
+    visibility: row.visibility || 'public',
     isAdmin: caller?.roles.includes('admin') || false,
-    isOwner: caller ? community.created_by === caller.userId : false,
+    isOwner: caller ? row.created_by === caller.userId : false,
     membership,
   };
 }
@@ -152,42 +162,42 @@ export async function getCallerCommunityCapabilities(opts: {
   communityDid: string;
   caller: AuthContext;
 }): Promise<CallerCommunityCapabilities> {
-  const access = await getCommunityAccess(opts);
-  if (!access.exists) {
+  const row = await loadCommunityContext(opts.communityDid, opts.caller);
+  const membership = membershipFromRow(row);
+
+  if (!row) {
     return {
-      ...access,
+      exists: false,
+      isAdmin: false,
+      isOwner: false,
+      membership,
       hasAllPermissions: false,
       permissions: [],
     };
   }
+
+  const access: CommunityAccess = {
+    exists: true,
+    createdBy: row.created_by ?? undefined,
+    visibility: row.visibility || 'public',
+    isAdmin: opts.caller.roles.includes('admin'),
+    isOwner: row.created_by === opts.caller.userId,
+    membership,
+  };
 
   if (access.isAdmin || access.isOwner) {
-    return {
-      ...access,
-      hasAllPermissions: true,
-      permissions: [...ALL_PERMISSIONS],
-    };
+    return { ...access, hasAllPermissions: true, permissions: [...ALL_PERMISSIONS] };
   }
 
-  const membership = access.membership;
   if (!membership || membership.status !== 'member') {
-    return {
-      ...access,
-      hasAllPermissions: false,
-      permissions: [],
-    };
+    return { ...access, hasAllPermissions: false, permissions: [] };
   }
 
   if (membership.roleRkey) {
-    const roleResult = await query<{ record: { permissions?: string[] } }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
-      [opts.communityDid, ROLE_COLLECTION, membership.roleRkey],
-    );
     return {
       ...access,
       hasAllPermissions: false,
-      permissions: roleResult.rows[0]?.record?.permissions || [],
+      permissions: row.role_record?.permissions || [],
     };
   }
 
