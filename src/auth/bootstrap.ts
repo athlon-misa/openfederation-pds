@@ -50,7 +50,7 @@ export async function ensureBootstrapAdmin(): Promise<void> {
   // Only validate password strength when creating a new admin
   if (!isStrongPassword(password)) {
     console.error(`WARNING: Bootstrap admin password does not meet strength requirements. ${passwordValidationMessage()}`);
-    if (process.env.NODE_ENV === 'production') {
+    if (config.env.isProduction) {
       console.error('Skipping bootstrap admin creation due to weak password in production.');
       return;
     }

@@ -29,6 +29,8 @@ function parseTrustProxy(val: string | undefined): string | number | boolean {
   return val;
 }
 
+const pdsHostname = process.env.PDS_HOSTNAME || 'pds.openfederation.net';
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
 
@@ -49,8 +51,10 @@ export const config = {
 
   // PDS configuration
   pds: {
-    hostname: process.env.PDS_HOSTNAME || 'pds.openfederation.net',
+    hostname: pdsHostname,
     serviceUrl: process.env.PDS_SERVICE_URL || 'https://pds.openfederation.net',
+    // Inbound service-auth `aud` claim. Default: did:web of this PDS.
+    serviceDid: process.env.PDS_SERVICE_DID?.trim() || `did:web:${pdsHostname}`,
   },
 
   // PLC directory
@@ -145,4 +149,27 @@ export const config = {
 
   // Express trust proxy configuration (for rate limiting and req.ip with proxies)
   trustProxy: parseTrustProxy(process.env.EXPRESS_TRUST_PROXY),
+
+  // Node environment
+  env: {
+    nodeEnv: process.env.NODE_ENV || 'development',
+    isProduction: process.env.NODE_ENV === 'production',
+  },
+
+  // CORS origins for non-XRPC paths (web UI, OAuth). XRPC uses wildcard.
+  cors: {
+    origins: (process.env.CORS_ORIGINS || 'http://localhost:3001')
+      .split(',')
+      .map(o => o.trim())
+      .filter(Boolean),
+  },
+
+  // Per-endpoint rate limits (see src/server/index.ts limiters)
+  rateLimits: {
+    authPer15Min: parseInt(process.env.AUTH_RATE_LIMIT || '20', 10),
+    registrationPerHour: parseInt(process.env.REGISTRATION_RATE_LIMIT || '5', 10),
+    createPerHour: parseInt(process.env.CREATE_RATE_LIMIT || '10', 10),
+    walletSignPerMin: parseInt(process.env.WALLET_SIGN_RATE_LIMIT || '60', 10),
+    serviceAuthPerMin: parseInt(process.env.SERVICE_AUTH_RATE_LIMIT || '60', 10),
+  },
 };

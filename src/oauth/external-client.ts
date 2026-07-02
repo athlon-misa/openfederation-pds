@@ -83,7 +83,7 @@ export function createExternalOAuthClient(): NodeOAuthClient {
     },
     stateStore: new PgStateStore(),
     sessionStore: new PgSessionStore(),
-    allowHttp: process.env.NODE_ENV !== 'production',
+    allowHttp: !config.env.isProduction,
   });
 
   return oauthClient;

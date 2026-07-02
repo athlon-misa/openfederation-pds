@@ -273,7 +273,7 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: parseInt(process.env.AUTH_RATE_LIMIT || '20', 10),
+  max: config.rateLimits.authPer15Min,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many authentication attempts, please try again later' },
@@ -281,7 +281,7 @@ const authLimiter = rateLimit({
 
 const registrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,  // 1 hour
-  max: parseInt(process.env.REGISTRATION_RATE_LIMIT || '5', 10),
+  max: config.rateLimits.registrationPerHour,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many registration attempts, please try again later' },
@@ -289,7 +289,7 @@ const registrationLimiter = rateLimit({
 
 const createLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,  // 1 hour
-  max: parseInt(process.env.CREATE_RATE_LIMIT || '10', 10),
+  max: config.rateLimits.createPerHour,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many creation requests, please try again later' },
@@ -308,7 +308,7 @@ const discoveryLimiter = rateLimit({
 // service-auth and keeps a single dApp from saturating the PDS.
 const walletSignLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: parseInt(process.env.WALLET_SIGN_RATE_LIMIT || '60', 10),
+  max: config.rateLimits.walletSignPerMin,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many signing requests, please try again later' },
@@ -993,7 +993,7 @@ async function cleanupExpiredSessions(): Promise<void> {
 export async function startServer(): Promise<void> {
   // Security check: refuse to start with insecure JWT secret in production
   if (config.auth.jwtSecretIsInsecure) {
-    if (process.env.NODE_ENV === 'production') {
+    if (config.env.isProduction) {
       console.error('FATAL: AUTH_JWT_SECRET is not set or is insecure. Refusing to start in production.');
       console.error('Set AUTH_JWT_SECRET to a random string of at least 32 characters.');
       process.exit(1);
@@ -1005,7 +1005,7 @@ export async function startServer(): Promise<void> {
 
   // Security check: KEY_ENCRYPTION_SECRET needed for key storage
   if (!config.keyEncryptionSecret) {
-    if (process.env.NODE_ENV === 'production') {
+    if (config.env.isProduction) {
       console.error('FATAL: KEY_ENCRYPTION_SECRET is not set. Required for encrypting keys at rest.');
       process.exit(1);
     } else {
