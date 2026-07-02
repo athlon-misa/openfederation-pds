@@ -243,6 +243,7 @@ export type NetOpenfederationAccountRegisterInput = {
 export type NetOpenfederationAccountRegisterOutput = {
   "id": string;
   "handle": string;
+  "did": string;
   "email": string;
   "status": string;
 };
@@ -2460,7 +2461,7 @@ export const lexiconContracts = {
   'net.openfederation.account.list': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
   'net.openfederation.account.listSessions': { revision: 2, errors: ["NotFound"] as const },
-  'net.openfederation.account.register': { revision: 2, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
+  'net.openfederation.account.register': { revision: 3, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
   'net.openfederation.account.reject': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.requestPasswordReset': { revision: 1, errors: [] as const },
   'net.openfederation.account.resolveExternal': { revision: 1, errors: ["ResolutionFailed", "ServiceUnavailable"] as const },

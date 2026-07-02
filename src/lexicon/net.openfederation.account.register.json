@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.register",
-  "revision": 2,
+  "revision": 3,
   "description": "Register a new account. Requires an invite code if the server has invite-only registration enabled.",
   "defs": {
     "main": {
@@ -42,10 +42,16 @@
           "type": "object",
           "properties": {
             "id": {
-              "type": "string"
+              "type": "string",
+              "description": "Internal user identifier (UUID)."
             },
             "handle": {
               "type": "string"
+            },
+            "did": {
+              "type": "string",
+              "format": "did",
+              "description": "The account's AT Protocol DID (did:plc)."
             },
             "email": {
               "type": "string"
@@ -58,6 +64,7 @@
           "required": [
             "id",
             "handle",
+            "did",
             "email",
             "status"
           ]
