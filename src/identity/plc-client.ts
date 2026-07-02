@@ -46,7 +46,7 @@ interface SignedPlcOperation extends PlcOperation {
  *
  * @returns The registered DID string (e.g., "did:plc:abc123...")
  */
-export async function registerDidPlc(opts: {
+async function registerDidPlcReal(opts: {
   signingKey: Keypair;
   rotationKeys: Keypair[];
   handle: string;
@@ -111,7 +111,7 @@ export async function registerDidPlc(opts: {
  *
  * @returns The DID document, or null if not found
  */
-export async function resolveFromPlc(did: string): Promise<Record<string, unknown> | null> {
+async function resolveFromPlcReal(did: string): Promise<Record<string, unknown> | null> {
   const directoryUrl = config.plc.directoryUrl;
   const url = `${directoryUrl}/${did}`;
 
@@ -168,4 +168,41 @@ function base64UrlEncode(bytes: Uint8Array): string {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+}
+
+// ── Test seam ────────────────────────────────────────────────────
+// The real adapter talks to the configured PLC directory; tests inject a
+// double via setPlcClientForTests so registration flows run without a live
+// directory. Mirrors the resolveSigningKey override pattern in service-auth.
+
+export interface PlcDirectoryClient {
+  registerDidPlc(opts: {
+    signingKey: Keypair;
+    rotationKeys: Keypair[];
+    handle: string;
+    pdsEndpoint: string;
+  }): Promise<string>;
+  resolveFromPlc(did: string): Promise<Record<string, unknown> | null>;
+}
+
+const realPlcClient: PlcDirectoryClient = {
+  registerDidPlc: registerDidPlcReal,
+  resolveFromPlc: resolveFromPlcReal,
+};
+
+let activePlcClient: PlcDirectoryClient = realPlcClient;
+
+/** Pass null to restore the real client. Test-only. */
+export function setPlcClientForTests(client: PlcDirectoryClient | null): void {
+  activePlcClient = client ?? realPlcClient;
+}
+
+export async function registerDidPlc(
+  opts: Parameters<PlcDirectoryClient['registerDidPlc']>[0],
+): Promise<string> {
+  return activePlcClient.registerDidPlc(opts);
+}
+
+export async function resolveFromPlc(did: string): Promise<Record<string, unknown> | null> {
+  return activePlcClient.resolveFromPlc(did);
 }

@@ -2,6 +2,15 @@ import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { config } from '../config.js';
 
+export type EmailSender = (to: string, subject: string, html: string) => Promise<void>;
+
+let testSender: EmailSender | null = null;
+
+/** Pass null to restore the real transport. Test-only. */
+export function setEmailSenderForTests(sender: EmailSender | null): void {
+  testSender = sender;
+}
+
 let transporter: Transporter | null = null;
 
 function getTransporter(): Transporter | null {
@@ -21,6 +30,7 @@ function getTransporter(): Transporter | null {
 }
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+  if (testSender) return testSender(to, subject, html);
   const t = getTransporter();
   if (!t) {
     // Dev mode — log to console
