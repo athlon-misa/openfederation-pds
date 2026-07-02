@@ -4,6 +4,7 @@ import type { PartnerContext } from './partner-guard.js';
 import type { OracleContext } from './oracle-guard.js';
 import { query } from '../db/client.js';
 import { getCallerCommunityCapabilities } from '../community/visibility.js';
+import { HttpError } from '../xrpc/errors.js';
 
 export function requireAuth(req: AuthRequest, res: Response): req is AuthRequest & { auth: AuthContext } {
   if (!req.auth) {
@@ -270,4 +271,66 @@ export function requireOracleAuth(
     return false;
   }
   return true;
+}
+
+// ── Throwing guard variants ──────────────────────────────────────
+// These mirror the require* guards above but throw HttpError instead of
+// writing to `res`. The central XRPC dispatcher (and renderXrpcError in
+// handlers that keep a local try/catch) turns the throw into the identical
+// HTTP response. Prefer these in new/migrated handlers.
+
+export function assertAuth(req: AuthRequest): asserts req is AuthRequest & { auth: AuthContext } {
+  if (!req.auth) {
+    if (req.serviceAuthError) {
+      throw new HttpError(req.serviceAuthError.status, req.serviceAuthError.code, req.serviceAuthError.message);
+    }
+    throw new HttpError(
+      401,
+      'Unauthorized',
+      req.authError === 'invalid' ? 'Invalid access token' : 'Missing access token',
+    );
+  }
+}
+
+export function assertRole(req: AuthRequest, roles: UserRole[]): asserts req is AuthRequest & { auth: AuthContext } {
+  assertAuth(req);
+  const hasRole = roles.some((role) => req.auth.roles.includes(role));
+  if (!hasRole) {
+    throw new HttpError(403, 'Forbidden', 'Insufficient privileges');
+  }
+}
+
+export function assertApprovedUser(req: AuthRequest): asserts req is AuthRequest & { auth: AuthContext } {
+  assertAuth(req);
+  if (req.auth.status === 'suspended') {
+    throw new HttpError(403, 'AccountSuspended', 'Your account has been suspended.');
+  }
+  if (req.auth.status === 'takendown') {
+    throw new HttpError(410, 'AccountTakenDown', 'Your account has been taken down.');
+  }
+  if (req.auth.status === 'deactivated') {
+    throw new HttpError(403, 'AccountDeactivated', 'Your account is deactivated. Reactivate it to continue.');
+  }
+  if (req.auth.status !== 'approved') {
+    throw new HttpError(403, 'AccountNotApproved', 'Your account must be approved before performing this action.');
+  }
+}
+
+/** Async — TypeScript does not allow async assertion signatures, so callers must assertAuth first. */
+export async function assertCommunityPermission(
+  req: AuthRequest & { auth: AuthContext },
+  communityDid: string,
+  permission: string,
+): Promise<void> {
+  const capabilities = await getCallerCommunityCapabilities({ communityDid, caller: req.auth });
+  if (!capabilities.exists) {
+    throw new HttpError(404, 'NotFound', 'Community not found');
+  }
+  if (capabilities.hasAllPermissions || capabilities.permissions.includes(permission)) {
+    return;
+  }
+  if (capabilities.membership?.status !== 'member') {
+    throw new HttpError(403, 'NotMember', 'You must be a member of this community');
+  }
+  throw new HttpError(403, 'Forbidden', 'Insufficient community privileges');
 }
