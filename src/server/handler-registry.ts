@@ -51,6 +51,7 @@ import linkApplication from '../api/net.openfederation.community.linkApplication
 import unlinkApplication from '../api/net.openfederation.community.unlinkApplication.js';
 import listApplications from '../api/net.openfederation.community.listApplications.js';
 import verifyMembership from '../api/net.openfederation.community.verifyMembership.js';
+import myCapabilities from '../api/net.openfederation.community.myCapabilities.js';
 import updateSubjectStatus from '../api/com.atproto.admin.updateSubjectStatus.js';
 import getSubjectStatus from '../api/com.atproto.admin.getSubjectStatus.js';
 import adminDeleteAccount from '../api/com.atproto.admin.deleteAccount.js';
@@ -208,6 +209,7 @@ const handlers = Object.freeze({
   'net.openfederation.community.unlinkApplication': { handler: unlinkApplication },
   'net.openfederation.community.listApplications': { handler: listApplications },
   'net.openfederation.community.verifyMembership': { handler: verifyMembership },
+  'net.openfederation.community.myCapabilities': { handler: myCapabilities },
 
   // Partner API endpoints
   'net.openfederation.partner.register': { handler: partnerRegister, limiter: registrationLimiter },

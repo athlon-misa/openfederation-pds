@@ -846,6 +846,18 @@ export type NetOpenfederationCommunityListRolesOutput = {
 };
 export type NetOpenfederationCommunityListRolesError = "InvalidRequest";
 
+export type NetOpenfederationCommunityMyCapabilitiesInput = {
+  "communityDid": string;
+};
+export type NetOpenfederationCommunityMyCapabilitiesOutput = {
+  "isMember": boolean;
+  "isOwner": boolean;
+  "isAdmin": boolean;
+  "role"?: string;
+  "permissions": Array<string>;
+};
+export type NetOpenfederationCommunityMyCapabilitiesError = "InvalidRequest" | "NotFound";
+
 export type NetOpenfederationCommunityRemoveMemberInput = {
   "did": string;
   "memberDid": string;
@@ -2003,6 +2015,7 @@ export interface LexiconInputMap {
   'net.openfederation.community.listMine': NetOpenfederationCommunityListMineInput;
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsInput;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesInput;
+  'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesInput;
   'net.openfederation.community.removeMember': NetOpenfederationCommunityRemoveMemberInput;
   'net.openfederation.community.resolveJoinRequest': NetOpenfederationCommunityResolveJoinRequestInput;
   'net.openfederation.community.revokeDelegation': NetOpenfederationCommunityRevokeDelegationInput;
@@ -2174,6 +2187,7 @@ export interface LexiconOutputMap {
   'net.openfederation.community.listMine': NetOpenfederationCommunityListMineOutput;
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsOutput;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesOutput;
+  'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesOutput;
   'net.openfederation.community.removeMember': NetOpenfederationCommunityRemoveMemberOutput;
   'net.openfederation.community.resolveJoinRequest': NetOpenfederationCommunityResolveJoinRequestOutput;
   'net.openfederation.community.revokeDelegation': NetOpenfederationCommunityRevokeDelegationOutput;
@@ -2345,6 +2359,7 @@ export interface LexiconErrorMap {
   'net.openfederation.community.listMine': NetOpenfederationCommunityListMineError;
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsError;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesError;
+  'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesError;
   'net.openfederation.community.removeMember': NetOpenfederationCommunityRemoveMemberError;
   'net.openfederation.community.resolveJoinRequest': NetOpenfederationCommunityResolveJoinRequestError;
   'net.openfederation.community.revokeDelegation': NetOpenfederationCommunityRevokeDelegationError;
@@ -2518,6 +2533,7 @@ export const lexiconContracts = {
   'net.openfederation.community.listMine': { revision: 1, errors: [] as const },
   'net.openfederation.community.listProposals': { revision: 1, errors: [] as const },
   'net.openfederation.community.listRoles': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.removeMember': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.resolveJoinRequest': { revision: 1, errors: ["AlreadyResolved", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.revokeDelegation': { revision: 2, errors: ["NotFound"] as const },

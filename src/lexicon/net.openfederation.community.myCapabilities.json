@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.myCapabilities",
+  "revision": 1,
+  "description": "Return the authenticated caller's own capabilities within a community: membership, ownership, admin status, and effective permission strings. Owners and admins receive the full permission list.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "required": ["communityDid"],
+        "properties": {
+          "communityDid": { "type": "string", "format": "did" }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["isMember", "isOwner", "isAdmin", "permissions"],
+          "properties": {
+            "isMember": { "type": "boolean" },
+            "isOwner": { "type": "boolean" },
+            "isAdmin": { "type": "boolean" },
+            "role": { "type": "string" },
+            "permissions": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "errors": [
+        { "name": "NotFound", "description": "Community not found." },
+        { "name": "InvalidRequest", "description": "Missing communityDid." }
+      ]
+    }
+  }
+}
