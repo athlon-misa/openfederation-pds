@@ -1310,6 +1310,15 @@ export type NetOpenfederationForumHidePostOutput = {
 };
 export type NetOpenfederationForumHidePostError = "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
 
+export type NetOpenfederationForumHideThreadInput = {
+  "uri": string;
+  "hidden": boolean;
+};
+export type NetOpenfederationForumHideThreadOutput = {
+  "success"?: boolean;
+};
+export type NetOpenfederationForumHideThreadError = "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
+
 export type NetOpenfederationForumListThreadsInput = {
   "community": string;
   "limit"?: number;
@@ -2035,6 +2044,7 @@ export interface LexiconInputMap {
   'net.openfederation.forum.deletePost': NetOpenfederationForumDeletePostInput;
   'net.openfederation.forum.getThread': NetOpenfederationForumGetThreadInput;
   'net.openfederation.forum.hidePost': NetOpenfederationForumHidePostInput;
+  'net.openfederation.forum.hideThread': NetOpenfederationForumHideThreadInput;
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsInput;
   'net.openfederation.forum.post': NetOpenfederationForumPostInput;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadInput;
@@ -2205,6 +2215,7 @@ export interface LexiconOutputMap {
   'net.openfederation.forum.deletePost': NetOpenfederationForumDeletePostOutput;
   'net.openfederation.forum.getThread': NetOpenfederationForumGetThreadOutput;
   'net.openfederation.forum.hidePost': NetOpenfederationForumHidePostOutput;
+  'net.openfederation.forum.hideThread': NetOpenfederationForumHideThreadOutput;
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsOutput;
   'net.openfederation.forum.post': NetOpenfederationForumPostOutput;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadOutput;
@@ -2375,6 +2386,7 @@ export interface LexiconErrorMap {
   'net.openfederation.forum.deletePost': NetOpenfederationForumDeletePostError;
   'net.openfederation.forum.getThread': NetOpenfederationForumGetThreadError;
   'net.openfederation.forum.hidePost': NetOpenfederationForumHidePostError;
+  'net.openfederation.forum.hideThread': NetOpenfederationForumHideThreadError;
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsError;
   'net.openfederation.forum.post': NetOpenfederationForumPostError;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadError;
@@ -2547,6 +2559,7 @@ export const lexiconContracts = {
   'net.openfederation.forum.deletePost': { revision: 1, errors: [] as const },
   'net.openfederation.forum.getThread': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.forum.hidePost': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
+  'net.openfederation.forum.hideThread': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.listThreads': { revision: 1, errors: [] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },

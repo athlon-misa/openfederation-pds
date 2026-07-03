@@ -91,6 +91,8 @@ export type AuditAction =
   | 'forum.post.delete'
   | 'forum.post.hide'
   | 'forum.post.unhide'
+  | 'forum.thread.hide'
+  | 'forum.thread.unhide'
   | 'calendar.event.create'
   | 'calendar.rsvp';
 

@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.forum.hideThread",
+  "revision": 1,
+  "description": "Moderator overlay: hide or unhide a forum thread from the community view. Does not delete the underlying record in the author's repo. Requires the community.forum.write permission.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["uri", "hidden"],
+          "properties": {
+            "uri": { "type": "string" },
+            "hidden": { "type": "boolean" }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "type": "boolean" }
+          }
+        }
+      },
+      "errors": [
+        { "name": "NotFound", "description": "Thread not found." },
+        { "name": "InvalidRequest", "description": "Invalid request parameters." },
+        { "name": "NotMember", "description": "Caller is not a member of this community." },
+        { "name": "Forbidden", "description": "Caller does not have the required community permission." }
+      ]
+    }
+  }
+}
