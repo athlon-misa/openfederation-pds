@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   APPLICATION_DELETE: 'community.application.delete',
   GOVERNANCE_WRITE: 'community.governance.write',
   FORUM_WRITE: 'community.forum.write',
+  FORUM_MODERATE: 'community.forum.moderate',
   CALENDAR_WRITE: 'community.calendar.write',
 } as const;
 
@@ -66,6 +67,7 @@ export function getDefaultRoleRecords(): Array<{ name: string; record: RoleRecor
           PERMISSIONS.ATTESTATION_DELETE,
           PERMISSIONS.GOVERNANCE_WRITE,
           PERMISSIONS.FORUM_WRITE,
+          PERMISSIONS.FORUM_MODERATE,
           PERMISSIONS.CALENDAR_WRITE,
         ],
       },

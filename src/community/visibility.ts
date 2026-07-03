@@ -48,6 +48,7 @@ const LEGACY_ROLE_PERMISSIONS: Record<string, string[]> = {
     'community.attestation.delete',
     'community.governance.write',
     'community.forum.write',
+    'community.forum.moderate',
   ],
   member: ['community.member.read', 'community.role.read'],
 };
@@ -214,7 +215,7 @@ export function canViewPrivateCommunity(access: CommunityAccess): boolean {
 }
 
 /**
- * True if the authenticated caller (if any) holds community.forum.write in
+ * True if the authenticated caller (if any) holds community.forum.moderate in
  * this community — the single gate for seeing/hiding forum moderation
  * content. Used identically by forum.getThread and forum.listThreads so the
  * permission check can never drift between call sites.
@@ -225,5 +226,5 @@ export async function callerCanModerateForum(
 ): Promise<boolean> {
   if (!caller) return false;
   const caps = await getCallerCommunityCapabilities({ communityDid, caller });
-  return caps.hasAllPermissions || caps.permissions.includes('community.forum.write');
+  return caps.hasAllPermissions || caps.permissions.includes('community.forum.moderate');
 }

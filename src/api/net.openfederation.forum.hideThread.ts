@@ -23,7 +23,7 @@ export default async function hideThread(req: AuthRequest, res: Response): Promi
     const communityDid = lookup.rows[0].community_did;
 
     const hasPermission = await requireCommunityPermission(
-      req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.forum.write'
+      req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.forum.moderate'
     );
     if (!hasPermission) return;
 
