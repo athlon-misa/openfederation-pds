@@ -61,6 +61,10 @@ export async function setPostHidden(uri: string, hidden: boolean): Promise<void>
   await query('UPDATE forum_posts SET hidden = $2 WHERE uri = $1', [uri, hidden]);
 }
 
+export async function setThreadHidden(uri: string, hidden: boolean): Promise<void> {
+  await query('UPDATE forum_threads SET hidden = $2 WHERE uri = $1', [uri, hidden]);
+}
+
 export async function indexRsvp(r: {
   uri: string; eventUri: string; attendeeDid: string; status: string; createdAt: string;
 }): Promise<void> {
@@ -76,16 +80,18 @@ export async function indexRsvp(r: {
 export async function listThreads(
   communityDid: string,
   limit: number,
-  before: string | null
+  before: string | null,
+  opts: { includeHidden?: boolean } = {}
 ): Promise<Array<Record<string, unknown>>> {
   const params: unknown[] = [communityDid, limit];
-  let where = 'community_did = $1 AND hidden = false';
+  let where = 'community_did = $1';
+  if (!opts.includeHidden) where += ' AND hidden = false';
   if (before) {
     params.push(before);
     where += ` AND last_activity < $3`;
   }
   const res = await query<Record<string, unknown>>(
-    `SELECT uri, cid, community_did, author_did, title, tags, post_count, last_activity, created_at
+    `SELECT uri, cid, community_did, author_did, title, tags, post_count, last_activity, created_at, hidden
      FROM forum_threads WHERE ${where} ORDER BY last_activity DESC LIMIT $2`,
     params
   );
@@ -104,16 +110,18 @@ export async function getThread(uri: string): Promise<Record<string, unknown> | 
 export async function getThreadPosts(
   threadUri: string,
   limit: number,
-  after: string | null
+  after: string | null,
+  opts: { includeHidden?: boolean } = {}
 ): Promise<Array<Record<string, unknown>>> {
   const params: unknown[] = [threadUri, limit];
-  let where = 'thread_root_uri = $1 AND hidden = false';
+  let where = 'thread_root_uri = $1';
+  if (!opts.includeHidden) where += ' AND hidden = false';
   if (after) {
     params.push(after);
     where += ` AND created_at > $3`;
   }
   const res = await query<Record<string, unknown>>(
-    `SELECT uri, cid, community_did, author_did, thread_root_uri, parent_uri, record, created_at
+    `SELECT uri, cid, community_did, author_did, thread_root_uri, parent_uri, record, created_at, hidden
      FROM forum_posts WHERE ${where} ORDER BY created_at ASC LIMIT $2`,
     params
   );
