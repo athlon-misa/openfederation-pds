@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { getThread, getThreadPosts } from '../forum/forum-index.js';
+import { getCallerCommunityCapabilities } from '../community/visibility.js';
+
+const FORUM_WRITE = 'community.forum.write';
 
 export default async function getThreadHandler(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -10,22 +13,40 @@ export default async function getThreadHandler(req: AuthRequest, res: Response):
       return;
     }
     const thread = await getThread(uri);
-    if (!thread || thread.hidden) {
+    if (!thread) {
       res.status(404).json({ error: 'NotFound', message: 'Thread not found' });
       return;
     }
+
+    // Moderators (community.forum.write) see hidden threads and hidden posts;
+    // everyone else keeps the public view. Same gate as forum.hidePost.
+    let canModerate = false;
+    if (req.auth) {
+      const caps = await getCallerCommunityCapabilities({
+        communityDid: String(thread.community_did),
+        caller: req.auth,
+      });
+      canModerate = caps.hasAllPermissions || caps.permissions.includes(FORUM_WRITE);
+    }
+
+    if (thread.hidden && !canModerate) {
+      res.status(404).json({ error: 'NotFound', message: 'Thread not found' });
+      return;
+    }
+
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
     const after = req.query.after ? String(req.query.after) : null;
-    const postRows = await getThreadPosts(uri, limit, after);
+    const postRows = await getThreadPosts(uri, limit, after, { includeHidden: canModerate });
     const posts = postRows.map((p) => ({
       uri: p.uri, cid: p.cid, authorDid: p.author_did, parentUri: p.parent_uri,
-      record: p.record, createdAt: p.created_at,
+      record: p.record, hidden: Boolean(p.hidden), createdAt: p.created_at,
     }));
     const cursor = posts.length === limit ? String(postRows[postRows.length - 1].created_at) : undefined;
     res.status(200).json({
       thread: {
         uri: thread.uri, authorDid: thread.author_did, title: thread.title,
-        tags: thread.tags, postCount: thread.post_count, createdAt: thread.created_at,
+        tags: thread.tags, postCount: thread.post_count, hidden: Boolean(thread.hidden),
+        createdAt: thread.created_at,
       },
       posts, cursor,
     });
