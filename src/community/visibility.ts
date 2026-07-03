@@ -47,6 +47,7 @@ const LEGACY_ROLE_PERMISSIONS: Record<string, string[]> = {
     'community.attestation.write',
     'community.attestation.delete',
     'community.governance.write',
+    'community.forum.write',
   ],
   member: ['community.member.read', 'community.role.read'],
 };
