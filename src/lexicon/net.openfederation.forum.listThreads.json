@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.listThreads",
-  "revision": 1,
-  "description": "List forum threads in a community, newest activity first.",
+  "revision": 2,
+  "description": "List forum threads in a community, newest activity first. Callers holding community.forum.write also receive hidden threads, each carrying a hidden flag.",
   "defs": {
     "main": {
       "type": "query",

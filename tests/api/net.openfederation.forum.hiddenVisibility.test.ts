@@ -69,4 +69,22 @@ describe('forum hidden visibility for moderators', () => {
 
     await xrpcAuthPost('net.openfederation.forum.hideThread', owner.accessJwt, { uri: threadUri, hidden: false });
   });
+
+  it('listThreads includes hidden threads (hidden: true) for the owner only', async () => {
+    if (!plc) return;
+    await xrpcAuthPost('net.openfederation.forum.hideThread', owner.accessJwt, { uri: threadUri, hidden: true });
+
+    const ownerList = await xrpcAuthGet('net.openfederation.forum.listThreads', owner.accessJwt, { community: communityDid });
+    const ownerRow = ownerList.body.threads.find((t: { uri: string }) => t.uri === threadUri);
+    expect(ownerRow).toBeDefined();
+    expect(ownerRow.hidden).toBe(true);
+
+    const anonList = await xrpcGet('net.openfederation.forum.listThreads', { community: communityDid });
+    expect(anonList.body.threads.map((t: { uri: string }) => t.uri)).not.toContain(threadUri);
+
+    const outsiderList = await xrpcAuthGet('net.openfederation.forum.listThreads', outsider.accessJwt, { community: communityDid });
+    expect(outsiderList.body.threads.map((t: { uri: string }) => t.uri)).not.toContain(threadUri);
+
+    await xrpcAuthPost('net.openfederation.forum.hideThread', owner.accessJwt, { uri: threadUri, hidden: false });
+  });
 });

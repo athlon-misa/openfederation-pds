@@ -2560,7 +2560,7 @@ export const lexiconContracts = {
   'net.openfederation.forum.getThread': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.hidePost': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.hideThread': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
-  'net.openfederation.forum.listThreads': { revision: 1, errors: [] as const },
+  'net.openfederation.forum.listThreads': { revision: 2, errors: [] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },

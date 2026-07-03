@@ -1,6 +1,9 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { listThreads } from '../forum/forum-index.js';
+import { getCallerCommunityCapabilities } from '../community/visibility.js';
+
+const FORUM_WRITE = 'community.forum.write';
 
 export default async function listThreadsHandler(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -12,10 +15,19 @@ export default async function listThreadsHandler(req: AuthRequest, res: Response
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
     const before = req.query.before ? String(req.query.before) : null;
 
-    const rows = await listThreads(community, limit, before);
+    // Moderators (community.forum.write) also see hidden threads, so they
+    // can find and unhide them. Same gate as forum.hidePost / getThread.
+    let canModerate = false;
+    if (req.auth) {
+      const caps = await getCallerCommunityCapabilities({ communityDid: community, caller: req.auth });
+      canModerate = caps.hasAllPermissions || caps.permissions.includes(FORUM_WRITE);
+    }
+
+    const rows = await listThreads(community, limit, before, { includeHidden: canModerate });
     const threads = rows.map((t) => ({
       uri: t.uri, cid: t.cid, authorDid: t.author_did, title: t.title,
-      tags: t.tags, postCount: t.post_count, lastActivity: t.last_activity, createdAt: t.created_at,
+      tags: t.tags, postCount: t.post_count, lastActivity: t.last_activity,
+      hidden: Boolean(t.hidden), createdAt: t.created_at,
     }));
     const cursor = threads.length === limit ? String(rows[rows.length - 1].last_activity) : undefined;
     res.status(200).json({ threads, cursor });
