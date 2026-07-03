@@ -1,9 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { getThread, getThreadPosts } from '../forum/forum-index.js';
-import { getCallerCommunityCapabilities } from '../community/visibility.js';
-
-const FORUM_WRITE = 'community.forum.write';
+import { callerCanModerateForum } from '../community/visibility.js';
 
 export default async function getThreadHandler(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -20,14 +18,7 @@ export default async function getThreadHandler(req: AuthRequest, res: Response):
 
     // Moderators (community.forum.write) see hidden threads and hidden posts;
     // everyone else keeps the public view. Same gate as forum.hidePost.
-    let canModerate = false;
-    if (req.auth) {
-      const caps = await getCallerCommunityCapabilities({
-        communityDid: String(thread.community_did),
-        caller: req.auth,
-      });
-      canModerate = caps.hasAllPermissions || caps.permissions.includes(FORUM_WRITE);
-    }
+    const canModerate = await callerCanModerateForum(String(thread.community_did), req.auth);
 
     if (thread.hidden && !canModerate) {
       res.status(404).json({ error: 'NotFound', message: 'Thread not found' });

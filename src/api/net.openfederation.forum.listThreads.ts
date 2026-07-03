@@ -1,9 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { listThreads } from '../forum/forum-index.js';
-import { getCallerCommunityCapabilities } from '../community/visibility.js';
-
-const FORUM_WRITE = 'community.forum.write';
+import { callerCanModerateForum } from '../community/visibility.js';
 
 export default async function listThreadsHandler(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -17,11 +15,7 @@ export default async function listThreadsHandler(req: AuthRequest, res: Response
 
     // Moderators (community.forum.write) also see hidden threads, so they
     // can find and unhide them. Same gate as forum.hidePost / getThread.
-    let canModerate = false;
-    if (req.auth) {
-      const caps = await getCallerCommunityCapabilities({ communityDid: community, caller: req.auth });
-      canModerate = caps.hasAllPermissions || caps.permissions.includes(FORUM_WRITE);
-    }
+    const canModerate = await callerCanModerateForum(community, req.auth);
 
     const rows = await listThreads(community, limit, before, { includeHidden: canModerate });
     const threads = rows.map((t) => ({

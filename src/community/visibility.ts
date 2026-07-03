@@ -212,3 +212,18 @@ export async function getCallerCommunityCapabilities(opts: {
 export function canViewPrivateCommunity(access: CommunityAccess): boolean {
   return access.isAdmin || access.isOwner || access.membership?.status === 'member';
 }
+
+/**
+ * True if the authenticated caller (if any) holds community.forum.write in
+ * this community — the single gate for seeing/hiding forum moderation
+ * content. Used identically by forum.getThread and forum.listThreads so the
+ * permission check can never drift between call sites.
+ */
+export async function callerCanModerateForum(
+  communityDid: string,
+  caller: AuthContext | undefined,
+): Promise<boolean> {
+  if (!caller) return false;
+  const caps = await getCallerCommunityCapabilities({ communityDid, caller });
+  return caps.hasAllPermissions || caps.permissions.includes('community.forum.write');
+}
