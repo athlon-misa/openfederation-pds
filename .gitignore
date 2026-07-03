@@ -52,3 +52,6 @@ articles/
 # Generated docs site (built by scripts/build-lexicon-docs.ts)
 docs-site/
 data/
+
+# Local git worktrees (superpowers:using-git-worktrees)
+.worktrees/
