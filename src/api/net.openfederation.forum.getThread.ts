@@ -16,7 +16,7 @@ export default async function getThreadHandler(req: AuthRequest, res: Response):
       return;
     }
 
-    // Moderators (community.forum.write) see hidden threads and hidden posts;
+    // Moderators (community.forum.moderate) see hidden threads and hidden posts;
     // everyone else keeps the public view. Same gate as forum.hidePost.
     const canModerate = await callerCanModerateForum(String(thread.community_did), req.auth);
 

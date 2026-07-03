@@ -2,7 +2,7 @@
   "lexicon": 1,
   "id": "net.openfederation.forum.getThread",
   "revision": 3,
-  "description": "Get a forum thread with its posts. Callers holding community.forum.write on the thread's community also receive hidden threads and hidden posts, each carrying a hidden flag.",
+  "description": "Get a forum thread with its posts. Callers holding community.forum.moderate on the thread's community also receive hidden threads and hidden posts, each carrying a hidden flag.",
   "defs": {
     "main": {
       "type": "query",

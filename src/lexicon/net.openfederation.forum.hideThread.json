@@ -2,7 +2,7 @@
   "lexicon": 1,
   "id": "net.openfederation.forum.hideThread",
   "revision": 1,
-  "description": "Moderator overlay: hide or unhide a forum thread from the community view. Does not delete the underlying record in the author's repo. Requires the community.forum.write permission.",
+  "description": "Moderator overlay: hide or unhide a forum thread from the community view. Does not delete the underlying record in the author's repo. Requires the community.forum.moderate permission.",
   "defs": {
     "main": {
       "type": "procedure",

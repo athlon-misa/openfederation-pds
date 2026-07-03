@@ -13,7 +13,7 @@ export default async function listThreadsHandler(req: AuthRequest, res: Response
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
     const before = req.query.before ? String(req.query.before) : null;
 
-    // Moderators (community.forum.write) also see hidden threads, so they
+    // Moderators (community.forum.moderate) also see hidden threads, so they
     // can find and unhide them. Same gate as forum.hidePost / getThread.
     const canModerate = await callerCanModerateForum(community, req.auth);
 
