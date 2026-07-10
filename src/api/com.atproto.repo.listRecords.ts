@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import type { AuthRequest } from '../auth/types.js';
+import { requireRepoReadable } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { parsePagination } from '../xrpc/pagination.js';
 
@@ -30,6 +32,8 @@ export default async function listRecords(req: Request, res: Response): Promise<
       });
       return;
     }
+
+    if (!(await requireRepoReadable(req as AuthRequest, res, repo))) return;
 
     const engine = new RepoEngine(repo);
     const result = await engine.listRecords(collection, limit, cursor);

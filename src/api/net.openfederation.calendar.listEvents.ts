@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
 import { CALENDAR_EVENT } from '../forum/forum-index.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 
 export default async function listEvents(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -10,6 +11,7 @@ export default async function listEvents(req: AuthRequest, res: Response): Promi
       res.status(400).json({ error: 'InvalidRequest', message: 'community is required' });
       return;
     }
+    if (!(await requireCommunityReadable(req, res, community))) return;
     const rows = await query<{ rkey: string; cid: string; record: Record<string, unknown> }>(
       `SELECT rkey, cid, record FROM records_index
        WHERE community_did = $1 AND collection = $2

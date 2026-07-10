@@ -3,7 +3,7 @@ import type { AuthRequest, AuthContext, UserRole, CommunityRole, CommunityStatus
 import type { PartnerContext } from './partner-guard.js';
 import type { OracleContext } from './oracle-guard.js';
 import { query } from '../db/client.js';
-import { getCallerCommunityCapabilities } from '../community/visibility.js';
+import { getCallerCommunityCapabilities, getCommunityAccess, canViewPrivateCommunity } from '../community/visibility.js';
 import { HttpError } from '../xrpc/errors.js';
 
 export function requireAuth(req: AuthRequest, res: Response): req is AuthRequest & { auth: AuthContext } {
@@ -229,6 +229,59 @@ export async function requireCommunityPermission(
 
   res.status(403).json({ error: 'Forbidden', message: 'Insufficient community privileges' });
   return false;
+}
+
+/**
+ * Guard: the community must exist and be readable by the caller.
+ *
+ * Public communities are readable by anyone (including unauthenticated
+ * callers). Private communities are readable only by their owner, a PDS
+ * admin, or a member. On failure this returns 404 (never 403) so the
+ * existence of a private community is not leaked to outsiders — matching
+ * net.openfederation.community.get.
+ *
+ * Use on read endpoints that expose a community's data (forum, calendar,
+ * etc.) so they enforce the same visibility gate as community.get /
+ * listMembers and can't drift apart.
+ */
+export async function requireCommunityReadable(
+  req: AuthRequest,
+  res: Response,
+  communityDid: string,
+): Promise<boolean> {
+  const access = await getCommunityAccess({ communityDid, caller: req.auth });
+  if (!access.exists || (access.visibility === 'private' && !canViewPrivateCommunity(access))) {
+    res.status(404).json({ error: 'NotFound', message: 'Community not found' });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Guard: a raw repo DID must be readable by the caller.
+ *
+ * For the generic ATProto repo endpoints (repo.listRecords / getRecord /
+ * describeRepo, sync.getRepo) the `repo`/`did` param may be either a user DID
+ * or a community DID. User repos stay public per ATProto ("only extend, never
+ * replace"). Community repos are extended with privacy: a *private* community's
+ * repo is readable only by its owner, a PDS admin, or a member.
+ *
+ * DIDs that don't resolve to a community (user DIDs, unknown DIDs) pass through
+ * untouched — the caller keeps ATProto's public-repo behaviour and the handler
+ * decides existence. Only a private, non-viewable community is blocked, with a
+ * 404 so its existence isn't leaked.
+ */
+export async function requireRepoReadable(
+  req: AuthRequest,
+  res: Response,
+  did: string,
+): Promise<boolean> {
+  const access = await getCommunityAccess({ communityDid: did, caller: req.auth });
+  if (access.exists && access.visibility === 'private' && !canViewPrivateCommunity(access)) {
+    res.status(404).json({ error: 'RepoNotFound', message: `Repository not found for DID: ${did}` });
+    return false;
+  }
+  return true;
 }
 
 /**

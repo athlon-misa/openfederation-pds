@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { getThread, getThreadPosts } from '../forum/forum-index.js';
 import { callerCanModerateForum } from '../community/visibility.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 
 export default async function getThreadHandler(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -15,6 +16,9 @@ export default async function getThreadHandler(req: AuthRequest, res: Response):
       res.status(404).json({ error: 'NotFound', message: 'Thread not found' });
       return;
     }
+
+    // Private communities: only owner/admin/members may read the forum.
+    if (!(await requireCommunityReadable(req, res, String(thread.community_did)))) return;
 
     // Moderators (community.forum.moderate) see hidden threads and hidden posts;
     // everyone else keeps the public view. Same gate as forum.hidePost.

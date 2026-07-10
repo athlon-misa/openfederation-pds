@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import type { AuthRequest } from '../auth/types.js';
+import { requireRepoReadable } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 
 /**
@@ -38,6 +40,8 @@ export default async function getRecord(req: Request, res: Response): Promise<vo
       });
       return;
     }
+
+    if (!(await requireRepoReadable(req as AuthRequest, res, repo))) return;
 
     // Create repository engine for this DID
     const engine = new RepoEngine(repo);

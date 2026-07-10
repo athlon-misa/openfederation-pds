@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import type { AuthRequest } from '../auth/types.js';
+import { requireRepoReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
 
 /**
@@ -17,6 +19,8 @@ export default async function describeRepo(req: Request, res: Response): Promise
       });
       return;
     }
+
+    if (!(await requireRepoReadable(req as AuthRequest, res, repo))) return;
 
     // Look up by DID — check communities first, then users
     let repoOwner: { did: string; handle: string } | null = null;

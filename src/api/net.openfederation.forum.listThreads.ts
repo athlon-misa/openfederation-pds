@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { listThreads } from '../forum/forum-index.js';
 import { callerCanModerateForum } from '../community/visibility.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 
 export default async function listThreadsHandler(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -10,6 +11,7 @@ export default async function listThreadsHandler(req: AuthRequest, res: Response
       res.status(400).json({ error: 'InvalidRequest', message: 'community is required' });
       return;
     }
+    if (!(await requireCommunityReadable(req, res, community))) return;
     const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
     const before = req.query.before ? String(req.query.before) : null;
 
