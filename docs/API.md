@@ -163,6 +163,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `net.openfederation.server.getConfig` | Admin | Get server config and stats |
 | POST | `net.openfederation.admin.createVerificationChallenge` | Admin | Send identity verification nonce to user |
 | POST | `net.openfederation.admin.verifyChallenge` | Admin | Verify nonce response from user |
+| POST | `net.openfederation.admin.importRepo` | Admin | Import a CAR stream into a new local repo (destination side of a community/account migration); validates MST integrity and commit signatures, registers the DID locally |
 
 ## OpenFederation Contact Graph
 
@@ -179,15 +180,22 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 
 Forum threads and posts are stored as ATProto records in the **author's** user repo (`net.openfederation.forum.thread` / `net.openfederation.forum.post`). Calendar events are stored in the **community's** repo (`community.lexicon.calendar.event`); RSVPs are stored in the **attendee's** user repo. All four collections are aggregated into index tables (`forum_threads`, `forum_posts`, `event_rsvps`) for efficient reads. Use `scripts/backfill-forum-index.ts` to rebuild the index from `records_index`.
 
+Reads are membership-gated for private communities: `getThread`, `listThreads`, `calendar.listEvents`, and `calendar.listRsvps` all 404 for non-members of a private community (`requireCommunityReadable`, since `831285b`, 2026-07-10). "No" in the Auth column below means no auth is *required*, not that the endpoint is unconditionally public — the community's own visibility still applies.
+
+Moderation (`hidePost`/`hideThread`) requires the dedicated `community.forum.moderate` permission, distinct from `community.forum.write` since 2026-07-03 — a member who can post is not automatically able to hide content.
+
 | Method | NSID | Auth | Description |
 |:---|:---|:---|:---|
 | POST | `net.openfederation.forum.createThread` | Member | Create a new forum thread in a community; stores record in author's repo |
 | POST | `net.openfederation.forum.createPost` | Member | Reply to a thread (or a specific post); stores record in author's repo |
-| GET  | `net.openfederation.forum.getThread` | No | Get thread metadata plus all non-hidden replies, paginated |
-| GET  | `net.openfederation.forum.listThreads` | No | List non-hidden threads for a community, ordered by recent activity |
-| POST | `net.openfederation.forum.deletePost` | Author/Mod | Delete a post record and decrement thread post count |
-| POST | `net.openfederation.forum.hidePost` | Mod/Admin | Hide an individual post without deleting the record |
+| GET  | `net.openfederation.forum.getThread` | No* | Get thread metadata plus replies (moderators also see hidden ones), paginated |
+| GET  | `net.openfederation.forum.listThreads` | No* | List threads for a community (moderators also see hidden ones), ordered by recent activity |
+| POST | `net.openfederation.forum.deletePost` | Author only | Delete the caller's own post record and decrement thread post count |
+| POST | `net.openfederation.forum.hidePost` | Mod (`community.forum.moderate`) | Soft-hide an individual post via index flag; underlying record is preserved |
+| POST | `net.openfederation.forum.hideThread` | Mod (`community.forum.moderate`) | Soft-hide a thread via index flag; underlying record is preserved |
 | POST | `net.openfederation.calendar.createEvent` | Member | Create a calendar event; stores record in the community's repo |
-| GET  | `net.openfederation.calendar.listEvents` | No | List calendar events for a community |
+| GET  | `net.openfederation.calendar.listEvents` | No* | List calendar events for a community |
 | POST | `net.openfederation.calendar.rsvp` | Member | Submit or update an RSVP for a calendar event |
-| GET  | `net.openfederation.calendar.listRsvps` | No | List RSVPs for an event with per-status counts |
+| GET  | `net.openfederation.calendar.listRsvps` | No* | List RSVPs for an event with per-status counts |
+
+\* Gated by community visibility — see note above.

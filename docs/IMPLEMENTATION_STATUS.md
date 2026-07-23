@@ -105,6 +105,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Account lifecycle: suspend, unsuspend, takedown, deactivate, activate, export, delete (all ATProto-compatible)
 - `com.atproto.identity.resolveHandle` — local + external cross-PDS resolution (DNS TXT → HTTPS well-known, 1h cache)
 - Well-known: `/.well-known/did.json` (PDS service DID, secp256k1, encrypted in `pds_service_keys`; falls through to community at hostname), `/.well-known/webfinger`
+- Private communities are gated on read (`requireCommunityReadable` / `requireRepoReadable`, `831285b`, 2026-07-10) at this PDS only. **This PDS is not yet federating to any external relay or AppView** — no production federation network is deployed. Before that federation is turned on, private-community DIDs still need to be excluded (or only sent to relays honoring the same gating) — tracked in [#85](https://github.com/athlon-misa/openfederation-pds/issues/85)
 
 ## On-chain governance — **needs-validation** ([#76](https://github.com/athlon-misa/openfederation-pds/issues/76))
 
@@ -163,9 +164,17 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - **Forum threads** (`net.openfederation.forum.thread`) stored as ATProto records in the author's user repo; **posts** (`net.openfederation.forum.post`) likewise author-repo records linking back to the thread URI
 - **Calendar events** (`community.lexicon.calendar.event`) stored in the community's own repo; **RSVPs** (`community.lexicon.calendar.rsvp`) stored in the attendee's user repo with `subject.uri` pointing to the event
 - Aggregation index: `forum_threads` + `forum_posts` + `event_rsvps` tables built from write-path hooks; `backfillForumIndex()` (`scripts/backfill-forum-index.ts`) reconstructs the index from `records_index` without touching the repos — run via `npx tsx scripts/backfill-forum-index.ts`
-- Moderation: `hidePost` (soft-hide, record preserved), `deletePost` (full removal + signed commit)
-- 10 XRPC endpoints: `createThread`, `createPost`, `getThread`, `listThreads`, `deletePost`, `hidePost`, `calendar.createEvent`, `calendar.listEvents`, `calendar.rsvp`, `calendar.listRsvps`
+- Moderation: `hidePost` / `hideThread` (soft-hide, index flag only, underlying record preserved), `deletePost` (author-only, full removal + signed commit). Gated by a dedicated `community.forum.moderate` permission, split from `community.forum.write` on 2026-07-03 after a scoping bug let ordinary members hide content they could merely post; `community.myCapabilities` reports the caller's resolved permission list so clients don't have to infer moderation UI from role names
+- 11 XRPC endpoints: `createThread`, `createPost`, `getThread`, `listThreads`, `deletePost`, `hidePost`, `hideThread`, `calendar.createEvent`, `calendar.listEvents`, `calendar.rsvp`, `calendar.listRsvps`
+- Private-community gating: as of 2026-07-10 (`831285b`), all four forum/calendar read endpoints 404 for non-members of a private community, matching the same guard used on the generic ATProto repo read endpoints (see Federation & ATProto compliance, below)
 - No ActivityPub content federation — identity layer only; forum content stays on-PDS
+
+## Community & account migration/portability — **shipped** (PDS-to-PDS), **not started** (cross-platform import)
+
+- Export: `net.openfederation.community.export` (owner/admin) and `net.openfederation.account.export` (self/admin/mod) produce a JSON archive; `sync.getRepo` produces a full CAR stream. Required before `community.takedown`.
+- Transfer: `net.openfederation.community.transfer` (owner-only) generates a migration package for `did:plc`/`did:web` ownership handoff.
+- Import: `net.openfederation.admin.importRepo` ([#16](https://github.com/athlon-misa/openfederation-pds/issues/16), shipped) accepts a CAR stream into a new local repo, validates MST integrity and commit signatures, and registers the DID locally — the destination side of the whitepaper's Section 7.2 migration process.
+- Not built: any tooling to import communities *from* another platform (Discord, Slack, etc.) — there is no `net.openfederation.community.import` or equivalent bulk-import path, only the ATProto-native repo export/transfer/import primitives above.
 
 ---
 
