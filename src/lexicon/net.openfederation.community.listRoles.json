@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listRoles",
-  "revision": 1,
+  "revision": 2,
   "description": "List all roles defined for a community.",
   "defs": {
     "main": {
@@ -28,6 +28,10 @@
         {
           "name": "InvalidRequest",
           "description": "Missing communityDid."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found or not readable."
         }
       ]
     },

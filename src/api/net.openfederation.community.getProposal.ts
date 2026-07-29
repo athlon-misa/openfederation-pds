@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
@@ -13,6 +14,8 @@ export default async function getProposal(req: AuthRequest, res: Response): Prom
       res.status(400).json({ error: 'InvalidRequest', message: 'communityDid and rkey parameters are required' });
       return;
     }
+
+    if (!(await requireCommunityReadable(req, res, communityDid))) return;
 
     const result = await query<{ record: any }>(
       `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,

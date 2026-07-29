@@ -74,8 +74,13 @@ export function getAdminPassword(): string {
 export async function isPLCAvailable(): Promise<boolean> {
   try {
     const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
+    // @did-plc/server exposes its readiness endpoint as /_health. Keep the
+    // legacy /health fallback for compatible PLC directory implementations.
+    for (const path of ['/_health', '/health']) {
+      const res = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -113,9 +118,10 @@ export async function createTestUser(
   }
 
   // 3. Approve account
-  if (registerRes.body.userId) {
+  const registeredUserId = registerRes.body.userId || registerRes.body.id;
+  if (registeredUserId) {
     await xrpcAuthPost('net.openfederation.account.approve', adminToken, {
-      userId: registerRes.body.userId,
+      userId: registeredUserId,
     });
   }
 
