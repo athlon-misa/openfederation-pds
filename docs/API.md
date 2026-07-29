@@ -180,7 +180,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 
 Forum threads and posts are stored as ATProto records in the **author's** user repo (`net.openfederation.forum.thread` / `net.openfederation.forum.post`). Calendar events are stored in the **community's** repo (`community.lexicon.calendar.event`); RSVPs are stored in the **attendee's** user repo. All four collections are aggregated into index tables (`forum_threads`, `forum_posts`, `event_rsvps`) for efficient reads. Use `scripts/backfill-forum-index.ts` to rebuild the index from `records_index`.
 
-Reads are membership-gated for private communities: `getThread`, `listThreads`, `calendar.listEvents`, and `calendar.listRsvps` all 404 for non-members of a private community (`requireCommunityReadable`, since `831285b`, 2026-07-10). "No" in the Auth column below means no auth is *required*, not that the endpoint is unconditionally public — the community's own visibility still applies.
+Reads are visibility-gated for private communities: `getThread`, `listThreads`, `calendar.listEvents`, and `calendar.listRsvps` all 404 for outside callers — those who are neither the owner, a PDS admin, nor a member (`requireCommunityReadable`, since `831285b`, 2026-07-10). "No" in the Auth column below means no auth is *required*, not that the endpoint is unconditionally public — the community's own visibility still applies.
 
 Moderation (`hidePost`/`hideThread`) requires the dedicated `community.forum.moderate` permission, distinct from `community.forum.write` since 2026-07-03 — a member who can post is not automatically able to hide content.
 
