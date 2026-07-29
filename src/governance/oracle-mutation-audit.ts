@@ -11,6 +11,14 @@ export interface OracleMutationAudit {
   proof: GovernanceProof;
 }
 
+interface OracleMutationFingerprint {
+  collection: string;
+  operation: 'create' | 'put' | 'delete';
+  recordCid?: string;
+  repoDid: string;
+  rkey: string;
+}
+
 interface OracleMutationAuditMeta {
   action: 'write' | 'delete';
   appliedAt?: string;
@@ -21,10 +29,13 @@ interface OracleMutationAuditMeta {
   oracleName: string;
   operation: 'create' | 'put' | 'delete';
   proof: GovernanceProof;
+  proofAuthorizationKey?: string;
   recordCid?: string;
   result?: unknown;
   rkey: string;
   status: 'pending' | 'applied';
+  mutationFingerprint?: OracleMutationFingerprint;
+  mutationFingerprintHash?: string;
 }
 
 interface AuditReservation {
@@ -32,6 +43,7 @@ interface AuditReservation {
   existing: boolean;
   id: number;
   meta: OracleMutationAuditMeta;
+  targetId: string;
 }
 
 function parseGovernanceProof(value: unknown): GovernanceProof {
@@ -73,52 +85,114 @@ export function prepareOracleMutationAudit(input: {
   };
 }
 
-function authorizationKey(input: {
-  audit: OracleMutationAudit;
-  communityDid: string;
-  collection: string;
-  action: 'write' | 'delete';
-}): string {
+function hashJson(value: unknown): string {
   return createHash('sha256')
-    .update(JSON.stringify([
-      input.audit.oracle.credentialId,
-      input.communityDid,
-      input.collection,
-      input.action,
-      input.audit.proof.chainId,
-      input.audit.proof.transactionHash,
-    ]))
+    .update(JSON.stringify(value))
     .digest('hex');
+}
+
+function proofAuthorizationKey(audit: OracleMutationAudit): string {
+  return hashJson([
+    audit.oracle.credentialId,
+    audit.proof.chainId,
+    audit.proof.transactionHash,
+  ]);
+}
+
+function mutationFingerprintHash(
+  fingerprint: OracleMutationFingerprint,
+): string {
+  return hashJson([
+    fingerprint.operation,
+    fingerprint.repoDid,
+    fingerprint.collection,
+    fingerprint.rkey,
+    fingerprint.recordCid ?? null,
+  ]);
+}
+
+function authorizationKey(input: {
+  mutationFingerprintHash: string;
+  proofAuthorizationKey: string;
+}): string {
+  return hashJson([
+    input.proofAuthorizationKey,
+    input.mutationFingerprintHash,
+  ]);
+}
+
+function fingerprintsMatch(
+  reservation: AuditReservation,
+  incoming: OracleMutationAuditMeta & {
+    mutationFingerprint: OracleMutationFingerprint;
+    mutationFingerprintHash: string;
+  },
+): boolean {
+  const stored = reservation.meta.mutationFingerprint;
+
+  if (stored) {
+    return (
+      stored.operation === incoming.mutationFingerprint.operation
+      && stored.repoDid === incoming.mutationFingerprint.repoDid
+      && stored.collection === incoming.mutationFingerprint.collection
+      && stored.rkey === incoming.mutationFingerprint.rkey
+      && (stored.recordCid ?? null)
+        === (incoming.mutationFingerprint.recordCid ?? null)
+      && reservation.meta.mutationFingerprintHash
+        === incoming.mutationFingerprintHash
+      && reservation.meta.authorizationKey === incoming.authorizationKey
+    );
+  }
+
+  // Audit rows created before mutation fingerprints were introduced still
+  // contain each fingerprint component at the top level. Derive their
+  // fingerprint so an already-consumed proof cannot be rebound after upgrade.
+  return (
+    reservation.meta.operation === incoming.mutationFingerprint.operation
+    && (reservation.meta.oracleCommunityDid || reservation.targetId)
+      === incoming.mutationFingerprint.repoDid
+    && reservation.meta.collection === incoming.mutationFingerprint.collection
+    && reservation.meta.rkey === incoming.mutationFingerprint.rkey
+    && (reservation.meta.recordCid ?? null)
+      === (incoming.mutationFingerprint.recordCid ?? null)
+  );
 }
 
 async function reserveAudit(input: {
   audit: OracleMutationAudit;
   communityDid: string;
-  meta: OracleMutationAuditMeta;
+  meta: OracleMutationAuditMeta & { proofAuthorizationKey: string };
 }): Promise<AuditReservation> {
   return withTransaction(async (client) => {
     await client.query(
       'SELECT pg_advisory_xact_lock(hashtext($1))',
-      [input.meta.authorizationKey],
+      [input.meta.proofAuthorizationKey],
     );
 
     const existing = await client.query<{
       action: 'oracle.proofAuthorized' | 'oracle.proofApplied';
       id: number;
       meta: OracleMutationAuditMeta;
+      targetId: string;
     }>(
-      `SELECT id, action, meta
+      `SELECT id, action, meta, target_id AS "targetId"
        FROM audit_log
        WHERE actor_id = $1
-         AND target_id = $2
          AND action IN ('oracle.proofAuthorized', 'oracle.proofApplied')
-         AND meta->>'authorizationKey' = $3
+         AND (
+           meta->>'proofAuthorizationKey' = $2
+           OR (
+             meta->'proof'->>'chainId' = $3
+             AND meta->'proof'->>'transactionHash' = $4
+           )
+         )
        ORDER BY id DESC
        LIMIT 1`,
       [
         input.audit.oracle.credentialId,
-        input.communityDid,
-        input.meta.authorizationKey,
+        input.meta.proofAuthorizationKey,
+        input.audit.proof.chainId,
+        input.audit.proof.transactionHash,
       ],
     );
 
@@ -130,10 +204,11 @@ async function reserveAudit(input: {
       action: 'oracle.proofAuthorized';
       id: number;
       meta: OracleMutationAuditMeta;
+      targetId: string;
     }>(
       `INSERT INTO audit_log (action, actor_id, target_id, meta)
        VALUES ('oracle.proofAuthorized', $1, $2, $3)
-       RETURNING id, action, meta`,
+       RETURNING id, action, meta, target_id AS "targetId"`,
       [
         input.audit.oracle.credentialId,
         input.communityDid,
@@ -176,8 +251,9 @@ async function finalizeAudit(
  *
  * A failed reservation prevents mutation. A failed finalization leaves the
  * durable pending row intact and propagates an error, so the mutation never
- * exists without audit evidence. The proof-derived authorization key prevents
- * retries from applying the same authorization twice.
+ * exists without audit evidence. Proof-level lookup detects every reuse, while
+ * the fingerprint-bound authorization key permits only an exact applied retry
+ * to return its stored result.
  */
 export async function executeOracleGovernedMutation<T>(input: {
   audit: OracleMutationAudit | null;
@@ -202,18 +278,38 @@ export async function executeOracleGovernedMutation<T>(input: {
     );
   }
 
-  const meta: OracleMutationAuditMeta = {
+  const recordCid = input.record
+    ? (await cidForRecord(input.record)).toString()
+    : undefined;
+  const mutationFingerprint: OracleMutationFingerprint = {
+    operation: input.operation,
+    repoDid: input.communityDid,
+    collection: input.collection,
+    rkey: input.rkey,
+    ...(recordCid ? { recordCid } : {}),
+  };
+  const fingerprintHash = mutationFingerprintHash(mutationFingerprint);
+  const proofKey = proofAuthorizationKey(audit);
+  const meta: OracleMutationAuditMeta & {
+    mutationFingerprint: OracleMutationFingerprint;
+    mutationFingerprintHash: string;
+    proofAuthorizationKey: string;
+  } = {
     action: input.action,
-    authorizationKey: authorizationKey({ ...input, audit }),
+    authorizationKey: authorizationKey({
+      mutationFingerprintHash: fingerprintHash,
+      proofAuthorizationKey: proofKey,
+    }),
     authorizedAt: new Date().toISOString(),
     collection: input.collection,
+    mutationFingerprint,
+    mutationFingerprintHash: fingerprintHash,
     oracleCommunityDid: audit.oracle.communityDid,
     oracleName: audit.oracle.name,
     operation: input.operation,
     proof: audit.proof,
-    ...(input.record
-      ? { recordCid: (await cidForRecord(input.record)).toString() }
-      : {}),
+    proofAuthorizationKey: proofKey,
+    ...(recordCid ? { recordCid } : {}),
     rkey: input.rkey,
     status: 'pending',
   };
@@ -224,6 +320,13 @@ export async function executeOracleGovernedMutation<T>(input: {
   });
 
   if (reservation.existing) {
+    if (!fingerprintsMatch(reservation, meta)) {
+      throw new HttpError(
+        409,
+        'InvalidRequest',
+        'This Oracle authorization is already bound to a different repository mutation',
+      );
+    }
     if (
       reservation.action === 'oracle.proofApplied'
       && reservation.meta.status === 'applied'

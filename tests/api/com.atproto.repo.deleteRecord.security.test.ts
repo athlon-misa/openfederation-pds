@@ -817,11 +817,12 @@ describe('com.atproto.repo collection mutation security', () => {
       chainId: 'eip155:31337',
       transactionHash: '0xcollectionpolicy',
     };
+    const record = { text: 'Oracle-approved generic record' };
     const update = await xrpcAuthPost('com.atproto.repo.putRecord', member.accessJwt, {
       repo: oracleCommunityDid,
       collection: GENERIC_GOVERNED_COLLECTION,
       rkey: 'oracle-approved',
-      record: { text: 'Oracle-approved generic record' },
+      record,
       governanceProof,
     }).set('X-Oracle-Key', oracleCredential.key);
 
@@ -831,7 +832,7 @@ describe('com.atproto.repo collection mutation security', () => {
       repo: oracleCommunityDid,
       collection: GENERIC_GOVERNED_COLLECTION,
       rkey: 'oracle-approved',
-      record: { text: 'must not overwrite the idempotent first application' },
+      record,
       governanceProof,
     }).set('X-Oracle-Key', oracleCredential.key);
     const stored = await xrpcAuthGet(
@@ -871,6 +872,7 @@ describe('com.atproto.repo collection mutation security', () => {
       ],
     );
     expect(replay.status).toBe(200);
+    expect(replay.body).toEqual(update.body);
     expect(storedRecord.value.text).toBe('Oracle-approved generic record');
     expect(audit.rows).toHaveLength(1);
     expect(audit.rows[0]).toMatchObject({
@@ -887,9 +889,164 @@ describe('com.atproto.repo collection mutation security', () => {
         appliedAt: expect.any(String),
         operation: 'put',
         recordCid: expect.any(String),
+        mutationFingerprint: {
+          operation: 'put',
+          repoDid: oracleCommunityDid,
+          collection: GENERIC_GOVERNED_COLLECTION,
+          rkey: 'oracle-approved',
+          recordCid: expect.any(String),
+        },
+        mutationFingerprintHash: expect.any(String),
         proof: governanceProof,
       },
     });
+  });
+
+  it('rejects reuse of an applied Oracle proof for a different record CID', async () => {
+    const governanceProof = {
+      chainId: 'eip155:31337',
+      transactionHash: '0xreplay-different-record',
+    };
+    const rkey = 'oracle-replay-record';
+    const originalRecord = { text: 'authorized content' };
+    const changedRecord = { text: 'unauthorized replay content' };
+    const initial = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record: originalRecord,
+        governanceProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    expect(initial.status).toBe(200);
+
+    const replay = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record: changedRecord,
+        governanceProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    const stored = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+    const storedRecord = stored.body.records.find(
+      (entry: { uri: string }) => entry.uri.endsWith(`/${rkey}`),
+    );
+
+    expect.soft(replay.status).toBe(409);
+    expect.soft(replay.body.error).toBe('InvalidRequest');
+    expect.soft(storedRecord.value).toEqual(originalRecord);
+  });
+
+  it('rejects reuse of an applied Oracle proof for a different record key', async () => {
+    const governanceProof = {
+      chainId: 'eip155:31337',
+      transactionHash: '0xreplay-different-rkey',
+    };
+    const originalRkey = 'oracle-replay-original-rkey';
+    const changedRkey = 'oracle-replay-changed-rkey';
+    const record = { text: 'one authorized record key' };
+    const initial = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey: originalRkey,
+        record,
+        governanceProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    expect(initial.status).toBe(200);
+
+    const replay = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey: changedRkey,
+        record,
+        governanceProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    const stored = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+
+    expect.soft(replay.status).toBe(409);
+    expect.soft(replay.body.error).toBe('InvalidRequest');
+    expect.soft(
+      stored.body.records.some(
+        (entry: { uri: string }) => entry.uri.endsWith(`/${changedRkey}`),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects reuse of an applied Oracle proof across create and put operations', async () => {
+    const governanceProof = {
+      chainId: 'eip155:31337',
+      transactionHash: '0xreplay-different-operation',
+    };
+    const rkey = 'oracle-replay-operation';
+    const record = { text: 'authorized only for create' };
+    const initial = await xrpcAuthPost(
+      'com.atproto.repo.createRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record,
+        governanceProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    expect(initial.status).toBe(200);
+
+    const replay = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record,
+        governanceProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    const stored = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+    const storedRecord = stored.body.records.find(
+      (entry: { uri: string }) => entry.uri.endsWith(`/${rkey}`),
+    );
+
+    expect.soft(replay.status).toBe(409);
+    expect.soft(replay.body.error).toBe('InvalidRequest');
+    expect.soft(storedRecord.value).toEqual(record);
   });
 
   it('blocks raw on-chain settings downgrade and malformed replacement through putRecord', async () => {
