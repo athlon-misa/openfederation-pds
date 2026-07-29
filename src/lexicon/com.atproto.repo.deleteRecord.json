@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.repo.deleteRecord",
-  "revision": 2,
+  "revision": 3,
   "description": "Generated XRPC contract for com.atproto.repo.deleteRecord.",
   "defs": {
     "main": {
@@ -26,7 +26,7 @@
         },
         {
           "name": "UseDedicatedEndpoint",
-          "description": "Forum records must be deleted via the dedicated forum endpoint."
+          "description": "Records with a dedicated lifecycle must be deleted through their specialized endpoint."
         }
       ]
     }

@@ -817,7 +817,7 @@ export type NetOpenfederationCommunityListMineOutput = {
   "limit": number;
   "offset": number;
 };
-export type NetOpenfederationCommunityListMineError = never;
+export type NetOpenfederationCommunityListMineError = "BadAudience" | "BadLexiconMethod" | "ExpiredToken" | "InvalidSignature" | "ReplayedToken";
 
 export type NetOpenfederationCommunityListProposalsInput = {
   "communityDid": string;
@@ -2460,12 +2460,12 @@ export const lexiconContracts = {
   'com.atproto.admin.getSubjectStatus': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.updateSubjectStatus': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "ExportRequired", "NotFound", "NotSuspended", "NotTakenDown"] as const },
   'com.atproto.identity.resolveHandle': { revision: 1, errors: ["HandleNotFound"] as const },
-  'com.atproto.repo.createRecord': { revision: 2, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
-  'com.atproto.repo.deleteRecord': { revision: 2, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
+  'com.atproto.repo.createRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
+  'com.atproto.repo.deleteRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.getRecord': { revision: 1, errors: ["RecordNotFound"] as const },
   'com.atproto.repo.listRecords': { revision: 1, errors: [] as const },
-  'com.atproto.repo.putRecord': { revision: 2, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
+  'com.atproto.repo.putRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 1, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
   'com.atproto.server.createSession': { revision: 1, errors: ["AccountLocked", "ExternalAccount"] as const },
@@ -2530,7 +2530,7 @@ export const lexiconContracts = {
   'net.openfederation.community.listAttestations': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.listJoinRequests': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listMembers': { revision: 3, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.listMine': { revision: 1, errors: [] as const },
+  'net.openfederation.community.listMine': { revision: 2, errors: ["BadAudience", "BadLexiconMethod", "ExpiredToken", "InvalidSignature", "ReplayedToken"] as const },
   'net.openfederation.community.listProposals': { revision: 1, errors: [] as const },
   'net.openfederation.community.listRoles': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },

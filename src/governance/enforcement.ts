@@ -37,6 +37,16 @@ export async function enforceGovernance(
   action: 'write' | 'delete',
   oracleContext?: OracleContext | null,
 ): Promise<GovernanceResult> {
+  if (
+    collection === 'net.openfederation.community.settings'
+    && action === 'delete'
+  ) {
+    return {
+      allowed: false,
+      reason: 'Community settings cannot be deleted',
+    };
+  }
+
   // Fetch settings once (used for both protection check and governance model)
   const settingsResult = await query<{ record: any }>(
     `SELECT record FROM records_index

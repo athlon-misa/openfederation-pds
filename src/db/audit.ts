@@ -68,6 +68,7 @@ export type AuditAction =
   | 'admin.verification.success'
   | 'oracle.credential.create'
   | 'oracle.credential.revoke'
+  | 'oracle.proofAuthorized'
   | 'oracle.proofApplied'
   | 'identity.linkWallet'
   | 'identity.unlinkWallet'
@@ -106,7 +107,7 @@ export async function auditLog(
     await query(
       `INSERT INTO audit_log (action, actor_id, target_id, meta)
        VALUES ($1, $2, $3, $4)`,
-      [action, actorId, targetId, meta ? JSON.stringify(meta) : null]
+      [action, actorId, targetId, meta ? JSON.stringify(meta) : null],
     );
   } catch (err) {
     // Audit logging should never crash the request
