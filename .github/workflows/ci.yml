@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PLC_DIRECTORY_URL: http://127.0.0.1:2582
 
     strategy:
       matrix:
@@ -88,15 +90,20 @@ jobs:
 
       - name: Start local PLC directory
         run: |
-          npm run plc:dev > "$RUNNER_TEMP/plc.log" 2>&1 &
+          PORT=2582 node node_modules/@did-plc/server/dist/bin.js \
+            > "$RUNNER_TEMP/plc.log" 2>&1 &
           plc_pid=$!
           echo "$plc_pid" > "$RUNNER_TEMP/plc.pid"
           for attempt in {1..30}; do
-            if curl --fail --silent http://localhost:2582/_health > /dev/null; then
+            if curl --fail --silent "$PLC_DIRECTORY_URL/_health" > /dev/null; then
               exit 0
+            fi
+            if ! kill -0 "$plc_pid" 2>/dev/null; then
+              break
             fi
             sleep 1
           done
+          echo "PLC directory failed to become healthy"
           cat "$RUNNER_TEMP/plc.log"
           exit 1
 
@@ -126,5 +133,13 @@ jobs:
         if: always()
         run: |
           if [ -f "$RUNNER_TEMP/plc.pid" ]; then
-            kill "$(cat "$RUNNER_TEMP/plc.pid")" 2>/dev/null || true
+            plc_pid="$(cat "$RUNNER_TEMP/plc.pid")"
+            kill "$plc_pid" 2>/dev/null || true
+            for attempt in {1..20}; do
+              if ! kill -0 "$plc_pid" 2>/dev/null; then
+                exit 0
+              fi
+              sleep 0.1
+            done
+            kill -KILL "$plc_pid" 2>/dev/null || true
           fi
