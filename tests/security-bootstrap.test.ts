@@ -24,6 +24,21 @@ type BootstrapAudit = (
   meta?: Record<string, unknown>,
 ) => Promise<void>;
 
+type BootstrapTransaction = (
+  operation: (client: { query: BootstrapQuery }) => Promise<void>,
+) => Promise<void>;
+
+interface BootstrapHarnessState {
+  user: {
+    id: string;
+    handle: string;
+    email: string;
+    status: string;
+  } | null;
+  roles: string[];
+  audits: string[];
+}
+
 const originalBootstrapConfig = {
   email: config.auth.bootstrapAdminEmail,
   handle: config.auth.bootstrapAdminHandle,
@@ -39,10 +54,104 @@ function setBootstrapConfig(password: string): void {
 }
 
 async function runBootstrap(query: BootstrapQuery, audit?: BootstrapAudit): Promise<void> {
+  const transaction: BootstrapTransaction = async (operation) => {
+    const transactionQuery: BootstrapQuery = async (text, params = []) => {
+      if (text.includes('pg_advisory_xact_lock')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (text.includes('INSERT INTO audit_log')) {
+        const meta = params[3] ? JSON.parse(String(params[3])) as Record<string, unknown> : undefined;
+        await audit?.(
+          String(params[0]),
+          params[1] === null ? null : String(params[1]),
+          params[2] === null ? null : String(params[2]),
+          meta,
+        );
+        return { rows: [], rowCount: 1 };
+      }
+      return query(text, params);
+    };
+
+    await operation({ query: transactionQuery });
+  };
+
+  await runTransactionalBootstrap(transaction);
+}
+
+async function runTransactionalBootstrap(transaction: BootstrapTransaction): Promise<void> {
   await (ensureBootstrapAdmin as unknown as (
-    query: BootstrapQuery,
-    audit?: BootstrapAudit,
-  ) => Promise<void>)(query, audit);
+    transaction: BootstrapTransaction,
+  ) => Promise<void>)(transaction);
+}
+
+function createTransactionHarness(
+  initial: BootstrapHarnessState,
+  failAuditAction?: string,
+): {
+  transaction: BootstrapTransaction;
+  state: () => BootstrapHarnessState;
+} {
+  let committed = structuredClone(initial);
+
+  const transaction: BootstrapTransaction = async (operation) => {
+    const working = structuredClone(committed);
+    const query: BootstrapQuery = async (text, params = []) => {
+      if (text.includes('pg_advisory_xact_lock')) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (text.includes('FROM users')) {
+        const email = String(params[0]);
+        const handle = String(params[1]);
+        const rows = working.user
+          && (working.user.email === email || working.user.handle === handle)
+          ? [working.user]
+          : [];
+        return { rows, rowCount: rows.length };
+      }
+      if (text.trimStart().startsWith('INSERT INTO users')) {
+        working.user = {
+          id: String(params[0]),
+          handle: String(params[1]),
+          email: String(params[2]),
+          status: 'approved',
+        };
+        return { rows: [], rowCount: 1 };
+      }
+      if (text.trimStart().startsWith('UPDATE users')) {
+        if (!working.user || working.user.status === 'approved') {
+          return { rows: [], rowCount: 0 };
+        }
+        working.user.status = 'approved';
+        return { rows: [working.user], rowCount: 1 };
+      }
+      if (text.includes('INSERT INTO user_roles')) {
+        const granted = ['admin', 'moderator', 'partner-manager', 'auditor', 'user']
+          .filter((role) => !working.roles.includes(role));
+        working.roles.push(...granted);
+        return {
+          rows: granted.map((role) => ({ role })),
+          rowCount: granted.length,
+        };
+      }
+      if (text.includes('INSERT INTO audit_log')) {
+        const action = String(params[0]);
+        if (action === failAuditAction) {
+          throw new Error(`strict audit insert failed for ${action}`);
+        }
+        working.audits.push(action);
+        return { rows: [], rowCount: 1 };
+      }
+      throw new Error(`Unexpected bootstrap query: ${text}`);
+    };
+
+    await operation({ query });
+    committed = working;
+  };
+
+  return {
+    transaction,
+    state: () => structuredClone(committed),
+  };
 }
 
 afterEach(() => {
@@ -58,6 +167,53 @@ describe('Bootstrap administrator configuration', () => {
     const example = dotenv.parse(readFileSync('.env.example'));
 
     assert.equal(example.DB_PASSWORD, '');
+  });
+
+  it('keeps CI bootstrap credentials strong and consistent with integration-test expectations', () => {
+    const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
+    const expectedPassword = 'Bootstrap-Test-Password-47!';
+
+    assert.equal(workflow.includes('AdminPass1234'), false);
+    assert.equal(
+      workflow.match(new RegExp(`BOOTSTRAP_ADMIN_PASSWORD: ${expectedPassword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'))?.length,
+      2,
+    );
+    assert.equal(readFileSync('tests/api/setup.ts', 'utf8').includes(expectedPassword), true);
+    assert.equal(readFileSync('tests/api/helpers.ts', 'utf8').includes(expectedPassword), true);
+  });
+
+  it('locks down Docker Compose production credentials without repository-known defaults', () => {
+    const compose = readFileSync('docker-compose.yml', 'utf8');
+
+    assert.match(compose, /^\s+NODE_ENV: production$/m);
+    assert.match(compose, /\$\{DB_PASSWORD:\?Set DB_PASSWORD in \.env\}/);
+    assert.match(compose, /\$\{BOOTSTRAP_ADMIN_EMAIL:\?Set BOOTSTRAP_ADMIN_EMAIL in \.env\}/);
+    assert.match(compose, /\$\{BOOTSTRAP_ADMIN_HANDLE:\?Set BOOTSTRAP_ADMIN_HANDLE in \.env\}/);
+    assert.match(
+      compose,
+      /\$\{BOOTSTRAP_ADMIN_PASSWORD:\?Set a unique BOOTSTRAP_ADMIN_PASSWORD in \.env\}/,
+    );
+    assert.equal(compose.includes('AdminPass1234'), false);
+  });
+
+  it('validates bootstrap configuration before startup checks database connectivity', () => {
+    const server = readFileSync('src/server/index.ts', 'utf8');
+    const startup = server.slice(server.indexOf('export async function startServer'));
+    const validation = startup.indexOf('validateBootstrapAdminConfig();');
+    const connectivity = startup.indexOf('await testConnection()');
+
+    assert.notEqual(validation, -1, 'server startup must explicitly validate bootstrap configuration');
+    assert.notEqual(connectivity, -1);
+    assert.ok(validation < connectivity, 'bootstrap validation must precede the database connectivity gate');
+  });
+
+  it('documents every privileged bootstrap role in Railway deployment guidance', () => {
+    const railway = readFileSync('RAILWAY.md', 'utf8');
+
+    assert.match(
+      railway,
+      /admin \+ moderator \+ partner-manager \+ auditor \+ user roles/,
+    );
   });
 
   it('rejects the repository-known bootstrap password in every environment', async () => {
@@ -149,6 +305,68 @@ describe('Bootstrap administrator configuration', () => {
 });
 
 describe('Bootstrap administrator audit trail', () => {
+  it('rolls back a newly created account and roles when a strict audit insert fails', async () => {
+    setBootstrapConfig('Unique-Bootstrap-Password-47!');
+    const harness = createTransactionHarness({
+      user: null,
+      roles: [],
+      audits: [],
+    }, 'account.roles.update');
+
+    await assert.rejects(
+      () => runTransactionalBootstrap(harness.transaction),
+      /strict audit insert failed for account\.roles\.update/,
+    );
+
+    assert.deepEqual(harness.state(), {
+      user: null,
+      roles: [],
+      audits: [],
+    });
+  });
+
+  it('rolls back existing-account approval and roles when a strict audit insert fails', async () => {
+    setBootstrapConfig('Unique-Bootstrap-Password-47!');
+    const initial: BootstrapHarnessState = {
+      user: {
+        id: 'existing-account',
+        handle: 'bootstrap-operator',
+        email: 'operator@example.com',
+        status: 'pending',
+      },
+      roles: [],
+      audits: [],
+    };
+    const harness = createTransactionHarness(initial, 'account.roles.update');
+
+    await assert.rejects(
+      () => runTransactionalBootstrap(harness.transaction),
+      /strict audit insert failed for account\.roles\.update/,
+    );
+
+    assert.deepEqual(harness.state(), initial);
+  });
+
+  it('commits bootstrap state and audit rows once across successful idempotent runs', async () => {
+    setBootstrapConfig('Unique-Bootstrap-Password-47!');
+    const harness = createTransactionHarness({
+      user: null,
+      roles: [],
+      audits: [],
+    });
+
+    await runTransactionalBootstrap(harness.transaction);
+    await runTransactionalBootstrap(harness.transaction);
+
+    const state = harness.state();
+    assert.equal(state.user?.status, 'approved');
+    assert.deepEqual(
+      [...state.roles].sort(),
+      ['admin', 'auditor', 'moderator', 'partner-manager', 'user'],
+    );
+    assert.deepEqual(state.audits, ['account.register', 'account.roles.update']);
+  });
+
   it('awaits bootstrap account registration audit before assigning roles', async () => {
     setBootstrapConfig('Unique-Bootstrap-Password-47!');
     let roleInsertionStarted = false;

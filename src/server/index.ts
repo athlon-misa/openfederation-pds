@@ -4,7 +4,7 @@ import { join } from 'path';
 import { config } from '../config.js';
 import { testConnection } from '../db/client.js';
 import { authMiddleware, setOAuthVerifier } from '../auth/middleware.js';
-import { ensureBootstrapAdmin } from '../auth/bootstrap.js';
+import { ensureBootstrapAdmin, validateBootstrapAdminConfig } from '../auth/bootstrap.js';
 import { query } from '../db/client.js';
 import { createOAuthProvider } from '../oauth/oauth-setup.js';
 import { createOAuthRouter } from '../oauth/oauth-routes.js';
@@ -258,6 +258,10 @@ async function cleanupExpiredSessions(): Promise<void> {
 
 // Start the server
 export async function startServer(): Promise<void> {
+  // Bootstrap credentials are startup security configuration, so reject an
+  // invalid or partial set even when the database is currently unavailable.
+  validateBootstrapAdminConfig();
+
   // Security check: refuse to start with insecure JWT secret in production
   if (config.auth.jwtSecretIsInsecure) {
     if (config.env.isProduction) {

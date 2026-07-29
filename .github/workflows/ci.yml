@@ -84,7 +84,7 @@ jobs:
           KEY_ENCRYPTION_SECRET: ci-test-encryption-secret-32chars
           BOOTSTRAP_ADMIN_HANDLE: admin
           BOOTSTRAP_ADMIN_EMAIL: admin@test.local
-          BOOTSTRAP_ADMIN_PASSWORD: AdminPass1234
+          BOOTSTRAP_ADMIN_PASSWORD: Bootstrap-Test-Password-47!
 
       - name: Run integration tests
         run: npm run test:api
@@ -103,7 +103,7 @@ jobs:
           KEY_ENCRYPTION_SECRET: ci-test-encryption-secret-32chars
           BOOTSTRAP_ADMIN_HANDLE: admin
           BOOTSTRAP_ADMIN_EMAIL: admin@test.local
-          BOOTSTRAP_ADMIN_PASSWORD: AdminPass1234
+          BOOTSTRAP_ADMIN_PASSWORD: Bootstrap-Test-Password-47!
           PDS_HOSTNAME: localhost
           PDS_SERVICE_URL: http://localhost:8080
           EXPORT_SCHEDULER_ENABLED: "false"

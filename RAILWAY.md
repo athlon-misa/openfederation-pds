@@ -71,7 +71,7 @@ BOOTSTRAP_ADMIN_HANDLE=admin
 BOOTSTRAP_ADMIN_PASSWORD=<strong-password>
 ```
 
-The PDS creates this user automatically on startup with **admin + moderator + user** roles, pre-approved. You can remove these variables after the first successful boot — the account persists in the database.
+The PDS creates this user automatically on startup with **admin + moderator + partner-manager + auditor + user roles**, pre-approved. You can remove these variables after the first successful boot — the account persists in the database.
 
 ### CORS
 
