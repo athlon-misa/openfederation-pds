@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { query } from '../db/client.js';
+import { auditLog } from '../db/audit.js';
 import { hashPassword } from './password.js';
 import { createLocalDid, isStrongPassword, normalizeEmail, normalizeHandle, passwordValidationMessage } from './utils.js';
 import crypto from 'crypto';
@@ -34,7 +35,10 @@ export function validateBootstrapAdminConfig(): void {
   }
 }
 
-export async function ensureBootstrapAdmin(runQuery: typeof query = query): Promise<void> {
+export async function ensureBootstrapAdmin(
+  runQuery: typeof query = query,
+  writeAudit: typeof auditLog = auditLog,
+): Promise<void> {
   validateBootstrapAdminConfig();
 
   const email = config.auth.bootstrapAdminEmail.trim();
@@ -74,13 +78,28 @@ export async function ensureBootstrapAdmin(runQuery: typeof query = query): Prom
          WHERE id = $1`,
         [userId]
       );
+      await writeAudit('account.approve', null, userId, {
+        source: 'bootstrap',
+        actor: 'system/bootstrap',
+        handle: exactMatch.handle,
+        email: exactMatch.email,
+      });
     }
-    await runQuery(
+    const grantedRoles = await runQuery<{ role: string }>(
       `INSERT INTO user_roles (user_id, role)
        VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT DO NOTHING
+       RETURNING role`,
       [userId]
     );
+    if (grantedRoles.rows.length > 0) {
+      await writeAudit('account.roles.update', null, userId, {
+        source: 'bootstrap',
+        actor: 'system/bootstrap',
+        roles: grantedRoles.rows.map(({ role }) => role),
+        operation: 'grant',
+      });
+    }
     console.warn(
       'WARNING: BOOTSTRAP_ADMIN_PASSWORD is still set in your environment. ' +
       'The admin account already exists — remove this variable to reduce your attack surface.'
@@ -97,12 +116,29 @@ export async function ensureBootstrapAdmin(runQuery: typeof query = query): Prom
      VALUES ($1, $2, $3, $4, 'approved', $5, CURRENT_TIMESTAMP)`,
     [userId, normalizedHandle, normalizedEmail, passwordHash, did]
   );
+  await writeAudit('account.register', null, userId, {
+    source: 'bootstrap',
+    actor: 'system/bootstrap',
+    handle: normalizedHandle,
+    email: normalizedEmail,
+    did,
+    status: 'approved',
+  });
 
-  await runQuery(
+  const grantedRoles = await runQuery<{ role: string }>(
     `INSERT INTO user_roles (user_id, role)
-     VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')`,
+     VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')
+     RETURNING role`,
     [userId]
   );
+  if (grantedRoles.rows.length > 0) {
+    await writeAudit('account.roles.update', null, userId, {
+      source: 'bootstrap',
+      actor: 'system/bootstrap',
+      roles: grantedRoles.rows.map(({ role }) => role),
+      operation: 'grant',
+    });
+  }
 
   console.log('✓ Bootstrap admin user created');
 }
