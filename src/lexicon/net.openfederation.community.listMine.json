@@ -1,7 +1,14 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listMine",
-  "revision": 1,
+  "revision": 2,
+  "errors": [
+    { "name": "ExpiredToken" },
+    { "name": "BadAudience" },
+    { "name": "ReplayedToken" },
+    { "name": "InvalidSignature" },
+    { "name": "BadLexiconMethod" }
+  ],
   "description": "List communities the authenticated user belongs to. Requires auth.",
   "defs": {
     "main": {
@@ -30,7 +37,14 @@
           "type": "ref",
           "ref": "#output"
         }
-      }
+      },
+      "errors": [
+        { "name": "BadAudience", "description": "The service-auth token audience does not match this PDS." },
+        { "name": "BadLexiconMethod", "description": "The service-auth token is scoped to another XRPC method." },
+        { "name": "ExpiredToken", "description": "The service-auth token has expired." },
+        { "name": "InvalidSignature", "description": "The service-auth token signature is invalid." },
+        { "name": "ReplayedToken", "description": "The service-auth token has already been used." }
+      ]
     },
     "communityItem": {
       "type": "object",

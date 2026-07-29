@@ -817,7 +817,7 @@ export type NetOpenfederationCommunityListMineOutput = {
   "limit": number;
   "offset": number;
 };
-export type NetOpenfederationCommunityListMineError = never;
+export type NetOpenfederationCommunityListMineError = "BadAudience" | "BadLexiconMethod" | "ExpiredToken" | "InvalidSignature" | "ReplayedToken";
 
 export type NetOpenfederationCommunityListProposalsInput = {
   "communityDid": string;
@@ -2530,7 +2530,7 @@ export const lexiconContracts = {
   'net.openfederation.community.listAttestations': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.listJoinRequests': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listMembers': { revision: 3, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.listMine': { revision: 1, errors: [] as const },
+  'net.openfederation.community.listMine': { revision: 2, errors: ["BadAudience", "BadLexiconMethod", "ExpiredToken", "InvalidSignature", "ReplayedToken"] as const },
   'net.openfederation.community.listProposals': { revision: 1, errors: [] as const },
   'net.openfederation.community.listRoles': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
