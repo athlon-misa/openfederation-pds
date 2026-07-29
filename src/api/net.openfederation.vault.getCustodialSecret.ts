@@ -48,8 +48,11 @@ export default async function getCustodialSecret(req: AuthRequest, res: Response
       chain: row.chain,
       encryptedBlob: row.encrypted_blob,
       walletAddress: row.wallet_address,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      // pg returns timestamp columns as Date instances by default. XRPC's
+      // datetime contract requires an RFC 3339 string, so normalize at the
+      // response boundary instead of relying on the driver's inferred type.
+      createdAt: new Date(row.created_at).toISOString(),
+      updatedAt: new Date(row.updated_at).toISOString(),
     });
   } catch (error) {
     console.error('Error retrieving custodial secret:', error);
