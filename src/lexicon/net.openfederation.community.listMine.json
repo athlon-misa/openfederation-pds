@@ -2,13 +2,6 @@
   "lexicon": 1,
   "id": "net.openfederation.community.listMine",
   "revision": 2,
-  "errors": [
-    { "name": "ExpiredToken" },
-    { "name": "BadAudience" },
-    { "name": "ReplayedToken" },
-    { "name": "InvalidSignature" },
-    { "name": "BadLexiconMethod" }
-  ],
   "description": "List communities the authenticated user belongs to. Requires auth.",
   "defs": {
     "main": {
