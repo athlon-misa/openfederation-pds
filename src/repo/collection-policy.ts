@@ -99,14 +99,13 @@ export async function authorizeCollectionMutation(input: {
   collection: string;
   operation: CollectionMutationOperation;
 }): Promise<void> {
-  if (input.repo === input.actor.did) return;
-
   const capabilities = await getCallerCommunityCapabilities({
     communityDid: input.repo,
     caller: input.actor,
   });
 
   if (!capabilities.exists) {
+    if (input.repo === input.actor.did) return;
     throw new HttpError(403, 'Forbidden', 'Cannot mutate another repository');
   }
 

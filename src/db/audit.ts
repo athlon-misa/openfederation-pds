@@ -68,6 +68,7 @@ export type AuditAction =
   | 'admin.verification.success'
   | 'oracle.credential.create'
   | 'oracle.credential.revoke'
+  | 'oracle.proofAuthorized'
   | 'oracle.proofApplied'
   | 'identity.linkWallet'
   | 'identity.unlinkWallet'
@@ -96,19 +97,6 @@ export type AuditAction =
   | 'calendar.event.create'
   | 'calendar.rsvp';
 
-async function insertAuditLog(
-  action: AuditAction,
-  actorId: string | null,
-  targetId: string | null,
-  meta?: Record<string, unknown>,
-): Promise<void> {
-  await query(
-    `INSERT INTO audit_log (action, actor_id, target_id, meta)
-     VALUES ($1, $2, $3, $4)`,
-    [action, actorId, targetId, meta ? JSON.stringify(meta) : null],
-  );
-}
-
 export async function auditLog(
   action: AuditAction,
   actorId: string | null,
@@ -116,26 +104,15 @@ export async function auditLog(
   meta?: Record<string, unknown>
 ): Promise<void> {
   try {
-    await insertAuditLog(action, actorId, targetId, meta);
+    await query(
+      `INSERT INTO audit_log (action, actor_id, target_id, meta)
+       VALUES ($1, $2, $3, $4)`,
+      [action, actorId, targetId, meta ? JSON.stringify(meta) : null],
+    );
   } catch (err) {
     // Audit logging should never crash the request
     console.error('Failed to write audit log:', err);
   }
-}
-
-/**
- * Write a security-critical audit event and propagate persistence failures.
- *
- * Callers must await this function before returning success. Unlike auditLog,
- * this deliberately fails closed when the audit trail cannot be written.
- */
-export async function auditLogRequired(
-  action: AuditAction,
-  actorId: string | null,
-  targetId: string | null,
-  meta?: Record<string, unknown>,
-): Promise<void> {
-  await insertAuditLog(action, actorId, targetId, meta);
 }
 
 /**

@@ -75,6 +75,19 @@ async function loadSigningKey(did: string): Promise<Secp256k1Keypair> {
   return Secp256k1Keypair.import(decrypted, { exportable: true });
 }
 
+async function loadCommunitySigningKey(did: string): Promise<Secp256k1Keypair> {
+  const key = await query<{ signing_key_bytes: Buffer }>(
+    'SELECT signing_key_bytes FROM signing_keys WHERE community_did = $1',
+    [did],
+  );
+  expect(key.rows).toHaveLength(1);
+  const decrypted = await decryptKeyBytes(
+    key.rows[0].signing_key_bytes,
+    'identity.signing-key',
+  );
+  return Secp256k1Keypair.import(decrypted, { exportable: true });
+}
+
 async function createServiceAuthToken(
   user: TestUser,
   lxm: string,
@@ -86,6 +99,52 @@ async function createServiceAuthToken(
     exp: Math.floor(Date.now() / 1000) + 60,
     lxm,
   });
+}
+
+async function createCommunityServiceAuthToken(
+  did: string,
+  lxm: string,
+): Promise<string> {
+  return signServiceAuthJwt({
+    keypair: await loadCommunitySigningKey(did),
+    iss: did,
+    aud: getServiceDid(),
+    exp: Math.floor(Date.now() / 1000) + 60,
+    lxm,
+  });
+}
+
+async function installAuditFailureTrigger(input: {
+  triggerName: string;
+  timing: 'INSERT' | 'UPDATE';
+  rkey: string;
+}): Promise<void> {
+  await query(`DROP TRIGGER IF EXISTS ${input.triggerName} ON audit_log`);
+  await query(`DROP FUNCTION IF EXISTS ${input.triggerName}()`);
+  await query(`
+    CREATE FUNCTION ${input.triggerName}()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF NEW.meta->>'rkey' = '${input.rkey}' THEN
+        RAISE EXCEPTION 'intentional audit ${input.timing.toLowerCase()} failure';
+      END IF;
+      RETURN NEW;
+    END;
+    $$
+  `);
+  await query(`
+    CREATE TRIGGER ${input.triggerName}
+    BEFORE ${input.timing} ON audit_log
+    FOR EACH ROW
+    EXECUTE FUNCTION ${input.triggerName}()
+  `);
+}
+
+async function removeAuditFailureTrigger(triggerName: string): Promise<void> {
+  await query(`DROP TRIGGER IF EXISTS ${triggerName} ON audit_log`);
+  await query(`DROP FUNCTION IF EXISTS ${triggerName}()`);
 }
 
 describe('com.atproto.repo collection mutation security', () => {
@@ -498,6 +557,97 @@ describe('com.atproto.repo collection mutation security', () => {
     expect.soft(crossCommunityCreate.body.error).toBe('Forbidden');
   });
 
+  it('does not let a signed community DID bypass settings or profile lifecycle policy', async () => {
+    const create = await xrpcAuthPost(
+      'net.openfederation.community.create',
+      owner.accessJwt,
+      {
+        handle: uniqueHandle('rp-svccomm'),
+        didMethod: 'plc',
+        visibility: 'private',
+        joinPolicy: 'approval',
+      },
+    );
+    expect(create.status).toBe(201);
+    const serviceCommunityDid = create.body.did;
+
+    const settingsBefore = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      owner.accessJwt,
+      {
+        repo: serviceCommunityDid,
+        collection: SETTINGS_COLLECTION,
+      },
+    );
+    const profileBefore = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      owner.accessJwt,
+      {
+        repo: serviceCommunityDid,
+        collection: PROFILE_COLLECTION,
+      },
+    );
+
+    const settingsToken = await createCommunityServiceAuthToken(
+      serviceCommunityDid,
+      'com.atproto.repo.putRecord',
+    );
+    const settingsBypass = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      settingsToken,
+      {
+        repo: serviceCommunityDid,
+        collection: SETTINGS_COLLECTION,
+        rkey: 'self',
+        record: {
+          governanceModel: 'benevolent-dictator',
+          visibility: 'public',
+        },
+      },
+    );
+    const profileToken = await createCommunityServiceAuthToken(
+      serviceCommunityDid,
+      'com.atproto.repo.deleteRecord',
+    );
+    const profileBypass = await xrpcAuthPost(
+      'com.atproto.repo.deleteRecord',
+      profileToken,
+      {
+        repo: serviceCommunityDid,
+        collection: PROFILE_COLLECTION,
+        rkey: 'self',
+      },
+    );
+
+    const settingsAfter = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      owner.accessJwt,
+      {
+        repo: serviceCommunityDid,
+        collection: SETTINGS_COLLECTION,
+      },
+    );
+    const profileAfter = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      owner.accessJwt,
+      {
+        repo: serviceCommunityDid,
+        collection: PROFILE_COLLECTION,
+      },
+    );
+
+    expect.soft(settingsBypass.status).toBe(403);
+    expect.soft(settingsBypass.body.error).toBe('Forbidden');
+    expect.soft(profileBypass.status).toBe(403);
+    expect.soft(profileBypass.body.error).toBe('Forbidden');
+    expect.soft(settingsAfter.body.records[0].value).toEqual(
+      settingsBefore.body.records[0].value,
+    );
+    expect.soft(profileAfter.body.records[0].value).toEqual(
+      profileBefore.body.records[0].value,
+    );
+  });
+
   it('rejects an Oracle-authorized protected mutation without proof evidence', async () => {
     const update = await xrpcAuthPost(
       'com.atproto.repo.putRecord',
@@ -537,6 +687,131 @@ describe('com.atproto.repo collection mutation security', () => {
     expect.soft(audit.rows[0].count).toBe('0');
   });
 
+  it('does not mutate when the required pending audit insert fails', async () => {
+    const rkey = 'audit-insert-failure';
+    const triggerName = 'test_fail_oracle_audit_insert';
+    await installAuditFailureTrigger({
+      triggerName,
+      timing: 'INSERT',
+      rkey,
+    });
+
+    let update;
+    try {
+      update = await xrpcAuthPost(
+        'com.atproto.repo.putRecord',
+        member.accessJwt,
+        {
+          repo: oracleCommunityDid,
+          collection: GENERIC_GOVERNED_COLLECTION,
+          rkey,
+          record: { text: 'must not survive a pending-audit insert failure' },
+          governanceProof: {
+            chainId: 'eip155:31337',
+            transactionHash: '0xauditinsertfailure',
+          },
+        },
+      ).set('X-Oracle-Key', oracleCredential.key);
+    } finally {
+      await removeAuditFailureTrigger(triggerName);
+    }
+
+    const records = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+    const audit = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM audit_log
+       WHERE target_id = $1
+         AND meta->>'rkey' = $2`,
+      [oracleCommunityDid, rkey],
+    );
+
+    expect.soft(update.status).toBe(500);
+    expect.soft(update.body.error).toBe('InternalServerError');
+    expect.soft(
+      records.body.records.some(
+        (entry: { uri: string }) => entry.uri.endsWith(`/${rkey}`),
+      ),
+    ).toBe(false);
+    expect.soft(audit.rows[0].count).toBe('0');
+  });
+
+  it('keeps durable pending evidence when audit finalization fails after mutation', async () => {
+    const rkey = 'audit-finalize-failure';
+    const triggerName = 'test_fail_oracle_audit_finalize';
+    await installAuditFailureTrigger({
+      triggerName,
+      timing: 'UPDATE',
+      rkey,
+    });
+
+    let update;
+    try {
+      update = await xrpcAuthPost(
+        'com.atproto.repo.putRecord',
+        member.accessJwt,
+        {
+          repo: oracleCommunityDid,
+          collection: GENERIC_GOVERNED_COLLECTION,
+          rkey,
+          record: { text: 'mutation with durable pending evidence' },
+          governanceProof: {
+            chainId: 'eip155:31337',
+            transactionHash: '0xauditfinalizefailure',
+          },
+        },
+      ).set('X-Oracle-Key', oracleCredential.key);
+    } finally {
+      await removeAuditFailureTrigger(triggerName);
+    }
+
+    const records = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+    const audit = await query<{
+      action: string;
+      meta: { status: string; rkey: string; authorizationKey: string };
+    }>(
+      `SELECT action, meta
+       FROM audit_log
+       WHERE target_id = $1
+         AND meta->>'rkey' = $2
+       ORDER BY id DESC
+       LIMIT 1`,
+      [oracleCommunityDid, rkey],
+    );
+
+    expect.soft(update.status).toBe(500);
+    expect.soft(update.body.error).toBe('InternalServerError');
+    expect.soft(
+      records.body.records.some(
+        (entry: { uri: string }) => entry.uri.endsWith(`/${rkey}`),
+      ),
+    ).toBe(true);
+    expect.soft(audit.rows).toHaveLength(1);
+    expect.soft(audit.rows[0]).toMatchObject({
+      action: 'oracle.proofAuthorized',
+      meta: {
+        status: 'pending',
+        rkey,
+        authorizationKey: expect.any(String),
+        operation: 'put',
+        recordCid: expect.any(String),
+      },
+    });
+  });
+
   it('allows an Oracle-approved generic governed mutation and audits its proof', async () => {
     const governanceProof = {
       chainId: 'eip155:31337',
@@ -551,6 +826,25 @@ describe('com.atproto.repo collection mutation security', () => {
     }).set('X-Oracle-Key', oracleCredential.key);
 
     expect(update.status).toBe(200);
+
+    const replay = await xrpcAuthPost('com.atproto.repo.putRecord', member.accessJwt, {
+      repo: oracleCommunityDid,
+      collection: GENERIC_GOVERNED_COLLECTION,
+      rkey: 'oracle-approved',
+      record: { text: 'must not overwrite the idempotent first application' },
+      governanceProof,
+    }).set('X-Oracle-Key', oracleCredential.key);
+    const stored = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+    const storedRecord = stored.body.records.find(
+      (entry: { uri: string }) => entry.uri.endsWith('/oracle-approved'),
+    );
 
     const audit = await query<{
       action: string;
@@ -568,10 +862,16 @@ describe('com.atproto.repo collection mutation security', () => {
        WHERE action = 'oracle.proofApplied'
          AND actor_id = $1
          AND target_id = $2
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [oracleCredential.id, oracleCommunityDid],
+         AND meta->'proof'->>'transactionHash' = $3
+       ORDER BY id`,
+      [
+        oracleCredential.id,
+        oracleCommunityDid,
+        governanceProof.transactionHash,
+      ],
     );
+    expect(replay.status).toBe(200);
+    expect(storedRecord.value.text).toBe('Oracle-approved generic record');
     expect(audit.rows).toHaveLength(1);
     expect(audit.rows[0]).toMatchObject({
       action: 'oracle.proofApplied',
@@ -581,6 +881,12 @@ describe('com.atproto.repo collection mutation security', () => {
         collection: GENERIC_GOVERNED_COLLECTION,
         rkey: 'oracle-approved',
         action: 'write',
+        status: 'applied',
+        authorizationKey: expect.any(String),
+        authorizedAt: expect.any(String),
+        appliedAt: expect.any(String),
+        operation: 'put',
+        recordCid: expect.any(String),
         proof: governanceProof,
       },
     });

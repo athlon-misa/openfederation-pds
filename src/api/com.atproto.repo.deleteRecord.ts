@@ -6,7 +6,7 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { authorizeCollectionMutation } from '../repo/collection-policy.js';
 import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
 import {
-  auditOracleMutation,
+  executeOracleGovernedMutation,
   prepareOracleMutationAudit,
   type OracleMutationAudit,
 } from '../governance/oracle-mutation-audit.js';
@@ -85,17 +85,15 @@ export default async function deleteRecord(req: AuthRequest, res: Response): Pro
     const engine = new RepoEngine(repo);
     const keypair = await getKeypairForDid(repo);
 
-    await engine.deleteRecord(keypair, collection, rkey);
-
-    if (oracleAudit) {
-      await auditOracleMutation({
-        audit: oracleAudit,
-        communityDid: repo,
-        collection,
-        rkey,
-        action: 'delete',
-      });
-    }
+    await executeOracleGovernedMutation({
+      audit: oracleAudit,
+      communityDid: repo,
+      collection,
+      rkey,
+      action: 'delete',
+      operation: 'delete',
+      mutate: () => engine.deleteRecord(keypair, collection, rkey),
+    });
 
     res.status(200).json({});
   } catch (error) {

@@ -6,7 +6,7 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { authorizeCollectionMutation } from '../repo/collection-policy.js';
 import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
 import {
-  auditOracleMutation,
+  executeOracleGovernedMutation,
   prepareOracleMutationAudit,
   type OracleMutationAudit,
 } from '../governance/oracle-mutation-audit.js';
@@ -86,17 +86,16 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
     const engine = new RepoEngine(repo);
     const keypair = await getKeypairForDid(repo);
 
-    const result = await engine.putRecord(keypair, collection, rkey, record);
-
-    if (oracleAudit) {
-      await auditOracleMutation({
-        audit: oracleAudit,
-        communityDid: repo,
-        collection,
-        rkey,
-        action: 'write',
-      });
-    }
+    const result = await executeOracleGovernedMutation({
+      audit: oracleAudit,
+      communityDid: repo,
+      collection,
+      rkey,
+      action: 'write',
+      operation: 'put',
+      record,
+      mutate: () => engine.putRecord(keypair, collection, rkey, record),
+    });
 
     res.status(200).json({
       uri: result.uri,
