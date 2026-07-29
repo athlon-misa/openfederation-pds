@@ -86,6 +86,20 @@ jobs:
           BOOTSTRAP_ADMIN_EMAIL: admin@test.local
           BOOTSTRAP_ADMIN_PASSWORD: Bootstrap-Test-Password-47!
 
+      - name: Start local PLC directory
+        run: |
+          npm run plc:dev > "$RUNNER_TEMP/plc.log" 2>&1 &
+          plc_pid=$!
+          echo "$plc_pid" > "$RUNNER_TEMP/plc.pid"
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:2582/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/plc.log"
+          exit 1
+
       - name: Run integration tests
         run: npm run test:api
         env:
@@ -107,3 +121,10 @@ jobs:
           PDS_HOSTNAME: localhost
           PDS_SERVICE_URL: http://localhost:8080
           EXPORT_SCHEDULER_ENABLED: "false"
+
+      - name: Stop local PLC directory
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/plc.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/plc.pid")" 2>/dev/null || true
+          fi
