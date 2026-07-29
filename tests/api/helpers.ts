@@ -38,7 +38,7 @@ export function xrpcAuthGet(nsid: string, token: string, params?: Record<string,
 
 /** Admin credentials from .env (bootstrap admin, always exists in DB) */
 const ADMIN_HANDLE = process.env.BOOTSTRAP_ADMIN_HANDLE || 'admin';
-const ADMIN_PASSWORD = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'AdminPass1234';
+const ADMIN_PASSWORD = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'Bootstrap-Test-Password-47!';
 
 /**
  * Login as the bootstrap admin.

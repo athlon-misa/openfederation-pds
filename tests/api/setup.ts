@@ -87,6 +87,6 @@ process.env.WALLET_SIGN_RATE_LIMIT = process.env.WALLET_SIGN_RATE_LIMIT || '1000
 // so ensureBootstrapAdmin never runs normally — we do it once here.
 process.env.BOOTSTRAP_ADMIN_HANDLE = process.env.BOOTSTRAP_ADMIN_HANDLE || 'admin';
 process.env.BOOTSTRAP_ADMIN_EMAIL = process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@test.local';
-process.env.BOOTSTRAP_ADMIN_PASSWORD = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'AdminPass1234';
+process.env.BOOTSTRAP_ADMIN_PASSWORD = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'Bootstrap-Test-Password-47!';
 const { ensureBootstrapAdmin } = await import('../../src/auth/bootstrap.js');
 await ensureBootstrapAdmin();

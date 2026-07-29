@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: openfederation
       POSTGRES_USER: openfederation
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,20 +20,21 @@ services:
     ports:
       - "${PDS_PORT:-8080}:8080"
     environment:
+      NODE_ENV: production
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: openfederation
       DB_USER: openfederation
-      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?Set AUTH_JWT_SECRET in .env}
       KEY_ENCRYPTION_SECRET: ${KEY_ENCRYPTION_SECRET:?Set KEY_ENCRYPTION_SECRET in .env}
       PDS_HOSTNAME: ${PDS_HOSTNAME:-localhost}
       PDS_SERVICE_URL: ${PDS_SERVICE_URL:-http://localhost:8080}
       BLOB_STORAGE: ${BLOB_STORAGE:-local}
       BLOB_STORAGE_PATH: /data/blobs
-      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@localhost}
-      BOOTSTRAP_ADMIN_HANDLE: ${BOOTSTRAP_ADMIN_HANDLE:-admin}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-AdminPass1234}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?Set BOOTSTRAP_ADMIN_EMAIL in .env}
+      BOOTSTRAP_ADMIN_HANDLE: ${BOOTSTRAP_ADMIN_HANDLE:?Set BOOTSTRAP_ADMIN_HANDLE in .env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set a unique BOOTSTRAP_ADMIN_PASSWORD in .env}
     volumes:
       - blobdata:/data/blobs
     depends_on:
