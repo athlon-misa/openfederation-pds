@@ -105,6 +105,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Account lifecycle: suspend, unsuspend, takedown, deactivate, activate, export, delete (all ATProto-compatible)
 - `com.atproto.identity.resolveHandle` — local + external cross-PDS resolution (DNS TXT → HTTPS well-known, 1h cache)
 - Well-known: `/.well-known/did.json` (PDS service DID, secp256k1, encrypted in `pds_service_keys`; falls through to community at hostname), `/.well-known/webfinger`
+- Private communities are gated on read (`requireCommunityReadable` / `requireRepoReadable`, `831285b`, 2026-07-10) at this PDS only. **This PDS is not yet federating to any external relay or AppView** — no production federation network is deployed. Before that federation is turned on, private-community DIDs still need to be excluded (or only sent to relays honoring the same gating) — tracked in [#85](https://github.com/athlon-misa/openfederation-pds/issues/85)
 
 ## On-chain governance — **needs-validation** ([#76](https://github.com/athlon-misa/openfederation-pds/issues/76))
 
@@ -163,9 +164,18 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - **Forum threads** (`net.openfederation.forum.thread`) stored as ATProto records in the author's user repo; **posts** (`net.openfederation.forum.post`) likewise author-repo records linking back to the thread URI
 - **Calendar events** (`community.lexicon.calendar.event`) stored in the community's own repo; **RSVPs** (`community.lexicon.calendar.rsvp`) stored in the attendee's user repo with `subject.uri` pointing to the event
 - Aggregation index: `forum_threads` + `forum_posts` + `event_rsvps` tables built from write-path hooks; `backfillForumIndex()` (`scripts/backfill-forum-index.ts`) reconstructs the index from `records_index` without touching the repos — run via `npx tsx scripts/backfill-forum-index.ts`
-- Moderation: `hidePost` (soft-hide, record preserved), `deletePost` (full removal + signed commit)
-- 10 XRPC endpoints: `createThread`, `createPost`, `getThread`, `listThreads`, `deletePost`, `hidePost`, `calendar.createEvent`, `calendar.listEvents`, `calendar.rsvp`, `calendar.listRsvps`
+- Moderation: `hidePost` / `hideThread` (soft-hide, index flag only, underlying record preserved), `deletePost` (author-only, full removal + signed commit). Gated by a dedicated `community.forum.moderate` permission, split from `community.forum.write` on 2026-07-03 after a scoping bug let ordinary members hide content they could merely post; `community.myCapabilities` reports the caller's resolved permission list so clients don't have to infer moderation UI from role names
+- 11 XRPC endpoints: `createThread`, `createPost`, `getThread`, `listThreads`, `deletePost`, `hidePost`, `hideThread`, `calendar.createEvent`, `calendar.listEvents`, `calendar.rsvp`, `calendar.listRsvps`
+- Private-community gating: as of 2026-07-10 (`831285b`), all four forum/calendar read endpoints 404 for outside callers — those who are neither the owner, a PDS admin, nor a member — matching the same guard used on the generic ATProto repo read endpoints (see Federation & ATProto compliance, below)
 - No ActivityPub content federation — identity layer only; forum content stays on-PDS
+
+## Community & account migration/portability — **export primitives available; transfer/import registered but incomplete**
+
+- Available export primitives: `net.openfederation.community.export` (owner/admin) and `net.openfederation.account.export` (self/admin/mod) produce JSON archives; `com.atproto.sync.getRepo` produces a CAR stream. The current account-export moderator authority is tracked as a security issue and must not be treated as the intended final authorization model.
+- Registered but nonfunctional transfer endpoint: `net.openfederation.community.transfer` is owner-only and is intended to return an export package plus a random token accompanied by a 24-hour expiry timestamp. Its lexicon declares only `did`, so runtime validation rejects the `password` field required by the handler; omitting `password` passes validation but is rejected by the handler, making the success path unreachable. The intended token is also not signed, persisted for one-time consumption, or verified by `admin.importRepo`.
+- Registered but nonfunctional import endpoint: `net.openfederation.admin.importRepo` is intended to accept a bounded CAR stream, but its block insert uses nonexistent `repo_blocks.did` and `repo_blocks.block_data` columns instead of the schema's `community_did` and `block_bytes`. Even after aligning block storage, its indexing step calls `RepoEngine.exportAllRecords()`, which only reads `records_index` rather than walking the imported CAR/MST, so imported records would not be indexed. It also does not verify the repository commit signature, bind the commit DID to the requested DID, register a complete local account/community identity, provision signing authority, or update the DID service endpoint.
+- Not operational: a safe PDS-to-PDS migration workflow. Completion requires reachable transfer/import success paths, source authorization, destination/audience binding, DID-key commit verification, atomic import and identity registration, replay protection, service-endpoint handoff, rollback behavior, and two-PDS end-to-end tests.
+- Not built: cross-platform import from Discord, Slack, or equivalent platforms; tracked separately in [#86](https://github.com/athlon-misa/openfederation-pds/issues/86).
 
 ---
 
