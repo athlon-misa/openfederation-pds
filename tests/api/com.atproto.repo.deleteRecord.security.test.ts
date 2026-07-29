@@ -708,7 +708,7 @@ describe('com.atproto.repo collection mutation security', () => {
           record: { text: 'must not survive a pending-audit insert failure' },
           governanceProof: {
             chainId: 'eip155:31337',
-            transactionHash: '0xauditinsertfailure',
+            transactionHash: '0x1111111111111111111111111111111111111111111111111111111111111111',
           },
         },
       ).set('X-Oracle-Key', oracleCredential.key);
@@ -763,7 +763,7 @@ describe('com.atproto.repo collection mutation security', () => {
           record: { text: 'mutation with durable pending evidence' },
           governanceProof: {
             chainId: 'eip155:31337',
-            transactionHash: '0xauditfinalizefailure',
+            transactionHash: '0x2222222222222222222222222222222222222222222222222222222222222222',
           },
         },
       ).set('X-Oracle-Key', oracleCredential.key);
@@ -815,7 +815,7 @@ describe('com.atproto.repo collection mutation security', () => {
   it('allows an Oracle-approved generic governed mutation and audits its proof', async () => {
     const governanceProof = {
       chainId: 'eip155:31337',
-      transactionHash: '0xcollectionpolicy',
+      transactionHash: '0x3333333333333333333333333333333333333333333333333333333333333333',
     };
     const record = { text: 'Oracle-approved generic record' };
     const update = await xrpcAuthPost('com.atproto.repo.putRecord', member.accessJwt, {
@@ -902,10 +902,255 @@ describe('com.atproto.repo collection mutation security', () => {
     });
   });
 
+  it('treats whitespace and hexadecimal case variants as the same Oracle proof', async () => {
+    const canonicalProof = {
+      chainId: 'eip155:31337',
+      transactionHash: '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    };
+    const aliasProof = {
+      chainId: ' EIP155:31337 ',
+      transactionHash: ' 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ',
+    };
+    const rkey = 'oracle-proof-alias';
+    const record = { text: 'one canonical Oracle proof' };
+    const initial = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record,
+        governanceProof: canonicalProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    expect(initial.status).toBe(200);
+
+    const replay = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record,
+        governanceProof: aliasProof,
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    const audit = await query<{
+      meta: {
+        proof: { chainId: string; transactionHash: string };
+      };
+    }>(
+      `SELECT meta
+       FROM audit_log
+       WHERE target_id = $1
+         AND action = 'oracle.proofApplied'
+         AND meta->>'rkey' = $2
+       ORDER BY id`,
+      [oracleCommunityDid, rkey],
+    );
+
+    expect.soft(replay.status).toBe(200);
+    expect.soft(replay.body).toEqual(initial.body);
+    expect.soft(audit.rows).toHaveLength(1);
+    expect.soft(audit.rows[0].meta.proof).toEqual({
+      chainId: 'eip155:31337',
+      transactionHash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    });
+  });
+
+  it('rejects an ambiguous EVM chain identifier alias before mutation', async () => {
+    const rkey = 'oracle-ambiguous-chain';
+    const update = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record: { text: 'must not accept a leading-zero EVM chain reference' },
+        governanceProof: {
+          chainId: 'eip155:031337',
+          transactionHash: '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+        },
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    const records = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+    const audit = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM audit_log
+       WHERE target_id = $1
+         AND meta->>'rkey' = $2`,
+      [oracleCommunityDid, rkey],
+    );
+
+    expect.soft(update.status).toBe(400);
+    expect.soft(update.body.error).toBe('InvalidRequest');
+    expect.soft(
+      records.body.records.some(
+        (entry: { uri: string }) => entry.uri.endsWith(`/${rkey}`),
+      ),
+    ).toBe(false);
+    expect.soft(audit.rows[0].count).toBe('0');
+  });
+
+  it('keeps Oracle proof identity stable across credential rotation', async () => {
+    const create = await xrpcAuthPost(
+      'net.openfederation.community.create',
+      member.accessJwt,
+      {
+        handle: uniqueHandle('rp-rot'),
+        didMethod: 'plc',
+        visibility: 'private',
+        joinPolicy: 'open',
+      },
+    );
+    expect(create.status).toBe(201);
+    const rotationCommunityDid = create.body.did;
+
+    const firstCredential = await xrpcAuthPost(
+      'net.openfederation.oracle.createCredential',
+      adminToken,
+      {
+        communityDid: rotationCommunityDid,
+        name: 'Oracle before rotation',
+      },
+    );
+    expect(firstCredential.status).toBe(201);
+
+    const governance = await xrpcAuthPost(
+      'net.openfederation.community.setGovernanceModel',
+      member.accessJwt,
+      {
+        communityDid: rotationCommunityDid,
+        governanceModel: 'on-chain',
+        governanceConfig: {
+          chainId: 'eip155:31337',
+          contractAddress: '0x0000000000000000000000000000000000000003',
+          protectedCollections: [GENERIC_GOVERNED_COLLECTION],
+        },
+      },
+    );
+    expect(governance.status).toBe(200);
+
+    const reusedProof = {
+      chainId: 'eip155:31337',
+      transactionHash: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    };
+    const rkey = 'oracle-credential-rotation';
+    const originalRecord = { text: 'authorized by the original credential' };
+    const initial = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: rotationCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record: originalRecord,
+        governanceProof: reusedProof,
+      },
+    ).set('X-Oracle-Key', firstCredential.body.key);
+    expect(initial.status).toBe(200);
+
+    const revoke = await xrpcAuthPost(
+      'net.openfederation.oracle.revokeCredential',
+      adminToken,
+      { credentialId: firstCredential.body.id },
+    );
+    expect(revoke.status).toBe(200);
+    const secondCredential = await xrpcAuthPost(
+      'net.openfederation.oracle.createCredential',
+      adminToken,
+      {
+        communityDid: rotationCommunityDid,
+        name: 'Oracle after rotation',
+      },
+    );
+    expect(secondCredential.status).toBe(201);
+
+    const exactReplay = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: rotationCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record: originalRecord,
+        governanceProof: reusedProof,
+      },
+    ).set('X-Oracle-Key', secondCredential.body.key);
+    const changedReplay = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: rotationCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey,
+        record: { text: 'must not be authorized after credential rotation' },
+        governanceProof: reusedProof,
+      },
+    ).set('X-Oracle-Key', secondCredential.body.key);
+    const freshRkey = 'oracle-credential-rotation-fresh';
+    const freshUse = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: rotationCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey: freshRkey,
+        record: { text: 'fresh proof under the active credential' },
+        governanceProof: {
+          chainId: 'eip155:31337',
+          transactionHash: '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+        },
+      },
+    ).set('X-Oracle-Key', secondCredential.body.key);
+    const records = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      member.accessJwt,
+      {
+        repo: rotationCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
+    );
+    const storedOriginal = records.body.records.find(
+      (entry: { uri: string }) => entry.uri.endsWith(`/${rkey}`),
+    );
+    const storedFresh = records.body.records.find(
+      (entry: { uri: string }) => entry.uri.endsWith(`/${freshRkey}`),
+    );
+    const audit = await query<{ actor_id: string }>(
+      `SELECT actor_id
+       FROM audit_log
+       WHERE target_id = $1
+         AND action = 'oracle.proofApplied'
+         AND meta->>'rkey' = $2
+       ORDER BY id`,
+      [rotationCommunityDid, rkey],
+    );
+
+    expect.soft(exactReplay.status).toBe(200);
+    expect.soft(exactReplay.body).toEqual(initial.body);
+    expect.soft(changedReplay.status).toBe(409);
+    expect.soft(changedReplay.body.error).toBe('InvalidRequest');
+    expect.soft(freshUse.status).toBe(200);
+    expect.soft(storedOriginal.value).toEqual(originalRecord);
+    expect.soft(storedFresh.value.text).toBe('fresh proof under the active credential');
+    expect.soft(audit.rows).toEqual([{ actor_id: firstCredential.body.id }]);
+  });
+
   it('rejects reuse of an applied Oracle proof for a different record CID', async () => {
     const governanceProof = {
       chainId: 'eip155:31337',
-      transactionHash: '0xreplay-different-record',
+      transactionHash: '0x4444444444444444444444444444444444444444444444444444444444444444',
     };
     const rkey = 'oracle-replay-record';
     const originalRecord = { text: 'authorized content' };
@@ -954,7 +1199,7 @@ describe('com.atproto.repo collection mutation security', () => {
   it('rejects reuse of an applied Oracle proof for a different record key', async () => {
     const governanceProof = {
       chainId: 'eip155:31337',
-      transactionHash: '0xreplay-different-rkey',
+      transactionHash: '0x5555555555555555555555555555555555555555555555555555555555555555',
     };
     const originalRkey = 'oracle-replay-original-rkey';
     const changedRkey = 'oracle-replay-changed-rkey';
@@ -1004,7 +1249,7 @@ describe('com.atproto.repo collection mutation security', () => {
   it('rejects reuse of an applied Oracle proof across create and put operations', async () => {
     const governanceProof = {
       chainId: 'eip155:31337',
-      transactionHash: '0xreplay-different-operation',
+      transactionHash: '0x6666666666666666666666666666666666666666666666666666666666666666',
     };
     const rkey = 'oracle-replay-operation';
     const record = { text: 'authorized only for create' };
@@ -1099,7 +1344,7 @@ describe('com.atproto.repo collection mutation security', () => {
         },
         governanceProof: {
           chainId: 'eip155:31337',
-          transactionHash: '0xsettingsbypass',
+          transactionHash: '0x7777777777777777777777777777777777777777777777777777777777777777',
         },
       },
     ).set('X-Oracle-Key', credential.body.key);

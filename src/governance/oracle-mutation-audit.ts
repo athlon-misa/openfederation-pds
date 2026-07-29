@@ -26,10 +26,11 @@ interface OracleMutationAuditMeta {
   authorizedAt: string;
   collection: string;
   oracleCommunityDid: string;
+  oracleCredentialId?: string;
   oracleName: string;
   operation: 'create' | 'put' | 'delete';
   proof: GovernanceProof;
-  proofAuthorizationKey?: string;
+  proofReservationKey?: string;
   recordCid?: string;
   result?: unknown;
   rkey: string;
@@ -38,32 +39,153 @@ interface OracleMutationAuditMeta {
   mutationFingerprintHash?: string;
 }
 
+type CurrentOracleMutationAuditMeta = OracleMutationAuditMeta & {
+  mutationFingerprint: OracleMutationFingerprint;
+  mutationFingerprintHash: string;
+  proofReservationKey: string;
+};
+
 interface AuditReservation {
   action: 'oracle.proofAuthorized' | 'oracle.proofApplied';
+  conflictingFingerprint: boolean;
   existing: boolean;
   id: number;
   meta: OracleMutationAuditMeta;
   targetId: string;
 }
 
-function parseGovernanceProof(value: unknown): GovernanceProof {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CAIP_2_PATTERN = /^([a-z0-9-]{3,8}):([-_a-zA-Z0-9]{1,32})$/i;
+const VISIBLE_ASCII_PATTERN = /^[\x21-\x7e]+$/;
+const EVM_TRANSACTION_HASH_PATTERN = /^0x[0-9a-f]{64}$/i;
+
+function invalidProof(message: string): never {
+  throw new HttpError(400, 'InvalidRequest', message);
+}
+
+function canonicalizeCredentialId(value: string): string {
+  const credentialId = value.trim();
+  if (!UUID_PATTERN.test(credentialId)) {
+    return invalidProof('Oracle credential ID is not a canonical UUID');
+  }
+  return credentialId.toLowerCase();
+}
+
+function canonicalizeCommunityDid(value: string): string {
+  const communityDid = value.trim();
+  if (
+    !communityDid.startsWith('did:')
+    || communityDid.length > 255
+    || !VISIBLE_ASCII_PATTERN.test(communityDid)
+  ) {
+    return invalidProof('Oracle community DID is invalid');
+  }
+  return communityDid;
+}
+
+function canonicalizeChainId(
+  value: string,
+  allowLegacyAliases = false,
+): string {
+  const chainId = value.trim();
+  if (chainId.length > 64) {
+    return invalidProof('governanceProof.chainId exceeds 64 characters');
+  }
+  const match = CAIP_2_PATTERN.exec(chainId);
+  if (!match) {
+    return invalidProof('governanceProof.chainId must be a CAIP-2 identifier');
+  }
+
+  const namespace = match[1].toLowerCase();
+  let reference = match[2];
+  if (namespace === 'eip155') {
+    if (!/^\d+$/.test(reference)) {
+      return invalidProof('eip155 chain references must be decimal integers');
+    }
+    if (reference.length > 1 && reference.startsWith('0')) {
+      if (!allowLegacyAliases) {
+        return invalidProof('eip155 chain references must not contain leading zeros');
+      }
+      reference = BigInt(reference).toString();
+    }
+  }
+
+  return `${namespace}:${reference}`;
+}
+
+function canonicalizeTransactionHash(
+  value: string,
+  chainId: string,
+  allowLegacyAliases = false,
+): string {
+  const transactionHash = value.trim();
+  if (
+    !transactionHash
+    || transactionHash.length > 255
+    || !VISIBLE_ASCII_PATTERN.test(transactionHash)
+  ) {
+    return invalidProof(
+      'governanceProof.transactionHash must contain 1-255 visible ASCII characters',
+    );
+  }
+
+  if (chainId.startsWith('eip155:')) {
+    if (EVM_TRANSACTION_HASH_PATTERN.test(transactionHash)) {
+      return transactionHash.toLowerCase();
+    }
+    if (
+      allowLegacyAliases
+      && /^0x[0-9a-z-]+$/i.test(transactionHash)
+    ) {
+      return transactionHash.toLowerCase();
+    }
+    return invalidProof(
+      'eip155 transaction hashes must be 0x-prefixed 32-byte hexadecimal values',
+    );
+  }
+
+  return /^0x[0-9a-f]+$/i.test(transactionHash)
+    ? transactionHash.toLowerCase()
+    : transactionHash;
+}
+
+function canonicalizeProofFields(
+  value: unknown,
+  allowLegacyAliases = false,
+): GovernanceProof {
   if (
     typeof value !== 'object'
     || value === null
     || Array.isArray(value)
     || typeof (value as { chainId?: unknown }).chainId !== 'string'
-    || !(value as { chainId: string }).chainId.trim()
     || typeof (value as { transactionHash?: unknown }).transactionHash !== 'string'
-    || !(value as { transactionHash: string }).transactionHash.trim()
   ) {
-    throw new HttpError(
-      400,
-      'InvalidRequest',
+    return invalidProof(
       'governanceProof with chainId and transactionHash is required for an Oracle-authorized on-chain mutation',
     );
   }
 
-  return value as GovernanceProof;
+  const proof = value as GovernanceProof;
+  const chainId = canonicalizeChainId(proof.chainId, allowLegacyAliases);
+  return {
+    ...proof,
+    chainId,
+    transactionHash: canonicalizeTransactionHash(
+      proof.transactionHash,
+      chainId,
+      allowLegacyAliases,
+    ),
+  };
+}
+
+function parseGovernanceProof(
+  value: unknown,
+  credentialId: string,
+): { credentialId: string; proof: GovernanceProof } {
+  return {
+    credentialId: canonicalizeCredentialId(credentialId),
+    proof: canonicalizeProofFields(value),
+  };
 }
 
 /**
@@ -79,9 +201,17 @@ export function prepareOracleMutationAudit(input: {
     return null;
   }
 
+  const parsed = parseGovernanceProof(
+    input.governanceProof,
+    input.oracle.credentialId,
+  );
   return {
-    oracle: input.oracle,
-    proof: parseGovernanceProof(input.governanceProof),
+    oracle: {
+      ...input.oracle,
+      credentialId: parsed.credentialId,
+      communityDid: canonicalizeCommunityDid(input.oracle.communityDid),
+    },
+    proof: parsed.proof,
   };
 }
 
@@ -91,9 +221,9 @@ function hashJson(value: unknown): string {
     .digest('hex');
 }
 
-function proofAuthorizationKey(audit: OracleMutationAudit): string {
+function proofReservationKey(audit: OracleMutationAudit): string {
   return hashJson([
-    audit.oracle.credentialId,
+    audit.oracle.communityDid,
     audit.proof.chainId,
     audit.proof.transactionHash,
   ]);
@@ -113,20 +243,17 @@ function mutationFingerprintHash(
 
 function authorizationKey(input: {
   mutationFingerprintHash: string;
-  proofAuthorizationKey: string;
+  proofReservationKey: string;
 }): string {
   return hashJson([
-    input.proofAuthorizationKey,
+    input.proofReservationKey,
     input.mutationFingerprintHash,
   ]);
 }
 
 function fingerprintsMatch(
   reservation: AuditReservation,
-  incoming: OracleMutationAuditMeta & {
-    mutationFingerprint: OracleMutationFingerprint;
-    mutationFingerprintHash: string;
-  },
+  incoming: CurrentOracleMutationAuditMeta,
 ): boolean {
   const stored = reservation.meta.mutationFingerprint;
 
@@ -140,7 +267,10 @@ function fingerprintsMatch(
         === (incoming.mutationFingerprint.recordCid ?? null)
       && reservation.meta.mutationFingerprintHash
         === incoming.mutationFingerprintHash
-      && reservation.meta.authorizationKey === incoming.authorizationKey
+      && (
+        !reservation.meta.proofReservationKey
+        || reservation.meta.authorizationKey === incoming.authorizationKey
+      )
     );
   }
 
@@ -158,18 +288,50 @@ function fingerprintsMatch(
   );
 }
 
+function reservationMatchesProof(
+  reservation: AuditReservation,
+  incoming: CurrentOracleMutationAuditMeta,
+): boolean {
+  if (
+    reservation.meta.proofReservationKey
+    === incoming.proofReservationKey
+  ) {
+    return true;
+  }
+
+  try {
+    const storedProof = canonicalizeProofFields(
+      reservation.meta.proof,
+      true,
+    );
+    const storedCommunityDid = canonicalizeCommunityDid(
+      reservation.meta.oracleCommunityDid || reservation.targetId,
+    );
+    return proofReservationKey({
+      oracle: {
+        credentialId: reservation.meta.oracleCredentialId || '',
+        communityDid: storedCommunityDid,
+        name: reservation.meta.oracleName,
+      },
+      proof: storedProof,
+    }) === incoming.proofReservationKey;
+  } catch {
+    return false;
+  }
+}
+
 async function reserveAudit(input: {
   audit: OracleMutationAudit;
   communityDid: string;
-  meta: OracleMutationAuditMeta & { proofAuthorizationKey: string };
+  meta: CurrentOracleMutationAuditMeta;
 }): Promise<AuditReservation> {
   return withTransaction(async (client) => {
     await client.query(
       'SELECT pg_advisory_xact_lock(hashtext($1))',
-      [input.meta.proofAuthorizationKey],
+      [input.meta.proofReservationKey],
     );
 
-    const existing = await client.query<{
+    const candidates = await client.query<{
       action: 'oracle.proofAuthorized' | 'oracle.proofApplied';
       id: number;
       meta: OracleMutationAuditMeta;
@@ -177,27 +339,30 @@ async function reserveAudit(input: {
     }>(
       `SELECT id, action, meta, target_id AS "targetId"
        FROM audit_log
-       WHERE actor_id = $1
+       WHERE target_id = $1
          AND action IN ('oracle.proofAuthorized', 'oracle.proofApplied')
          AND (
-           meta->>'proofAuthorizationKey' = $2
-           OR (
-             meta->'proof'->>'chainId' = $3
-             AND meta->'proof'->>'transactionHash' = $4
-           )
+           meta->>'proofReservationKey' = $2
+           OR NOT (meta ? 'proofReservationKey')
          )
-       ORDER BY id DESC
-       LIMIT 1`,
-      [
-        input.audit.oracle.credentialId,
-        input.meta.proofAuthorizationKey,
-        input.audit.proof.chainId,
-        input.audit.proof.transactionHash,
-      ],
+       ORDER BY id DESC`,
+      [input.communityDid, input.meta.proofReservationKey],
     );
 
-    if (existing.rows[0]) {
-      return { ...existing.rows[0], existing: true };
+    const proofMatches = candidates.rows
+      .map((row) => ({
+        ...row,
+        conflictingFingerprint: false,
+        existing: true,
+      }))
+      .filter((row) => reservationMatchesProof(row, input.meta));
+    if (proofMatches[0]) {
+      return {
+        ...proofMatches[0],
+        conflictingFingerprint: proofMatches.some(
+          (row) => !fingerprintsMatch(row, input.meta),
+        ),
+      };
     }
 
     const inserted = await client.query<{
@@ -216,7 +381,11 @@ async function reserveAudit(input: {
       ],
     );
 
-    return { ...inserted.rows[0], existing: false };
+    return {
+      ...inserted.rows[0],
+      conflictingFingerprint: false,
+      existing: false,
+    };
   });
 }
 
@@ -289,26 +458,23 @@ export async function executeOracleGovernedMutation<T>(input: {
     ...(recordCid ? { recordCid } : {}),
   };
   const fingerprintHash = mutationFingerprintHash(mutationFingerprint);
-  const proofKey = proofAuthorizationKey(audit);
-  const meta: OracleMutationAuditMeta & {
-    mutationFingerprint: OracleMutationFingerprint;
-    mutationFingerprintHash: string;
-    proofAuthorizationKey: string;
-  } = {
+  const proofKey = proofReservationKey(audit);
+  const meta: CurrentOracleMutationAuditMeta = {
     action: input.action,
     authorizationKey: authorizationKey({
       mutationFingerprintHash: fingerprintHash,
-      proofAuthorizationKey: proofKey,
+      proofReservationKey: proofKey,
     }),
     authorizedAt: new Date().toISOString(),
     collection: input.collection,
     mutationFingerprint,
     mutationFingerprintHash: fingerprintHash,
     oracleCommunityDid: audit.oracle.communityDid,
+    oracleCredentialId: audit.oracle.credentialId,
     oracleName: audit.oracle.name,
     operation: input.operation,
     proof: audit.proof,
-    proofAuthorizationKey: proofKey,
+    proofReservationKey: proofKey,
     ...(recordCid ? { recordCid } : {}),
     rkey: input.rkey,
     status: 'pending',
@@ -320,7 +486,10 @@ export async function executeOracleGovernedMutation<T>(input: {
   });
 
   if (reservation.existing) {
-    if (!fingerprintsMatch(reservation, meta)) {
+    if (
+      reservation.conflictingFingerprint
+      || !fingerprintsMatch(reservation, meta)
+    ) {
       throw new HttpError(
         409,
         'InvalidRequest',
