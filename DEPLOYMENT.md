@@ -134,7 +134,7 @@ Quick summary: deploy as three Railway services (PDS API + PLC Directory + Web U
 
 ## First Admin Login
 
-The PDS supports automatic admin bootstrap via environment variables. On first startup with a connected database, if all three bootstrap variables are set, an admin account is created automatically.
+The PDS supports automatic admin bootstrap via environment variables. On first startup with a connected database, set all three bootstrap variables to create an admin account automatically. Leaving all three unset disables bootstrap; partial configuration, weak passwords, and repository-known passwords cause startup to fail.
 
 ### Setup
 
@@ -146,10 +146,17 @@ BOOTSTRAP_ADMIN_HANDLE=admin
 BOOTSTRAP_ADMIN_PASSWORD=<strong-password-here>
 ```
 
+Use a unique password generated for this deployment. The validation is
+fail-closed in every `NODE_ENV`, including development.
+
 The account is:
 - Pre-approved (no manual approval needed)
-- Granted **admin**, **moderator**, and **user** roles
+- Granted **admin**, **moderator**, **partner-manager**, **auditor**, and **user** roles
 - Ready to log in immediately
+
+If an account already exists, bootstrap changes its approval and roles only when
+both the normalized email and normalized handle match that same account. A match
+on only one identifier aborts startup rather than promoting the account.
 
 ### Logging In
 
@@ -168,7 +175,12 @@ The account is:
 
 ### Security
 
-After the admin account is created, **remove the `BOOTSTRAP_ADMIN_*` variables** from your environment. The account persists in the database. If the account already exists on subsequent boots, the PDS just ensures it has admin role (idempotent).
+After the admin account is created, **remove the `BOOTSTRAP_ADMIN_*` variables**
+from your environment. The account persists in the database. When using the
+checked-in `docker-compose.yml`, also remove the three bootstrap mappings from
+the `pds.environment` section after first boot; those mappings deliberately
+require explicit values so Compose cannot silently deploy a known administrator
+credential.
 
 ---
 

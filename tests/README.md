@@ -82,7 +82,7 @@ Key variables needed for tests:
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection |
 | `PLC_DIRECTORY_URL` | PLC endpoint (default: `http://localhost:2582`) |
 | `BOOTSTRAP_ADMIN_HANDLE` | Admin handle for test login (default: `admin`) |
-| `BOOTSTRAP_ADMIN_PASSWORD` | Admin password for test login (default: `AdminPass1234`) |
+| `BOOTSTRAP_ADMIN_PASSWORD` | Admin password for test login (default: `Bootstrap-Test-Password-47!`) |
 
 ### Step 2 — Initialize the database
 
