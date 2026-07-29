@@ -70,19 +70,21 @@ export async function ensureBootstrapAdmin(
     }
 
     const userId = exactMatch.id;
-    if (exactMatch.status !== 'approved') {
-      await runQuery(
-        `UPDATE users
-         SET status = 'approved',
-             approved_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [userId]
-      );
+    const approval = await runQuery<{ id: string; handle: string; email: string }>(
+      `UPDATE users
+       SET status = 'approved',
+           approved_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+         AND status <> 'approved'
+       RETURNING id, handle, email`,
+      [userId]
+    );
+    if (approval.rows.length > 0) {
       await writeAudit('account.approve', null, userId, {
         source: 'bootstrap',
         actor: 'system/bootstrap',
-        handle: exactMatch.handle,
-        email: exactMatch.email,
+        handle: approval.rows[0].handle,
+        email: approval.rows[0].email,
       });
     }
     const grantedRoles = await runQuery<{ role: string }>(

@@ -149,7 +149,62 @@ describe('Bootstrap administrator configuration', () => {
 });
 
 describe('Bootstrap administrator audit trail', () => {
-  it('awaits bootstrap audit records for new-account creation and privileged-role assignment', async () => {
+  it('awaits bootstrap account registration audit before assigning roles', async () => {
+    setBootstrapConfig('Unique-Bootstrap-Password-47!');
+    let roleInsertionStarted = false;
+
+    const creationQuery: BootstrapQuery = async (text) => {
+      if (text.trimStart().startsWith('SELECT')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (text.includes('INSERT INTO user_roles')) {
+        roleInsertionStarted = true;
+        return {
+          rows: ['admin', 'moderator', 'partner-manager', 'auditor', 'user']
+            .map((role) => ({ role })),
+          rowCount: 5,
+        };
+      }
+      return { rows: [], rowCount: 1 };
+    };
+
+    let releaseRegistrationAudit!: () => void;
+    const registrationAuditGate = new Promise<void>((resolve) => {
+      releaseRegistrationAudit = resolve;
+    });
+    let registrationAuditStarted!: () => void;
+    const registrationAuditStart = new Promise<void>((resolve) => {
+      registrationAuditStarted = resolve;
+    });
+
+    const audit: BootstrapAudit = async (action) => {
+      if (action === 'account.register') {
+        registrationAuditStarted();
+        await registrationAuditGate;
+      }
+    };
+
+    let bootstrapCompleted = false;
+    const bootstrap = runBootstrap(creationQuery, audit).then(() => {
+      bootstrapCompleted = true;
+    });
+    const firstCompletion = await Promise.race([
+      registrationAuditStart.then(() => 'audit-started' as const),
+      bootstrap.then(() => 'bootstrap-completed' as const),
+    ]);
+
+    assert.equal(firstCompletion, 'audit-started');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(bootstrapCompleted, false, 'bootstrap must await the registration audit write');
+    assert.equal(roleInsertionStarted, false, 'roles must not be assigned before registration is audited');
+
+    releaseRegistrationAudit();
+    await bootstrap;
+
+    assert.equal(roleInsertionStarted, true);
+  });
+
+  it('awaits bootstrap privileged-role assignment audit before completing', async () => {
     setBootstrapConfig('Unique-Bootstrap-Password-47!');
     let createdUserId = '';
     const auditRecords: Array<{
@@ -246,6 +301,16 @@ describe('Bootstrap administrator audit trail', () => {
           rowCount: 1,
         };
       }
+      if (text.trimStart().startsWith('UPDATE users')) {
+        return {
+          rows: [{
+            id: 'existing-account',
+            email: 'operator@example.com',
+            handle: 'bootstrap-operator',
+          }],
+          rowCount: 1,
+        };
+      }
       if (text.includes('INSERT INTO user_roles')) {
         return {
           rows: ['admin', 'moderator', 'partner-manager', 'auditor', 'user']
@@ -273,6 +338,77 @@ describe('Bootstrap administrator audit trail', () => {
       auditRecords[1].meta?.roles,
       ['admin', 'moderator', 'partner-manager', 'auditor', 'user'],
     );
+  });
+
+  it('does not audit bootstrap approval when the conditional update changes no row', async () => {
+    setBootstrapConfig('Unique-Bootstrap-Password-47!');
+    const auditRecords: string[] = [];
+
+    const staleLookupQuery: BootstrapQuery = async (text) => {
+      if (text.trimStart().startsWith('SELECT')) {
+        return {
+          rows: [{
+            id: 'concurrently-changed-account',
+            status: 'pending',
+            email: 'operator@example.com',
+            handle: 'bootstrap-operator',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (text.trimStart().startsWith('UPDATE users')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (text.includes('INSERT INTO user_roles')) {
+        return { rows: [], rowCount: 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    };
+
+    await runBootstrap(staleLookupQuery, async (action) => {
+      auditRecords.push(action);
+    });
+
+    assert.deepEqual(auditRecords, []);
+  });
+
+  it('audits bootstrap approval from the conditional update result, not lookup status', async () => {
+    setBootstrapConfig('Unique-Bootstrap-Password-47!');
+    const auditRecords: string[] = [];
+
+    const concurrentChangeQuery: BootstrapQuery = async (text) => {
+      if (text.trimStart().startsWith('SELECT')) {
+        return {
+          rows: [{
+            id: 'concurrently-changed-account',
+            status: 'approved',
+            email: 'operator@example.com',
+            handle: 'bootstrap-operator',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (text.trimStart().startsWith('UPDATE users')) {
+        return {
+          rows: [{
+            id: 'concurrently-changed-account',
+            email: 'operator@example.com',
+            handle: 'bootstrap-operator',
+          }],
+          rowCount: 1,
+        };
+      }
+      if (text.includes('INSERT INTO user_roles')) {
+        return { rows: [], rowCount: 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    };
+
+    await runBootstrap(concurrentChangeQuery, async (action) => {
+      auditRecords.push(action);
+    });
+
+    assert.deepEqual(auditRecords, ['account.approve']);
   });
 
   it('does not audit a bootstrap role transition when no role was inserted', async () => {
