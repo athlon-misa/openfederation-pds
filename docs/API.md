@@ -163,7 +163,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `net.openfederation.server.getConfig` | Admin | Get server config and stats |
 | POST | `net.openfederation.admin.createVerificationChallenge` | Admin | Send identity verification nonce to user |
 | POST | `net.openfederation.admin.verifyChallenge` | Admin | Verify nonce response from user |
-| POST | `net.openfederation.admin.importRepo` | Admin | Import a bounded CAR stream into local repo storage; parses and stores blocks/root, then indexes records. Does not yet verify repository commit signatures or complete account/community migration |
+| POST | `net.openfederation.admin.importRepo` | Admin | Registered admin endpoint intended for bounded CAR import; currently nonfunctional pending schema-aligned block storage and real CAR/MST record indexing |
 
 ## OpenFederation Contact Graph
 
