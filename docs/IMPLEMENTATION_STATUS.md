@@ -169,12 +169,13 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Private-community gating: as of 2026-07-10 (`831285b`), all four forum/calendar read endpoints 404 for non-members of a private community, matching the same guard used on the generic ATProto repo read endpoints (see Federation & ATProto compliance, below)
 - No ActivityPub content federation — identity layer only; forum content stays on-PDS
 
-## Community & account migration/portability — **shipped** (PDS-to-PDS), **not started** (cross-platform import)
+## Community & account migration/portability — **coded primitives / needs end-to-end implementation and validation**
 
-- Export: `net.openfederation.community.export` (owner/admin) and `net.openfederation.account.export` (self/admin/mod) produce a JSON archive; `sync.getRepo` produces a full CAR stream. Required before `community.takedown`.
-- Transfer: `net.openfederation.community.transfer` (owner-only) generates a migration package for `did:plc`/`did:web` ownership handoff.
-- Import: `net.openfederation.admin.importRepo` ([#16](https://github.com/athlon-misa/openfederation-pds/issues/16), shipped) accepts a CAR stream into a new local repo, validates MST integrity and commit signatures, and registers the DID locally — the destination side of the whitepaper's Section 7.2 migration process.
-- Not built: any tooling to import communities *from* another platform (Discord, Slack, etc.) — there is no `net.openfederation.community.import` or equivalent bulk-import path, only the ATProto-native repo export/transfer/import primitives above.
+- Available export primitives: `net.openfederation.community.export` (owner/admin) and `net.openfederation.account.export` (self/admin/mod) produce JSON archives; `com.atproto.sync.getRepo` produces a CAR stream. The current account-export moderator authority is tracked as a security issue and must not be treated as the intended final authorization model.
+- Available transfer primitive: `net.openfederation.community.transfer` (owner-only) returns an export package plus an opaque, expiring random token. The token is not currently signed, persisted for one-time consumption, or verified by `admin.importRepo`.
+- Available import primitive: `net.openfederation.admin.importRepo` accepts a bounded CAR stream, parses and stores its blocks/root, and indexes records. It does not currently verify the repository commit signature, bind the commit DID to the requested DID, register a complete local account/community identity, provision signing authority, or update the DID service endpoint.
+- Not yet complete: a safe PDS-to-PDS migration workflow. Completion requires source authorization, destination/audience binding, DID-key commit verification, atomic import and identity registration, replay protection, service-endpoint handoff, rollback behavior, and two-PDS end-to-end tests.
+- Not built: cross-platform import from Discord, Slack, or equivalent platforms; tracked separately in [#86](https://github.com/athlon-misa/openfederation-pds/issues/86).
 
 ---
 
