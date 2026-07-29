@@ -19,6 +19,7 @@ const PROTECTED_COLLECTION_POLICIES: Record<string, CollectionMutationPolicy> = 
       update: PERMISSIONS.SETTINGS_WRITE,
       delete: PERMISSIONS.SETTINGS_WRITE,
     },
+    requiresDedicatedEndpoint: true,
   },
   'net.openfederation.community.profile': {
     permissions: {
@@ -26,6 +27,7 @@ const PROTECTED_COLLECTION_POLICIES: Record<string, CollectionMutationPolicy> = 
       update: PERMISSIONS.PROFILE_WRITE,
       delete: PERMISSIONS.PROFILE_WRITE,
     },
+    requiresDedicatedEndpoint: true,
   },
   'net.openfederation.community.member': {
     permissions: {

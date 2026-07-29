@@ -1,5 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { Secp256k1Keypair } from '@atproto/crypto';
 import { query } from '../../src/db/client.js';
+import { decryptKeyBytes } from '../../src/auth/encryption.js';
+import {
+  getServiceDid,
+  signServiceAuthJwt,
+} from '../../src/auth/service-auth.js';
 import {
   getAdminToken,
   uniqueHandle,
@@ -14,6 +20,7 @@ const PROFILE_COLLECTION = 'net.openfederation.community.profile';
 const MEMBER_COLLECTION = 'net.openfederation.community.member';
 const ROLE_COLLECTION = 'net.openfederation.community.role';
 const UNPROTECTED_COLLECTION = 'com.example.note';
+const GENERIC_GOVERNED_COLLECTION = 'net.openfederation.community.auditNote';
 
 type TestUser = {
   accessJwt: string;
@@ -55,15 +62,45 @@ async function createApprovedUser(prefix: string): Promise<TestUser> {
   };
 }
 
+async function loadSigningKey(did: string): Promise<Secp256k1Keypair> {
+  const key = await query<{ signing_key_bytes: Buffer }>(
+    'SELECT signing_key_bytes FROM user_signing_keys WHERE user_did = $1',
+    [did],
+  );
+  expect(key.rows).toHaveLength(1);
+  const decrypted = await decryptKeyBytes(
+    key.rows[0].signing_key_bytes,
+    'identity.signing-key',
+  );
+  return Secp256k1Keypair.import(decrypted, { exportable: true });
+}
+
+async function createServiceAuthToken(
+  user: TestUser,
+  lxm: string,
+): Promise<string> {
+  return signServiceAuthJwt({
+    keypair: await loadSigningKey(user.did),
+    iss: user.did,
+    aud: getServiceDid(),
+    exp: Math.floor(Date.now() / 1000) + 60,
+    lxm,
+  });
+}
+
 describe('com.atproto.repo collection mutation security', () => {
   let owner: TestUser;
   let moderator: TestUser;
+  let member: TestUser;
   let communityDid: string;
+  let oracleCommunityDid: string;
+  let oracleCredential: { id: string; key: string };
   let adminToken: string;
 
   beforeAll(async () => {
     owner = await createApprovedUser('rp-owner');
     moderator = await createApprovedUser('rp-mod');
+    member = await createApprovedUser('rp-member');
     adminToken = await getAdminToken();
 
     const create = await xrpcAuthPost('net.openfederation.community.create', owner.accessJwt, {
@@ -99,6 +136,55 @@ describe('com.atproto.repo collection mutation security', () => {
       },
     );
     expect(promote.status).toBe(200);
+
+    const memberJoin = await xrpcAuthPost(
+      'net.openfederation.community.join',
+      member.accessJwt,
+      { did: communityDid },
+    );
+    expect(memberJoin.status).toBe(200);
+
+    const createOracleCommunity = await xrpcAuthPost(
+      'net.openfederation.community.create',
+      member.accessJwt,
+      {
+        handle: uniqueHandle('rp-oracle'),
+        didMethod: 'plc',
+        visibility: 'private',
+        joinPolicy: 'open',
+      },
+    );
+    expect(createOracleCommunity.status).toBe(201);
+    oracleCommunityDid = createOracleCommunity.body.did;
+
+    const credential = await xrpcAuthPost(
+      'net.openfederation.oracle.createCredential',
+      adminToken,
+      {
+        communityDid: oracleCommunityDid,
+        name: 'Collection policy test Oracle',
+      },
+    );
+    expect(credential.status).toBe(201);
+    oracleCredential = {
+      id: credential.body.id,
+      key: credential.body.key,
+    };
+
+    const governance = await xrpcAuthPost(
+      'net.openfederation.community.setGovernanceModel',
+      member.accessJwt,
+      {
+        communityDid: oracleCommunityDid,
+        governanceModel: 'on-chain',
+        governanceConfig: {
+          chainId: 'eip155:31337',
+          contractAddress: '0x0000000000000000000000000000000000000001',
+          protectedCollections: [GENERIC_GOVERNED_COLLECTION],
+        },
+      },
+    );
+    expect(governance.status).toBe(200);
   });
 
   it('forbids a moderator from deleting private community settings', async () => {
@@ -141,8 +227,8 @@ describe('com.atproto.repo collection mutation security', () => {
       { repo: communityDid, collection: SETTINGS_COLLECTION },
     );
 
-    expect.soft(deletion.status).toBe(403);
-    expect.soft(deletion.body.error).toBe('GovernanceDenied');
+    expect.soft(deletion.status).toBe(400);
+    expect.soft(deletion.body.error).toBe('UseDedicatedEndpoint');
     expect.soft(settings.body.records).toHaveLength(1);
     expect.soft(settings.body.records?.[0]?.value?.visibility).toBe('private');
   });
@@ -174,6 +260,52 @@ describe('com.atproto.repo collection mutation security', () => {
       { repo: communityDid, collection: SETTINGS_COLLECTION },
     );
     expect(preserved.body.records[0].value.visibility).toBe('private');
+  });
+
+  it('forces community profile replacement and deletion through the specialized endpoint', async () => {
+    const profiles = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      owner.accessJwt,
+      { repo: communityDid, collection: PROFILE_COLLECTION },
+    );
+    expect(profiles.status).toBe(200);
+    const currentProfile = profiles.body.records[0].value;
+
+    const update = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      moderator.accessJwt,
+      {
+        repo: communityDid,
+        collection: PROFILE_COLLECTION,
+        rkey: 'self',
+        record: {
+          ...currentProfile,
+          displayName: 'Moderator bypass',
+          arbitraryField: 'not accepted by community.update',
+        },
+      },
+    );
+    const deletion = await xrpcAuthPost(
+      'com.atproto.repo.deleteRecord',
+      moderator.accessJwt,
+      {
+        repo: communityDid,
+        collection: PROFILE_COLLECTION,
+        rkey: 'self',
+      },
+    );
+    const preserved = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      owner.accessJwt,
+      { repo: communityDid, collection: PROFILE_COLLECTION },
+    );
+
+    expect.soft(update.status).toBe(400);
+    expect.soft(update.body.error).toBe('UseDedicatedEndpoint');
+    expect.soft(deletion.status).toBe(400);
+    expect.soft(deletion.body.error).toBe('UseDedicatedEndpoint');
+    expect.soft(preserved.body.records).toHaveLength(1);
+    expect.soft(preserved.body.records[0].value).toEqual(currentProfile);
   });
 
   it('prevents generic member writes from promoting a moderator to legacy owner', async () => {
@@ -258,35 +390,6 @@ describe('com.atproto.repo collection mutation security', () => {
     expect(deletion.body.error).toBe('Forbidden');
   });
 
-  it('allows the owner to update a protected collection through the generic endpoint', async () => {
-    const profiles = await xrpcAuthGet(
-      'com.atproto.repo.listRecords',
-      owner.accessJwt,
-      { repo: communityDid, collection: PROFILE_COLLECTION },
-    );
-    expect(profiles.status).toBe(200);
-    const currentProfile = profiles.body.records[0].value;
-
-    const update = await xrpcAuthPost('com.atproto.repo.putRecord', owner.accessJwt, {
-      repo: communityDid,
-      collection: PROFILE_COLLECTION,
-      rkey: 'self',
-      record: {
-        ...currentProfile,
-        displayName: 'Owner-authorized profile',
-      },
-    });
-
-    expect(update.status).toBe(200);
-
-    const updatedProfiles = await xrpcAuthGet(
-      'com.atproto.repo.listRecords',
-      owner.accessJwt,
-      { repo: communityDid, collection: PROFILE_COLLECTION },
-    );
-    expect(updatedProfiles.body.records[0].value.displayName).toBe('Owner-authorized profile');
-  });
-
   it('preserves ordinary self-repo mutations and unprotected community mutations', async () => {
     const selfCreate = await xrpcAuthPost('com.atproto.repo.createRecord', moderator.accessJwt, {
       repo: moderator.did,
@@ -323,50 +426,129 @@ describe('com.atproto.repo collection mutation security', () => {
     expect(selfDelete.status).toBe(200);
   });
 
-  it('allows an Oracle-approved protected mutation and audits its governance proof', async () => {
-    const credential = await xrpcAuthPost(
-      'net.openfederation.oracle.createCredential',
-      adminToken,
+  it('allows direct member self-repo writes but rejects cross-community writes', async () => {
+    const selfCreate = await xrpcAuthPost(
+      'com.atproto.repo.createRecord',
+      member.accessJwt,
       {
-        communityDid,
-        name: 'Collection policy test Oracle',
+        repo: member.did,
+        collection: UNPROTECTED_COLLECTION,
+        rkey: 'direct-member-self',
+        record: { text: 'member self write' },
       },
     );
-    expect(credential.status).toBe(201);
-
-    const governance = await xrpcAuthPost(
-      'net.openfederation.community.setGovernanceModel',
-      owner.accessJwt,
+    const crossCommunityCreate = await xrpcAuthPost(
+      'com.atproto.repo.createRecord',
+      member.accessJwt,
       {
-        communityDid,
-        governanceModel: 'on-chain',
-        governanceConfig: {
-          chainId: 'eip155:31337',
-          contractAddress: '0x0000000000000000000000000000000000000001',
-        },
+        repo: communityDid,
+        collection: UNPROTECTED_COLLECTION,
+        rkey: 'direct-member-cross-community',
+        record: { text: 'member cross-community write' },
       },
     );
-    expect(governance.status).toBe(200);
+    const cleanup = await xrpcAuthPost(
+      'com.atproto.repo.deleteRecord',
+      member.accessJwt,
+      {
+        repo: member.did,
+        collection: UNPROTECTED_COLLECTION,
+        rkey: 'direct-member-self',
+      },
+    );
 
-    const profiles = await xrpcAuthGet(
+    expect.soft(selfCreate.status).toBe(200);
+    expect.soft(crossCommunityCreate.status).toBe(403);
+    expect.soft(crossCommunityCreate.body.error).toBe('Forbidden');
+    expect.soft(cleanup.status).toBe(200);
+  });
+
+  it('allows service-auth self-repo writes but rejects cross-community writes', async () => {
+    const selfToken = await createServiceAuthToken(
+      member,
+      'com.atproto.repo.createRecord',
+    );
+    const selfCreate = await xrpcAuthPost(
+      'com.atproto.repo.createRecord',
+      selfToken,
+      {
+        repo: member.did,
+        collection: UNPROTECTED_COLLECTION,
+        rkey: 'service-auth-self',
+        record: { text: 'service-auth self write' },
+      },
+    );
+    const crossCommunityToken = await createServiceAuthToken(
+      member,
+      'com.atproto.repo.createRecord',
+    );
+    const crossCommunityCreate = await xrpcAuthPost(
+      'com.atproto.repo.createRecord',
+      crossCommunityToken,
+      {
+        repo: communityDid,
+        collection: UNPROTECTED_COLLECTION,
+        rkey: 'service-auth-cross-community',
+        record: { text: 'service-auth cross-community write' },
+      },
+    );
+
+    expect.soft(selfCreate.status).toBe(200);
+    expect.soft(crossCommunityCreate.status).toBe(403);
+    expect.soft(crossCommunityCreate.body.error).toBe('Forbidden');
+  });
+
+  it('rejects an Oracle-authorized protected mutation without proof evidence', async () => {
+    const update = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey: 'proofless',
+        record: { text: 'must not be applied without proof evidence' },
+      },
+    ).set('X-Oracle-Key', oracleCredential.key);
+    const records = await xrpcAuthGet(
       'com.atproto.repo.listRecords',
-      owner.accessJwt,
-      { repo: communityDid, collection: PROFILE_COLLECTION },
+      member.accessJwt,
+      {
+        repo: oracleCommunityDid,
+        collection: GENERIC_GOVERNED_COLLECTION,
+      },
     );
+    const audit = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM audit_log
+       WHERE action = 'oracle.proofApplied'
+         AND actor_id = $1
+         AND target_id = $2
+         AND meta->>'rkey' = 'proofless'`,
+      [oracleCredential.id, oracleCommunityDid],
+    );
+
+    expect.soft(update.status).toBe(400);
+    expect.soft(update.body.error).toBe('InvalidRequest');
+    expect.soft(
+      records.body.records.some(
+        (entry: { uri: string }) => entry.uri.endsWith('/proofless'),
+      ),
+    ).toBe(false);
+    expect.soft(audit.rows[0].count).toBe('0');
+  });
+
+  it('allows an Oracle-approved generic governed mutation and audits its proof', async () => {
     const governanceProof = {
       chainId: 'eip155:31337',
       transactionHash: '0xcollectionpolicy',
     };
-    const update = await xrpcAuthPost('com.atproto.repo.putRecord', owner.accessJwt, {
-      repo: communityDid,
-      collection: PROFILE_COLLECTION,
-      rkey: 'self',
-      record: {
-        ...profiles.body.records[0].value,
-        displayName: 'Oracle-approved profile',
-      },
+    const update = await xrpcAuthPost('com.atproto.repo.putRecord', member.accessJwt, {
+      repo: oracleCommunityDid,
+      collection: GENERIC_GOVERNED_COLLECTION,
+      rkey: 'oracle-approved',
+      record: { text: 'Oracle-approved generic record' },
       governanceProof,
-    }).set('X-Oracle-Key', credential.body.key);
+    }).set('X-Oracle-Key', oracleCredential.key);
 
     expect(update.status).toBe(200);
 
@@ -388,19 +570,92 @@ describe('com.atproto.repo collection mutation security', () => {
          AND target_id = $2
        ORDER BY created_at DESC
        LIMIT 1`,
-      [credential.body.id, communityDid],
+      [oracleCredential.id, oracleCommunityDid],
     );
     expect(audit.rows).toHaveLength(1);
     expect(audit.rows[0]).toMatchObject({
       action: 'oracle.proofApplied',
-      actor_id: credential.body.id,
-      target_id: communityDid,
+      actor_id: oracleCredential.id,
+      target_id: oracleCommunityDid,
       meta: {
-        collection: PROFILE_COLLECTION,
-        rkey: 'self',
+        collection: GENERIC_GOVERNED_COLLECTION,
+        rkey: 'oracle-approved',
         action: 'write',
         proof: governanceProof,
       },
+    });
+  });
+
+  it('blocks raw on-chain settings downgrade and malformed replacement through putRecord', async () => {
+    const create = await xrpcAuthPost(
+      'net.openfederation.community.create',
+      moderator.accessJwt,
+      {
+        handle: uniqueHandle('rp-bypass'),
+        didMethod: 'plc',
+        visibility: 'private',
+        joinPolicy: 'approval',
+      },
+    );
+    expect(create.status).toBe(201);
+    const protectedCommunityDid = create.body.did;
+
+    const credential = await xrpcAuthPost(
+      'net.openfederation.oracle.createCredential',
+      adminToken,
+      {
+        communityDid: protectedCommunityDid,
+        name: 'Settings bypass regression Oracle',
+      },
+    );
+    expect(credential.status).toBe(201);
+
+    const governance = await xrpcAuthPost(
+      'net.openfederation.community.setGovernanceModel',
+      moderator.accessJwt,
+      {
+        communityDid: protectedCommunityDid,
+        governanceModel: 'on-chain',
+        governanceConfig: {
+          chainId: 'eip155:31337',
+          contractAddress: '0x0000000000000000000000000000000000000002',
+        },
+      },
+    );
+    expect(governance.status).toBe(200);
+
+    const bypass = await xrpcAuthPost(
+      'com.atproto.repo.putRecord',
+      moderator.accessJwt,
+      {
+        repo: protectedCommunityDid,
+        collection: SETTINGS_COLLECTION,
+        rkey: 'self',
+        record: {
+          governanceModel: 'benevolent-dictator',
+        },
+        governanceProof: {
+          chainId: 'eip155:31337',
+          transactionHash: '0xsettingsbypass',
+        },
+      },
+    ).set('X-Oracle-Key', credential.body.key);
+    const settings = await xrpcAuthGet(
+      'com.atproto.repo.listRecords',
+      moderator.accessJwt,
+      {
+        repo: protectedCommunityDid,
+        collection: SETTINGS_COLLECTION,
+      },
+    );
+
+    expect.soft(bypass.status).toBe(400);
+    expect.soft(bypass.body.error).toBe('UseDedicatedEndpoint');
+    expect.soft(settings.body.records).toHaveLength(1);
+    expect.soft(settings.body.records[0].value).toMatchObject({
+      governanceModel: 'on-chain',
+      visibility: 'private',
+      joinPolicy: 'approval',
     });
   });
 });

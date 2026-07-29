@@ -5,7 +5,11 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { authorizeCollectionMutation } from '../repo/collection-policy.js';
 import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
-import { auditLog } from '../db/audit.js';
+import {
+  auditOracleMutation,
+  prepareOracleMutationAudit,
+  type OracleMutationAudit,
+} from '../governance/oracle-mutation-audit.js';
 import { FORUM_THREAD, FORUM_POST, CALENDAR_EVENT, CALENDAR_RSVP } from '../forum/forum-index.js';
 import { renderXrpcError } from '../xrpc/errors.js';
 
@@ -58,6 +62,7 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
     });
 
     const oracleContext = req.oracleAuth ?? null;
+    let oracleAudit: OracleMutationAudit | null = null;
 
     // Governance enforcement for community repos
     if (await isCommunityDid(repo)) {
@@ -70,6 +75,11 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
         });
         return;
       }
+      oracleAudit = prepareOracleMutationAudit({
+        governance,
+        oracle: oracleContext,
+        governanceProof: req.body.governanceProof,
+      });
     }
 
     const engine = new RepoEngine(repo);
@@ -78,11 +88,13 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
 
     const result = await engine.putRecord(keypair, collection, recordKey, record);
 
-    // Log governance proof if Oracle-submitted
-    if (oracleContext && req.body.governanceProof) {
-      await auditLog('oracle.proofApplied', oracleContext.credentialId, repo, {
-        collection, rkey: recordKey, action: 'write',
-        proof: req.body.governanceProof,
+    if (oracleAudit) {
+      await auditOracleMutation({
+        audit: oracleAudit,
+        communityDid: repo,
+        collection,
+        rkey: recordKey,
+        action: 'write',
       });
     }
 
