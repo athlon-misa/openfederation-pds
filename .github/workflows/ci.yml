@@ -92,7 +92,7 @@ jobs:
           plc_pid=$!
           echo "$plc_pid" > "$RUNNER_TEMP/plc.pid"
           for attempt in {1..30}; do
-            if curl --fail --silent http://localhost:2582/ > /dev/null; then
+            if curl --fail --silent http://localhost:2582/_health > /dev/null; then
               exit 0
             fi
             sleep 1
