@@ -11,6 +11,8 @@ import { verifySignInAssertion } from '../../packages/openfederation-sdk/src/siw
 import { query } from '../../src/db/client.js';
 import { decryptKeyBytes } from '../../src/auth/encryption.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
+import { signServiceAuthJwt } from '../../src/auth/service-auth.js';
+import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
 
 // End-to-end SIWOF: user signs a CAIP-122 message with their Tier 1
 // custodial wallet; dApp gets didToken + walletProof and verifies both
@@ -289,6 +291,50 @@ describe('Sign-In With OpenFederation', () => {
       const badProof = { ...assertRes.body.walletProof, walletAddress: '0x0000000000000000000000000000000000000000' };
       await expect(
         verifySignInAssertion(assertRes.body.didToken, badProof, { resolveSigningKey })
+      ).rejects.toMatchObject({ code: 'ProofMismatch' });
+    });
+
+    it('rejects a DID-signed token whose audience and nonce differ from the wallet-signed message', async () => {
+      if (!plcAvailable) return;
+      const ch = await xrpcAuthPost('net.openfederation.identity.signInChallenge', user.accessJwt, {
+        chain: 'ethereum',
+        walletAddress: ethAddress,
+        audience: 'https://siwof-test.example.com/login',
+      });
+      const signed = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+        chain: 'ethereum',
+        walletAddress: ethAddress,
+        message: ch.body.message,
+        dappOrigin: 'https://siwof-test.example.com/login',
+      });
+      const assertion = await xrpcAuthPost('net.openfederation.identity.signInAssert', user.accessJwt, {
+        chain: 'ethereum',
+        walletAddress: ethAddress,
+        message: ch.body.message,
+        walletSignature: signed.body.signature,
+      });
+      expect(assertion.status).toBe(200);
+
+      const forgedToken = await signServiceAuthJwt({
+        keypair: await getKeypairForDid(user.did),
+        iss: user.did,
+        aud: 'https://attacker.example.com',
+        exp: Math.floor(Date.now() / 1000) + 60,
+        lxm: 'net.openfederation.identity.signInAssert',
+        extraClaims: {
+          sub: `eip155:1:${ethAddress}`,
+          nonce: 'attacker-controlled-nonce',
+          chain: 'ethereum',
+          walletAddress: ethAddress,
+          chainIdCaip2: 'eip155:1',
+        },
+      });
+
+      await expect(
+        verifySignInAssertion(forgedToken, assertion.body.walletProof, {
+          expectedAudience: 'https://attacker.example.com',
+          resolveSigningKey,
+        }),
       ).rejects.toMatchObject({ code: 'ProofMismatch' });
     });
   });

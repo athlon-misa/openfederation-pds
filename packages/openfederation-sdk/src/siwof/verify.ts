@@ -139,6 +139,30 @@ export async function verifySignInAssertion(
   const waProof = chain === 'ethereum' ? walletProof.walletAddress.toLowerCase() : walletProof.walletAddress;
   if (waToken !== waProof) throw new SiwofVerifyError('ProofMismatch', 'walletProof.walletAddress != didToken.walletAddress');
 
+  // The wallet signature is meaningful only if the signed CAIP-122 message
+  // makes the same assertions as the DID-signed token. Metadata supplied
+  // alongside the signature is attacker-controlled and is not a substitute.
+  const message = parseSiwofMessage(walletProof.message);
+  const messageAudience = normalizeAudienceOrThrow(message.uri);
+  const tokenAudience = normalizeAudienceOrThrow(aud);
+  const messageAddress = chain === 'ethereum'
+    ? message.accountCaip10.slice(message.chainIdCaip2.length + 1).toLowerCase()
+    : message.accountCaip10.slice(message.chainIdCaip2.length + 1);
+  if (
+    messageAudience !== tokenAudience ||
+    message.domain.toLowerCase() !== new URL(tokenAudience).host.toLowerCase() ||
+    message.chainIdCaip2 !== chainIdCaip2 ||
+    messageAddress !== waToken ||
+    message.accountCaip10 !== `${chainIdCaip2}:${walletAddress}` ||
+    message.nonce !== nonce ||
+    typeof iat !== 'number' ||
+    Math.floor(Date.parse(message.issuedAt) / 1000) !== iat ||
+    !message.expirationTime ||
+    Math.floor(Date.parse(message.expirationTime) / 1000) !== exp
+  ) {
+    throw new SiwofVerifyError('ProofMismatch', 'walletProof.message does not match didToken claims');
+  }
+
   // 1. Verify the wallet proof against the address.
   const walletValid = await verifyWalletSignature(chain, walletProof.message, walletProof.signature, waProof);
   if (!walletValid) throw new SiwofVerifyError('InvalidWalletSignature', 'Wallet signature does not verify against walletAddress');
@@ -271,6 +295,48 @@ function normalizeAudienceOrThrow(raw: string): string {
   } catch {
     throw new SiwofVerifyError('BadAudience', `Invalid audience URL: ${raw}`);
   }
+}
+
+interface ParsedSiwofMessage {
+  domain: string;
+  accountCaip10: string;
+  chainIdCaip2: string;
+  uri: string;
+  nonce: string;
+  issuedAt: string;
+  expirationTime?: string;
+}
+
+function parseSiwofMessage(text: string): ParsedSiwofMessage {
+  const lines = text.split('\n');
+  if (lines.length < 6 || !lines[0].includes(' wants you to sign in with your')) {
+    throw new SiwofVerifyError('ProofMismatch', 'walletProof.message is not a valid SIWOF message');
+  }
+  const values = new Map<string, string>();
+  for (const line of lines) {
+    const match = line.match(/^([A-Za-z ]+): (.+)$/);
+    if (match) values.set(match[1], match[2]);
+  }
+  const uri = values.get('URI');
+  const version = values.get('Version');
+  const chainIdCaip2 = values.get('Chain ID');
+  const nonce = values.get('Nonce');
+  const issuedAt = values.get('Issued At');
+  if (!uri || version !== '1' || !chainIdCaip2 || !nonce || !issuedAt || !lines[1]) {
+    throw new SiwofVerifyError('ProofMismatch', 'walletProof.message is missing required SIWOF claims');
+  }
+  if (Number.isNaN(Date.parse(issuedAt)) || (values.get('Expiration Time') && Number.isNaN(Date.parse(values.get('Expiration Time')!)))) {
+    throw new SiwofVerifyError('ProofMismatch', 'walletProof.message has invalid SIWOF timestamps');
+  }
+  return {
+    domain: lines[0].split(' wants you to')[0],
+    accountCaip10: `${chainIdCaip2}:${lines[1]}`,
+    chainIdCaip2,
+    uri,
+    nonce,
+    issuedAt,
+    expirationTime: values.get('Expiration Time'),
+  };
 }
 
 function base64UrlDecodeString(b64: string): string {

@@ -141,7 +141,12 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
       res.status(500).json({ error: 'NoSigningKey', message: 'No atproto signing key for this DID' });
       return;
     }
-    const exp = Math.floor(Date.now() / 1000) + DID_TOKEN_TTL_SEC;
+    const messageExpiry = parsed.expirationTime ? Math.floor(Date.parse(parsed.expirationTime) / 1000) : NaN;
+    if (!Number.isFinite(messageExpiry)) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'SIWOF message expiration is required' });
+      return;
+    }
+    const exp = messageExpiry;
     const didToken = await signServiceAuthJwt({
       keypair,
       iss: userDid,
