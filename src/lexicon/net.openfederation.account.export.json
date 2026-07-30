@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.export",
-  "revision": 1,
+  "revision": 2,
   "description": "Generated XRPC contract for net.openfederation.account.export.",
   "defs": {
     "main": {
@@ -25,6 +25,10 @@
         {
           "name": "NotFound",
           "description": "Referenced resource was not found."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Only the account owner or PDS admin can export account data."
         }
       ]
     }
