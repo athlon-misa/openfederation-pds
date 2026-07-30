@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.createRole",
-  "revision": 1,
+  "revision": 2,
   "description": "Create a custom role for a community.",
   "defs": {
     "main": {
@@ -69,6 +69,10 @@
         {
           "name": "RoleNameTaken",
           "description": "A role with this name already exists."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
         }
       ]
     }

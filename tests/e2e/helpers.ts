@@ -19,7 +19,10 @@ export async function createCommunityWithMember(prefix = 'e2e'): Promise<Communi
     handle: uniqueHandle(`${prefix}-comm`), didMethod: 'plc', visibility: 'public', joinPolicy: 'open',
   });
   const communityDid = createRes.body.did;
-  await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { communityDid });
+  const joinRes = await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { did: communityDid });
+  if (joinRes.status !== 200) {
+    throw new Error(`Failed to join test member: ${joinRes.status} ${JSON.stringify(joinRes.body)}`);
+  }
   return { communityDid, owner, member };
 }
 

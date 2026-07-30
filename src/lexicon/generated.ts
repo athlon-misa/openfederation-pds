@@ -511,7 +511,7 @@ export type NetOpenfederationCommunityCreateProposalOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCommunityCreateProposalError = "GovernanceNotActive" | "InvalidRequest";
+export type NetOpenfederationCommunityCreateProposalError = "GovernanceNotActive" | "InvalidRequest" | "NotMember";
 
 export type NetOpenfederationCommunityCreateRoleInput = {
   "communityDid": string;
@@ -524,7 +524,7 @@ export type NetOpenfederationCommunityCreateRoleOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCommunityCreateRoleError = "InvalidRequest" | "RoleNameTaken";
+export type NetOpenfederationCommunityCreateRoleError = "InvalidRequest" | "NotMember" | "RoleNameTaken";
 
 export type NetOpenfederationCommunityDeleteInput = {
   "did": string;
@@ -1047,7 +1047,7 @@ export type NetOpenfederationCommunityVoteOnProposalOutput = {
   "status": string;
   "applied"?: boolean;
 };
-export type NetOpenfederationCommunityVoteOnProposalError = "AlreadyVoted" | "InvalidRequest" | "ProposalClosed" | "ProposalNotFound";
+export type NetOpenfederationCommunityVoteOnProposalError = "AlreadyVoted" | "InvalidRequest" | "NotMember" | "ProposalClosed" | "ProposalNotFound";
 
 export type NetOpenfederationContactBlockInput = {
   "subject": string;
@@ -2512,8 +2512,8 @@ export const lexiconContracts = {
   'net.openfederation.calendar.rsvp': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
-  'net.openfederation.community.createProposal': { revision: 1, errors: ["GovernanceNotActive", "InvalidRequest"] as const },
-  'net.openfederation.community.createRole': { revision: 1, errors: ["InvalidRequest", "RoleNameTaken"] as const },
+  'net.openfederation.community.createProposal': { revision: 2, errors: ["GovernanceNotActive", "InvalidRequest", "NotMember"] as const },
+  'net.openfederation.community.createRole': { revision: 2, errors: ["InvalidRequest", "NotMember", "RoleNameTaken"] as const },
   'net.openfederation.community.delete': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.deleteAttestation': { revision: 1, errors: ["AttestationNotFound", "InvalidRequest"] as const },
   'net.openfederation.community.deleteRole': { revision: 1, errors: ["RoleInUse", "RoleNotFound"] as const },
@@ -2549,7 +2549,7 @@ export const lexiconContracts = {
   'net.openfederation.community.updateRole': { revision: 2, errors: ["InvalidRequest", "OwnerLockout", "RoleNameTaken", "RoleNotFound"] as const },
   'net.openfederation.community.verifyAttestation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.verifyMembership': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.voteOnProposal': { revision: 1, errors: ["AlreadyVoted", "InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
+  'net.openfederation.community.voteOnProposal': { revision: 2, errors: ["AlreadyVoted", "InvalidRequest", "NotMember", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.contact.block': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.contact.contact': { revision: 1, errors: [] as const },
   'net.openfederation.contact.list': { revision: 1, errors: [] as const },

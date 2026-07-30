@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.createProposal",
-  "revision": 1,
+  "revision": 2,
   "description": "Propose a change to a protected collection in a simple-majority governed community.",
   "defs": {
     "main": {
@@ -28,6 +28,10 @@
         {
           "name": "GovernanceNotActive",
           "description": "Community is not using simple-majority governance."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
         }
       ]
     },

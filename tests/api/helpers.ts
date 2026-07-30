@@ -159,5 +159,6 @@ export async function createTestUser(
 let counter = 0;
 export function uniqueHandle(prefix = 'test'): string {
   counter++;
-  return `${prefix}-${Date.now()}-${counter}`;
+  const suffix = `-${Date.now()}-${counter}`;
+  return `${prefix.slice(0, 30 - suffix.length)}${suffix}`;
 }
