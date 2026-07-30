@@ -66,7 +66,7 @@ export default async function listJoinRequests(req: AuthRequest, res: Response):
       userDid: r.user_did,
       handle: r.handle,
       status: r.status,
-      createdAt: r.created_at,
+      createdAt: new Date(r.created_at).toISOString(),
     }));
 
     res.status(200).json({
