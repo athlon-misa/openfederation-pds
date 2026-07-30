@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
 
 interface RemoteRecord {
   uri: string;
@@ -13,6 +14,8 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 500;
+const MAX_REMOTE_JSON_BYTES = 1024 * 1024;
 
 function getCached(key: string): RemoteRecord | null | undefined {
   const entry = cache.get(key);
@@ -25,8 +28,22 @@ function getCached(key: string): RemoteRecord | null | undefined {
 }
 
 function setCache(key: string, result: RemoteRecord | null): void {
+  const now = Date.now();
+  for (const [cachedKey, entry] of cache) {
+    if (now - entry.timestamp > CACHE_TTL_MS) cache.delete(cachedKey);
+  }
+  while (cache.size >= MAX_CACHE_ENTRIES && !cache.has(key)) {
+    const oldest = cache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    cache.delete(oldest);
+  }
   cache.set(key, { result, timestamp: Date.now() });
 }
+
+/** Test-only cache controls. */
+export function _clearRemoteVerificationCache(): void { cache.clear(); }
+export function _remoteVerificationCacheSize(): number { return cache.size; }
+export function _cacheRemoteVerificationForTest(key: string): void { setCache(key, null); }
 
 /**
  * Returns true if the hostname/IP resolves to a private, loopback, or link-local
@@ -88,9 +105,9 @@ export async function resolveDidToPds(did: string): Promise<string | null> {
       didDoc = await resp.json();
     } else if (did.startsWith('did:web:')) {
       const domain = did.replace('did:web:', '');
-      // SSRF guard: reject private/internal addresses before making the request
-      if (isPrivateHost(domain)) return null;
-      const resp = await fetch(`https://${domain}/.well-known/did.json`, {
+      const didUrl = await assertPublicHttpsUrl(`https://${domain}/.well-known/did.json`);
+      const resp = await fetch(didUrl, {
+        redirect: 'error',
         signal: AbortSignal.timeout(5000),
       });
       if (!resp.ok) return null;
@@ -103,7 +120,9 @@ export async function resolveDidToPds(did: string): Promise<string | null> {
     const pdsService = services.find(
       (s: any) => s.type === 'AtprotoPersonalDataServer' || s.id === '#atproto_pds'
     );
-    return pdsService?.serviceEndpoint || null;
+    const endpoint = pdsService?.serviceEndpoint;
+    if (typeof endpoint !== 'string') return null;
+    return (await assertPublicHttpsUrl(endpoint)).toString();
   } catch {
     return null;
   }
@@ -120,13 +139,15 @@ export async function fetchRemoteRecord(
   if (cached !== undefined) return cached;
 
   try {
-    const url = new URL('/xrpc/com.atproto.repo.getRecord', pdsUrl);
+    const safePdsUrl = await assertPublicHttpsUrl(pdsUrl);
+    const url = new URL('/xrpc/com.atproto.repo.getRecord', safePdsUrl);
     url.searchParams.set('repo', did);
     url.searchParams.set('collection', collection);
     url.searchParams.set('rkey', rkey);
 
     const resp = await fetch(url.toString(), {
       headers: { Accept: 'application/json' },
+      redirect: 'error',
       signal: AbortSignal.timeout(10000),
     });
 
@@ -135,7 +156,7 @@ export async function fetchRemoteRecord(
       return null;
     }
 
-    const data = await resp.json() as RemoteRecord;
+    const data = JSON.parse(await readLimitedText(resp, MAX_REMOTE_JSON_BYTES)) as RemoteRecord;
     setCache(cacheKey, data);
     return data;
   } catch {

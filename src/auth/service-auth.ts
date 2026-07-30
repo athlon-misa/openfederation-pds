@@ -137,6 +137,14 @@ export async function verifyServiceAuthJwt(
     throw new ServiceAuthError('BadLexiconMethod', `Token lxm "${payload.lxm}" does not match method "${opts.expectedLxm}"`, 403);
   }
 
+  // @atproto/identity resolves did:web by fetching the untrusted authority
+  // before a JWT signature can be verified. Inbound cross-PDS service-auth
+  // therefore accepts only did:plc issuers, which resolve through our
+  // configured PLC directory rather than an attacker-selected network host.
+  if (iss.startsWith('did:web:')) {
+    throw new ServiceAuthError('IssuerResolutionFailed', 'did:web issuers are not supported for inbound service-auth');
+  }
+
   // Resolve iss → atproto signing key → verify signature
   let signingKeyDidKey: string;
   try {
