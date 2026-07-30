@@ -32,8 +32,8 @@ describe('Disclosure Proxy — Time-Limited Access & Watermarking', () => {
     communityDid = createRes.body.did;
 
     // Join community
-    await xrpcAuthPost('net.openfederation.community.join', subject.accessJwt, { communityDid });
-    await xrpcAuthPost('net.openfederation.community.join', viewer.accessJwt, { communityDid });
+    await xrpcAuthPost('net.openfederation.community.join', subject.accessJwt, { did: communityDid });
+    await xrpcAuthPost('net.openfederation.community.join', viewer.accessJwt, { did: communityDid });
 
     // Issue a private attestation
     const attestRes = await xrpcAuthPost('net.openfederation.community.issueAttestation', owner.accessJwt, {
