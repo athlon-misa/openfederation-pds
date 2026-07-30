@@ -178,7 +178,7 @@ describe('XRPC output shape smoke tests (issue #65)', () => {
 
   it('community.listMembers returns 200 with valid output shape', async () => {
     if (!communityDid) return;
-    const res = await xrpcGet('net.openfederation.community.listMembers', {
+    const res = await xrpcAuthGet('net.openfederation.community.listMembers', userToken!, {
       did: communityDid,
     });
     expect(res.status).toBe(200);
