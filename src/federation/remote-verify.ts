@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { assertPublicHttpsUrl } from '../security/outbound-fetch.js';
 
 interface RemoteRecord {
   uri: string;
@@ -88,9 +89,9 @@ export async function resolveDidToPds(did: string): Promise<string | null> {
       didDoc = await resp.json();
     } else if (did.startsWith('did:web:')) {
       const domain = did.replace('did:web:', '');
-      // SSRF guard: reject private/internal addresses before making the request
-      if (isPrivateHost(domain)) return null;
-      const resp = await fetch(`https://${domain}/.well-known/did.json`, {
+      const didUrl = await assertPublicHttpsUrl(`https://${domain}/.well-known/did.json`);
+      const resp = await fetch(didUrl, {
+        redirect: 'error',
         signal: AbortSignal.timeout(5000),
       });
       if (!resp.ok) return null;
@@ -103,7 +104,9 @@ export async function resolveDidToPds(did: string): Promise<string | null> {
     const pdsService = services.find(
       (s: any) => s.type === 'AtprotoPersonalDataServer' || s.id === '#atproto_pds'
     );
-    return pdsService?.serviceEndpoint || null;
+    const endpoint = pdsService?.serviceEndpoint;
+    if (typeof endpoint !== 'string') return null;
+    return (await assertPublicHttpsUrl(endpoint)).toString();
   } catch {
     return null;
   }
@@ -120,13 +123,15 @@ export async function fetchRemoteRecord(
   if (cached !== undefined) return cached;
 
   try {
-    const url = new URL('/xrpc/com.atproto.repo.getRecord', pdsUrl);
+    const safePdsUrl = await assertPublicHttpsUrl(pdsUrl);
+    const url = new URL('/xrpc/com.atproto.repo.getRecord', safePdsUrl);
     url.searchParams.set('repo', did);
     url.searchParams.set('collection', collection);
     url.searchParams.set('rkey', rkey);
 
     const resp = await fetch(url.toString(), {
       headers: { Accept: 'application/json' },
+      redirect: 'error',
       signal: AbortSignal.timeout(10000),
     });
 
