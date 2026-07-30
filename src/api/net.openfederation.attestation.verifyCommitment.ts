@@ -59,7 +59,7 @@ export default async function verifyCommitment(req: Request, res: Response): Pro
       commitment,
       issuerDid: communityDid,
       visibility: row.visibility,
-      issuedAt: row.created_at,
+      issuedAt: new Date(row.created_at).toISOString(),
       revoked,
     });
   } catch (error) {

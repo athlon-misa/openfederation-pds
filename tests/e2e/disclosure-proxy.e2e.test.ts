@@ -68,7 +68,10 @@ describe('Disclosure Proxy', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.sessionEncryptedPayload).toBeDefined();
-    expect(typeof res.body.sessionEncryptedPayload).toBe('string');
+    expect(typeof res.body.sessionEncryptedPayload).toBe('object');
+    expect(res.body.sessionEncryptedPayload.ciphertext).toBeTruthy();
+    expect(res.body.sessionEncryptedPayload.iv).toBeTruthy();
+    expect(res.body.sessionEncryptedPayload.authTag).toBeTruthy();
     expect(res.body.sessionKey).toBeDefined();
     expect(typeof res.body.sessionKey).toBe('string');
     expect(res.body.watermarkId).toBeDefined();

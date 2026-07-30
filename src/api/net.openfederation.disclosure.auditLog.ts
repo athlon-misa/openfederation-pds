@@ -131,7 +131,7 @@ export default async function auditLog(req: AuthRequest, res: Response): Promise
       watermarkId: row.watermark_id,
       ipAddress: row.ip_address,
       metadata: row.metadata,
-      createdAt: row.created_at,
+      createdAt: new Date(row.created_at).toISOString(),
     }));
 
     const nextCursor = entries.length === limit

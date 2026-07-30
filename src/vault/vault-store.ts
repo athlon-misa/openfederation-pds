@@ -71,7 +71,7 @@ export async function getUserShares(userDid: string): Promise<VaultShare[]> {
     shareHolder: row.share_holder as 'device' | 'vault' | 'escrow',
     escrowProviderDid: row.escrow_provider_did || undefined,
     recoveryTier: row.recovery_tier,
-    createdAt: row.created_at,
+    createdAt: new Date(row.created_at).toISOString(),
   }));
 }
 
@@ -119,7 +119,7 @@ export async function getVaultAuditLog(userDid: string, limit: number = 50): Pro
     actorDid: row.actor_did || undefined,
     shareIndex: row.share_index ?? undefined,
     metadata: row.metadata || undefined,
-    createdAt: row.created_at,
+    createdAt: new Date(row.created_at).toISOString(),
   }));
 }
 

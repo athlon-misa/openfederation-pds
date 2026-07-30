@@ -79,13 +79,13 @@ export default async function listAudit(req: AuthRequest, res: Response): Promis
     );
 
     const entries = dataResult.rows.map(e => ({
-      id: e.id,
+      id: String(e.id),
       action: e.action,
       actorId: e.actor_id,
       actorHandle: e.actor_handle,
       targetId: e.target_id,
       meta: e.meta,
-      createdAt: e.created_at,
+      createdAt: new Date(e.created_at).toISOString(),
     }));
 
     res.status(200).json({ entries, total, limit, offset });

@@ -1771,7 +1771,7 @@ export type NetOpenfederationVaultAuditLogOutput = {
 export type NetOpenfederationVaultAuditLogError = never;
 
 export type NetOpenfederationVaultExportRecoveryKeyInput = {
-  "verificationToken": string;
+  "verificationToken"?: string;
 };
 export type NetOpenfederationVaultExportRecoveryKeyOutput = {
   "share": string;
@@ -2612,7 +2612,7 @@ export const lexiconContracts = {
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 1, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },
-  'net.openfederation.vault.exportRecoveryKey': { revision: 1, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
+  'net.openfederation.vault.exportRecoveryKey': { revision: 2, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
   'net.openfederation.vault.getCustodialSecret': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.vault.registerEscrow': { revision: 1, errors: ["EscrowAlreadyRegistered", "InvalidRequest", "ShareNotFound"] as const },
   'net.openfederation.vault.requestShareRelease': { revision: 1, errors: ["ShareNotFound", "VerificationRequired"] as const },
