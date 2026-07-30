@@ -7,25 +7,13 @@ import {
   xrpcAuthPost,
   xrpcPost,
   getAdminToken,
+  isPLCAvailable,
   uniqueHandle,
 } from './helpers.js';
 
 // End-to-end tests for Tier 1 custodial wallets: provision, grant consent,
 // sign, verify signature independently, then exercise every rejection path.
 //
-// Requires PLC + PostgreSQL running locally. PLC helper in the repo targets
-// the wrong endpoint; we inline our own check.
-
-async function isPlcReachable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/_health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function registerAndApproveUser(handle: string) {
   const adminToken = await getAdminToken();
   const inviteRes = await xrpcAuthPost('net.openfederation.invite.create', adminToken, { maxUses: 1 });
@@ -56,7 +44,7 @@ describe('Tier 1 custodial wallets', () => {
   let user: { accessJwt: string; did: string; handle: string };
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
     user = await registerAndApproveUser(uniqueHandle('t1-wallet'));
   });

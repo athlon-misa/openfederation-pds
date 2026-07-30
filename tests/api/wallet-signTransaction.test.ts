@@ -7,18 +7,9 @@ import {
   xrpcAuthPost,
   xrpcPost,
   getAdminToken,
+  isPLCAvailable,
   uniqueHandle,
 } from './helpers.js';
-
-async function isPlcReachable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/_health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 async function registerAndApproveUser(handle: string) {
   const adminToken = await getAdminToken();
@@ -51,7 +42,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
   let solAddress: string;
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
     user = await registerAndApproveUser(uniqueHandle('t1-tx'));
 

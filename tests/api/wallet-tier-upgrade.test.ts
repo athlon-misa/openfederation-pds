@@ -4,7 +4,7 @@ import bs58 from 'bs58';
 import { Wallet as EthWallet } from 'ethers';
 import {
   xrpcAuthGet, xrpcAuthPost, xrpcPost,
-  getAdminToken, uniqueHandle,
+  getAdminToken, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import {
@@ -15,14 +15,6 @@ import {
 //   Tier 1 → Tier 2 (re-wrap under passphrase)
 //   Tier 1 → Tier 3 (self-custody export)
 //   Tier 2 → Tier 3 (drop server-held blob)
-
-async function isPlcReachable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/_health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch { return false; }
-}
 
 const PW = 'UpgradePassword123!';
 
@@ -49,7 +41,7 @@ describe('Tier upgrades', () => {
   let solAddress: string;    // provisioned at Tier 2 initially via the Tier-2 flow? No — via SDK wrap path elsewhere; here we just use it for consent-revoke check
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
     user = await registerUser(uniqueHandle('upgrade'));
 

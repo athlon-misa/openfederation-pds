@@ -6,6 +6,7 @@ import {
   xrpcGet,
   xrpcPost,
   getAdminToken,
+  isPLCAvailable,
   uniqueHandle,
 } from './helpers.js';
 import {
@@ -22,19 +23,6 @@ import { decryptKeyBytes } from '../../src/auth/encryption.js';
 // 2. Inbound service-auth JWT accepted in place of a session token.
 // 3. Rejection paths for expired / wrong-aud / replayed / bad-sig tokens.
 //
-// Requires PLC directory; checked locally here (the shared helper's probe
-// targets the wrong endpoint, but we don't want to touch it from this PR).
-
-async function isPlcReachable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/_health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 // A local copy of createTestUser that correctly reads the `id` field returned
 // by net.openfederation.account.register when approving. Isolates this PR
 // from dormant bugs in the shared helper.
@@ -87,7 +75,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
   let userKeypair: Secp256k1Keypair;
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
 
     user = await registerAndApproveUser(uniqueHandle('svc-auth'));
