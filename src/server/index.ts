@@ -17,6 +17,7 @@ import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { setSecurityHeaders } from './security-headers.js';
 import { isAllowedStaticOrigin } from './cors-config.js';
 import { getBlobStore } from '../blob/blob-store.js';
+import { CID } from 'multiformats/cid';
 import { apRouter } from '../activitypub/ap-routes.js';
 import { globalLimiter } from './rate-limits.js';
 import { createXrpcRouter } from './xrpc-router.js';
@@ -119,6 +120,23 @@ app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
     const cid = String(req.params.cid || '');
     if (!did || !cid) {
       return res.status(400).json({ error: 'InvalidRequest', message: 'Missing did or cid' });
+    }
+
+    // Public blob URLs are CID-addressed and bound to the owning DID. Never
+    // pass arbitrary storage keys (for example scheduled export paths) to the
+    // shared blob store.
+    try {
+      if (CID.parse(cid).toString() !== cid) throw new Error('non-canonical CID');
+    } catch {
+      return res.status(404).json({ error: 'BlobNotFound', message: 'Blob not found' });
+    }
+
+    const metadata = await query<{ cid: string }>(
+      'SELECT cid FROM blob_owners WHERE cid = $1 AND did = $2',
+      [cid, did],
+    );
+    if (metadata.rows.length === 0) {
+      return res.status(404).json({ error: 'BlobNotFound', message: 'Blob not found' });
     }
 
     const store = await getBlobStore();

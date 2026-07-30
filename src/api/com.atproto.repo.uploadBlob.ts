@@ -66,6 +66,12 @@ export default async function uploadBlob(req: AuthRequest, res: Response): Promi
        ON CONFLICT (cid) DO NOTHING`,
       [cidStr, req.auth!.did, contentType, data.length]
     );
+    await query(
+      `INSERT INTO blob_owners (cid, did)
+       VALUES ($1, $2)
+       ON CONFLICT (cid, did) DO NOTHING`,
+      [cidStr, req.auth!.did],
+    );
 
     res.status(200).json({
       blob: {

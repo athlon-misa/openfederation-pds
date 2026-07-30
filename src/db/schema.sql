@@ -245,6 +245,16 @@ CREATE TABLE IF NOT EXISTS blobs (
 
 CREATE INDEX IF NOT EXISTS idx_blobs_did ON blobs(did);
 
+-- Public CID blobs may be associated with more than one repository. Keep
+-- ownership separate from the blob payload metadata so public serving can
+-- bind a CID to the DID in the requested URL.
+CREATE TABLE IF NOT EXISTS blob_owners (
+    cid TEXT NOT NULL REFERENCES blobs(cid) ON DELETE CASCADE,
+    did TEXT NOT NULL,
+    PRIMARY KEY (cid, did)
+);
+CREATE INDEX IF NOT EXISTS idx_blob_owners_did ON blob_owners(did);
+
 -- Export schedules for automated community backups
 CREATE TABLE IF NOT EXISTS export_schedules (
     id VARCHAR(36) PRIMARY KEY,

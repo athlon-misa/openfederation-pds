@@ -3,6 +3,7 @@ import {
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { api } from './helpers.js';
+import { getBlobStore } from '../../src/blob/blob-store.js';
 
 describe('uploadBlob', () => {
   let plcAvailable: boolean;
@@ -68,6 +69,17 @@ describe('uploadBlob', () => {
 
   it('should return 404 for non-existent blob', async () => {
     const res = await api.get('/blob/did:plc:test/bafkreinonexistent');
+    expect(res.status).toBe(404);
+  });
+
+  it('does not expose scheduled exports through an encoded blob key (#92)', async () => {
+    if (!plcAvailable) return;
+
+    const exportKey = `exports/${user.did}/private-snapshot.car`;
+    const store = await getBlobStore();
+    await store.put(exportKey, Buffer.from('private CAR export'), 'application/vnd.ipld.car');
+
+    const res = await api.get(`/blob/${user.did}/${encodeURIComponent(exportKey)}`);
     expect(res.status).toBe(404);
   });
 });
