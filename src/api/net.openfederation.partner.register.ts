@@ -40,24 +40,34 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
   }
   const { handle, email, password } = credentials;
 
-  // Per-partner rate limit: count registrations created in the last hour
-  const rateResult = await query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM users
-     WHERE created_by_partner = $1
-     AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
-    [partner.partnerId],
-  );
-  const recentCount = parseInt(rateResult.rows[0].count, 10);
-  if (recentCount >= partner.rateLimitPerHour) {
-    res.status(429).json({
-      error: 'RateLimitExceeded',
-      message: 'Partner registration rate limit exceeded. Please try again later.',
-    });
-    return;
-  }
-
   try {
     const result = await withTransaction(async (client) => {
+      // Serialize registrations for this key before reading its quota. Without
+      // this row lock, simultaneous requests can both see available capacity.
+      const partnerKey = await client.query<{ rate_limit_per_hour: number }>(
+        `SELECT rate_limit_per_hour FROM partner_keys
+         WHERE id = $1 AND status = 'active'
+         FOR UPDATE`,
+        [partner.partnerId],
+      );
+      if (partnerKey.rows.length === 0) {
+        throw new RegistrationValidationError(401, 'Unauthorized', 'Partner key is no longer active');
+      }
+
+      const rateResult = await client.query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM users
+         WHERE created_by_partner = $1
+         AND created_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
+        [partner.partnerId],
+      );
+      if (parseInt(rateResult.rows[0].count, 10) >= partnerKey.rows[0].rate_limit_per_hour) {
+        throw new RegistrationValidationError(
+          429,
+          'RateLimitExceeded',
+          'Partner registration rate limit exceeded. Please try again later.',
+        );
+      }
+
       await ensureHandleEmailAvailable(client, handle, email);
 
       let identity;
