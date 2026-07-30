@@ -11,6 +11,7 @@ export default defineConfig({
     hookTimeout: 30000,
     // Run tests sequentially — they share a database
     sequence: { concurrent: false },
+    fileParallelism: false,
   },
   resolve: {
     alias: {

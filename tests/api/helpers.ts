@@ -72,18 +72,23 @@ export function getAdminPassword(): string {
  * skip if PLC is down.
  */
 export async function isPLCAvailable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    // @did-plc/server exposes its readiness endpoint as /_health. Keep the
-    // legacy /health fallback for compatible PLC directory implementations.
-    for (const path of ['/_health', '/health']) {
+  const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
+  // @did-plc/server exposes its readiness endpoint as /_health. Keep the
+  // legacy /health fallback for compatible PLC directory implementations.
+  for (const path of ['/_health', '/health']) {
+    try {
       const res = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(2000) });
       if (res.ok) return true;
+    } catch {
+      // Try the compatibility endpoint before reporting the directory unavailable.
     }
-    return false;
-  } catch {
-    return false;
   }
+
+  if (process.env.CI) {
+    throw new Error('PLC directory is unavailable in CI');
+  }
+
+  return false;
 }
 
 /**
