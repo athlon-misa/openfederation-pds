@@ -1,16 +1,19 @@
 import dns from 'dns/promises';
+import { readLimitedText } from '../security/outbound-fetch.js';
 
 type CacheEntry =
   | { kind: 'hit'; did: string; expiresAt: number }
   | { kind: 'miss'; expiresAt: number };
 
 const CACHE = new Map<string, CacheEntry>();
+const MAX_CACHE_ENTRIES = 1000;
 const TTL_HIT_MS = 60 * 60 * 1000;       // 1 hour for successful resolutions
 const TTL_MISS_MS = 60 * 1000;           // 1 minute for failures — short enough
                                          // that legitimate fixes propagate fast,
                                          // long enough to absorb retry storms
                                          // from typo'd handles
 const TIMEOUT_MS = 2000;                 // overall cap; well-known is the slow leg
+const MAX_WELL_KNOWN_BYTES = 8 * 1024;
 
 function cached(handle: string): { hit: true; did: string | null } | { hit: false } {
   const entry = CACHE.get(handle);
@@ -23,12 +26,31 @@ function cached(handle: string): { hit: true; did: string | null } | { hit: fals
 }
 
 function cacheHit(handle: string, did: string): void {
+  evictCacheEntries(handle);
   CACHE.set(handle, { kind: 'hit', did, expiresAt: Date.now() + TTL_HIT_MS });
 }
 
 function cacheMiss(handle: string): void {
+  evictCacheEntries(handle);
   CACHE.set(handle, { kind: 'miss', expiresAt: Date.now() + TTL_MISS_MS });
 }
+
+function evictCacheEntries(incomingHandle: string): void {
+  const now = Date.now();
+  for (const [handle, entry] of CACHE) {
+    if (entry.expiresAt <= now) CACHE.delete(handle);
+  }
+  while (CACHE.size >= MAX_CACHE_ENTRIES && !CACHE.has(incomingHandle)) {
+    const oldest = CACHE.keys().next().value as string | undefined;
+    if (!oldest) break;
+    CACHE.delete(oldest);
+  }
+}
+
+/** Test-only cache controls. */
+export function _clearExternalHandleCache(): void { CACHE.clear(); }
+export function _externalHandleCacheSize(): number { return CACHE.size; }
+export function _cacheExternalHandleMissForTest(handle: string): void { cacheMiss(handle); }
 
 async function tryDnsTxt(handle: string): Promise<string | null> {
   try {
@@ -47,7 +69,7 @@ async function tryWellKnown(handle: string, signal: AbortSignal): Promise<string
     const url = `https://${handle}/.well-known/atproto-did`;
     const res = await fetch(url, { signal });
     if (!res.ok) return null;
-    const text = (await res.text()).trim();
+    const text = (await readLimitedText(res, MAX_WELL_KNOWN_BYTES)).trim();
     return text.startsWith('did:') ? text : null;
   } catch { /* network error or abort */ }
   return null;

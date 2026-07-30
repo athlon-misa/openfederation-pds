@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { assertPublicHttpsUrl } from '../security/outbound-fetch.js';
+import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
 
 interface RemoteRecord {
   uri: string;
@@ -14,6 +14,8 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 500;
+const MAX_REMOTE_JSON_BYTES = 1024 * 1024;
 
 function getCached(key: string): RemoteRecord | null | undefined {
   const entry = cache.get(key);
@@ -26,8 +28,22 @@ function getCached(key: string): RemoteRecord | null | undefined {
 }
 
 function setCache(key: string, result: RemoteRecord | null): void {
+  const now = Date.now();
+  for (const [cachedKey, entry] of cache) {
+    if (now - entry.timestamp > CACHE_TTL_MS) cache.delete(cachedKey);
+  }
+  while (cache.size >= MAX_CACHE_ENTRIES && !cache.has(key)) {
+    const oldest = cache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    cache.delete(oldest);
+  }
   cache.set(key, { result, timestamp: Date.now() });
 }
+
+/** Test-only cache controls. */
+export function _clearRemoteVerificationCache(): void { cache.clear(); }
+export function _remoteVerificationCacheSize(): number { return cache.size; }
+export function _cacheRemoteVerificationForTest(key: string): void { setCache(key, null); }
 
 /**
  * Returns true if the hostname/IP resolves to a private, loopback, or link-local
@@ -140,7 +156,7 @@ export async function fetchRemoteRecord(
       return null;
     }
 
-    const data = await resp.json() as RemoteRecord;
+    const data = JSON.parse(await readLimitedText(resp, MAX_REMOTE_JSON_BYTES)) as RemoteRecord;
     setCache(cacheKey, data);
     return data;
   } catch {
