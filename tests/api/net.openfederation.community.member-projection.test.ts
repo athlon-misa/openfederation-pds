@@ -20,6 +20,7 @@ describe('member display projection (issue #66)', () => {
   let ownerToken: string;
   let memberToken: string;
   let memberDid: string;
+  let memberHandle: string;
   let communityDid: string | null = null;
 
   beforeAll(async () => {
@@ -31,6 +32,7 @@ describe('member display projection (issue #66)', () => {
     ownerToken = owner.accessJwt;
     memberToken = member.accessJwt;
     memberDid = member.did;
+    memberHandle = member.handle;
 
     const createRes = await xrpcAuthPost('net.openfederation.community.create', owner.accessJwt, {
       handle: uniqueHandle('proj-comm'),
@@ -57,6 +59,7 @@ describe('member display projection (issue #66)', () => {
 
     const memberRow = res.body.members.find((m: any) => m.did === memberDid);
     expect(memberRow).toBeDefined();
+    expect(memberRow.handle).toBe(memberHandle);
     // displayName is required in the new schema — falls back to handle
     expect(typeof memberRow.displayName).toBe('string');
     expect(memberRow.displayName.length).toBeGreaterThan(0);

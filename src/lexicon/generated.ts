@@ -40,7 +40,7 @@ export type ComAtprotoRepoGetRecordError = "RecordNotFound";
 
 export type ComAtprotoRepoListRecordsInput = JsonObject;
 export type ComAtprotoRepoListRecordsOutput = unknown;
-export type ComAtprotoRepoListRecordsError = never;
+export type ComAtprotoRepoListRecordsError = "RepoNotFound";
 
 export type ComAtprotoRepoPutRecordInput = unknown;
 export type ComAtprotoRepoPutRecordOutput = unknown;
@@ -439,7 +439,7 @@ export type NetOpenfederationCalendarListEventsInput = {
 export type NetOpenfederationCalendarListEventsOutput = {
   "events"?: Array<unknown>;
 };
-export type NetOpenfederationCalendarListEventsError = never;
+export type NetOpenfederationCalendarListEventsError = "NotFound";
 
 export type NetOpenfederationCalendarListRsvpsInput = {
   "event": string;
@@ -452,7 +452,7 @@ export type NetOpenfederationCalendarListRsvpsOutput = {
 };
   "rsvps": Array<unknown>;
 };
-export type NetOpenfederationCalendarListRsvpsError = never;
+export type NetOpenfederationCalendarListRsvpsError = "NotFound";
 
 export type NetOpenfederationCalendarRsvpInput = {
   "community": string;
@@ -1340,7 +1340,7 @@ export type NetOpenfederationForumListThreadsOutput = {
   "threads"?: Array<unknown>;
   "cursor"?: string;
 };
-export type NetOpenfederationForumListThreadsError = never;
+export type NetOpenfederationForumListThreadsError = "NotFound";
 
 export type NetOpenfederationForumPostInput = undefined;
 export type NetOpenfederationForumPostOutput = undefined;
@@ -2464,7 +2464,7 @@ export const lexiconContracts = {
   'com.atproto.repo.deleteRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.getRecord': { revision: 1, errors: ["RecordNotFound"] as const },
-  'com.atproto.repo.listRecords': { revision: 1, errors: [] as const },
+  'com.atproto.repo.listRecords': { revision: 2, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.putRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 1, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
@@ -2507,8 +2507,8 @@ export const lexiconContracts = {
   'net.openfederation.attestation.verifyCommitment': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
   'net.openfederation.calendar.createEvent': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
-  'net.openfederation.calendar.listEvents': { revision: 1, errors: [] as const },
-  'net.openfederation.calendar.listRsvps': { revision: 2, errors: [] as const },
+  'net.openfederation.calendar.listEvents': { revision: 2, errors: ["NotFound"] as const },
+  'net.openfederation.calendar.listRsvps': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.calendar.rsvp': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
@@ -2576,7 +2576,7 @@ export const lexiconContracts = {
   'net.openfederation.forum.getThread': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.hidePost': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.hideThread': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
-  'net.openfederation.forum.listThreads': { revision: 2, errors: [] as const },
+  'net.openfederation.forum.listThreads': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },

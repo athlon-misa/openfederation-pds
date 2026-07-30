@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.repo.listRecords",
-  "revision": 1,
+  "revision": 2,
   "description": "Generated XRPC contract for com.atproto.repo.listRecords.",
   "defs": {
     "main": {
@@ -17,7 +17,9 @@
           "type": "unknown"
         }
       },
-      "errors": []
+      "errors": [
+        { "name": "RepoNotFound", "description": "Repository not found or not readable." }
+      ]
     }
   }
 }
