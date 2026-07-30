@@ -54,21 +54,10 @@ export class PgAccountStore implements AccountStore {
   async createAccount(data: CreateAccountData): Promise<Account> {
     const { handle, email, password } = normalizeAndValidateCredentials(data);
 
-    // Invite check BEFORE starting any IO. Bug-fix: previously this was
-    // gated on `data.inviteCode` being present, which meant OAuth callers
-    // could skip the invite gate just by omitting the code.
     if (config.auth.inviteRequired) {
       if (!data.inviteCode) {
         throw new Error('An invite code is required to register');
       }
-      const invite = await query(
-        'SELECT code, max_uses, uses_count, expires_at FROM invites WHERE code = $1',
-        [data.inviteCode]
-      );
-      if (invite.rows.length === 0) throw new Error('Invalid invite code');
-      const inv = invite.rows[0];
-      if (inv.uses_count >= inv.max_uses) throw new Error('Invite code already used');
-      if (inv.expires_at && new Date(inv.expires_at) < new Date()) throw new Error('Invite code expired');
     }
 
     const userId = crypto.randomUUID();
@@ -79,6 +68,17 @@ export class PgAccountStore implements AccountStore {
         createUserIdentity(handle),
         hashPassword(password),
       ]);
+
+      if (config.auth.inviteRequired && data.inviteCode) {
+        const invite = await client.query<{ max_uses: number; uses_count: number; expires_at: string | null }>(
+          'SELECT max_uses, uses_count, expires_at FROM invites WHERE code = $1 FOR UPDATE',
+          [data.inviteCode],
+        );
+        if (invite.rows.length === 0) throw new Error('Invalid invite code');
+        const current = invite.rows[0];
+        if (current.uses_count >= current.max_uses) throw new Error('Invite code already used');
+        if (current.expires_at && new Date(current.expires_at) < new Date()) throw new Error('Invite code expired');
+      }
 
       await insertUserWithRole(client, {
         userId,

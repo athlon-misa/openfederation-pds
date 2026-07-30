@@ -98,20 +98,21 @@ export default async function createSession(req: Request, res: Response): Promis
 
     const passwordOk = await verifyPassword(input.password, user.password_hash);
     if (!passwordOk) {
-      const attempts = user.failed_login_attempts + 1;
-      // Exponential backoff: 1min, 5min, 30min, 2hr after 5, 10, 15, 20 failures
-      let lockDurationMs: number | null = null;
-      if (attempts >= 20) lockDurationMs = 2 * 60 * 60 * 1000;
-      else if (attempts >= 15) lockDurationMs = 30 * 60 * 1000;
-      else if (attempts >= 10) lockDurationMs = 5 * 60 * 1000;
-      else if (attempts >= 5) lockDurationMs = 60 * 1000;
-
-      const lockedUntil = lockDurationMs ? new Date(Date.now() + lockDurationMs).toISOString() : null;
-
-      await query(
-        'UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3',
-        [attempts, lockedUntil, user.id]
+      const failure = await query<{ failed_login_attempts: number }>(
+        `UPDATE users
+         SET failed_login_attempts = failed_login_attempts + 1,
+             locked_until = CASE
+               WHEN failed_login_attempts + 1 >= 20 THEN CURRENT_TIMESTAMP + INTERVAL '2 hours'
+               WHEN failed_login_attempts + 1 >= 15 THEN CURRENT_TIMESTAMP + INTERVAL '30 minutes'
+               WHEN failed_login_attempts + 1 >= 10 THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+               WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '1 minute'
+               ELSE NULL
+             END
+         WHERE id = $1
+         RETURNING failed_login_attempts`,
+        [user.id],
       );
+      const attempts = failure.rows[0].failed_login_attempts;
 
       await auditLog('session.loginFailed', null, user.id, {
         identifier: input.identifier, reason: 'wrong_password', ip: req.ip,

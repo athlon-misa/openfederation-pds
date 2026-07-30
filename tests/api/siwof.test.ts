@@ -104,6 +104,8 @@ describe('Sign-In With OpenFederation', () => {
       expect(res.body.nonce).toMatch(/^[0-9a-f]{32}$/);
     });
 
+    // This crosses the PLC, wallet signing, and DID verification paths, and
+    // can legitimately exceed the default 30s when the full suite is parallel.
     it('full round-trip: challenge → sign (server) → assert → offline verify', async () => {
       if (!plcAvailable) return;
       const ch = await xrpcAuthPost('net.openfederation.identity.signInChallenge', user.accessJwt, {
@@ -149,7 +151,7 @@ describe('Sign-In With OpenFederation', () => {
       expect(verified.walletAddress).toBe(ethAddress);
       expect(verified.chainIdCaip2).toBe('eip155:1');
       expect(verified.audience).toBe('https://siwof-test.example.com/login');
-    });
+    }, 60_000);
 
     it('rejects replay of a consumed challenge', async () => {
       if (!plcAvailable) return;

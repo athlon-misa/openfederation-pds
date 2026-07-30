@@ -248,7 +248,7 @@ export async function verifyPartnerKey(opts: {
   }
 
   const permissions = Array.isArray(partner.permissions) ? partner.permissions : [];
-  if (!permissions.includes(opts.requiredPermission)) {
+  if (opts.requiredPermission && !permissions.includes(opts.requiredPermission)) {
     return { ok: false, status: 403, code: 'Forbidden', message: 'Partner key does not have the required permission' };
   }
 

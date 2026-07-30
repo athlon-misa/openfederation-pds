@@ -145,15 +145,36 @@ export default async function refreshSession(req: Request, res: Response): Promi
     const newExpiresAt = new Date(Date.now() + refreshTtlMs());
 
     // Rotate token: store old hash for reuse detection, update to new hash
-    await query(
+    const rotation = await query(
       `UPDATE sessions
        SET refresh_token_hash = $1,
            previous_token_hash = $4,
            expires_at = $2,
            last_used_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
+       WHERE id = $3
+         AND refresh_token_hash = $4
+         AND revoked_at IS NULL`,
       [newHash, newExpiresAt.toISOString(), session.id, tokenHash]
     );
+
+    // A concurrent request may have read the same predecessor token. The
+    // conditional update is the exclusive claim: only one request can rotate
+    // it and mint successors.
+    if (rotation.rowCount !== 1) {
+      const reuseCheck = await query<{ user_id: string }>(
+        'SELECT user_id FROM sessions WHERE previous_token_hash = $1',
+        [tokenHash],
+      );
+      if (reuseCheck.rows.length > 0) {
+        await query(
+          `UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP
+           WHERE user_id = $1 AND revoked_at IS NULL`,
+          [reuseCheck.rows[0].user_id],
+        );
+      }
+      res.status(401).json({ error: 'Unauthorized', message: 'Invalid refresh token' });
+      return;
+    }
 
     await auditLog('session.refresh', user.id, user.id);
 

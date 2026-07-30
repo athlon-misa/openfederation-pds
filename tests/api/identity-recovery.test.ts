@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import crypto from 'crypto';
+import { query } from '../../src/db/client.js';
 import {
   xrpcPost,
   xrpcAuthPost,
@@ -145,6 +147,28 @@ describe('Identity Recovery', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+    });
+
+    it('allows exactly one concurrent completion for a recovery token', async () => {
+      if (!plcAvailable) return;
+      const target = await createTestUser(uniqueHandle('recovery-race'));
+      const token = 'recovery-race-token';
+      await query(
+        `INSERT INTO recovery_attempts (id, user_did, tier, status, token_hash, expires_at)
+         VALUES ($1, $2, 1, 'pending', $3, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
+        [
+          crypto.randomUUID(),
+          target.did,
+          crypto.createHash('sha256').update(token).digest('hex'),
+        ],
+      );
+
+      const results = await Promise.all([
+        xrpcPost('net.openfederation.account.completeRecovery', { token, newPassword: 'StrongPassword123!' }),
+        xrpcPost('net.openfederation.account.completeRecovery', { token, newPassword: 'AnotherStrongPassword123!' }),
+      ]);
+      expect(results.filter((result) => result.status === 200)).toHaveLength(1);
+      expect(results.filter((result) => result.status === 400)).toHaveLength(1);
     });
   });
 });
