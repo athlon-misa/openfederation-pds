@@ -58,13 +58,13 @@ describe('contact display fields (issue #73)', () => {
     expect(row.displayName).toBe('Display Name User');
   });
 
-  it('list: contact without profile has no displayName field', async () => {
+  it('list: contact with the registration profile exposes its default displayName', async () => {
     if (!plcAvailable) return;
     const res = await xrpcAuthGet('net.openfederation.contact.list', viewer.accessJwt);
     expect(res.status).toBe(200);
     const row = res.body.contacts.find((c: any) => c.did === noProfile.did);
     expect(row).toBeDefined();
-    expect('displayName' in row).toBe(false);
+    expect(row.displayName).toBe(noProfile.handle);
   });
 
   // ── listIncomingRequests ─────────────────────────────────────────────────
@@ -82,7 +82,7 @@ describe('contact display fields (issue #73)', () => {
     expect(req.fromDisplayName).toBe('Display Name User');
   });
 
-  it('listIncomingRequests: requester without profile has no fromDisplayName field', async () => {
+  it('listIncomingRequests: registration profile exposes default fromDisplayName', async () => {
     if (!plcAvailable) return;
     const target = await createTestUser(uniqueHandle('dn-target2'));
     await xrpcAuthPost('net.openfederation.contact.sendRequest', noProfile.accessJwt, { subject: target.did });
@@ -91,7 +91,7 @@ describe('contact display fields (issue #73)', () => {
     expect(res.status).toBe(200);
     const req = res.body.requests.find((r: any) => r.fromDid === noProfile.did);
     expect(req).toBeDefined();
-    expect('fromDisplayName' in req).toBe(false);
+    expect(req.fromDisplayName).toBe(noProfile.handle);
   });
 
   // ── listOutgoingRequests ─────────────────────────────────────────────────
@@ -113,7 +113,7 @@ describe('contact display fields (issue #73)', () => {
     expect(req.toDisplayName).toBe('Outgoing Target');
   });
 
-  it('listOutgoingRequests: recipient without profile has no toDisplayName field', async () => {
+  it('listOutgoingRequests: registration profile exposes default toDisplayName', async () => {
     if (!plcAvailable) return;
     const sender = await createTestUser(uniqueHandle('dn-sender2'));
     const target = await createTestUser(uniqueHandle('dn-outtarget2'));
@@ -123,6 +123,6 @@ describe('contact display fields (issue #73)', () => {
     expect(res.status).toBe(200);
     const req = res.body.requests.find((r: any) => r.toDid === target.did);
     expect(req).toBeDefined();
-    expect('toDisplayName' in req).toBe(false);
+    expect(req.toDisplayName).toBe(target.handle);
   });
 });

@@ -43,6 +43,25 @@ export default async function registerAccount(req: Request, res: Response): Prom
   }
 
   try {
+    // Identity creation talks to the PLC directory and password hashing is
+    // CPU-bound. Neither may run while the invite row is locked, otherwise a
+    // slow external call can block every contender for that invite.
+    let identity;
+    let passwordHash: string;
+    try {
+      [identity, passwordHash] = await Promise.all([
+        createUserIdentity(handle),
+        hashPassword(password),
+      ]);
+    } catch (err) {
+      console.error('Error creating user identity:', err);
+      throw new RegistrationValidationError(
+        500,
+        'IdentityCreationFailed',
+        'Failed to create user identity. Please try again.',
+      );
+    }
+
     const result = await withTransaction(async (client) => {
       await ensureHandleEmailAvailable(client, handle, email);
 
@@ -89,23 +108,6 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
         inviteCodeToUse = invite.code;
         inviteMaxUses = invite.max_uses;
-      }
-
-      // Create identity and hash password in parallel (independent operations)
-      let identity;
-      let passwordHash: string;
-      try {
-        [identity, passwordHash] = await Promise.all([
-          createUserIdentity(handle),
-          hashPassword(password),
-        ]);
-      } catch (err) {
-        console.error('Error creating user identity:', err);
-        throw new RegistrationValidationError(
-          500,
-          'IdentityCreationFailed',
-          'Failed to create user identity. Please try again.',
-        );
       }
 
       const userId = crypto.randomUUID();

@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS members_unique (
     community_did VARCHAR(255) NOT NULL REFERENCES communities(did) ON DELETE CASCADE,
     member_did VARCHAR(255) NOT NULL,
     record_rkey VARCHAR(255) NOT NULL,
+    handle VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(community_did, member_did),
     PRIMARY KEY(community_did, member_did)

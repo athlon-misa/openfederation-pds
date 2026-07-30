@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.listThreads",
-  "revision": 2,
+  "revision": 3,
   "description": "List forum threads in a community, newest activity first. Callers holding community.forum.moderate also receive hidden threads, each carrying a hidden flag.",
   "defs": {
     "main": {
@@ -15,6 +15,9 @@
           "before": { "type": "string" }
         }
       },
+      "errors": [
+        { "name": "NotFound", "description": "Community not found or not readable." }
+      ],
       "output": {
         "encoding": "application/json",
         "schema": {

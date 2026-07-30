@@ -32,8 +32,8 @@ describe('Community Governance', () => {
     const rolesRes = await xrpcGet('net.openfederation.community.listRoles', { communityDid });
     modRoleRkey = rolesRes.body.roles.find((r: any) => r.name === 'moderator').rkey;
 
-    await xrpcAuthPost('net.openfederation.community.join', voter1.accessJwt, { communityDid });
-    await xrpcAuthPost('net.openfederation.community.join', voter2.accessJwt, { communityDid });
+    await xrpcAuthPost('net.openfederation.community.join', voter1.accessJwt, { did: communityDid });
+    await xrpcAuthPost('net.openfederation.community.join', voter2.accessJwt, { did: communityDid });
     await xrpcAuthPost('net.openfederation.community.updateMember', owner.accessJwt, {
       communityDid, memberDid: voter1.did, roleRkey: modRoleRkey,
     });
@@ -93,7 +93,7 @@ describe('Community Governance', () => {
     it('should reject for non-governed community member', async () => {
       if (!plcAvailable) return;
       const member = await createTestUser(uniqueHandle('gov-normie'));
-      await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { communityDid });
+      await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { did: communityDid });
       const res = await xrpcAuthPost('net.openfederation.community.createProposal', member.accessJwt, {
         communityDid, targetCollection: 'net.openfederation.community.profile',
         targetRkey: 'self', action: 'write', proposedRecord: { displayName: 'New Name' },

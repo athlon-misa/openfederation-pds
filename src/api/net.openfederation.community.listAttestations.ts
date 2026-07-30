@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 
@@ -20,33 +21,78 @@ export default async function listAttestations(req: AuthRequest, res: Response):
       return;
     }
 
+    if (!(await requireCommunityReadable(req, res, communityDid))) return;
+
+    // The projection intentionally contains metadata for both public and
+    // encrypted attestations.  Only expose a private row when the caller is
+    // one of the principals covered by its disclosure policy.  Community
+    // readability alone is not sufficient: a member must not enumerate
+    // another member's private attestations.
+    const privateAccess: string[] = [];
+    const privateParams: (string | number)[] = [];
+    const access = req.auth;
+    if (access?.roles.includes('admin')) {
+      privateAccess.push(`TRUE`);
+    } else if (access) {
+      privateParams.push(access.did);
+      const callerDidParam = '$2';
+      privateAccess.push(`ai.subject_did = ${callerDidParam}`);
+      const allowlistedDidParam = '$2';
+      privateAccess.push(`ae.access_policy->>'type' = 'did-allowlist' AND ae.access_policy->'dids' ? ${allowlistedDidParam}`);
+      privateAccess.push(`ae.access_policy->>'type' = 'community-member' AND EXISTS (
+        SELECT 1 FROM members_unique policy_member
+        WHERE policy_member.community_did = ae.access_policy->>'communityDid'
+          AND policy_member.member_did = ${callerDidParam}
+      )`);
+      // Owner access is deliberately scoped to the attestation's community.
+      privateParams.push(access.userId);
+      privateAccess.push(`EXISTS (
+        SELECT 1 FROM communities attestation_community
+        WHERE attestation_community.did = ai.community_did
+          AND attestation_community.created_by = $3
+      )`);
+      // An active viewing grant is an explicit disclosure authorization.
+      privateAccess.push(`EXISTS (
+        SELECT 1 FROM viewing_grants vg
+        WHERE vg.attestation_community_did = ai.community_did
+          AND vg.attestation_rkey = ai.rkey
+          AND vg.granted_to_did = ${callerDidParam}
+          AND vg.status = 'active' AND vg.expires_at > NOW()
+      )`);
+    }
+    const privateVisibilityClause = privateAccess.length > 0
+      ? `COALESCE(ae.visibility, 'public') <> 'private' OR (${privateAccess.join(' OR ')})`
+      : `COALESCE(ae.visibility, 'public') <> 'private'`;
+
     // Read from the write-time projection index — single SELECT, no join needed
-    let sql = `SELECT rkey, subject_did, subject_handle, subject_display_name, subject_avatar_url,
-                      type, claim, issued_at, expires_at
-               FROM community_attestation_index
-               WHERE community_did = $1`;
-    const params: (string | number)[] = [communityDid];
-    let paramIdx = 2;
+    let sql = `SELECT ai.rkey, ai.subject_did, ai.subject_handle, ai.subject_display_name, ai.subject_avatar_url,
+                      type, COALESCE(ai.claim, '{}'::jsonb) AS claim, issued_at, expires_at
+               FROM community_attestation_index ai
+               LEFT JOIN attestation_encryption ae
+                 ON ae.community_did = ai.community_did AND ae.rkey = ai.rkey
+               WHERE ai.community_did = $1 AND (${privateVisibilityClause})`;
+    const params: (string | number)[] = [communityDid, ...privateParams];
+    let paramIdx = params.length + 1;
 
     if (subjectDid) {
-      sql += ` AND subject_did = $${paramIdx}`;
+      sql += ` AND ai.subject_did = $${paramIdx}`;
       params.push(subjectDid);
       paramIdx++;
     }
 
     if (type) {
-      sql += ` AND type = $${paramIdx}`;
+      sql += ` AND ai.type = $${paramIdx}`;
       params.push(type);
       paramIdx++;
     }
 
     if (cursor) {
-      sql += ` AND rkey > $${paramIdx}`;
+      sql += ` AND ai.rkey > $${paramIdx}`;
       params.push(cursor);
       paramIdx++;
     }
 
-    sql += ` ORDER BY rkey ASC LIMIT $${paramIdx}`;
+    sql += ` ORDER BY ai.rkey ASC LIMIT $${paramIdx}`;
     params.push(limit + 1);
 
     const result = await query<{

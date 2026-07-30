@@ -4,6 +4,7 @@ import {
   xrpcAuthPost,
   xrpcPost,
   getAdminToken,
+  isPLCAvailable,
   uniqueHandle,
 } from './helpers.js';
 import { verifySignInAssertion } from '../../packages/openfederation-sdk/src/siwof/verify.js';
@@ -15,14 +16,6 @@ import { Secp256k1Keypair } from '@atproto/crypto';
 // custodial wallet; dApp gets didToken + walletProof and verifies both
 // offline using the SDK's verifier (which pulls the DID doc and checks
 // signatures cryptographically — zero calls to OF's signInAssert path).
-
-async function isPlcReachable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/_health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch { return false; }
-}
 
 async function registerAndApproveUser(handle: string) {
   const adminToken = await getAdminToken();
@@ -53,7 +46,7 @@ describe('Sign-In With OpenFederation', () => {
   let resolveSigningKey: (did: string) => Promise<string>;
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
     user = await registerAndApproveUser(uniqueHandle('siwof'));
 

@@ -27,7 +27,7 @@ describe('Community Roles', () => {
     });
     communityDid = createRes.body.did;
 
-    await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { communityDid });
+    await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { did: communityDid });
   });
 
   describe('listRoles', () => {

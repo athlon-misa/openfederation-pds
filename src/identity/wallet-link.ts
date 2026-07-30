@@ -48,7 +48,10 @@ export async function createChallenge(
   const id = randomUUID();
   const nonce = randomBytes(32).toString('hex');
   const timestamp = new Date().toISOString();
-  const challenge = `OpenFederation Wallet Link\n\nDID: ${userDid}\nChain: ${chain}\nWallet: ${normalizedAddress}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
+  // Preserve the address representation supplied by the user in the signed
+  // challenge, while retaining the normalized value for storage and lookup.
+  // This keeps EIP-55 checksums visible to wallet UIs and users.
+  const challenge = `OpenFederation Wallet Link\n\nDID: ${userDid}\nChain: ${chain}\nWallet: ${walletAddress}\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
 
   // Compute expiry in SQL so the stored value aligns with the NOW()
   // comparison used during verification — avoids TZ drift on plain TIMESTAMP.

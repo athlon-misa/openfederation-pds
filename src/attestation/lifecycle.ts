@@ -105,7 +105,7 @@ export async function redeemGrantLifecycle(
   if (grant.status !== 'active') {
     throw new AttestationLifecycleError('GrantRevoked', 403, 'This viewing grant has been revoked');
   }
-  if (new Date(grant.expires_at) < new Date()) {
+  if (grant.expired) {
     throw new AttestationLifecycleError('GrantExpired', 403, 'This viewing grant has expired');
   }
 
@@ -258,6 +258,7 @@ async function getViewingGrant(grantId: string): Promise<{
   subject_did: string;
   granted_to_did: string;
   expires_at: string;
+  expired: boolean;
   granted_fields: string[] | null;
   status: string;
 }> {
@@ -268,11 +269,13 @@ async function getViewingGrant(grantId: string): Promise<{
     subject_did: string;
     granted_to_did: string;
     expires_at: string;
+    expired: boolean;
     granted_fields: string[] | null;
     status: string;
   }>(
     `SELECT id, attestation_community_did, attestation_rkey, subject_did,
-            granted_to_did, expires_at, granted_fields, status
+            granted_to_did, expires_at, granted_fields, status,
+            (expires_at < NOW()) AS expired
      FROM viewing_grants WHERE id = $1`,
     [grantId],
   );

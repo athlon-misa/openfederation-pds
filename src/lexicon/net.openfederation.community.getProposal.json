@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.getProposal",
-  "revision": 1,
+  "revision": 2,
   "description": "Get a specific governance proposal.",
   "defs": {
     "main": {
@@ -32,6 +32,10 @@
         {
           "name": "ProposalNotFound",
           "description": "No proposal with given rkey."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found or not readable."
         }
       ]
     },

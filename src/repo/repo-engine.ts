@@ -269,6 +269,7 @@ export class RepoEngine {
         if (op.collection === MEMBER_COLLECTION && op.record.did) {
           const rec = op.record as {
             did: string;
+            handle?: string | null;
             role?: string | null;
             roleRkey?: string | null;
             kind?: string | null;
@@ -278,10 +279,11 @@ export class RepoEngine {
 
           await client.query(
             `INSERT INTO members_unique
-               (community_did, member_did, record_rkey, role, role_rkey, kind, tags, attributes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               (community_did, member_did, record_rkey, handle, role, role_rkey, kind, tags, attributes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              ON CONFLICT (community_did, member_did) DO UPDATE
                SET record_rkey = EXCLUDED.record_rkey,
+                   handle      = COALESCE(EXCLUDED.handle, members_unique.handle),
                    role        = COALESCE(EXCLUDED.role, members_unique.role),
                    role_rkey   = EXCLUDED.role_rkey,
                    kind        = EXCLUDED.kind,
@@ -291,6 +293,7 @@ export class RepoEngine {
               this.did,
               rec.did,
               op.rkey,
+              rec.handle ?? null,
               rec.role ?? null,
               rec.roleRkey ?? null,
               rec.kind ?? null,

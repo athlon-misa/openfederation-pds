@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.voteOnProposal",
-  "revision": 1,
+  "revision": 2,
   "description": "Cast a vote on a governance proposal.",
   "defs": {
     "main": {
@@ -71,6 +71,10 @@
         {
           "name": "AlreadyVoted",
           "description": "You have already voted on this proposal."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
         }
       ]
     }

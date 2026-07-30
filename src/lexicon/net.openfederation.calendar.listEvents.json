@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.listEvents",
-  "revision": 1,
+  "revision": 2,
   "description": "List a community's events.",
   "defs": {
     "main": {
@@ -13,6 +13,9 @@
           "community": { "type": "string", "format": "did" }
         }
       },
+      "errors": [
+        { "name": "NotFound", "description": "Community not found or not readable." }
+      ],
       "output": {
         "encoding": "application/json",
         "schema": {

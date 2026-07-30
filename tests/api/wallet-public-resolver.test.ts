@@ -3,20 +3,12 @@ import request from 'supertest';
 import { app } from '../../src/server/index.js';
 import {
   xrpcAuthGet, xrpcAuthPost, xrpcPost, xrpcGet,
-  getAdminToken, uniqueHandle,
+  getAdminToken, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { verifySignInAssertion } from '../../packages/openfederation-sdk/src/siwof/verify.js';
 import { query } from '../../src/db/client.js';
 import { decryptKeyBytes } from '../../src/auth/encryption.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
-
-async function isPlcReachable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/_health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch { return false; }
-}
 
 async function registerAndApproveUser(handle: string) {
   const adminToken = await getAdminToken();
@@ -48,7 +40,7 @@ describe('Public wallet resolver + DID augmentation', () => {
   let resolveSigningKey: (did: string) => Promise<string>;
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
     user = await registerAndApproveUser(uniqueHandle('pubres'));
 

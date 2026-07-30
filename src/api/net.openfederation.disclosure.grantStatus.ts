@@ -29,8 +29,10 @@ export default async function grantStatus(req: AuthRequest, res: Response): Prom
       status: string;
       expires_at: string;
       created_at: string;
+      unexpired: boolean;
     }>(
-      `SELECT id, subject_did, granted_to_did, status, expires_at, created_at
+      `SELECT id, subject_did, granted_to_did, status, expires_at, created_at,
+              (expires_at > NOW()) AS unexpired
        FROM viewing_grants WHERE id = $1`,
       [grantId]
     );
@@ -67,14 +69,14 @@ export default async function grantStatus(req: AuthRequest, res: Response): Prom
 
     const stats = sessionResult.rows[0];
 
-    const active = grant.status === 'active' && new Date(grant.expires_at) > new Date();
+    const active = grant.status === 'active' && grant.unexpired;
 
     res.status(200).json({
       active,
-      expiresAt: grant.expires_at,
+      expiresAt: new Date(grant.expires_at).toISOString(),
       accessCount: parseInt(stats.total_access_count, 10) || 0,
-      lastAccessedAt: stats.last_accessed || null,
-      createdAt: grant.created_at,
+      lastAccessedAt: stats.last_accessed ? new Date(stats.last_accessed).toISOString() : null,
+      createdAt: new Date(grant.created_at).toISOString(),
     });
   } catch (error) {
     console.error('Error in grantStatus:', error);

@@ -85,6 +85,11 @@ export default async function registerEscrow(req: AuthRequest, res: Response): P
          WHERE user_did = $2`,
         [2, userDid]
       );
+
+      await client.query(
+        'UPDATE users SET recovery_tier = $1 WHERE did = $2',
+        [2, userDid],
+      );
     });
 
     // Audit the escrow registration (outside transaction — non-critical)

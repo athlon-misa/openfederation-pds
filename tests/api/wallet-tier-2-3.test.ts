@@ -7,6 +7,7 @@ import {
   xrpcAuthPost,
   xrpcPost,
   getAdminToken,
+  isPLCAvailable,
   uniqueHandle,
 } from './helpers.js';
 import {
@@ -21,16 +22,6 @@ import { query } from '../../src/db/client.js';
 
 // End-to-end tests for Tier 2 (user-encrypted, client-side crypto) and Tier 3
 // (self-custody, client keeps mnemonic). Requires PLC directory running.
-
-async function isPlcReachable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/_health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 async function registerAndApproveUser(handle: string) {
   const adminToken = await getAdminToken();
@@ -91,7 +82,7 @@ describe('Tier 2 wallets (user-encrypted, client-side crypto)', () => {
   let user: { accessJwt: string; did: string; handle: string };
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
     user = await registerAndApproveUser(uniqueHandle('t2-wallet'));
   });
@@ -197,7 +188,7 @@ describe('Tier 3 wallets (self-custody)', () => {
   let user: { accessJwt: string; did: string; handle: string };
 
   beforeAll(async () => {
-    plcAvailable = await isPlcReachable();
+    plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
     user = await registerAndApproveUser(uniqueHandle('t3-wallet'));
   });

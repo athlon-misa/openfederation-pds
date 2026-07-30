@@ -65,8 +65,11 @@ describe('XRPC lexicon-declared errors', () => {
 
   it('guards inline handler error responses against undeclared codes', () => {
     const json = vi.fn();
-    const status = vi.fn(() => res);
-    const res = { status, json } as any;
+    const status = vi.fn((code: number) => {
+      res.statusCode = code;
+      return res;
+    });
+    const res = { statusCode: 200, status, json } as any;
 
     enforceXrpcErrorResponses('net.openfederation.community.join', res);
     res.status(409).json({ error: 'TypoedError', message: 'Nope' });
@@ -80,8 +83,11 @@ describe('XRPC lexicon-declared errors', () => {
 
   it('allows shared transport errors from inline handler responses', () => {
     const json = vi.fn();
-    const status = vi.fn(() => res);
-    const res = { status, json } as any;
+    const status = vi.fn((code: number) => {
+      res.statusCode = code;
+      return res;
+    });
+    const res = { statusCode: 200, status, json } as any;
 
     enforceXrpcErrorResponses('net.openfederation.community.join', res);
     res.status(401).json({ error: 'Unauthorized', message: 'Missing access token' });

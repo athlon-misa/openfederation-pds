@@ -72,13 +72,23 @@ export function getAdminPassword(): string {
  * skip if PLC is down.
  */
 export async function isPLCAvailable(): Promise<boolean> {
-  try {
-    const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
-    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(2000) });
-    return res.ok;
-  } catch {
-    return false;
+  const url = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
+  // @did-plc/server exposes its readiness endpoint as /_health. Keep the
+  // legacy /health fallback for compatible PLC directory implementations.
+  for (const path of ['/_health', '/health']) {
+    try {
+      const res = await fetch(`${url}${path}`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) return true;
+    } catch {
+      // Try the compatibility endpoint before reporting the directory unavailable.
+    }
   }
+
+  if (process.env.CI) {
+    throw new Error('PLC directory is unavailable in CI');
+  }
+
+  return false;
 }
 
 /**
@@ -113,9 +123,10 @@ export async function createTestUser(
   }
 
   // 3. Approve account
-  if (registerRes.body.userId) {
+  const registeredUserId = registerRes.body.userId || registerRes.body.id;
+  if (registeredUserId) {
     await xrpcAuthPost('net.openfederation.account.approve', adminToken, {
-      userId: registerRes.body.userId,
+      userId: registeredUserId,
     });
   }
 
@@ -148,5 +159,6 @@ export async function createTestUser(
 let counter = 0;
 export function uniqueHandle(prefix = 'test'): string {
   counter++;
-  return `${prefix}-${Date.now()}-${counter}`;
+  const suffix = `-${Date.now()}-${counter}`;
+  return `${prefix.slice(0, 30 - suffix.length)}${suffix}`;
 }

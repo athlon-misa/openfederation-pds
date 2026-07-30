@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { ROLE_COLLECTION, MEMBER_COLLECTION } from '../auth/permissions.js';
 
@@ -11,6 +12,8 @@ export default async function listRoles(req: AuthRequest, res: Response): Promis
       res.status(400).json({ error: 'InvalidRequest', message: 'communityDid parameter is required' });
       return;
     }
+
+    if (!(await requireCommunityReadable(req, res, communityDid))) return;
 
     const roleResult = await query<{ rkey: string; record: any }>(
       `SELECT rkey, record FROM records_index

@@ -29,8 +29,8 @@ describe('Encrypted Attestations & Selective Disclosure', () => {
     });
     communityDid = createRes.body.did;
 
-    await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { communityDid });
-    await xrpcAuthPost('net.openfederation.community.join', viewer.accessJwt, { communityDid });
+    await xrpcAuthPost('net.openfederation.community.join', member.accessJwt, { did: communityDid });
+    await xrpcAuthPost('net.openfederation.community.join', viewer.accessJwt, { did: communityDid });
   });
 
   describe('issueAttestation with visibility', () => {

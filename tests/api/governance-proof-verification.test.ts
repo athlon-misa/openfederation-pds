@@ -330,18 +330,19 @@ describe('submitProof Endpoint', () => {
       expect(res.body.cached).toBe(false);
     });
 
-    it('should return cached result on second call', async () => {
+    it('should not cache oracle-trust results', async () => {
       if (!plcAvailable) return;
 
-      // The previous test cached a result for eip155:99999 / 0xdeadbeef
+      // Oracle-trust must remain uncached so registering an adapter later can
+      // verify this same transaction on-chain.
       const res = await xrpcPost('net.openfederation.oracle.submitProof', {
         chainId: 'eip155:99999',
         transactionHash: '0xdeadbeef',
       }).set('X-Oracle-Key', oracleKey);
 
       expect(res.status).toBe(200);
-      expect(res.body.cached).toBe(true);
-      expect(res.body.verificationMethod).toBe('cache');
+      expect(res.body.cached).toBe(false);
+      expect(res.body.verificationMethod).toBe('oracle-trust');
     });
 
     it('should verify on-chain when adapter is registered', async () => {

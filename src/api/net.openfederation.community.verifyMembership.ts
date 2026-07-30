@@ -1,4 +1,6 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import type { AuthRequest } from '../auth/types.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
 
 /**
@@ -8,7 +10,7 @@ import { query } from '../db/client.js';
  * Public endpoint — enables external apps (Mastodon, Matrix) to verify
  * that a user belongs to a community before granting access.
  */
-export default async function verifyMembership(req: Request, res: Response): Promise<void> {
+export default async function verifyMembership(req: AuthRequest, res: Response): Promise<void> {
   try {
     const communityDid = req.query.communityDid as string;
     const memberDid = req.query.memberDid as string;
@@ -20,6 +22,8 @@ export default async function verifyMembership(req: Request, res: Response): Pro
       });
       return;
     }
+
+    if (!(await requireCommunityReadable(req, res, communityDid))) return;
 
     // Check membership via members_unique table
     const memberResult = await query<{ record_rkey: string }>(

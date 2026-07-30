@@ -75,7 +75,10 @@ export function enforceXrpcErrorResponses(nsid: string, res: Response): void {
   const originalJson = res.json.bind(res);
 
   res.json = ((body?: unknown) => {
-    if (isErrorBody(body)) {
+    // Successful responses may legitimately expose an `error` data field
+    // (for example, a failed on-chain proof result). Only non-2xx responses
+    // are XRPC error envelopes subject to lexicon error-code validation.
+    if (res.statusCode >= 400 && isErrorBody(body)) {
       try {
         assertAllowedXrpcErrorCode(nsid, body.error);
       } catch (validationError) {

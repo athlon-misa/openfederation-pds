@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.listRsvps",
-  "revision": 2,
+  "revision": 3,
   "description": "List RSVPs for an event with status counts.",
   "defs": {
     "main": {
@@ -13,6 +13,9 @@
           "event": { "type": "string" }
         }
       },
+      "errors": [
+        { "name": "NotFound", "description": "Community not found or not readable." }
+      ],
       "output": {
         "encoding": "application/json",
         "schema": {

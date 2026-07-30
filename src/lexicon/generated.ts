@@ -40,7 +40,7 @@ export type ComAtprotoRepoGetRecordError = "RecordNotFound";
 
 export type ComAtprotoRepoListRecordsInput = JsonObject;
 export type ComAtprotoRepoListRecordsOutput = unknown;
-export type ComAtprotoRepoListRecordsError = never;
+export type ComAtprotoRepoListRecordsError = "RepoNotFound";
 
 export type ComAtprotoRepoPutRecordInput = unknown;
 export type ComAtprotoRepoPutRecordOutput = unknown;
@@ -439,7 +439,7 @@ export type NetOpenfederationCalendarListEventsInput = {
 export type NetOpenfederationCalendarListEventsOutput = {
   "events"?: Array<unknown>;
 };
-export type NetOpenfederationCalendarListEventsError = never;
+export type NetOpenfederationCalendarListEventsError = "NotFound";
 
 export type NetOpenfederationCalendarListRsvpsInput = {
   "event": string;
@@ -452,7 +452,7 @@ export type NetOpenfederationCalendarListRsvpsOutput = {
 };
   "rsvps": Array<unknown>;
 };
-export type NetOpenfederationCalendarListRsvpsError = never;
+export type NetOpenfederationCalendarListRsvpsError = "NotFound";
 
 export type NetOpenfederationCalendarRsvpInput = {
   "community": string;
@@ -511,7 +511,7 @@ export type NetOpenfederationCommunityCreateProposalOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCommunityCreateProposalError = "GovernanceNotActive" | "InvalidRequest";
+export type NetOpenfederationCommunityCreateProposalError = "GovernanceNotActive" | "InvalidRequest" | "NotMember";
 
 export type NetOpenfederationCommunityCreateRoleInput = {
   "communityDid": string;
@@ -524,7 +524,7 @@ export type NetOpenfederationCommunityCreateRoleOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCommunityCreateRoleError = "InvalidRequest" | "RoleNameTaken";
+export type NetOpenfederationCommunityCreateRoleError = "InvalidRequest" | "NotMember" | "RoleNameTaken";
 
 export type NetOpenfederationCommunityDeleteInput = {
   "did": string;
@@ -634,7 +634,7 @@ export type NetOpenfederationCommunityGetProposalOutput = {
   "expiresAt"?: string;
   "resolvedAt"?: string;
 };
-export type NetOpenfederationCommunityGetProposalError = "ProposalNotFound";
+export type NetOpenfederationCommunityGetProposalError = "NotFound" | "ProposalNotFound";
 
 export type NetOpenfederationCommunityIssueAttestationInput = {
   "communityDid": string;
@@ -754,7 +754,7 @@ export type NetOpenfederationCommunityListAttestationsOutput = {
 }>;
   "cursor"?: string;
 };
-export type NetOpenfederationCommunityListAttestationsError = "InvalidRequest";
+export type NetOpenfederationCommunityListAttestationsError = "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunityListJoinRequestsInput = {
   "did": string;
@@ -829,7 +829,7 @@ export type NetOpenfederationCommunityListProposalsOutput = {
   "proposals": Array<unknown>;
   "cursor"?: string;
 };
-export type NetOpenfederationCommunityListProposalsError = never;
+export type NetOpenfederationCommunityListProposalsError = "NotFound";
 
 export type NetOpenfederationCommunityListRolesInput = {
   "communityDid": string;
@@ -844,7 +844,7 @@ export type NetOpenfederationCommunityListRolesOutput = {
   "memberCount": number;
 }>;
 };
-export type NetOpenfederationCommunityListRolesError = "InvalidRequest";
+export type NetOpenfederationCommunityListRolesError = "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunityMyCapabilitiesInput = {
   "communityDid": string;
@@ -1035,7 +1035,7 @@ export type NetOpenfederationCommunityVerifyMembershipOutput = {
   "isMember": boolean;
   "role"?: string;
 };
-export type NetOpenfederationCommunityVerifyMembershipError = "InvalidRequest";
+export type NetOpenfederationCommunityVerifyMembershipError = "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunityVoteOnProposalInput = {
   "communityDid": string;
@@ -1047,7 +1047,7 @@ export type NetOpenfederationCommunityVoteOnProposalOutput = {
   "status": string;
   "applied"?: boolean;
 };
-export type NetOpenfederationCommunityVoteOnProposalError = "AlreadyVoted" | "InvalidRequest" | "ProposalClosed" | "ProposalNotFound";
+export type NetOpenfederationCommunityVoteOnProposalError = "AlreadyVoted" | "InvalidRequest" | "NotMember" | "ProposalClosed" | "ProposalNotFound";
 
 export type NetOpenfederationContactBlockInput = {
   "subject": string;
@@ -1340,7 +1340,7 @@ export type NetOpenfederationForumListThreadsOutput = {
   "threads"?: Array<unknown>;
   "cursor"?: string;
 };
-export type NetOpenfederationForumListThreadsError = never;
+export type NetOpenfederationForumListThreadsError = "NotFound";
 
 export type NetOpenfederationForumPostInput = undefined;
 export type NetOpenfederationForumPostOutput = undefined;
@@ -1771,7 +1771,7 @@ export type NetOpenfederationVaultAuditLogOutput = {
 export type NetOpenfederationVaultAuditLogError = never;
 
 export type NetOpenfederationVaultExportRecoveryKeyInput = {
-  "verificationToken": string;
+  "verificationToken"?: string;
 };
 export type NetOpenfederationVaultExportRecoveryKeyOutput = {
   "share": string;
@@ -2464,7 +2464,7 @@ export const lexiconContracts = {
   'com.atproto.repo.deleteRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.getRecord': { revision: 1, errors: ["RecordNotFound"] as const },
-  'com.atproto.repo.listRecords': { revision: 1, errors: [] as const },
+  'com.atproto.repo.listRecords': { revision: 2, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.putRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 1, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
@@ -2507,32 +2507,32 @@ export const lexiconContracts = {
   'net.openfederation.attestation.verifyCommitment': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
   'net.openfederation.calendar.createEvent': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
-  'net.openfederation.calendar.listEvents': { revision: 1, errors: [] as const },
-  'net.openfederation.calendar.listRsvps': { revision: 2, errors: [] as const },
+  'net.openfederation.calendar.listEvents': { revision: 2, errors: ["NotFound"] as const },
+  'net.openfederation.calendar.listRsvps': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.calendar.rsvp': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
-  'net.openfederation.community.createProposal': { revision: 1, errors: ["GovernanceNotActive", "InvalidRequest"] as const },
-  'net.openfederation.community.createRole': { revision: 1, errors: ["InvalidRequest", "RoleNameTaken"] as const },
+  'net.openfederation.community.createProposal': { revision: 2, errors: ["GovernanceNotActive", "InvalidRequest", "NotMember"] as const },
+  'net.openfederation.community.createRole': { revision: 2, errors: ["InvalidRequest", "NotMember", "RoleNameTaken"] as const },
   'net.openfederation.community.delete': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.deleteAttestation': { revision: 1, errors: ["AttestationNotFound", "InvalidRequest"] as const },
   'net.openfederation.community.deleteRole': { revision: 1, errors: ["RoleInUse", "RoleNotFound"] as const },
   'net.openfederation.community.export': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.get': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.getDelegation': { revision: 1, errors: [] as const },
-  'net.openfederation.community.getProposal': { revision: 1, errors: ["ProposalNotFound"] as const },
+  'net.openfederation.community.getProposal': { revision: 2, errors: ["NotFound", "ProposalNotFound"] as const },
   'net.openfederation.community.issueAttestation': { revision: 3, errors: ["InvalidRequest", "NotMember", "PayloadTooLarge"] as const },
   'net.openfederation.community.join': { revision: 3, errors: ["AlreadyMember", "AlreadyRequested", "InvalidRequest", "NotFound", "PayloadTooLarge"] as const },
   'net.openfederation.community.leave': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.linkApplication': { revision: 1, errors: ["Conflict", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listAll': { revision: 1, errors: [] as const },
   'net.openfederation.community.listApplications': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.listAttestations': { revision: 2, errors: ["InvalidRequest"] as const },
+  'net.openfederation.community.listAttestations': { revision: 3, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listJoinRequests': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listMembers': { revision: 3, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listMine': { revision: 2, errors: ["BadAudience", "BadLexiconMethod", "ExpiredToken", "InvalidSignature", "ReplayedToken"] as const },
-  'net.openfederation.community.listProposals': { revision: 1, errors: [] as const },
-  'net.openfederation.community.listRoles': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.community.listProposals': { revision: 2, errors: ["NotFound"] as const },
+  'net.openfederation.community.listRoles': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.removeMember': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.resolveJoinRequest': { revision: 1, errors: ["AlreadyResolved", "Forbidden", "InvalidRequest", "NotFound"] as const },
@@ -2548,8 +2548,8 @@ export const lexiconContracts = {
   'net.openfederation.community.updateMember': { revision: 2, errors: ["CannotChangeOwner", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "PayloadTooLarge", "RoleNotFound"] as const },
   'net.openfederation.community.updateRole': { revision: 2, errors: ["InvalidRequest", "OwnerLockout", "RoleNameTaken", "RoleNotFound"] as const },
   'net.openfederation.community.verifyAttestation': { revision: 1, errors: ["InvalidRequest"] as const },
-  'net.openfederation.community.verifyMembership': { revision: 1, errors: ["InvalidRequest"] as const },
-  'net.openfederation.community.voteOnProposal': { revision: 1, errors: ["AlreadyVoted", "InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
+  'net.openfederation.community.verifyMembership': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.voteOnProposal': { revision: 2, errors: ["AlreadyVoted", "InvalidRequest", "NotMember", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.contact.block': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.contact.contact': { revision: 1, errors: [] as const },
   'net.openfederation.contact.list': { revision: 1, errors: [] as const },
@@ -2576,7 +2576,7 @@ export const lexiconContracts = {
   'net.openfederation.forum.getThread': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.hidePost': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.hideThread': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
-  'net.openfederation.forum.listThreads': { revision: 2, errors: [] as const },
+  'net.openfederation.forum.listThreads': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
@@ -2612,7 +2612,7 @@ export const lexiconContracts = {
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 1, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },
-  'net.openfederation.vault.exportRecoveryKey': { revision: 1, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
+  'net.openfederation.vault.exportRecoveryKey': { revision: 2, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
   'net.openfederation.vault.getCustodialSecret': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.vault.registerEscrow': { revision: 1, errors: ["EscrowAlreadyRegistered", "InvalidRequest", "ShareNotFound"] as const },
   'net.openfederation.vault.requestShareRelease': { revision: 1, errors: ["ShareNotFound", "VerificationRequired"] as const },

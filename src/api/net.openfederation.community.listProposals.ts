@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
@@ -15,6 +16,8 @@ export default async function listProposals(req: AuthRequest, res: Response): Pr
       res.status(400).json({ error: 'InvalidRequest', message: 'communityDid parameter is required' });
       return;
     }
+
+    if (!(await requireCommunityReadable(req, res, communityDid))) return;
 
     let sql = `SELECT rkey, record FROM records_index WHERE community_did = $1 AND collection = $2`;
     const params: (string | number)[] = [communityDid, PROPOSAL_COLLECTION];

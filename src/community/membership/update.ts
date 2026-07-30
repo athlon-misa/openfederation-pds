@@ -227,6 +227,16 @@ export async function updateMemberLifecycle(
   }
 
   const memberRkey = memberResult.rows[0].record_rkey;
+  const ownerResult = await query<{ owner_did: string }>(
+    `SELECT u.did AS owner_did
+     FROM communities c
+     JOIN users u ON u.id = c.created_by
+     WHERE c.did = $1`,
+    [communityDid],
+  );
+  if (ownerResult.rows[0]?.owner_did === memberDid && (hasRole || hasRoleRkey)) {
+    throwXrpc(UPDATE_MEMBER_NSID, 'CannotChangeOwner', 403, "Cannot change the owner's role.");
+  }
   const engine = new RepoEngine(communityDid);
   const existing = await engine.getRecord(MEMBER_COLLECTION, memberRkey);
   if (!existing) {
@@ -234,10 +244,6 @@ export async function updateMemberLifecycle(
   }
 
   const prev = existing.record as MemberRecord;
-  if (prev.role === 'owner' && (hasRole || hasRoleRkey)) {
-    throwXrpc(UPDATE_MEMBER_NSID, 'CannotChangeOwner', 403, "Cannot change the owner's role.");
-  }
-
   const next: MemberRecord = { ...prev };
   if (hasRoleRkey) {
     if (roleRkey === null || roleRkey === '') {
