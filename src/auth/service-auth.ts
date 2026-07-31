@@ -192,6 +192,7 @@ export async function signServiceAuthJwt(opts: {
   iss: string;
   aud: string;
   exp: number;
+  iat?: number;
   lxm?: string;
   extraClaims?: Record<string, unknown>;
 }): Promise<string> {
@@ -201,7 +202,7 @@ export async function signServiceAuthJwt(opts: {
     iss: opts.iss,
     aud: opts.aud,
     exp: opts.exp,
-    iat: Math.floor(Date.now() / 1000),
+    iat: opts.iat ?? Math.floor(Date.now() / 1000),
     jti: randomJti(),
     ...(opts.lxm ? { lxm: opts.lxm } : {}),
   };

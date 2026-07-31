@@ -70,14 +70,17 @@ export class PgAccountStore implements AccountStore {
       ]);
 
       if (config.auth.inviteRequired && data.inviteCode) {
-        const invite = await client.query<{ max_uses: number; uses_count: number; expires_at: string | null }>(
-          'SELECT max_uses, uses_count, expires_at FROM invites WHERE code = $1 FOR UPDATE',
+        const invite = await client.query<{ max_uses: number; uses_count: number; expires_at: string | null; bound_to: string | null }>(
+          'SELECT max_uses, uses_count, expires_at, bound_to FROM invites WHERE code = $1 FOR UPDATE',
           [data.inviteCode],
         );
         if (invite.rows.length === 0) throw new Error('Invalid invite code');
         const current = invite.rows[0];
         if (current.uses_count >= current.max_uses) throw new Error('Invite code already used');
         if (current.expires_at && new Date(current.expires_at) < new Date()) throw new Error('Invite code expired');
+        if (current.bound_to && current.bound_to.toLowerCase().trim() !== email.toLowerCase().trim()) {
+          throw new Error('This invite code is bound to a specific email address');
+        }
       }
 
       await insertUserWithRole(client, {
@@ -124,8 +127,11 @@ export class PgAccountStore implements AccountStore {
       status: string;
       did: string;
       auth_type: string;
+      failed_login_attempts: number;
+      locked_until: string | null;
     }>(
-      'SELECT id, handle, email, password_hash, status, did, auth_type FROM users WHERE handle = $1 OR email = $1',
+      `SELECT id, handle, email, password_hash, status, did, auth_type, failed_login_attempts, locked_until
+       FROM users WHERE handle = $1 OR email = $1`,
       [identifier]
     );
 
@@ -134,6 +140,10 @@ export class PgAccountStore implements AccountStore {
     }
 
     const user = result.rows[0];
+
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      throw new Error('Account is temporarily locked');
+    }
 
     if (user.auth_type === 'external') {
       throw new Error('This account uses ATProto OAuth. Please sign in via your home PDS.');
@@ -145,7 +155,24 @@ export class PgAccountStore implements AccountStore {
 
     const valid = await verifyPassword(data.password, user.password_hash);
     if (!valid) {
+      await query(
+        `UPDATE users
+         SET failed_login_attempts = failed_login_attempts + 1,
+             locked_until = CASE
+               WHEN failed_login_attempts + 1 >= 20 THEN CURRENT_TIMESTAMP + INTERVAL '2 hours'
+               WHEN failed_login_attempts + 1 >= 15 THEN CURRENT_TIMESTAMP + INTERVAL '30 minutes'
+               WHEN failed_login_attempts + 1 >= 10 THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+               WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '1 minute'
+               ELSE NULL
+             END
+         WHERE id = $1`,
+        [user.id],
+      );
       throw new Error('Invalid credentials');
+    }
+
+    if (user.failed_login_attempts > 0) {
+      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
     }
 
     if (user.status !== 'approved') {

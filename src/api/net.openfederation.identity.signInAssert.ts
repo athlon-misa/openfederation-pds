@@ -142,7 +142,8 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
       return;
     }
     const messageExpiry = parsed.expirationTime ? Math.floor(Date.parse(parsed.expirationTime) / 1000) : NaN;
-    if (!Number.isFinite(messageExpiry)) {
+    const messageIssuedAt = Math.floor(Date.parse(parsed.issuedAt) / 1000);
+    if (!Number.isFinite(messageExpiry) || !Number.isFinite(messageIssuedAt)) {
       res.status(400).json({ error: 'InvalidRequest', message: 'SIWOF message expiration is required' });
       return;
     }
@@ -152,6 +153,7 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
       iss: userDid,
       aud: messageAudience.uri,
       exp,
+      iat: messageIssuedAt,
       lxm: 'net.openfederation.identity.signInAssert',
       extraClaims: {
         sub: parsed.accountCaip10,
