@@ -23,4 +23,20 @@ describe('OAuth invite consumption', () => {
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
   });
+
+  it('rejects OAuth registration when an invite is bound to another email', async () => {
+    if (!plc) return;
+    const inviteCode = `oauth-bound-${Date.now()}`;
+    await query(
+      'INSERT INTO invites (code, max_uses, uses_count, bound_to) VALUES ($1, 1, 0, $2)',
+      [inviteCode, 'intended@test.local'],
+    );
+
+    await expect(new PgAccountStore().createAccount({
+      handle: uniqueHandle('oauth-bound'),
+      email: 'different@test.local',
+      password: 'TestPassword123!',
+      inviteCode,
+    } as never)).rejects.toThrow('bound to a specific email address');
+  });
 });
