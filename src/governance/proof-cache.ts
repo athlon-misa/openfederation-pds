@@ -22,8 +22,8 @@ interface CachedVerification {
  * Returns null if no cached result exists.
  */
 export async function getCachedVerification(
-  chainId: string,
-  txHash: string
+  communityDid: string,
+  proof: GovernanceProof,
 ): Promise<CachedVerification | null> {
   const result = await query<{
     verified: boolean;
@@ -34,8 +34,10 @@ export async function getCachedVerification(
   }>(
     `SELECT verified, error, block_timestamp, confirmations, verified_at
      FROM proof_verifications
-     WHERE chain_id = $1 AND transaction_hash = $2`,
-    [chainId, txHash]
+     WHERE community_did = $1 AND chain_id = $2 AND transaction_hash = $3
+       AND block_number IS NOT DISTINCT FROM $4
+       AND contract_address IS NOT DISTINCT FROM $5`,
+    [communityDid, proof.chainId, proof.transactionHash, proof.blockNumber ?? null, proof.contractAddress ?? null]
   );
 
   if (result.rows.length === 0) return null;
@@ -67,7 +69,8 @@ export async function cacheVerification(
        (id, community_did, chain_id, transaction_hash, block_number, contract_address,
         verified, error, block_timestamp, confirmations, oracle_credential_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     ON CONFLICT (chain_id, transaction_hash)
+     ON CONFLICT (community_did, chain_id, transaction_hash,
+       (COALESCE(block_number, -1)), (COALESCE(contract_address, '')))
      DO UPDATE SET
        verified = EXCLUDED.verified,
        error = EXCLUDED.error,
