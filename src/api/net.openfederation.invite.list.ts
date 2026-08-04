@@ -11,6 +11,7 @@ export default async function listInvites(req: AuthRequest, res: Response): Prom
   const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
   const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
   const status = req.query.status ? String(req.query.status) : undefined;
+  const canViewCodes = req.auth!.roles.some((role) => role === 'admin' || role === 'moderator');
 
   const validStatuses = ['active', 'expired', 'exhausted'];
   if (status && !validStatuses.includes(status)) {
@@ -72,7 +73,7 @@ export default async function listInvites(req: AuthRequest, res: Response): Prom
       }
 
       return {
-        code: i.code,
+        code: canViewCodes ? i.code : undefined,
         maxUses: i.max_uses,
         usesCount: i.uses_count,
         expiresAt: i.expires_at,

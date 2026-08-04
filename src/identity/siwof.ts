@@ -166,7 +166,13 @@ export function normalizeSiwofAudience(raw: string): { domain: string; uri: stri
 
 /** Map our chain enum + optional CAIP-2 override to a canonical CAIP-2 string. */
 export function resolveChainIdCaip2(chain: 'ethereum' | 'solana', override?: string): string {
-  if (override) return override;
+  if (override) {
+    const expectedPrefix = chain === 'ethereum' ? 'eip155:' : 'solana:';
+    if (!override.startsWith(expectedPrefix)) {
+      throw new Error(`CAIP-2 namespace must match ${chain}`);
+    }
+    return override;
+  }
   if (chain === 'ethereum') return 'eip155:1';       // default: mainnet
   if (chain === 'solana') return 'solana:mainnet';   // informal — strict CAIP uses genesis-hash prefix
   throw new Error(`Unsupported chain: ${chain}`);
