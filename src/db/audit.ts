@@ -80,6 +80,7 @@ export type AuditAction =
   | 'identity.signInAssert'
   | 'identity.setPrimaryWallet'
   | 'wallet.retrieveForUpgrade'
+  | 'wallet.retrieveForUpgradeFailed'
   | 'wallet.tierChange'
   | 'account.recovery.initiate'
   | 'account.recovery.complete'

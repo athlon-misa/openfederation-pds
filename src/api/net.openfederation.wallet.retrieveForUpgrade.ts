@@ -50,8 +50,8 @@ export default async function retrieveForUpgrade(req: AuthRequest, res: Response
     // Password re-auth. Rejects external-auth users — they go through OAuth
     // and don't hold a local password, so this endpoint isn't available to
     // them (they can recover via their home PDS's rotation flow).
-    const userRow = await query<{ auth_type: string; password_hash: string | null }>(
-      'SELECT auth_type, password_hash FROM users WHERE id = $1',
+    const userRow = await query<{ auth_type: string; password_hash: string | null; failed_login_attempts: number; locked_until: string | null }>(
+      'SELECT auth_type, password_hash, failed_login_attempts, locked_until FROM users WHERE id = $1',
       [userId]
     );
     if (userRow.rows.length === 0) {
@@ -65,10 +65,28 @@ export default async function retrieveForUpgrade(req: AuthRequest, res: Response
       });
       return;
     }
-    const passwordValid = await verifyPassword(currentPassword, userRow.rows[0].password_hash);
+    const user = userRow.rows[0];
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      await auditLog('wallet.retrieveForUpgradeFailed', userId, userDid, { reason: 'account_locked' });
+      res.status(429).json({ error: 'AccountLocked', message: 'Too many failed attempts. Try again later.' });
+      return;
+    }
+    const passwordValid = await verifyPassword(currentPassword, user.password_hash!);
     if (!passwordValid) {
+      await query(
+        `UPDATE users SET failed_login_attempts = failed_login_attempts + 1,
+         locked_until = CASE
+           WHEN failed_login_attempts + 1 >= 20 THEN CURRENT_TIMESTAMP + INTERVAL '2 hours'
+           WHEN failed_login_attempts + 1 >= 15 THEN CURRENT_TIMESTAMP + INTERVAL '30 minutes'
+           WHEN failed_login_attempts + 1 >= 10 THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+           WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '1 minute'
+           ELSE NULL END WHERE id = $1`, [userId]);
+      await auditLog('wallet.retrieveForUpgradeFailed', userId, userDid, { reason: 'wrong_password' });
       res.status(401).json({ error: 'InvalidPassword', message: 'Current password is incorrect' });
       return;
+    }
+    if (user.failed_login_attempts > 0) {
+      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [userId]);
     }
 
     // Wallet must be a Tier 1 active wallet owned by the caller.
