@@ -4,6 +4,7 @@ import { requireRole } from '../auth/guards.js';
 import { hashToken } from '../auth/tokens.js';
 import { auditLog } from '../db/audit.js';
 import { isPrivateHost } from '../federation/remote-verify.js';
+import { readLimitedText } from '../security/outbound-fetch.js';
 import type { AuthRequest } from '../auth/types.js';
 
 interface VerifyKeyInput {
@@ -46,8 +47,10 @@ async function checkOrigin(origin: string, expectedTokenHash: string): Promise<O
     if (!resp.ok) {
       return { origin, ok: false, reason: `HTTP ${resp.status} fetching ${WELL_KNOWN_PATH}` };
     }
-    const text = await resp.text();
-    if (text.length > MAX_RESPONSE_BYTES) {
+    let text: string;
+    try {
+      text = await readLimitedText(resp, MAX_RESPONSE_BYTES);
+    } catch {
       return { origin, ok: false, reason: 'well-known response exceeded 4KB' };
     }
     let parsed: unknown;

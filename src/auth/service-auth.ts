@@ -232,11 +232,15 @@ function isReplay(sigB64: string, expSec: number): boolean {
     return true;
   }
   if (seenSignatures.size >= MAX_SEEN) {
-    // Evict oldest entries if we hit the cap.
+    // Evict expired entries first, then the oldest live entry if necessary.
     const cutoff = Date.now();
     for (const [k, v] of seenSignatures) {
       if (v < cutoff) seenSignatures.delete(k);
       if (seenSignatures.size < MAX_SEEN) break;
+    }
+    if (seenSignatures.size >= MAX_SEEN) {
+      const oldest = seenSignatures.keys().next().value;
+      if (oldest) seenSignatures.delete(oldest);
     }
   }
   seenSignatures.set(sigB64, expMs);
