@@ -1894,7 +1894,7 @@ export type NetOpenfederationWalletRetrieveForUpgradeOutput = {
   "privateKeyBase64": string;
   "exportFormat": string;
 };
-export type NetOpenfederationWalletRetrieveForUpgradeError = "InvalidPassword" | "InvalidRequest" | "NotFound" | "SigningFailed" | "UnsupportedChain" | "UnsupportedTier" | "WalletInactive" | "WalletNotFound";
+export type NetOpenfederationWalletRetrieveForUpgradeError = "AccountLocked" | "InvalidPassword" | "InvalidRequest" | "NotFound" | "SigningFailed" | "UnsupportedChain" | "UnsupportedTier" | "WalletInactive" | "WalletNotFound";
 
 export type NetOpenfederationWalletRevokeConsentInput = {
   "id"?: string;
@@ -2621,7 +2621,7 @@ export const lexiconContracts = {
   'net.openfederation.wallet.grantConsent': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain"] as const },
   'net.openfederation.wallet.listConsents': { revision: 2, errors: [] as const },
   'net.openfederation.wallet.provision': { revision: 1, errors: ["InvalidRequest", "ProvisionFailed", "UnsupportedChain"] as const },
-  'net.openfederation.wallet.retrieveForUpgrade': { revision: 2, errors: ["InvalidPassword", "InvalidRequest", "NotFound", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
+  'net.openfederation.wallet.retrieveForUpgrade': { revision: 3, errors: ["AccountLocked", "InvalidPassword", "InvalidRequest", "NotFound", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
   'net.openfederation.wallet.revokeConsent': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain"] as const },
   'net.openfederation.wallet.sign': { revision: 2, errors: ["ConsentRequired", "InvalidRequest", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
   'net.openfederation.wallet.signTransaction': { revision: 1, errors: ["ConsentRequired", "InvalidRequest", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
