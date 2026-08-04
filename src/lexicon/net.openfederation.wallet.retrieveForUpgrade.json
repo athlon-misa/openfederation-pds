@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.wallet.retrieveForUpgrade",
-  "revision": 2,
+  "revision": 3,
   "description": "One-shot export of a Tier 1 (custodial) wallet's private key in preparation for a tier upgrade. Password re-auth required. Client re-wraps (for Tier 2) or takes self-custody (for Tier 3), then calls finalizeTierChange.",
   "defs": {
     "main": {
@@ -65,6 +65,10 @@
         {
           "name": "InvalidPassword",
           "description": "currentPassword did not verify."
+        },
+        {
+          "name": "AccountLocked",
+          "description": "Too many failed reauthentication attempts."
         },
         {
           "name": "UnsupportedChain",
