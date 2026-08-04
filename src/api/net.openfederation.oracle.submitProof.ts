@@ -40,8 +40,15 @@ export default async function submitProof(req: AuthRequest, res: Response): Prom
       }
     }
 
-    // 3. Check cache first
-    const cached = await getCachedVerification(chainId, transactionHash);
+    // 3. Build the complete verification constraints before checking cache.
+    const proof: GovernanceProof = {
+      chainId,
+      transactionHash,
+      blockNumber: blockNumber !== undefined ? Number(blockNumber) : undefined,
+      contractAddress: contractAddress || undefined,
+      expectedOutcome: expectedOutcome || undefined,
+    };
+    const cached = await getCachedVerification(oracle.communityDid, proof);
     if (cached) {
       res.json({
         verified: cached.verified,
@@ -54,16 +61,7 @@ export default async function submitProof(req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // 4. Build proof object
-    const proof: GovernanceProof = {
-      chainId,
-      transactionHash,
-      blockNumber: blockNumber !== undefined ? Number(blockNumber) : undefined,
-      contractAddress: contractAddress || undefined,
-      expectedOutcome: expectedOutcome || undefined,
-    };
-
-    // 5. Find adapter
+    // 4. Find adapter
     const adapter = getAdapter(chainId);
 
     if (!adapter) {
