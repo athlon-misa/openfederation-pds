@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.export",
-  "revision": 2,
+  "revision": 3,
   "description": "Generated XRPC contract for net.openfederation.account.export.",
   "defs": {
     "main": {
@@ -29,6 +29,10 @@
         {
           "name": "Forbidden",
           "description": "Only the account owner or PDS admin can export account data."
+        },
+        {
+          "name": "ExportTooLarge",
+          "description": "Repository exceeds the bounded JSON export limit; use com.atproto.sync.getRepo for a CAR export."
         }
       ]
     }
