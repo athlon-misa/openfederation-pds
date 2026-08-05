@@ -2,6 +2,7 @@ import { Pool, PoolClient, QueryResult } from 'pg';
 import { config } from '../config.js';
 
 let pool: Pool | null = null;
+let advisoryLockPool: Pool | null = null;
 
 export function getPool(): Pool {
   if (!pool) {
@@ -37,6 +38,35 @@ export async function query<T extends Record<string, any> = any>(
 export async function getClient(): Promise<PoolClient> {
   const pool = getPool();
   return pool.connect();
+}
+
+export async function withAdvisoryLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  if (!advisoryLockPool) {
+    advisoryLockPool = new Pool({
+      host: config.database.host,
+      port: config.database.port,
+      database: config.database.database,
+      user: config.database.user,
+      password: config.database.password,
+      max: Math.max(1, Math.floor(config.database.maxPoolSize / 2)),
+      idleTimeoutMillis: config.database.idleTimeoutMs,
+      connectionTimeoutMillis: config.database.connectionTimeoutMs,
+      statement_timeout: config.database.statementTimeoutMs,
+      ssl: config.database.ssl ? { rejectUnauthorized: config.database.sslRejectUnauthorized } : undefined,
+    });
+
+    advisoryLockPool.on('error', (err) => {
+      console.error('Unexpected error on idle advisory lock client', err);
+    });
+  }
+  const client = await advisoryLockPool.connect();
+  try {
+    await client.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
+    return await operation();
+  } finally {
+    await client.query('SELECT pg_advisory_unlock(hashtext($1))', [key]).catch(() => undefined);
+    client.release();
+  }
 }
 
 /**
@@ -76,6 +106,10 @@ export async function closePool(): Promise<void> {
   if (pool) {
     await pool.end();
     pool = null;
+  }
+  if (advisoryLockPool) {
+    await advisoryLockPool.end();
+    advisoryLockPool = null;
   }
 }
 
