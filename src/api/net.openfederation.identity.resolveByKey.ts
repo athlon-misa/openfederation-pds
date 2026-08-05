@@ -27,7 +27,9 @@ export default async function resolveByKey(req: AuthRequest, res: Response): Pro
       params.push(purpose);
     }
 
-    sql += ' LIMIT 1';
+    // Historical data can contain duplicate claims. Never select an arbitrary
+    // identity in that case; callers must not trust an ambiguous binding.
+    sql += ' LIMIT 2';
 
     const result = await query<{
       community_did: string;
@@ -40,6 +42,14 @@ export default async function resolveByKey(req: AuthRequest, res: Response): Pro
       res.status(404).json({
         error: 'KeyNotFound',
         message: 'No identity found for the given public key',
+      });
+      return;
+    }
+
+    if (result.rows.length > 1) {
+      res.status(409).json({
+        error: 'KeyConflict',
+        message: 'Multiple identities claim this public key',
       });
       return;
     }

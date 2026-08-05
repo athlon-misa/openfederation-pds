@@ -1488,7 +1488,7 @@ export type NetOpenfederationIdentityResolveByKeyOutput = {
   "purpose": string;
   "createdAt": string;
 };
-export type NetOpenfederationIdentityResolveByKeyError = "InvalidRequest" | "KeyNotFound";
+export type NetOpenfederationIdentityResolveByKeyError = "InvalidRequest" | "KeyConflict" | "KeyNotFound";
 
 export type NetOpenfederationIdentityResolveWalletInput = {
   "chain": string;
@@ -1505,13 +1505,14 @@ export type NetOpenfederationIdentitySetExternalKeyInput = {
   "type": string;
   "purpose": string;
   "publicKey": string;
+  "proof": string;
   "label"?: string;
 };
 export type NetOpenfederationIdentitySetExternalKeyOutput = {
   "uri": string;
   "cid": string;
 };
-export type NetOpenfederationIdentitySetExternalKeyError = "InvalidPublicKey" | "InvalidRequest";
+export type NetOpenfederationIdentitySetExternalKeyError = "InvalidProof" | "InvalidPublicKey" | "InvalidRequest" | "KeyAlreadyClaimed";
 
 export type NetOpenfederationIdentitySetPrimaryWalletInput = {
   "chain": string;
@@ -2588,9 +2589,9 @@ export const lexiconContracts = {
   'net.openfederation.identity.listExternalKeys': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.identity.listWalletLinks': { revision: 1, errors: ["AuthRequired"] as const },
   'net.openfederation.identity.listWalletsPublic': { revision: 2, errors: ["InvalidRequest"] as const },
-  'net.openfederation.identity.resolveByKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
+  'net.openfederation.identity.resolveByKey': { revision: 2, errors: ["InvalidRequest", "KeyConflict", "KeyNotFound"] as const },
   'net.openfederation.identity.resolveWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
-  'net.openfederation.identity.setExternalKey': { revision: 1, errors: ["InvalidPublicKey", "InvalidRequest"] as const },
+  'net.openfederation.identity.setExternalKey': { revision: 2, errors: ["InvalidProof", "InvalidPublicKey", "InvalidRequest", "KeyAlreadyClaimed"] as const },
   'net.openfederation.identity.setPrimaryWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletInactive", "WalletNotFound"] as const },
   'net.openfederation.identity.signInAssert': { revision: 2, errors: ["ChallengeExpired", "ChallengeNotFound", "InvalidRequest", "InvalidSignature", "NoSigningKey", "UnsupportedChain"] as const },
   'net.openfederation.identity.signInChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },

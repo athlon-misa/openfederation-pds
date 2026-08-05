@@ -4,11 +4,13 @@ import { requireApprovedUser } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
+import { query } from '../db/client.js';
 import {
   validatePublicKey,
   validateRkey,
   validatePurpose,
   validateLabel,
+  verifyExternalKeyProof,
   EXTERNAL_KEY_COLLECTION,
 } from '../identity/external-keys.js';
 
@@ -16,12 +18,12 @@ export default async function setExternalKey(req: AuthRequest, res: Response): P
   try {
     if (!requireApprovedUser(req, res)) return;
 
-    const { rkey, type, purpose, publicKey, label } = req.body;
+    const { rkey, type, purpose, publicKey, proof, label } = req.body;
 
-    if (!rkey || !type || !purpose || !publicKey) {
+    if (!rkey || !type || !purpose || !publicKey || !proof) {
       res.status(400).json({
         error: 'InvalidRequest',
-        message: 'Missing required fields: rkey, type, purpose, publicKey',
+        message: 'Missing required fields: rkey, type, purpose, publicKey, proof',
       });
       return;
     }
@@ -51,6 +53,27 @@ export default async function setExternalKey(req: AuthRequest, res: Response): P
     }
 
     const did = req.auth!.did;
+    const proofResult = verifyExternalKeyProof(did, rkey, type, purpose, publicKey, proof);
+    if (proofResult.valid === false) {
+      res.status(400).json({ error: 'InvalidProof', message: proofResult.error });
+      return;
+    }
+
+    const existingClaim = await query<{ community_did: string; rkey: string }>(
+      `SELECT community_did, rkey FROM records_index
+       WHERE collection = $1 AND record->>'publicKey' = $2
+         AND (community_did <> $3 OR rkey <> $4)
+       LIMIT 1`,
+      [EXTERNAL_KEY_COLLECTION, publicKey, did, rkey],
+    );
+    if (existingClaim.rows.length > 0) {
+      res.status(409).json({
+        error: 'KeyAlreadyClaimed',
+        message: 'This public key is already claimed by another external-key record',
+      });
+      return;
+    }
+
     const engine = new RepoEngine(did);
     const keypair = await getKeypairForDid(did);
 

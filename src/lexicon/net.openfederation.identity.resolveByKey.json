@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.resolveByKey",
-  "revision": 1,
+  "revision": 2,
   "description": "Reverse lookup: find the ATProto DID that owns a given external public key.",
   "defs": {
     "main": {
@@ -65,6 +65,10 @@
         {
           "name": "KeyNotFound",
           "description": "No identity found for the given public key."
+        },
+        {
+          "name": "KeyConflict",
+          "description": "Multiple identities claim the public key, so no single identity can be resolved safely."
         }
       ]
     }
