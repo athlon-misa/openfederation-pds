@@ -52,6 +52,7 @@ export type AuditAction =
   | 'community.governance.setModel'
   | 'community.proposal.create'
   | 'community.proposal.vote'
+  | 'community.proposal.vote.recordFailed'
   | 'community.proposal.approve'
   | 'community.proposal.reject'
   | 'community.proposal.expire'

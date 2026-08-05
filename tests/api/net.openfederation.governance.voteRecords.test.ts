@@ -5,6 +5,8 @@ import {
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { PgBlockstore } from '../../src/repo/pg-blockstore.js';
+import { query } from '../../src/db/client.js';
+import { writeVoteRecord } from '../../src/governance/vote-records.js';
 
 const VOTE_COLLECTION = 'net.openfederation.governance.vote';
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
@@ -181,6 +183,73 @@ describe('Voter-signed governance vote records', () => {
 
       const records = await listVoteRecords(directVoter);
       expect(records.length).toBe(1);
+    });
+  });
+
+  describe('unwritable voter repos leave an audit trail', () => {
+    async function auditEntriesFor(voterDid: string) {
+      const res = await query<{ actor_id: string; target_id: string; meta: any }>(
+        `SELECT actor_id, target_id, meta FROM audit_log
+         WHERE action = 'community.proposal.vote.recordFailed' AND meta->>'voterDid' = $1`,
+        [voterDid],
+      );
+      return res.rows;
+    }
+
+    it('audits a counted vote whose voter has no repo', async () => {
+      if (!plcAvailable) return;
+
+      const voterWithoutRepo = 'did:plc:norepovoter000000000000';
+      const result = await writeVoteRecord({
+        voterDid: voterWithoutRepo,
+        communityDid,
+        proposalRkey,
+        proposalCid: proposalCidBeforeDirectVote,
+        vote: 'for',
+      });
+
+      expect(result).toBeNull();
+      const entries = await auditEntriesFor(voterWithoutRepo);
+      expect(entries.length).toBe(1);
+      expect(entries[0].actor_id).toBe(voterWithoutRepo);
+      expect(entries[0].target_id).toBe(communityDid);
+      expect(entries[0].meta.reason).toBe('no-repo');
+      expect(entries[0].meta.proposalRkey).toBe(proposalRkey);
+      expect(entries[0].meta.vote).toBe('for');
+    });
+
+    it('audits a counted vote whose repo write fails', async () => {
+      if (!plcAvailable) return;
+
+      // A DID that reports a repo but has no signing key, so the write throws
+      // instead of taking the no-repo path.
+      const brokenSigner = 'did:plc:nokeyvoter00000000000000';
+      const rootRes = await query<{ root_cid: string; rev: string }>(
+        'SELECT root_cid, rev FROM repo_roots WHERE did = $1',
+        [directVoter.did],
+      );
+      await query(
+        `INSERT INTO repo_roots (did, root_cid, rev) VALUES ($1, $2, $3)
+         ON CONFLICT (did) DO NOTHING`,
+        [brokenSigner, rootRes.rows[0].root_cid, rootRes.rows[0].rev],
+      );
+
+      const result = await writeVoteRecord({
+        voterDid: brokenSigner,
+        communityDid,
+        proposalRkey,
+        proposalCid: proposalCidBeforeDirectVote,
+        vote: 'against',
+        castBy: delegate.did,
+      });
+
+      expect(result).toBeNull();
+      const entries = await auditEntriesFor(brokenSigner);
+      expect(entries.length).toBe(1);
+      expect(entries[0].target_id).toBe(communityDid);
+      expect(entries[0].meta.reason).toBeTruthy();
+      expect(entries[0].meta.reason).not.toBe('no-repo');
+      expect(entries[0].meta.castBy).toBe(delegate.did);
     });
   });
 

@@ -9,12 +9,15 @@
  * with the voter's key.
  *
  * This is a dual-write: the proposal record remains the authoritative tally.
- * Failures here are logged and swallowed so they never turn a counted vote into
- * an error response.
+ * Failures here are swallowed so they never turn a counted vote into an error
+ * response — but every counted vote that fails to produce a record is written to
+ * `audit_log` as `community.proposal.vote.recordFailed`, so the divergence
+ * between the tally and the record set stays enumerable instead of silent.
  */
 
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { auditLog } from '../db/audit.js';
 
 export const VOTE_COLLECTION = 'net.openfederation.governance.vote';
 export const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
@@ -46,15 +49,40 @@ export interface VoteRecordResult {
 }
 
 /**
+ * Record a counted vote that produced no voter-signed record. The tally already
+ * counts it, so the gap is permanent — the audit entry is the only way to find
+ * it afterwards.
+ */
+async function auditMissingVoteRecord(input: VoteRecordInput, reason: string): Promise<void> {
+  await auditLog(
+    'community.proposal.vote.recordFailed',
+    // audit_log.actor_id is VARCHAR(36); longer DIDs go to meta only so the
+    // entry is still written.
+    input.voterDid.length <= 36 ? input.voterDid : null,
+    input.communityDid,
+    {
+      voterDid: input.voterDid,
+      proposalRkey: input.proposalRkey,
+      proposalCid: input.proposalCid,
+      vote: input.vote,
+      ...(input.castBy ? { castBy: input.castBy } : {}),
+      reason,
+    },
+  );
+}
+
+/**
  * Write one voter-signed vote record into the voter's own repo.
- * Returns null (and logs) if the voter has no repo or signing key, or if the
- * commit fails — the authoritative tally has already been written by then.
+ * Returns null if the voter has no repo or signing key, or if the commit fails —
+ * the authoritative tally has already been written by then, so the miss is
+ * audited rather than raised.
  */
 export async function writeVoteRecord(input: VoteRecordInput): Promise<VoteRecordResult | null> {
   try {
     const engine = new RepoEngine(input.voterDid);
     if (!(await engine.hasRepo())) {
       console.warn(`[governance] skipping vote record: no repo for voter ${input.voterDid}`);
+      await auditMissingVoteRecord(input, 'no-repo');
       return null;
     }
 
@@ -80,6 +108,7 @@ export async function writeVoteRecord(input: VoteRecordInput): Promise<VoteRecor
     return { voterDid: input.voterDid, uri, cid, rkey };
   } catch (error) {
     console.error(`[governance] failed to write vote record for ${input.voterDid}:`, error);
+    await auditMissingVoteRecord(input, error instanceof Error ? error.message : String(error));
     return null;
   }
 }
