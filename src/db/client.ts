@@ -54,6 +54,10 @@ export async function withAdvisoryLock<T>(key: string, operation: () => Promise<
       statement_timeout: config.database.statementTimeoutMs,
       ssl: config.database.ssl ? { rejectUnauthorized: config.database.sslRejectUnauthorized } : undefined,
     });
+
+    advisoryLockPool.on('error', (err) => {
+      console.error('Unexpected error on idle advisory lock client', err);
+    });
   }
   const client = await advisoryLockPool.connect();
   try {
