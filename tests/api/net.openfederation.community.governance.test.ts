@@ -3,6 +3,7 @@ import {
   xrpcPost, xrpcGet, xrpcAuthPost,
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
+import { getClient } from '../../src/db/client.js';
 
 describe('Community Governance', () => {
   let plcAvailable: boolean;
@@ -148,6 +149,43 @@ describe('Community Governance', () => {
   });
 
   describe('voteOnProposal', () => {
+    it('does not apply a target when concurrent votes reject the proposal', async () => {
+      if (!plcAvailable) return;
+      const proposal = await xrpcAuthPost('net.openfederation.community.createProposal', owner.accessJwt, {
+        communityDid, targetCollection: 'net.openfederation.community.metadata', targetRkey: 'concurrent-vote',
+        action: 'write', proposedRecord: { displayName: 'Must Not Be Applied' },
+      });
+      expect(proposal.status).toBe(200);
+
+      const inputFor = { communityDid, proposalRkey: proposal.body.rkey, vote: 'for' };
+      const inputAgainst = { communityDid, proposalRkey: proposal.body.rkey, vote: 'against' };
+      const lockKey = `community-proposal:${communityDid}:${proposal.body.rkey}`;
+      const lockClient = await getClient();
+      await lockClient.query('SELECT pg_advisory_lock(hashtext($1))', [lockKey]);
+      let forVote!: Promise<Awaited<ReturnType<typeof xrpcAuthPost>>>;
+      let againstVote!: Promise<Awaited<ReturnType<typeof xrpcAuthPost>>>;
+      try {
+        againstVote = Promise.resolve(xrpcAuthPost('net.openfederation.community.voteOnProposal', voter2.accessJwt, inputAgainst));
+        const deadline = Date.now() + 1_000;
+        while (true) {
+          const waitingLocks = await lockClient.query<{ count: string }>("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted");
+          if (Number(waitingLocks.rows[0].count) > 0) break;
+          if (Date.now() >= deadline) throw new Error('Rejecting vote did not queue behind the proposal lock');
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        forVote = Promise.resolve(xrpcAuthPost('net.openfederation.community.voteOnProposal', voter1.accessJwt, inputFor));
+      } finally {
+        await lockClient.query('SELECT pg_advisory_unlock(hashtext($1))', [lockKey]);
+        lockClient.release();
+      }
+      await Promise.all([forVote, againstVote]);
+
+      const resolved = await xrpcGet('net.openfederation.community.getProposal', { communityDid, rkey: proposal.body.rkey });
+      expect(resolved.body.status).toBe('rejected');
+      const target = await xrpcGet('com.atproto.repo.getRecord', { repo: communityDid, collection: 'net.openfederation.community.metadata', rkey: 'concurrent-vote' });
+      expect(target.status).toBe(404);
+    });
+
     it('should reject duplicate vote', async () => {
       if (!plcAvailable) return;
       const res = await xrpcAuthPost('net.openfederation.community.voteOnProposal', owner.accessJwt, {

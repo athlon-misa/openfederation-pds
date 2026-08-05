@@ -39,6 +39,17 @@ export async function getClient(): Promise<PoolClient> {
   return pool.connect();
 }
 
+export async function withAdvisoryLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const client = await getClient();
+  try {
+    await client.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
+    return await operation();
+  } finally {
+    await client.query('SELECT pg_advisory_unlock(hashtext($1))', [key]).catch(() => undefined);
+    client.release();
+  }
+}
+
 /**
  * Run `fn` inside a database transaction. The callback receives the
  * transaction client and may issue any queries on it. Returning a value
