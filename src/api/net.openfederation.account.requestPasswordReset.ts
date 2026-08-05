@@ -6,14 +6,32 @@ import { auditLog } from '../db/audit.js';
 import { sendEmail } from '../email/email-service.js';
 import { passwordResetEmail } from '../email/templates.js';
 import { config } from '../config.js';
+import { hashPassword } from '../auth/password.js';
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const TIMING_PAD_PASSWORD = 'OpenFederation-password-reset-timing-pad';
+
+function deliverResetEmail(user: { id: string; handle: string; email: string }, token: string, ip: string | undefined): void {
+  const baseUrl = config.pds.serviceUrl || `http://localhost:${config.port}`;
+  const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
+  // Email delivery is deliberately outside the request timing path. SMTP
+  // latency must not reveal whether an identifier belongs to a local account.
+  void (async () => {
+    try {
+      await sendEmail(user.email, 'Password Reset — OpenFederation', passwordResetEmail(user.handle, resetUrl, 60));
+      await auditLog('account.password.reset.request', null, user.id, { email: user.email, ip });
+    } catch (error) {
+      console.error('Error delivering password reset email:', error);
+    }
+  })();
+}
 
 export default async function requestPasswordReset(req: Request, res: Response): Promise<void> {
   try {
     const { identifier } = req.body || {};
     if (!identifier) {
-      // Always return success to avoid leaking info
+      await hashPassword(TIMING_PAD_PASSWORD);
       res.status(200).json({ success: true });
       return;
     }
@@ -27,7 +45,12 @@ export default async function requestPasswordReset(req: Request, res: Response):
       [normalized]
     );
 
-    // Always return success — don't leak whether user exists
+    // Equalize the CPU cost for all requests before branching on account
+    // existence. This prevents a fast SELECT-only miss from being compared to
+    // an existing account's reset workflow.
+    await hashPassword(TIMING_PAD_PASSWORD);
+
+    // Always return success — don't leak whether user exists.
     if (userResult.rows.length === 0 || userResult.rows[0].auth_type === 'external') {
       res.status(200).json({ success: true });
       return;
@@ -52,23 +75,8 @@ export default async function requestPasswordReset(req: Request, res: Response):
       [user.id, tokenHash, expiresAt.toISOString()]
     );
 
-    // Build reset URL
-    const baseUrl = config.pds.serviceUrl || `http://localhost:${config.port}`;
-    const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
-
-    // Send email
-    await sendEmail(
-      user.email,
-      'Password Reset — OpenFederation',
-      passwordResetEmail(user.handle, resetUrl, 60)
-    );
-
-    await auditLog('account.password.reset.request', null, user.id, {
-      email: user.email,
-      ip: req.ip,
-    });
-
     res.status(200).json({ success: true });
+    deliverResetEmail(user, token, req.ip);
   } catch (error) {
     console.error('Error requesting password reset:', error);
     // Still return success to avoid leaking info via error responses
