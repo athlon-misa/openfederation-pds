@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import crypto from 'crypto';
 import { watermarkJSON, extractWatermark } from '../../src/disclosure/watermark.js';
 
 describe('Watermark', () => {
@@ -15,7 +16,8 @@ describe('Watermark', () => {
       expect(result._watermark.requesterDid).toBe(requesterDid);
       expect(result._watermark.watermarkId).toBe(watermarkId);
       expect(result._watermark.disclosedAt).toBe(disclosedAt);
-      expect(result._watermark.hash).toMatch(/^[0-9a-f]{64}$/);
+      expect(result._watermark.version).toBe(2);
+      expect(result._watermark.mac).toMatch(/^[0-9a-f]{64}$/);
 
       const extracted = extractWatermark(result);
       expect(extracted).not.toBeNull();
@@ -34,13 +36,13 @@ describe('Watermark', () => {
   });
 
   describe('extractWatermark', () => {
-    it('should verify hash integrity', () => {
+    it('should verify HMAC integrity', () => {
       const data = { role: 'moderator' };
       const watermarked = watermarkJSON(data, requesterDid, watermarkId, disclosedAt);
       const extracted = extractWatermark(watermarked);
 
       expect(extracted).not.toBeNull();
-      expect(extracted!.hash).toBe(watermarked._watermark.hash);
+      expect(extracted!.mac).toBe(watermarked._watermark.mac);
     });
 
     it('should return null for tampered watermark', () => {
@@ -53,14 +55,28 @@ describe('Watermark', () => {
       expect(extracted).toBeNull();
     });
 
-    it('should return null for tampered hash', () => {
+    it('should return null for a tampered payload', () => {
+      const watermarked = watermarkJSON({ role: 'athlete', score: 10 }, requesterDid, watermarkId, disclosedAt);
+      watermarked.score = 99;
+      expect(extractWatermark(watermarked)).toBeNull();
+    });
+
+    it('should return null for a forged public hash', () => {
       const data = { role: 'athlete' };
       const watermarked = watermarkJSON(data, requesterDid, watermarkId, disclosedAt);
 
-      // Tamper with the hash directly
-      watermarked._watermark.hash = 'deadbeef'.repeat(8);
+      // A recipient can calculate this old public format, but not the HMAC.
+      watermarked._watermark.mac = crypto.createHash('sha256')
+        .update(`${requesterDid}:${watermarkId}:${disclosedAt}`)
+        .digest('hex');
       const extracted = extractWatermark(watermarked);
       expect(extracted).toBeNull();
+    });
+
+    it('should return null, rather than throw, for a malformed MAC', () => {
+      const watermarked = watermarkJSON({ role: 'athlete' }, requesterDid, watermarkId, disclosedAt);
+      watermarked._watermark.mac = 'not-hex';
+      expect(extractWatermark(watermarked)).toBeNull();
     });
 
     it('should return null for missing watermark', () => {
