@@ -6,18 +6,18 @@
  */
 
 import { JsonRpcProvider } from 'ethers';
-import type { ChainAdapter, GovernanceProof, VerificationResult } from '../chain-adapter.js';
+import type { GovernanceAttestor, GovernanceProof, VerificationResult } from '../attestor.js';
 
 const MIN_CONFIRMATIONS = 6;
 
 /**
- * Create an EVM adapter for a specific chain.
+ * Create an EVM attestor for a specific chain.
  *
  * @param chainId  CAIP-2 chain ID (e.g., "eip155:137")
  * @param name     Human-readable chain name (e.g., "Polygon Mainnet")
  * @param rpcUrl   JSON-RPC endpoint URL
  */
-export function createEvmAdapter(chainId: string, name: string, rpcUrl: string): ChainAdapter {
+export function createEvmAdapter(chainId: string, name: string, rpcUrl: string): GovernanceAttestor {
   const provider = new JsonRpcProvider(rpcUrl);
 
   return {

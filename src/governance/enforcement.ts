@@ -1,5 +1,6 @@
 import { query } from '../db/client.js';
 import type { OracleContext } from '../auth/oracle-guard.js';
+import { resolveAttestor, type GovernanceProof } from './attestor.js';
 
 /** Collections that MUST always be protected — cannot be removed from governance */
 const MANDATORY_PROTECTED = [
@@ -28,6 +29,17 @@ export interface GovernanceResult {
 }
 
 /**
+ * Optional request to consult a registered attestor while enforcing governance.
+ * Callers only pass this when external verification is actually being requested
+ * (e.g. an Oracle-submitted proof); when omitted, the attestor registry is never
+ * touched, regardless of whether an attestor happens to be registered.
+ */
+export interface AttestationRequest {
+  chainId: string;
+  proof: GovernanceProof;
+}
+
+/**
  * Check if a write to a community repo is allowed under the current governance model.
  * Call AFTER permission checks but BEFORE engine.putRecord/deleteRecord.
  */
@@ -36,7 +48,24 @@ export async function enforceGovernance(
   collection: string,
   action: 'write' | 'delete',
   oracleContext?: OracleContext | null,
+  attestation?: AttestationRequest,
 ): Promise<GovernanceResult> {
+  // ── Attestor hook (single seam core has into the attestor registry) ──
+  // Only consulted when a caller explicitly requests external verification.
+  // If no attestor is registered for the requested chain, this is a no-op —
+  // the path is skipped entirely. If the attestor throws, the failure is
+  // swallowed: attestor availability/behavior never changes a governance
+  // outcome in this task (later tasks may build on this hook's result).
+  if (attestation) {
+    const attestor = resolveAttestor(attestation.chainId);
+    if (attestor) {
+      try {
+        await attestor.verifyProof(attestation.proof);
+      } catch {
+        // Never let attestor failures affect governance enforcement.
+      }
+    }
+  }
   if (
     collection === 'net.openfederation.community.settings'
     && action === 'delete'

@@ -3,7 +3,7 @@ import { cidForRecord } from '@atproto/repo';
 import type { OracleContext } from '../auth/oracle-guard.js';
 import { query, withTransaction } from '../db/client.js';
 import { HttpError } from '../xrpc/errors.js';
-import type { GovernanceProof } from './chain-adapter.js';
+import type { GovernanceProof } from './attestor.js';
 import type { GovernanceResult } from './enforcement.js';
 
 export interface OracleMutationAudit {

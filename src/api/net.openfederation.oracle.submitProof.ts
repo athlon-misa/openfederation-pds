@@ -1,10 +1,10 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireOracleAuth } from '../auth/guards.js';
-import { getAdapter } from '../governance/chain-adapter.js';
+import { resolveAttestor } from '../governance/attestor.js';
 import { getCachedVerification, cacheVerification } from '../governance/proof-cache.js';
 import { auditLog } from '../db/audit.js';
-import type { GovernanceProof } from '../governance/chain-adapter.js';
+import type { GovernanceProof } from '../governance/attestor.js';
 
 export default async function submitProof(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -61,8 +61,8 @@ export default async function submitProof(req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // 4. Find adapter
-    const adapter = getAdapter(chainId);
+    // 4. Find attestor
+    const adapter = resolveAttestor(chainId);
 
     if (!adapter) {
       // Graceful fallback: trust the Oracle, log as unverified

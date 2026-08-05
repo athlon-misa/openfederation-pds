@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import {
-  registerAdapter,
-  getAdapter,
-  listAdapters,
-  clearAdapters,
-} from '../../src/governance/chain-adapter.js';
-import type { ChainAdapter, GovernanceProof, VerificationResult } from '../../src/governance/chain-adapter.js';
+  registerAttestor,
+  resolveAttestor,
+  listAttestors,
+  clearAttestors,
+} from '../../src/governance/attestor.js';
+import type { GovernanceAttestor, GovernanceProof, VerificationResult } from '../../src/governance/attestor.js';
 import {
   xrpcPost,
   getAdminToken,
@@ -15,41 +15,41 @@ import {
   uniqueHandle,
 } from './helpers.js';
 
-// ── Unit Tests: Adapter Registry ─────────────────────────────────
+// ── Unit Tests: Attestor Registry ─────────────────────────────────
 
-describe('Chain Adapter Registry', () => {
+describe('Attestor Registry', () => {
   afterAll(() => {
-    clearAdapters();
+    clearAttestors();
   });
 
   it('should register and retrieve an adapter', () => {
-    const adapter: ChainAdapter = {
+    const adapter: GovernanceAttestor = {
       chainId: 'eip155:1',
       name: 'Ethereum Mainnet',
       verifyProof: async () => ({ verified: true }),
     };
-    registerAdapter(adapter);
-    expect(getAdapter('eip155:1')).toBe(adapter);
+    registerAttestor(adapter);
+    expect(resolveAttestor('eip155:1')).toBe(adapter);
   });
 
   it('should return undefined for unregistered chain', () => {
-    expect(getAdapter('eip155:999999')).toBeUndefined();
+    expect(resolveAttestor('eip155:999999')).toBeUndefined();
   });
 
   it('should list all registered adapters', () => {
-    clearAdapters();
-    registerAdapter({
+    clearAttestors();
+    registerAttestor({
       chainId: 'eip155:1',
       name: 'Ethereum',
       verifyProof: async () => ({ verified: true }),
     });
-    registerAdapter({
+    registerAttestor({
       chainId: 'eip155:137',
       name: 'Polygon',
       verifyProof: async () => ({ verified: true }),
     });
 
-    const list = listAdapters();
+    const list = listAttestors();
     expect(list).toHaveLength(2);
     expect(list).toEqual(
       expect.arrayContaining([
@@ -60,33 +60,33 @@ describe('Chain Adapter Registry', () => {
   });
 
   it('should overwrite adapter on duplicate chainId', () => {
-    const adapter1: ChainAdapter = {
+    const adapter1: GovernanceAttestor = {
       chainId: 'eip155:42',
       name: 'Old',
       verifyProof: async () => ({ verified: false }),
     };
-    const adapter2: ChainAdapter = {
+    const adapter2: GovernanceAttestor = {
       chainId: 'eip155:42',
       name: 'New',
       verifyProof: async () => ({ verified: true }),
     };
-    registerAdapter(adapter1);
-    registerAdapter(adapter2);
+    registerAttestor(adapter1);
+    registerAttestor(adapter2);
 
-    const fetched = getAdapter('eip155:42');
+    const fetched = resolveAttestor('eip155:42');
     expect(fetched?.name).toBe('New');
-    expect(listAdapters().filter(a => a.chainId === 'eip155:42')).toHaveLength(1);
+    expect(listAttestors().filter(a => a.chainId === 'eip155:42')).toHaveLength(1);
   });
 
-  it('clearAdapters should remove all adapters', () => {
-    registerAdapter({
+  it('clearAttestors should remove all adapters', () => {
+    registerAttestor({
       chainId: 'eip155:100',
       name: 'Test',
       verifyProof: async () => ({ verified: true }),
     });
-    clearAdapters();
-    expect(listAdapters()).toHaveLength(0);
-    expect(getAdapter('eip155:100')).toBeUndefined();
+    clearAttestors();
+    expect(listAttestors()).toHaveLength(0);
+    expect(resolveAttestor('eip155:100')).toBeUndefined();
   });
 });
 
@@ -94,7 +94,7 @@ describe('Chain Adapter Registry', () => {
 
 describe('EVM Adapter (mocked)', () => {
   afterAll(() => {
-    clearAdapters();
+    clearAttestors();
   });
 
   function createMockEvmAdapter(
@@ -105,7 +105,7 @@ describe('EVM Adapter (mocked)', () => {
       blockNumber?: number;
       error?: Error;
     }
-  ): ChainAdapter {
+  ): GovernanceAttestor {
     // We create a mock adapter that simulates what the real EVM adapter does
     // without requiring an actual ethers provider / RPC endpoint
     return {
@@ -317,7 +317,7 @@ describe('submitProof Endpoint', () => {
       if (!plcAvailable) return;
 
       // Clear adapters to ensure no adapter is available
-      clearAdapters();
+      clearAttestors();
 
       const res = await xrpcPost('net.openfederation.oracle.submitProof', {
         chainId: 'eip155:99999',
@@ -349,7 +349,7 @@ describe('submitProof Endpoint', () => {
       if (!plcAvailable) return;
 
       // Register a mock adapter that always verifies
-      registerAdapter({
+      registerAttestor({
         chainId: 'eip155:77777',
         name: 'Mock Chain',
         verifyProof: async () => ({
@@ -372,13 +372,13 @@ describe('submitProof Endpoint', () => {
       expect(res.body.cached).toBe(false);
 
       // Cleanup
-      clearAdapters();
+      clearAttestors();
     });
 
     it('should return adapter verification failure', async () => {
       if (!plcAvailable) return;
 
-      registerAdapter({
+      registerAttestor({
         chainId: 'eip155:88888',
         name: 'Failing Chain',
         verifyProof: async () => ({
@@ -397,7 +397,7 @@ describe('submitProof Endpoint', () => {
       expect(res.body.error).toContain('reverted');
       expect(res.body.verificationMethod).toBe('on-chain');
 
-      clearAdapters();
+      clearAttestors();
     });
   });
 });

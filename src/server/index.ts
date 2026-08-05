@@ -10,7 +10,7 @@ import { createOAuthProvider } from '../oauth/oauth-setup.js';
 import { createOAuthRouter } from '../oauth/oauth-routes.js';
 import { createExternalOAuthClient } from '../oauth/external-client.js';
 import { createExternalOAuthRouter } from '../oauth/external-routes.js';
-import { registerAdapter } from '../governance/chain-adapter.js';
+import { registerAttestor } from '../governance/attestor.js';
 import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
@@ -348,7 +348,7 @@ export async function startServer(): Promise<void> {
       for (const { chainId, rpcUrl } of config.chains.adapters) {
         // Derive a human-readable name from the CAIP-2 chain ID
         const name = `EVM ${chainId}`;
-        registerAdapter(createEvmAdapter(chainId, name, rpcUrl));
+        registerAttestor(createEvmAdapter(chainId, name, rpcUrl));
         // Mask RPC URL to avoid leaking API keys in logs
         const maskedUrl = new URL(rpcUrl).hostname;
         console.log(`Registered chain adapter: ${name} (${maskedUrl})`);

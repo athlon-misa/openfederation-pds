@@ -5,8 +5,8 @@
  * on-chain adapter verification, caching, and oracle-trust fallback.
  * Requires PLC directory.
  */
-import { registerAdapter, clearAdapters } from '../../src/governance/chain-adapter.js';
-import type { GovernanceProof, VerificationResult } from '../../src/governance/chain-adapter.js';
+import { registerAttestor, clearAttestors } from '../../src/governance/attestor.js';
+import type { GovernanceProof, VerificationResult } from '../../src/governance/attestor.js';
 import {
   isPLCAvailable, getAdminToken, createTestUser, uniqueHandle,
   xrpcAuthPost, createOracleForCommunity,
@@ -24,7 +24,7 @@ beforeAll(async () => {
   if (!plcAvailable) return;
 
   // Register mock adapter for eip155:31337
-  registerAdapter({
+  registerAttestor({
     chainId: 'eip155:31337',
     name: 'MockLocalnet',
     async verifyProof(_proof: GovernanceProof): Promise<VerificationResult> {
@@ -44,7 +44,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  clearAdapters();
+  clearAttestors();
 });
 
 describe('Chain Proof Verification', () => {
