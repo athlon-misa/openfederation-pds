@@ -61,8 +61,8 @@ export function AppSidebar() {
   const hasAdminAccess = useAuthStore((s) => s.hasAdminAccess);
   const logout = useAuthStore((s) => s.logout);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 

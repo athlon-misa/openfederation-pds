@@ -4,7 +4,7 @@ import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
-import { query } from '../db/client.js';
+import { query, withAdvisoryLock } from '../db/client.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
@@ -30,6 +30,7 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     );
     if (!hasPermission) return;
 
+    return await withAdvisoryLock(`community-proposal:${communityDid}:${proposalRkey}`, async () => {
     const proposalResult = await query<{ record: any }>(
       `SELECT record FROM records_index
        WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
@@ -146,6 +147,7 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       recorded: true,
       status: updatedProposal.status,
       ...(applied ? { applied: true } : {}),
+    });
     });
   } catch (error) {
     console.error('Error in voteOnProposal:', error);

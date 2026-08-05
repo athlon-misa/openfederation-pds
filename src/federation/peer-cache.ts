@@ -1,5 +1,18 @@
 import { config } from '../config.js';
 import { isPrivateHost } from './remote-verify.js';
+import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
+
+export const MAX_PEER_RESPONSE_BYTES = 256 * 1024;
+export const MAX_COMMUNITIES_PER_PEER = 100;
+export const MAX_CACHED_COMMUNITIES = 500;
+
+/** Fetch JSON from a peer only after validating its destination and response size. */
+export async function fetchPeerJson(url: string, signal: AbortSignal): Promise<unknown | null> {
+  const safeUrl = await assertPublicHttpsUrl(url);
+  const response = await fetch(safeUrl, { signal, redirect: 'error' });
+  if (!response.ok) return null;
+  return JSON.parse(await readLimitedText(response, MAX_PEER_RESPONSE_BYTES));
+}
 
 /**
  * In-memory TTL cache for peer PDS data.
@@ -75,12 +88,9 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
           const timeout = setTimeout(() => controller.abort(), 5000);
 
           try {
-            const url = `${peerUrl}/xrpc/net.openfederation.community.listAll?limit=100&visibility=public`;
-            const response = await fetch(url, { signal: controller.signal });
-            if (!response.ok) return [];
-
-            const data = await response.json() as { communities?: any[] };
-            if (!Array.isArray(data.communities)) return [];
+            const url = new URL('/xrpc/net.openfederation.community.listAll?limit=100&visibility=public', peerUrl);
+            const data = await fetchPeerJson(url.toString(), controller.signal) as { communities?: unknown } | null;
+            if (!data || !Array.isArray(data.communities)) return [];
 
             let peerHostname: string;
             try {
@@ -91,7 +101,7 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
 
             const webUrl = peerWebUrls.get(peerUrl) || null;
 
-            return data.communities.map((c: any): PeerCommunity => ({
+            return data.communities.slice(0, MAX_COMMUNITIES_PER_PEER).map((c: any): PeerCommunity => ({
               did: c.did,
               handle: c.handle,
               didMethod: c.didMethod,
@@ -114,8 +124,12 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
       const communities: PeerCommunity[] = [];
       for (const result of results) {
         if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-          communities.push(...result.value);
+          for (const community of result.value) {
+            if (communities.length >= MAX_CACHED_COMMUNITIES) break;
+            communities.push(community);
+          }
         }
+        if (communities.length >= MAX_CACHED_COMMUNITIES) break;
       }
 
       cachedCommunities = communities;
@@ -173,18 +187,16 @@ export async function getCachedPeerInfo(): Promise<PeerInfo[]> {
           }
 
           try {
-            const url = `${peerUrl}/xrpc/net.openfederation.server.getPublicConfig`;
-            const response = await fetch(url, { signal: controller.signal });
-            if (!response.ok) {
-              return { hostname: peerHostname, serviceUrl: peerUrl, webUrl: null, healthy: false };
-            }
-
-            const data = await response.json() as {
+            const url = new URL('/xrpc/net.openfederation.server.getPublicConfig', peerUrl);
+            const data = await fetchPeerJson(url.toString(), controller.signal) as {
               hostname?: string;
               serviceUrl?: string;
               webUrl?: string | null;
               stats?: { activeCommunities?: number };
-            };
+            } | null;
+            if (!data) {
+              return { hostname: peerHostname, serviceUrl: peerUrl, webUrl: null, healthy: false };
+            }
 
             return {
               hostname: data.hostname || peerHostname,

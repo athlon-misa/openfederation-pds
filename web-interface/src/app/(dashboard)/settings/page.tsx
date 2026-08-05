@@ -60,7 +60,7 @@ export default function SettingsPage() {
       }
 
       toast.success('Password changed successfully. Please log in again.');
-      logout();
+      await logout();
       router.push('/login');
     } catch {
       setError('An unexpected error occurred');

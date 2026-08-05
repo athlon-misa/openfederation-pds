@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { xrpcAuthGet, xrpcPost, getAdminHandle, getAdminPassword } from './helpers.js';
+import { xrpcAuthGet, xrpcAuthPost, xrpcPost, getAdminHandle, getAdminPassword } from './helpers.js';
 import { query } from '../../src/db/client.js';
 
 describe('com.atproto.server.createSession', () => {
@@ -79,6 +79,21 @@ describe('com.atproto.server.createSession', () => {
       await query('DROP TRIGGER IF EXISTS test_refresh_rotation_pause ON sessions');
       await query('DROP FUNCTION IF EXISTS test_refresh_rotation_pause()');
     }
+  });
+
+  it('revokes a refresh token when its session is deleted', async () => {
+    const login = await xrpcPost('com.atproto.server.createSession', {
+      identifier: handle,
+      password,
+    });
+    expect(login.status).toBe(200);
+
+    const refreshJwt = login.body.refreshJwt;
+    const logout = await xrpcAuthPost('com.atproto.server.deleteSession', login.body.accessJwt, { refreshJwt });
+    expect(logout.status).toBe(200);
+
+    const replay = await xrpcPost('com.atproto.server.refreshSession', { refreshJwt });
+    expect(replay.status).toBe(401);
   });
 
   // === VALIDATION ===
