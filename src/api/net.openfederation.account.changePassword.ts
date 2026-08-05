@@ -83,7 +83,7 @@ export default async function changePassword(req: AuthRequest, res: Response): P
   const newHash = await hashPassword(newPassword);
 
   await query(
-    'UPDATE users SET password_hash = $1 WHERE id = $2',
+    'UPDATE users SET password_hash = $1, token_version = token_version + 1 WHERE id = $2',
     [newHash, req.auth.userId]
   );
 

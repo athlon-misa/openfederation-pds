@@ -14,6 +14,8 @@ export interface AuthContext {
   did: string;
   status: UserStatus;
   roles: UserRole[];
+  /** Incremented whenever previously issued local access JWTs must be revoked. */
+  tokenVersion?: number;
   authMethod?: 'local' | 'oauth' | 'service-auth';
 }
 

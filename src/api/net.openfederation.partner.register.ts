@@ -115,6 +115,7 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
       did: result.identity.did,
       status: 'approved' as UserStatus,
       roles: ['user'],
+      tokenVersion: 0,
     });
 
     const { token: refreshJwt, hash } = generateRefreshToken();

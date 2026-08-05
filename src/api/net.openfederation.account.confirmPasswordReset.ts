@@ -39,7 +39,7 @@ export default async function confirmPasswordReset(req: Request, res: Response):
 
     // Update password
     const newHash = await hashPassword(newPassword);
-    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, resetToken.user_id]);
+    await query('UPDATE users SET password_hash = $1, token_version = token_version + 1 WHERE id = $2', [newHash, resetToken.user_id]);
 
     // Mark token as used
     await query('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1', [resetToken.id]);

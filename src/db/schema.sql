@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
     locked_until TIMESTAMP WITH TIME ZONE,
     recovery_tier INTEGER DEFAULT 1,
+    token_version INTEGER NOT NULL DEFAULT 0,
     recovery_email_verified BOOLEAN DEFAULT false
     -- FK to partner_keys(id) added after partner_keys table creation
 );

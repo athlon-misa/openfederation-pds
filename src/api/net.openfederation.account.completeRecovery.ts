@@ -45,7 +45,7 @@ export default async function completeRecovery(req: Request, res: Response): Pro
       );
       if (userResult.rows.length === 0) return null;
       const user = userResult.rows[0];
-      await client.query('UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL WHERE id = $2', [newHash, user.id]);
+      await client.query('UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL, token_version = token_version + 1 WHERE id = $2', [newHash, user.id]);
       await client.query(`UPDATE recovery_attempts SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1`, [attempt.id]);
       const sessions = await client.query(`UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL`, [user.id]);
       return { attempt, user, sessionsRevoked: sessions.rowCount || 0 };

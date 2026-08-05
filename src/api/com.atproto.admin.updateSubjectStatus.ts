@@ -86,7 +86,7 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'takendown', status_changed_at = CURRENT_TIMESTAMP,
+           SET status = 'takendown', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = $2
            WHERE id = $3`,
           [req.auth!.userId, takedown.ref || null, user.id]
@@ -112,7 +112,7 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'approved', status_changed_at = CURRENT_TIMESTAMP,
+           SET status = 'approved', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = NULL
            WHERE id = $2`,
           [req.auth!.userId, user.id]
@@ -141,7 +141,7 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'suspended', status_changed_at = CURRENT_TIMESTAMP,
+           SET status = 'suspended', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = $2
            WHERE id = $3`,
           [req.auth!.userId, deactivated.ref || null, user.id]
@@ -167,7 +167,7 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'approved', status_changed_at = CURRENT_TIMESTAMP,
+           SET status = 'approved', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = NULL
            WHERE id = $2`,
           [req.auth!.userId, user.id]
