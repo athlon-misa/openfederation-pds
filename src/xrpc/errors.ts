@@ -14,6 +14,7 @@ const STANDARD_XRPC_ERROR_CODES = new Set([
   'Forbidden',
   'RateLimitExceeded',
   'MethodNotFound',
+  'MethodNotImplemented',
   'AccountSuspended',
   'AccountTakenDown',
   'AccountDeactivated',

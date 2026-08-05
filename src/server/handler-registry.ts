@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type rateLimit from 'express-rate-limit';
 import type { LexiconNsid } from '../lexicon/generated.js';
 import { authLimiter, registrationLimiter, createLimiter, discoveryLimiter, walletSignLimiter } from './rate-limits.js';
+import { isChainModuleEnabled } from '../config.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
 import getRecord from '../api/com.atproto.repo.getRecord.js';
 import resolveHandle from '../api/com.atproto.identity.resolveHandle.js';
@@ -168,7 +169,18 @@ import listRsvpsHandler from '../api/net.openfederation.calendar.listRsvps.js';
 
 // XRPC Handler type
 export type XRPCHandler = (req: Request, res: Response) => Promise<void> | void;
-export type HandlerEntry = { handler: XRPCHandler; limiter?: ReturnType<typeof rateLimit> };
+export type HandlerEntry = {
+  handler: XRPCHandler;
+  limiter?: ReturnType<typeof rateLimit>;
+  /**
+   * Module-contributed conditional registration. When present, the router
+   * checks this before dispatching; a `false` result is treated as the
+   * method not existing on this server build (MethodNotImplemented), not
+   * as a runtime authorization failure. Purely config-driven — no request
+   * state is consulted.
+   */
+  enabledWhen?: () => boolean;
+};
 
 // Static handler registry (frozen after initialization to prevent runtime modification)
 const handlers = Object.freeze({
@@ -341,13 +353,16 @@ const handlers = Object.freeze({
   'net.openfederation.admin.createVerificationChallenge': { handler: createVerificationChallenge },
   'net.openfederation.admin.verifyChallenge': { handler: verifyChallenge },
 
-  // Oracle credential management (admin only)
-  'net.openfederation.oracle.createCredential': { handler: createOracleCredential },
-  'net.openfederation.oracle.listCredentials': { handler: listOracleCredentials },
-  'net.openfederation.oracle.revokeCredential': { handler: revokeOracleCredential },
+  // Oracle credential management (admin only) — chain-module surface; gated
+  // behind isChainModuleEnabled() (see src/config.ts). A pure-federation PDS
+  // carries zero chain surface, so these register only when the chain
+  // module is activated (CHAIN_ADAPTERS or GOVERNANCE_CHAIN_ENABLED=true).
+  'net.openfederation.oracle.createCredential': { handler: createOracleCredential, enabledWhen: isChainModuleEnabled },
+  'net.openfederation.oracle.listCredentials': { handler: listOracleCredentials, enabledWhen: isChainModuleEnabled },
+  'net.openfederation.oracle.revokeCredential': { handler: revokeOracleCredential, enabledWhen: isChainModuleEnabled },
 
   // Oracle proof verification
-  'net.openfederation.oracle.submitProof': { handler: submitProof },
+  'net.openfederation.oracle.submitProof': { handler: submitProof, enabledWhen: isChainModuleEnabled },
 
   // Vault service — threshold key custody
   'net.openfederation.vault.requestShareRelease': { handler: vaultRequestShareRelease, limiter: authLimiter },

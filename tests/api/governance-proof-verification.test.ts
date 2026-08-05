@@ -6,6 +6,7 @@ import {
   clearAttestors,
 } from '../../src/governance/attestor.js';
 import type { GovernanceAttestor, GovernanceProof, VerificationResult } from '../../src/governance/attestor.js';
+import { setChainModuleEnabledForTests } from '../../src/config.js';
 import {
   xrpcPost,
   getAdminToken,
@@ -14,6 +15,19 @@ import {
   isPLCAvailable,
   uniqueHandle,
 } from './helpers.js';
+
+// These tests exercise the net.openfederation.oracle.* endpoints, which are
+// gated behind chain-module activation (#191). Force the module on for this
+// file's duration so the endpoints behave as before the gate was added;
+// restore afterwards so the module-disabled regression gate (the default
+// test env) is undisturbed for the rest of the suite.
+beforeAll(() => {
+  setChainModuleEnabledForTests(true);
+});
+
+afterAll(() => {
+  setChainModuleEnabledForTests(undefined);
+});
 
 // ── Unit Tests: Attestor Registry ─────────────────────────────────
 

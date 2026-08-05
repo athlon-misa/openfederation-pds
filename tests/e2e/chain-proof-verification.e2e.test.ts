@@ -7,6 +7,7 @@
  */
 import { registerAttestor, clearAttestors } from '../../src/governance/attestor.js';
 import type { GovernanceProof, VerificationResult } from '../../src/governance/attestor.js';
+import { setChainModuleEnabledForTests } from '../../src/config.js';
 import {
   isPLCAvailable, getAdminToken, createTestUser, uniqueHandle,
   xrpcAuthPost, createOracleForCommunity,
@@ -20,6 +21,10 @@ let oracleKey: string;
 const TX_HASH = '0xdeadbeef1234567890abcdef';
 
 beforeAll(async () => {
+  // net.openfederation.oracle.* endpoints are gated behind chain-module
+  // activation (#191). Force the module on for this file's duration only.
+  setChainModuleEnabledForTests(true);
+
   plcAvailable = await isPLCAvailable();
   if (!plcAvailable) return;
 
@@ -45,6 +50,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   clearAttestors();
+  setChainModuleEnabledForTests(undefined);
 });
 
 describe('Chain Proof Verification', () => {
