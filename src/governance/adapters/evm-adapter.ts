@@ -8,6 +8,8 @@
 import { JsonRpcProvider } from 'ethers';
 import type { ChainAdapter, GovernanceProof, VerificationResult } from '../chain-adapter.js';
 
+const MIN_CONFIRMATIONS = 6;
+
 /**
  * Create an EVM adapter for a specific chain.
  *
@@ -66,7 +68,15 @@ export function createEvmAdapter(chainId: string, name: string, rpcUrl: string):
             blockTimestamp = block.timestamp;
           }
           const currentBlock = await provider.getBlockNumber();
-          confirmations = currentBlock - receipt.blockNumber;
+          confirmations = currentBlock - receipt.blockNumber + 1;
+          if (confirmations < MIN_CONFIRMATIONS) {
+            return {
+              verified: false,
+              error: `Transaction has only ${confirmations} confirmation(s); ${MIN_CONFIRMATIONS} required`,
+              blockTimestamp,
+              confirmations,
+            };
+          }
         } catch {
           // Non-fatal: we still verified the tx, just can't get extras
         }
