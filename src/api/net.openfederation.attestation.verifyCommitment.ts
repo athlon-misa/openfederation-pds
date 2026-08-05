@@ -21,11 +21,12 @@ export default async function verifyCommitment(req: Request, res: Response): Pro
     // Look up encryption metadata
     const encResult = await query<{
       commitment_hash: string;
+      commitment_salt: string | null;
       schema_hash: string | null;
       visibility: string;
       created_at: string;
     }>(
-      'SELECT commitment_hash, schema_hash, visibility, created_at FROM attestation_encryption WHERE community_did = $1 AND rkey = $2',
+      'SELECT commitment_hash, commitment_salt, schema_hash, visibility, created_at FROM attestation_encryption WHERE community_did = $1 AND rkey = $2',
       [communityDid, rkey]
     );
 
@@ -53,6 +54,10 @@ export default async function verifyCommitment(req: Request, res: Response): Pro
     };
     if (row.schema_hash) {
       commitment.schemaHash = row.schema_hash;
+    }
+    if (row.commitment_salt) {
+      commitment.salt = row.commitment_salt;
+      commitment.version = '2';
     }
 
     res.status(200).json({

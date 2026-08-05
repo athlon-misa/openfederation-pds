@@ -314,7 +314,7 @@ export interface AttestationResult {
 }
 
 export interface CommitmentVerification {
-  commitment: { hash: string; schemaHash?: string };
+  commitment: { hash: string; schemaHash?: string; salt?: string; version?: string };
   issuerDid: string;
   visibility: string;
   issuedAt?: string;

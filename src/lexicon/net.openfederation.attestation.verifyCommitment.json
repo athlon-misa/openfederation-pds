@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.attestation.verifyCommitment",
-  "revision": 1,
+  "revision": 2,
   "description": "Verify a private attestation's commitment hash without revealing content.",
   "defs": {
     "main": {
@@ -47,7 +47,7 @@
       "properties": {
         "commitment": {
           "type": "unknown",
-          "description": "Object containing hash and optional schemaHash."
+          "description": "Object containing hash, optional schemaHash, and salt/version for salted commitments."
         },
         "issuerDid": {
           "type": "string",
