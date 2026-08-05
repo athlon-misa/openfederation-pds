@@ -142,7 +142,7 @@ export type NetOpenfederationAccountConfirmPasswordResetError = "InvalidToken" |
 
 export type NetOpenfederationAccountExportInput = JsonObject;
 export type NetOpenfederationAccountExportOutput = JsonObject;
-export type NetOpenfederationAccountExportError = "Forbidden" | "NotFound";
+export type NetOpenfederationAccountExportError = "ExportTooLarge" | "Forbidden" | "NotFound";
 
 export type NetOpenfederationAccountGetProfileInput = {
   "did": string;
@@ -2481,7 +2481,7 @@ export const lexiconContracts = {
   'net.openfederation.account.changePassword': { revision: 1, errors: ["InvalidPassword", "NotFound", "WeakPassword"] as const },
   'net.openfederation.account.completeRecovery': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
   'net.openfederation.account.confirmPasswordReset': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
-  'net.openfederation.account.export': { revision: 2, errors: ["Forbidden", "NotFound"] as const },
+  'net.openfederation.account.export': { revision: 3, errors: ["ExportTooLarge", "Forbidden", "NotFound"] as const },
   'net.openfederation.account.getProfile': { revision: 1, errors: ["InvalidRequest", "ProfileNotFound"] as const },
   'net.openfederation.account.getSecurityLevel': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
