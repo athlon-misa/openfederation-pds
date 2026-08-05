@@ -168,7 +168,10 @@ describe('Community Governance', () => {
         againstVote = Promise.resolve(xrpcAuthPost('net.openfederation.community.voteOnProposal', voter2.accessJwt, inputAgainst));
         const deadline = Date.now() + 1_000;
         while (true) {
-          const waitingLocks = await lockClient.query<{ count: string }>("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted");
+          const waitingLocks = await lockClient.query<{ count: string }>(
+            "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND objid = hashtext($1)::bit(32)::bigint AND NOT granted",
+            [lockKey]
+          );
           if (Number(waitingLocks.rows[0].count) > 0) break;
           if (Date.now() >= deadline) throw new Error('Rejecting vote did not queue behind the proposal lock');
           await new Promise((resolve) => setTimeout(resolve, 10));
@@ -178,7 +181,11 @@ describe('Community Governance', () => {
         await lockClient.query('SELECT pg_advisory_unlock(hashtext($1))', [lockKey]);
         lockClient.release();
       }
-      await Promise.all([forVote, againstVote]);
+      const [forResult, againstResult] = await Promise.all([forVote, againstVote]);
+      expect(againstResult.status).toBe(200);
+      expect(againstResult.body.status).toBe('rejected');
+      expect(forResult.status).toBe(400);
+      expect(forResult.body.error).toBe('ProposalClosed');
 
       const resolved = await xrpcGet('net.openfederation.community.getProposal', { communityDid, rkey: proposal.body.rkey });
       expect(resolved.body.status).toBe('rejected');

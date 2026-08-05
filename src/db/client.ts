@@ -2,6 +2,7 @@ import { Pool, PoolClient, QueryResult } from 'pg';
 import { config } from '../config.js';
 
 let pool: Pool | null = null;
+let advisoryLockPool: Pool | null = null;
 
 export function getPool(): Pool {
   if (!pool) {
@@ -40,7 +41,21 @@ export async function getClient(): Promise<PoolClient> {
 }
 
 export async function withAdvisoryLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
-  const client = await getClient();
+  if (!advisoryLockPool) {
+    advisoryLockPool = new Pool({
+      host: config.database.host,
+      port: config.database.port,
+      database: config.database.database,
+      user: config.database.user,
+      password: config.database.password,
+      max: Math.max(1, Math.floor(config.database.maxPoolSize / 2)),
+      idleTimeoutMillis: config.database.idleTimeoutMs,
+      connectionTimeoutMillis: config.database.connectionTimeoutMs,
+      statement_timeout: config.database.statementTimeoutMs,
+      ssl: config.database.ssl ? { rejectUnauthorized: config.database.sslRejectUnauthorized } : undefined,
+    });
+  }
+  const client = await advisoryLockPool.connect();
   try {
     await client.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
     return await operation();
@@ -87,6 +102,10 @@ export async function closePool(): Promise<void> {
   if (pool) {
     await pool.end();
     pool = null;
+  }
+  if (advisoryLockPool) {
+    await advisoryLockPool.end();
+    advisoryLockPool = null;
   }
 }
 
