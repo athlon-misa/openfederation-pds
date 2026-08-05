@@ -1,0 +1,58 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.governance.vote",
+  "revision": 1,
+  "description": "A vote cast on a community governance proposal. Lives in the voter's own repo and is signed with the voter's key, so quorum can be verified by a third party without trusting the community's PDS.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Voter-signed governance vote record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["community", "proposal", "proposalCollection", "proposalRkey", "vote", "createdAt"],
+        "properties": {
+          "community": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community the proposal belongs to."
+          },
+          "proposal": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference (uri + cid) to the proposal record as it stood when the vote was cast."
+          },
+          "proposalCollection": {
+            "type": "string",
+            "format": "nsid",
+            "description": "Collection of the proposal record (net.openfederation.community.proposal)."
+          },
+          "proposalRkey": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Record key of the proposal record in the community repo."
+          },
+          "vote": {
+            "type": "string",
+            "knownValues": ["for", "against"],
+            "description": "The vote choice."
+          },
+          "castBy": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the actor who actually cast the vote. Present only for delegated votes, where it is the delegate's DID; absent for direct votes."
+          },
+          "delegation": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference to the net.openfederation.community.delegation record that authorised a delegated vote. Present only for delegated votes."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

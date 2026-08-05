@@ -5,6 +5,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query, withAdvisoryLock } from '../db/client.js';
+import { writeVoteRecords, type VoteRecordInput } from '../governance/vote-records.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
@@ -31,8 +32,8 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     if (!hasPermission) return;
 
     return await withAdvisoryLock(`community-proposal:${communityDid}:${proposalRkey}`, async () => {
-    const proposalResult = await query<{ record: any }>(
-      `SELECT record FROM records_index
+    const proposalResult = await query<{ record: any; cid: string }>(
+      `SELECT record, cid FROM records_index
        WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
       [communityDid, PROPOSAL_COLLECTION, proposalRkey]
     );
@@ -43,6 +44,9 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     }
 
     const proposal = proposalResult.rows[0].record;
+    // CID of the proposal as it stood when this vote was cast — the state the
+    // voter is attesting to, captured before the tally rewrites the record.
+    const proposalCid = proposalResult.rows[0].cid;
 
     if (proposal.status !== 'open') {
       res.status(400).json({ error: 'ProposalClosed', message: 'This proposal is no longer open for voting' });
@@ -73,9 +77,14 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       updatedProposal.votesAgainst = [...(proposal.votesAgainst || []), voterDid];
     }
 
+    // Vote records to dual-write into voter repos once the tally is committed.
+    const voteRecordInputs: VoteRecordInput[] = [
+      { voterDid, communityDid, proposalRkey, proposalCid, vote },
+    ];
+
     // Delegation counting: find members who delegated to this voter
-    const delegations = await query<{ record: any }>(
-      `SELECT record FROM records_index
+    const delegations = await query<{ record: any; rkey: string; cid: string }>(
+      `SELECT record, rkey, cid FROM records_index
        WHERE community_did = $1 AND collection = $2 AND record->>'delegateDid' = $3`,
       [communityDid, DELEGATION_COLLECTION, voterDid]
     );
@@ -91,6 +100,18 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       } else {
         updatedProposal.votesAgainst.push(delegatorDid);
       }
+      voteRecordInputs.push({
+        voterDid: delegatorDid,
+        communityDid,
+        proposalRkey,
+        proposalCid,
+        vote,
+        castBy: voterDid,
+        delegation: {
+          uri: `at://${communityDid}/${DELEGATION_COLLECTION}/${del.rkey}`,
+          cid: del.cid,
+        },
+      });
     }
 
     const settingsResult = await query<{ record: any }>(
@@ -138,6 +159,11 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       const keypair = await getKeypairForDid(communityDid);
       await engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, updatedProposal);
     }
+
+    // Dual-write: voter-signed vote records in each voter's own repo. The
+    // proposal record above stays the authoritative tally; failures here are
+    // logged inside writeVoteRecords and never change the response.
+    await writeVoteRecords(voteRecordInputs);
 
     await auditLog('community.proposal.vote', req.auth!.userId, communityDid, {
       rkey: proposalRkey, vote,

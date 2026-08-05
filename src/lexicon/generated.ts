@@ -1350,6 +1350,10 @@ export type NetOpenfederationForumThreadInput = undefined;
 export type NetOpenfederationForumThreadOutput = undefined;
 export type NetOpenfederationForumThreadError = never;
 
+export type NetOpenfederationGovernanceVoteInput = undefined;
+export type NetOpenfederationGovernanceVoteOutput = undefined;
+export type NetOpenfederationGovernanceVoteError = never;
+
 export type NetOpenfederationIdentityDeleteExternalKeyInput = {
   "rkey": string;
 };
@@ -2062,6 +2066,7 @@ export interface LexiconInputMap {
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsInput;
   'net.openfederation.forum.post': NetOpenfederationForumPostInput;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadInput;
+  'net.openfederation.governance.vote': NetOpenfederationGovernanceVoteInput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyInput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationInput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyInput;
@@ -2234,6 +2239,7 @@ export interface LexiconOutputMap {
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsOutput;
   'net.openfederation.forum.post': NetOpenfederationForumPostOutput;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadOutput;
+  'net.openfederation.governance.vote': NetOpenfederationGovernanceVoteOutput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyOutput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationOutput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyOutput;
@@ -2406,6 +2412,7 @@ export interface LexiconErrorMap {
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsError;
   'net.openfederation.forum.post': NetOpenfederationForumPostError;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadError;
+  'net.openfederation.governance.vote': NetOpenfederationGovernanceVoteError;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyError;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationError;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyError;
@@ -2580,6 +2587,7 @@ export const lexiconContracts = {
   'net.openfederation.forum.listThreads': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
+  'net.openfederation.governance.vote': { revision: 1, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
   'net.openfederation.identity.getDidAugmentation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.identity.getExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
