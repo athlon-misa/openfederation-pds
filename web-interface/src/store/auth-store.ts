@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { setTokenGetter } from '@/lib/api-client';
-import { createSession, refreshSession, getSession, resolveExternal, completeExternalLogin } from '@/lib/api/auth';
+import { createSession, refreshSession, getSession, resolveExternal, completeExternalLogin, deleteSession } from '@/lib/api/auth';
 
 interface AuthState {
   accessToken: string | null;
@@ -22,7 +22,7 @@ interface AuthState {
   login: (identifier: string, password: string) => Promise<{ ok: true } | { ok: false; error: string; message: string }>;
   externalLogin: (handle: string) => Promise<{ ok: true; redirectUrl: string } | { ok: false; error: string; message: string }>;
   handleCallback: (code: string) => Promise<{ ok: true } | { ok: false; error: string; message: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
   hydrate: () => Promise<void>;
 }
@@ -38,6 +38,22 @@ type SessionState = {
 };
 
 const ADMIN_ACCESS_ROLES = new Set(['admin', 'moderator', 'partner-manager', 'auditor']);
+
+const loggedOutState = {
+  accessToken: null,
+  refreshToken: null,
+  did: null,
+  handle: null,
+  email: null,
+  roles: [],
+  status: null,
+  isAuthenticated: false,
+  isAdmin: false,
+  isModerator: false,
+  isPartnerManager: false,
+  isAuditor: false,
+  hasAdminAccess: false,
+};
 
 function deriveSessionState(roles: string[], status: string | null): SessionState {
   return {
@@ -141,22 +157,13 @@ export const useAuthStore = create<AuthState>()(
           return { ok: true };
         },
 
-        logout: () => {
-          set({
-            accessToken: null,
-            refreshToken: null,
-            did: null,
-            handle: null,
-            email: null,
-            roles: [],
-            status: null,
-            isAuthenticated: false,
-            isAdmin: false,
-            isModerator: false,
-            isPartnerManager: false,
-            isAuditor: false,
-            hasAdminAccess: false,
-          });
+        logout: async () => {
+          const refreshJwt = get().refreshToken;
+          try {
+            if (refreshJwt) await deleteSession(refreshJwt);
+          } finally {
+            set(loggedOutState);
+          }
         },
 
         refresh: async () => {
@@ -166,7 +173,7 @@ export const useAuthStore = create<AuthState>()(
           const result = await refreshSession(refreshToken);
           if (!result.ok) {
             // If refresh fails, log out
-            get().logout();
+            await get().logout();
             return false;
           }
 

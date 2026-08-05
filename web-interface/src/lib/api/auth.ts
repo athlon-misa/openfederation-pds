@@ -1,5 +1,5 @@
 import { xrpc } from '../api-client';
-import type { SessionResponse, GetSessionResponse, RegisterResponse, ResolveExternalResponse, ExternalCompleteResponse } from './types';
+import type { ApiResult, SessionResponse, GetSessionResponse, RegisterResponse, ResolveExternalResponse, ExternalCompleteResponse } from './types';
 
 export async function createSession(identifier: string, password: string) {
   return xrpc<SessionResponse>('com.atproto.server.createSession', {
@@ -12,6 +12,13 @@ export async function refreshSession(refreshJwt: string) {
   return xrpc<SessionResponse>('com.atproto.server.refreshSession', {
     body: { refreshJwt },
     noAuth: true,
+  });
+}
+
+export async function deleteSession(refreshJwt: string): Promise<ApiResult<{ success: boolean }>> {
+  return xrpc<{ success: boolean }>('com.atproto.server.deleteSession', {
+    method: 'POST',
+    body: { refreshJwt },
   });
 }
 
