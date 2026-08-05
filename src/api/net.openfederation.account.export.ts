@@ -5,6 +5,9 @@ import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { auditLog } from '../db/audit.js';
 
+const MAX_EXPORT_RECORDS = 5_000;
+const MAX_EXPORT_BYTES = 10 * 1024 * 1024;
+
 /**
  * net.openfederation.account.export
  *
@@ -60,11 +63,24 @@ export default async function exportAccount(req: AuthRequest, res: Response): Pr
 
     // Export all records from user repo
     const engine = new RepoEngine(did);
-    const records = await engine.exportAllRecords();
+    // Keep the JSON convenience export bounded. A complete CAR export remains
+    // available via the standard sync endpoint for repositories above this
+    // limit, preserving AT Protocol's data portability guarantee.
+    const records = await engine.exportAllRecords(MAX_EXPORT_RECORDS + 1);
+    if (records.length > MAX_EXPORT_RECORDS) {
+      res.status(413).json({ error: 'ExportTooLarge', message: 'Repository exceeds the JSON export record limit; use com.atproto.sync.getRepo for a CAR export.' });
+      return;
+    }
 
     // Group records by collection
     const collections: Record<string, Array<{ rkey: string; cid: string; record: any }>> = {};
+    let serializedBytes = 0;
     for (const r of records) {
+      serializedBytes += Buffer.byteLength(JSON.stringify(r.record), 'utf8');
+      if (serializedBytes > MAX_EXPORT_BYTES) {
+        res.status(413).json({ error: 'ExportTooLarge', message: 'Repository exceeds the JSON export size limit; use com.atproto.sync.getRepo for a CAR export.' });
+        return;
+      }
       if (!collections[r.collection]) {
         collections[r.collection] = [];
       }

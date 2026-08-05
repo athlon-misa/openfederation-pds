@@ -196,10 +196,12 @@ export class RepoEngine {
   /**
    * Export all records as a flat list (for legacy JSON export).
    */
-  async exportAllRecords(): Promise<Array<{ collection: string; rkey: string; cid: string; record: Record<string, unknown> }>> {
+  async exportAllRecords(limit?: number): Promise<Array<{ collection: string; rkey: string; cid: string; record: Record<string, unknown> }>> {
+    const limitClause = limit === undefined ? '' : ' LIMIT $2';
+    const params = limit === undefined ? [this.did] : [this.did, limit];
     const result = await query<{ collection: string; rkey: string; cid: string; record: Record<string, unknown> }>(
-      'SELECT collection, rkey, cid, record FROM records_index WHERE community_did = $1 ORDER BY collection, rkey',
-      [this.did]
+      `SELECT collection, rkey, cid, record FROM records_index WHERE community_did = $1 ORDER BY collection, rkey${limitClause}`,
+      params,
     );
     return result.rows;
   }
