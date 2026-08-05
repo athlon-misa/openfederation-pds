@@ -2504,7 +2504,7 @@ export const lexiconContracts = {
   'net.openfederation.admin.verifyChallenge': { revision: 1, errors: ["InvalidNonce", "NotFound"] as const },
   'net.openfederation.attestation.createViewingGrant': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.attestation.verifyCommitment': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
+  'net.openfederation.attestation.verifyCommitment': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
   'net.openfederation.calendar.createEvent': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.calendar.listEvents': { revision: 2, errors: ["NotFound"] as const },

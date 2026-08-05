@@ -59,13 +59,13 @@ function canonicalize(value: unknown): unknown {
 }
 
 /**
- * Create a deterministic commitment hash of a claim object.
- * Keys are recursively sorted for canonical JSON representation.
+ * Create a hiding commitment hash of a claim object. A fresh per-attestation
+ * salt prevents dictionary attacks against low-entropy private claims.
  */
-export function createCommitment(claim: Record<string, unknown>): { hash: string } {
+export function createCommitment(claim: Record<string, unknown>, salt = crypto.randomBytes(32).toString('hex')): { hash: string; salt: string } {
   const canonical = JSON.stringify(canonicalize(claim));
-  const hash = crypto.createHash('sha256').update(canonical).digest('hex');
-  return { hash };
+  const hash = crypto.createHash('sha256').update(`${salt}:${canonical}`).digest('hex');
+  return { hash, salt };
 }
 
 /**

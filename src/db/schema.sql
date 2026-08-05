@@ -479,6 +479,7 @@ CREATE TABLE IF NOT EXISTS attestation_encryption (
     encrypted_dek_issuer TEXT,
     encrypted_dek_subject TEXT,
     commitment_hash VARCHAR(128),
+    commitment_salt VARCHAR(128),
     issuer_signature TEXT,
     schema_hash VARCHAR(128),
     access_policy JSONB,
