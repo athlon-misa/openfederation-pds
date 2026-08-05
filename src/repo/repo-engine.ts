@@ -151,7 +151,8 @@ export class RepoEngine {
   async listRecords(
     collection: string,
     limit: number = 50,
-    cursor?: string
+    cursor?: string,
+    reverse = false,
   ): Promise<{ records: Array<{ rkey: string; record: Record<string, unknown>; cid: string }>; cursor?: string }> {
     let queryStr = `
       SELECT rkey, record, cid
@@ -161,11 +162,11 @@ export class RepoEngine {
     const params: unknown[] = [this.did, collection];
 
     if (cursor) {
-      queryStr += ' AND rkey > $3';
+      queryStr += ` AND rkey ${reverse ? '<' : '>'} $3`;
       params.push(cursor);
     }
 
-    queryStr += ' ORDER BY rkey ASC LIMIT $' + (params.length + 1);
+    queryStr += ` ORDER BY rkey ${reverse ? 'DESC' : 'ASC'} LIMIT $` + (params.length + 1);
     params.push(limit + 1);
 
     const result = await query<{ rkey: string; record: Record<string, unknown>; cid: string }>(queryStr, params);

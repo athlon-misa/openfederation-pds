@@ -36,17 +36,13 @@ export default async function listRecords(req: Request, res: Response): Promise<
     if (!(await requireRepoReadable(req as AuthRequest, res, repo))) return;
 
     const engine = new RepoEngine(repo);
-    const result = await engine.listRecords(collection, limit, cursor);
+    const result = await engine.listRecords(collection, limit, cursor, reverse);
 
     const records = result.records.map(r => ({
       uri: `at://${repo}/${collection}/${r.rkey}`,
       cid: r.cid,
       value: r.record,
     }));
-
-    if (reverse) {
-      records.reverse();
-    }
 
     res.status(200).json({
       records,
