@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { config } from '../config.js';
 import type { AuthContext, UserRole, UserStatus } from './types.js';
+import { query } from '../db/client.js';
 
 interface AccessTokenPayload extends JWTPayload {
   sub: string;
@@ -10,23 +11,44 @@ interface AccessTokenPayload extends JWTPayload {
   did: string;
   roles: UserRole[];
   status: UserStatus;
+  tokenVersion: number;
 }
 
 // Pre-encode the secret once at module load (jose requires Uint8Array)
 const encodedSecret = new TextEncoder().encode(config.auth.jwtSecret);
 
 export async function signAccessToken(context: AuthContext): Promise<string> {
+  if (!Number.isInteger(context.tokenVersion) || context.tokenVersion! < 0) {
+    throw new Error('Cannot issue access token without a valid token version');
+  }
   return new SignJWT({
     handle: context.handle,
     email: context.email,
     did: context.did,
     roles: context.roles,
     status: context.status,
+    tokenVersion: context.tokenVersion,
   } as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(context.userId)
     .setExpirationTime(config.auth.accessTokenTtl)
     .sign(encodedSecret);
+}
+
+type TokenVersionResolver = (userId: string) => Promise<number | null>;
+
+const databaseTokenVersionResolver: TokenVersionResolver = async (userId) => {
+  const current = await query<{ token_version: number }>(
+    'SELECT token_version FROM users WHERE id = $1', [userId],
+  );
+  return current.rows[0]?.token_version ?? null;
+};
+
+let resolveTokenVersion: TokenVersionResolver = databaseTokenVersionResolver;
+
+/** Test seam for the database-backed token-version check. */
+export function setTokenVersionResolverForTests(resolver: TokenVersionResolver | null): void {
+  resolveTokenVersion = resolver ?? databaseTokenVersionResolver;
 }
 
 export async function verifyAccessToken(token: string): Promise<AuthContext | null> {
@@ -36,9 +58,10 @@ export async function verifyAccessToken(token: string): Promise<AuthContext | nu
     });
 
     const p = payload as AccessTokenPayload;
-    if (!p?.sub || !p.handle || p.email == null || !p.did || !p.roles) {
+    if (!p?.sub || !p.handle || p.email == null || !p.did || !p.roles || !Number.isInteger(p.tokenVersion)) {
       return null;
     }
+    if (await resolveTokenVersion(p.sub) !== p.tokenVersion) return null;
 
     return {
       userId: p.sub,
@@ -47,6 +70,7 @@ export async function verifyAccessToken(token: string): Promise<AuthContext | nu
       did: p.did,
       roles: p.roles,
       status: p.status,
+      tokenVersion: p.tokenVersion,
     };
   } catch {
     return null;

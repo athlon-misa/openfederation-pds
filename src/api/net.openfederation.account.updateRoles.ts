@@ -79,6 +79,9 @@ export default async function updateRoles(req: AuthRequest, res: Response): Prom
         [user.id, r]
       );
     }
+    if (toAdd.length || toRemove.length) {
+      await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [user.id]);
+    }
 
     // Fetch updated roles
     const rolesResult = await query<{ role: string }>(

@@ -4,6 +4,49 @@ import { requireRepoReadable } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 
 /**
+ * Write a CAR iterable without allowing Node's response buffer to grow with
+ * the repository. `res.write()` returning false is an explicit signal to
+ * pause until the client drains its socket; a closed response stops the
+ * export without reading additional blocks from storage.
+ */
+export async function writeCarStream(
+  req: Request,
+  res: Response,
+  carStream: AsyncIterable<Uint8Array>,
+): Promise<void> {
+  let closed = res.destroyed;
+  const onClose = () => { closed = true; };
+  const onAborted = () => { closed = true; };
+  res.once('close', onClose);
+  req.once('aborted', onAborted);
+
+  try {
+    for await (const chunk of carStream) {
+      if (closed || res.destroyed || res.writableEnded) break;
+      if (!res.write(chunk)) {
+        await new Promise<void>((resolve) => {
+          const resume = () => {
+            res.off('drain', resume);
+            res.off('close', resume);
+            req.off('aborted', resume);
+            resolve();
+          };
+          res.once('drain', resume);
+          res.once('close', resume);
+          req.once('aborted', resume);
+        });
+      }
+      if (closed || res.destroyed || res.writableEnded) break;
+    }
+  } finally {
+    res.off('close', onClose);
+    req.off('aborted', onAborted);
+  }
+
+  if (!closed && !res.destroyed && !res.writableEnded) res.end();
+}
+
+/**
  * com.atproto.sync.getRepo
  *
  * Export a full repository as a CAR (Content Addressable aRchive) stream.
@@ -40,10 +83,7 @@ export default async function syncGetRepo(req: Request, res: Response): Promise<
     res.setHeader('Content-Type', 'application/vnd.ipld.car');
     res.setHeader('Transfer-Encoding', 'chunked');
 
-    for await (const chunk of carStream) {
-      res.write(chunk);
-    }
-    res.end();
+    await writeCarStream(req, res, carStream);
   } catch (error) {
     console.error('Error in sync.getRepo:', error);
     if (!res.headersSent) {

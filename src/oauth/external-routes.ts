@@ -343,8 +343,9 @@ async function ensureExternalUser(
     handle: string;
     email: string;
     status: string;
+    token_version: number;
   }>(
-    'SELECT id, handle, email, status FROM users WHERE did = $1',
+    'SELECT id, handle, email, status, token_version FROM users WHERE did = $1',
     [did]
   );
 
@@ -352,6 +353,7 @@ async function ensureExternalUser(
   let handle: string;
   let email: string;
   let status: UserStatus;
+  let tokenVersion = 0;
 
   if (existing.rows.length > 0) {
     const user = existing.rows[0];
@@ -359,6 +361,7 @@ async function ensureExternalUser(
     handle = user.handle;
     email = user.email || '';
     status = user.status as UserStatus;
+    tokenVersion = user.token_version;
 
     // Update handle from DID document if it was a DID-derived placeholder
     if (handle.startsWith('plc-') || handle.startsWith('web-')) {
@@ -406,6 +409,7 @@ async function ensureExternalUser(
     did,
     status,
     roles,
+    tokenVersion,
   });
 
   const { token: refreshJwt, hash } = generateRefreshToken();

@@ -37,8 +37,9 @@ export default async function createSession(req: Request, res: Response): Promis
       auth_type: string;
       failed_login_attempts: number;
       locked_until: string | null;
+      token_version: number;
     }>(
-      'SELECT id, handle, email, password_hash, status, did, auth_type, failed_login_attempts, locked_until FROM users WHERE handle = $1 OR email = $1',
+      'SELECT id, handle, email, password_hash, status, did, auth_type, failed_login_attempts, locked_until, token_version FROM users WHERE handle = $1 OR email = $1',
       [identifier]
     );
 
@@ -185,6 +186,7 @@ export default async function createSession(req: Request, res: Response): Promis
       did: user.did,
       status: user.status as UserStatus,
       roles,
+      tokenVersion: user.token_version,
     });
 
     const { token: refreshJwt, hash } = generateRefreshToken();

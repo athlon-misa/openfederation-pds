@@ -62,7 +62,7 @@ export default async function activateAccount(req: AuthRequest, res: Response): 
     // Reactivate
     await query(
       `UPDATE users
-       SET status = 'approved', status_changed_at = CURRENT_TIMESTAMP,
+       SET status = 'approved', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
            status_changed_by = $1, status_reason = NULL
        WHERE id = $1`,
       [userId]

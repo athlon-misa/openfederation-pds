@@ -62,6 +62,13 @@ export default async function revokeSession(req: AuthRequest, res: Response): Pr
 
   const revokedCount = result.rowCount ?? 0;
 
+  // Local access JWTs are otherwise stateless. Bump the per-user version so
+  // every currently issued access token is rejected along with the refresh
+  // sessions we just revoked.
+  if (revokedCount > 0) {
+    await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [targetUserId]);
+  }
+
   await auditLog('session.revoke', req.auth.userId, targetUserId, {
     revokedCount,
     revokeAll: !!revokeAll,

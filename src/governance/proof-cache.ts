@@ -9,6 +9,9 @@ import crypto from 'crypto';
 import { query } from '../db/client.js';
 import type { GovernanceProof, VerificationResult } from './chain-adapter.js';
 
+const VERIFIED_CACHE_TTL_SECONDS = 5 * 60;
+const NEGATIVE_CACHE_TTL_SECONDS = 30;
+
 interface CachedVerification {
   verified: boolean;
   error: string | null;
@@ -36,8 +39,10 @@ export async function getCachedVerification(
      FROM proof_verifications
      WHERE community_did = $1 AND chain_id = $2 AND transaction_hash = $3
        AND block_number IS NOT DISTINCT FROM $4
-       AND contract_address IS NOT DISTINCT FROM $5`,
-    [communityDid, proof.chainId, proof.transactionHash, proof.blockNumber ?? null, proof.contractAddress ?? null]
+       AND contract_address IS NOT DISTINCT FROM $5
+       AND verified_at > CURRENT_TIMESTAMP -
+         CASE WHEN verified THEN ($6 * INTERVAL '1 second') ELSE ($7 * INTERVAL '1 second') END`,
+    [communityDid, proof.chainId, proof.transactionHash, proof.blockNumber ?? null, proof.contractAddress ?? null, VERIFIED_CACHE_TTL_SECONDS, NEGATIVE_CACHE_TTL_SECONDS]
   );
 
   if (result.rows.length === 0) return null;

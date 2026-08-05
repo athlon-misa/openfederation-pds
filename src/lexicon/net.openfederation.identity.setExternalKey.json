@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.setExternalKey",
-  "revision": 1,
+  "revision": 2,
   "description": "Create or update an external identity key in the authenticated user's ATProto repo.",
   "defs": {
     "main": {
@@ -34,6 +34,10 @@
               "type": "string",
               "description": "Public key in did:key multibase format (base58btc, z prefix)."
             },
+            "proof": {
+              "type": "string",
+              "description": "Canonical base64url detached signature over the External Key Claim v1 payload bound to the caller DID, record key, type, purpose, and public key."
+            },
             "label": {
               "type": "string",
               "description": "Optional human-readable label (max 100 chars)."
@@ -43,7 +47,8 @@
             "rkey",
             "type",
             "purpose",
-            "publicKey"
+            "publicKey",
+            "proof"
           ]
         }
       },
@@ -75,6 +80,14 @@
         {
           "name": "InvalidPublicKey",
           "description": "Public key format invalid or multicodec prefix doesn't match type."
+        },
+        {
+          "name": "InvalidProof",
+          "description": "Proof is malformed, unsupported by the key type, or does not verify for the claimed key."
+        },
+        {
+          "name": "KeyAlreadyClaimed",
+          "description": "The public key is already associated with an external-key record."
         }
       ]
     }

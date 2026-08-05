@@ -184,12 +184,12 @@ export default async function issueAttestation(req: AuthRequest, res: Response):
       const encId = crypto.randomUUID();
       await query(
         `INSERT INTO attestation_encryption
-         (id, community_did, rkey, visibility, encrypted_dek_issuer, encrypted_dek_subject, commitment_hash, access_policy)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         (id, community_did, rkey, visibility, encrypted_dek_issuer, encrypted_dek_subject, commitment_hash, commitment_salt, access_policy)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           encId, communityDid, rkey, 'private',
           encryptedDekIssuer, encryptedDekSubject,
-          commitment.hash,
+          commitment.hash, commitment.salt,
           accessPolicy ? JSON.stringify(accessPolicy) : null,
         ]
       );

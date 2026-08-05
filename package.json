@@ -68,6 +68,8 @@
     "@atproto/oauth-provider": "^0.15.11",
     "@atproto/repo": "^0.8.12",
     "@atproto/xrpc": "^0.7.7",
+    "@noble/curves": "^1.9.7",
+    "@noble/hashes": "^1.8.0",
     "@aws-sdk/client-s3": "^3.1018.0",
     "bcryptjs": "^3.0.3",
     "bs58": "^6.0.0",

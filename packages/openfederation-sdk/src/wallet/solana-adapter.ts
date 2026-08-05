@@ -62,15 +62,25 @@ export function createSolanaSigner(
   const tier: 'custodial' | 'user_encrypted' | 'self_custody' = session ? 'user_encrypted' : 'custodial';
 
   async function signMessageLocal(msg: Uint8Array): Promise<Uint8Array> {
-    if (!session) throw new Error('Tier 1 Solana signing uses signTransactionMessage only (via PDS)');
-    const sigB58 = session.signMessage(new TextDecoder().decode(msg), 'solana');
+    if (!session) throw new Error('Tier 1 Solana signing uses the PDS');
+    // Solana's signMessage contract is byte-oriented. Do not decode and
+    // re-encode here: invalid UTF-8 can be lossy and would authenticate a
+    // different message from the one the caller supplied.
+    const sigB58 = session.signSolanaTransactionMessage(msg);
     const { default: bs58 } = await import('bs58');
     return bs58.decode(sigB58);
   }
 
   async function signMessageRemote(msg: Uint8Array): Promise<Uint8Array> {
-    const messageStr = new TextDecoder().decode(msg);
-    const res = await client.wallet.sign({ chain: 'solana', walletAddress, message: messageStr });
+    // The generic wallet.sign endpoint carries text. Reuse the existing
+    // byte-safe transaction-message endpoint instead, which signs this exact
+    // base64-decoded Uint8Array with the same consent and custody checks.
+    const res = await client.wallet.signTransaction({
+      chain: 'solana',
+      walletAddress,
+      messageBase64: bytesToBase64(msg),
+    });
+    if (!('signature' in res)) throw new Error('Unexpected signTransaction response shape for Solana');
     const { default: bs58 } = await import('bs58');
     return bs58.decode(res.signature);
   }

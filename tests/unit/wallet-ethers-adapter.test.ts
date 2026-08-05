@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Transaction as EthersTransaction, verifyMessage as verifyEthMessage } from 'ethers';
 import { createEthersSigner } from '../../packages/openfederation-sdk/src/wallet/ethers-adapter.js';
 import { WalletSession } from '../../packages/openfederation-sdk/src/wallet/wallet-session.js';
@@ -72,7 +72,9 @@ describe('OFSolanaSigner (Tier 2 — client-side)', () => {
     expect(signer.walletAddress).toBe(address);
     expect(signer.tier).toBe('user_encrypted');
 
-    const msgBytes = new TextEncoder().encode('ping solana');
+    // Invalid UTF-8 verifies the adapter signs the original bytes rather than
+    // a lossy TextDecoder/TextEncoder round trip.
+    const msgBytes = new Uint8Array([0xff, 0xfe, 0x00, 0x80, 0x61]);
     const sigBytes = await signer.signMessage(msgBytes);
     expect(nacl.sign.detached.verify(msgBytes, sigBytes, bs58.decode(address))).toBe(true);
 
@@ -99,6 +101,23 @@ describe('OFSolanaSigner (Tier 2 — client-side)', () => {
     expect(nacl.sign.detached.verify(new Uint8Array([0x01, 0x23, 0x45, 0x67]), bs58.decode(sigB58), bs58.decode(address))).toBe(true);
 
     session.destroy();
+  });
+
+  it('sends exact bytes to the byte-safe Tier 1 signing endpoint', async () => {
+    const signature = bs58.encode(new Uint8Array(64));
+    const signTransaction = vi.fn().mockResolvedValue({ signature });
+    const signer = createSolanaSigner(
+      { wallet: { signTransaction } } as never,
+      'Tier1WalletAddress',
+    );
+    const message = new Uint8Array([0xff, 0xfe, 0x00, 0x80, 0x61]);
+
+    await expect(signer.signMessage(message)).resolves.toEqual(bs58.decode(signature));
+    expect(signTransaction).toHaveBeenCalledWith({
+      chain: 'solana',
+      walletAddress: 'Tier1WalletAddress',
+      messageBase64: '//4AgGE=',
+    });
   });
 
   it('rejects unknown transaction shapes', async () => {

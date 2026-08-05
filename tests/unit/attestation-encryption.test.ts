@@ -55,11 +55,12 @@ describe('Attestation Encryption', () => {
   });
 
   describe('createCommitment', () => {
-    it('should produce a deterministic hash', () => {
+    it('uses a random salt so identical private claims have different hashes', () => {
       const claim = { role: 'athlete', team: 'Alpha' };
       const c1 = createCommitment(claim);
       const c2 = createCommitment(claim);
-      expect(c1.hash).toBe(c2.hash);
+      expect(c1.hash).not.toBe(c2.hash);
+      expect(c1.salt).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it('should produce a different hash when data changes', () => {
@@ -73,10 +74,9 @@ describe('Attestation Encryption', () => {
       expect(c.hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it('should be consistent regardless of property insertion order', () => {
-      // createCommitment sorts keys, so insertion order should not matter
-      const c1 = createCommitment({ a: 1, b: 2 });
-      const c2 = createCommitment({ b: 2, a: 1 });
+    it('is consistent regardless of property insertion order with the same salt', () => {
+      const c1 = createCommitment({ a: 1, b: 2 }, 'a'.repeat(64));
+      const c2 = createCommitment({ b: 2, a: 1 }, 'a'.repeat(64));
       expect(c1.hash).toBe(c2.hash);
     });
   });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { xrpcPost, getAdminHandle, getAdminPassword } from './helpers.js';
+import { xrpcAuthGet, xrpcPost, getAdminHandle, getAdminPassword } from './helpers.js';
 import { query } from '../../src/db/client.js';
 
 describe('com.atproto.server.createSession', () => {
@@ -30,6 +30,27 @@ describe('com.atproto.server.createSession', () => {
     expect(res.status).toBe(200);
     expect(typeof res.body.accessJwt).toBe('string');
     expect(res.body.accessJwt.split('.')).toHaveLength(3); // JWT has 3 parts
+  });
+
+  it('rejects an access token after its user token version is incremented', async () => {
+    const login = await xrpcPost('com.atproto.server.createSession', {
+      identifier: handle,
+      password,
+    });
+    expect(login.status).toBe(200);
+
+    await query('UPDATE users SET token_version = token_version + 1 WHERE handle = $1', [handle]);
+
+    const stale = await xrpcAuthGet('com.atproto.server.getSession', login.body.accessJwt);
+    expect(stale.status).toBe(401);
+
+    const freshLogin = await xrpcPost('com.atproto.server.createSession', {
+      identifier: handle,
+      password,
+    });
+    expect(freshLogin.status).toBe(200);
+    const fresh = await xrpcAuthGet('com.atproto.server.getSession', freshLogin.body.accessJwt);
+    expect(fresh.status).toBe(200);
   });
 
   it('allows exactly one concurrent refresh-token rotation', async () => {
