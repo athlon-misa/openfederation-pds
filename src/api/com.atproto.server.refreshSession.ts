@@ -52,6 +52,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
            WHERE user_id = $1 AND revoked_at IS NULL`,
           [compromisedUserId]
         );
+        await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [compromisedUserId]);
         console.error(`SECURITY: Refresh token reuse detected for user ${compromisedUserId}. All sessions revoked.`);
       }
 
@@ -78,9 +79,10 @@ export default async function refreshSession(req: Request, res: Response): Promi
       email: string;
       status: string;
       did: string;
+      token_version: number;
       roles: string[];
     }>(
-      `SELECT u.id, u.handle, u.email, u.status, u.did,
+      `SELECT u.id, u.handle, u.email, u.status, u.did, u.token_version,
               COALESCE(array_agg(r.role) FILTER (WHERE r.role IS NOT NULL), '{}') as roles
        FROM users u
        LEFT JOIN user_roles r ON r.user_id = u.id
@@ -139,6 +141,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
       did: user.did,
       status: user.status as UserStatus,
       roles,
+      tokenVersion: user.token_version,
     });
 
     const { token: newRefreshJwt, hash: newHash } = generateRefreshToken();
@@ -171,6 +174,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
            WHERE user_id = $1 AND revoked_at IS NULL`,
           [reuseCheck.rows[0].user_id],
         );
+        await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [reuseCheck.rows[0].user_id]);
       }
       res.status(401).json({ error: 'Unauthorized', message: 'Invalid refresh token' });
       return;

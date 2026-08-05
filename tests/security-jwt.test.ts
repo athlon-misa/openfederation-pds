@@ -17,6 +17,7 @@ process.env.KEY_ENCRYPTION_SECRET = 'test-encryption-secret-32-chars!!';
 import {
   signAccessToken,
   verifyAccessToken,
+  setTokenVersionResolverForTests,
   generateRefreshToken,
   hashToken,
 } from '../src/auth/tokens.js';
@@ -29,7 +30,10 @@ const testContext: AuthContext = {
   did: 'did:plc:abc123',
   roles: ['user'],
   status: 'approved',
+  tokenVersion: 0,
 };
+
+setTokenVersionResolverForTests(async () => 0);
 
 /** Decode a JWT header without verifying (base64url parse) */
 function decodeHeader(token: string): Record<string, unknown> {
@@ -79,6 +83,7 @@ describe('Access token signing', () => {
     assert.equal(decoded.did, testContext.did);
     assert.deepEqual(decoded.roles, testContext.roles);
     assert.equal(decoded.status, testContext.status);
+    assert.equal(decoded.tokenVersion, testContext.tokenVersion);
   });
 
   it('sets an expiration time', async () => {
@@ -136,6 +141,13 @@ describe('Access token verification', () => {
     );
     const result = await verifyAccessToken(token);
     assert.equal(result, null);
+  });
+
+  it('rejects a token whose version has been invalidated', async () => {
+    const token = await signAccessToken(testContext);
+    setTokenVersionResolverForTests(async () => 1);
+    assert.equal(await verifyAccessToken(token), null);
+    setTokenVersionResolverForTests(async () => 0);
   });
 
   it('rejects tokens signed with algorithm "none"', async () => {

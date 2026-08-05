@@ -13,7 +13,7 @@ process.env.AUTH_JWT_SECRET = 'test-secret-at-least-32-characters-long!!';
 process.env.KEY_ENCRYPTION_SECRET = 'test-encryption-secret-32-chars!!';
 
 import { authMiddleware } from '../src/auth/middleware.js';
-import { signAccessToken } from '../src/auth/tokens.js';
+import { signAccessToken, setTokenVersionResolverForTests } from '../src/auth/tokens.js';
 import type { AuthRequest, AuthContext } from '../src/auth/types.js';
 
 const testContext: AuthContext = {
@@ -23,7 +23,10 @@ const testContext: AuthContext = {
   did: 'did:plc:abc123',
   roles: ['user'],
   status: 'approved',
+  tokenVersion: 0,
 };
+
+setTokenVersionResolverForTests(async () => 0);
 
 function mockReq(headers: Record<string, string> = {}): AuthRequest {
   return { headers } as AuthRequest;

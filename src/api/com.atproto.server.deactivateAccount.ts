@@ -52,7 +52,7 @@ export default async function deactivateAccount(req: AuthRequest, res: Response)
     // Set status to deactivated
     await query(
       `UPDATE users
-       SET status = 'deactivated', status_changed_at = CURRENT_TIMESTAMP,
+       SET status = 'deactivated', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
            status_changed_by = $1, status_reason = 'User-initiated deactivation'
        WHERE id = $1`,
       [userId]

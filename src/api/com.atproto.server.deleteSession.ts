@@ -23,10 +23,11 @@ export default async function deleteSession(req: AuthRequest, res: Response): Pr
 
     const tokenHash = hashToken(refreshToken);
 
-    const result = await query(
+    const result = await query<{ user_id: string }>(
       `UPDATE sessions
        SET revoked_at = CURRENT_TIMESTAMP
-       WHERE refresh_token_hash = $1 AND revoked_at IS NULL`,
+       WHERE refresh_token_hash = $1 AND revoked_at IS NULL
+       RETURNING user_id`,
       [tokenHash]
     );
 
@@ -36,7 +37,8 @@ export default async function deleteSession(req: AuthRequest, res: Response): Pr
       return;
     }
 
-    const userId = req.auth?.userId || null;
+    const userId = result.rows[0].user_id;
+    await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [userId]);
     await auditLog('session.delete', userId, userId);
 
     res.status(200).json({ success: true });
