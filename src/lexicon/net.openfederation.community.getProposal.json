@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.getProposal",
-  "revision": 4,
+  "revision": 5,
   "description": "Get a specific governance proposal.",
   "defs": {
     "main": {
@@ -121,6 +121,14 @@
           "type": "ref",
           "ref": "#decisionRef",
           "description": "The net.openfederation.governance.decision record this proposal was resolved by. Present only on resolved evidence-model proposals."
+        },
+        "objectionCount": {
+          "type": "integer",
+          "description": "Countable objections currently standing against this proposal's application. Present only while at least one is standing. Counted from the objectors' signed records, so an objection below the threshold is visible before it takes effect."
+        },
+        "objectionThreshold": {
+          "type": "integer",
+          "description": "How many countable objections hold the application. Reported alongside objectionCount so a reader can see a hold forming."
         }
       },
       "required": [

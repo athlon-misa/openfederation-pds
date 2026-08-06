@@ -650,6 +650,8 @@ export type NetOpenfederationCommunityGetProposalOutput = {
   "cid": string;
   "rkey": string;
 };
+  "objectionCount"?: number;
+  "objectionThreshold"?: number;
 };
 export type NetOpenfederationCommunityGetProposalError = "NotFound" | "ProposalNotFound";
 
@@ -2583,7 +2585,7 @@ export const lexiconContracts = {
   'net.openfederation.community.export': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.get': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.getDelegation': { revision: 1, errors: [] as const },
-  'net.openfederation.community.getProposal': { revision: 4, errors: ["NotFound", "ProposalNotFound"] as const },
+  'net.openfederation.community.getProposal': { revision: 5, errors: ["NotFound", "ProposalNotFound"] as const },
   'net.openfederation.community.issueAttestation': { revision: 3, errors: ["InvalidRequest", "NotMember", "PayloadTooLarge"] as const },
   'net.openfederation.community.join': { revision: 3, errors: ["AlreadyMember", "AlreadyRequested", "InvalidRequest", "NotFound", "PayloadTooLarge"] as const },
   'net.openfederation.community.leave': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
@@ -2643,9 +2645,9 @@ export const lexiconContracts = {
   'net.openfederation.forum.listThreads': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
-  'net.openfederation.governance.decision': { revision: 1, errors: [] as const },
-  'net.openfederation.governance.objection': { revision: 1, errors: [] as const },
-  'net.openfederation.governance.vote': { revision: 2, errors: [] as const },
+  'net.openfederation.governance.decision': { revision: 2, errors: [] as const },
+  'net.openfederation.governance.objection': { revision: 2, errors: [] as const },
+  'net.openfederation.governance.vote': { revision: 3, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
   'net.openfederation.identity.getDidAugmentation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.identity.getExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },

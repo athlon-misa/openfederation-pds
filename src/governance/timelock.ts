@@ -220,8 +220,14 @@ export async function proposalApplicationProblem(communityDid: string, proposal:
  * judges whether a decision is sound from the votes it cites and never reads
  * what the application wrote, so online and offline rules stay identical.
  *
- * Top-level merge only. A proposal that names `governanceConfig` replaces that
- * object entire, which is what a proposer writing a config means.
+ * `governanceConfig` merges a level deeper than the rest (#202). Replacing it
+ * whole meant a proposal to change only `quorum` also reset `timelockHours` to
+ * 24 and `objectionThreshold` to 1 — governance changes nobody voted for,
+ * arriving as a side effect of the one that was. A decision should change
+ * exactly what it proposed.
+ *
+ * To restore a key to its default, name it explicitly with that value; merging
+ * means omission now reads as "leave it alone" rather than "reset it".
  */
 export async function recordToWrite(communityDid: string, proposal: any): Promise<Record<string, unknown>> {
   if (proposal?.targetCollection !== SETTINGS_COLLECTION || proposal?.targetRkey !== 'self') {
@@ -229,7 +235,19 @@ export async function recordToWrite(communityDid: string, proposal: any): Promis
   }
   const current = await communitySettingsRecord(communityDid);
   if (!current || typeof current !== 'object') return proposal.proposedRecord;
-  return { ...current, ...proposal.proposedRecord };
+
+  const merged: Record<string, unknown> = { ...current, ...proposal.proposedRecord };
+
+  const currentConfig = (current as Record<string, unknown>).governanceConfig;
+  const proposedConfig = proposal.proposedRecord?.governanceConfig;
+  if (isPlainObject(currentConfig) && isPlainObject(proposedConfig)) {
+    merged.governanceConfig = { ...currentConfig, ...proposedConfig };
+  }
+  return merged;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export async function applyProposedChange(

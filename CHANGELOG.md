@@ -25,6 +25,29 @@ No lexicon change — the record's shape is unchanged, only the sequence within 
 existing array. Decisions written before this keep whatever order they were
 written with; nothing rewrites them.
 
+### Governance: residuals from the verifiable-decisions branch
+
+Three small items carried past #189, grouped (issue #202).
+
+- **`governanceConfig` merges a level deeper.** Replacing it whole meant a
+  proposal to change only `quorum` also reset `timelockHours` to 24 and
+  `objectionThreshold` to 1 — governance changes nobody voted for, arriving as a
+  side effect of the one that was. A decision now changes exactly what it
+  proposed; to restore a key to its default, name it explicitly.
+- **A standing objection is visible before it holds.** Below
+  `objectionThreshold` the proposal's `objections` cache is deliberately not
+  written, so an objection that had been raised but not yet taken effect existed
+  only in the audit log and the objector's repo. `getProposal` now reports
+  `objectionCount` and `objectionThreshold` while any objection stands, counted
+  from the objectors' signed records rather than the cache.
+  `net.openfederation.community.getProposal` revision 4→5.
+- **Three lexicon descriptions corrected.** `governance.decision`,
+  `governance.vote` and `governance.objection` each claimed records could be
+  verified "without trusting the community's PDS". They now state the real
+  property — tamper-evidence and public consistency, with independence complete
+  only for externally-hosted accounts — matching what the verifier docstring and
+  `cli/README.md` already say. Revisions 1→2, 2→3 and 1→2 respectively.
+
 ### Security: external-login handoff codes are bound to the initiating browser
 
 The 60-second code that hands an external ATProto login back to the dashboard was

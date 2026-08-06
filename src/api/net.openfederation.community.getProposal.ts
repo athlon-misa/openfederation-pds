@@ -2,7 +2,8 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { applyIfDueSafely } from '../governance/timelock.js';
+import { applyIfDueSafely, countableObjections, communitySettingsRecord } from '../governance/timelock.js';
+import { objectionThreshold } from '../governance/decision-rules.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 
@@ -35,13 +36,55 @@ export default async function getProposal(req: AuthRequest, res: Response): Prom
       return;
     }
 
+    const record = result.rows[0].record;
+
+    // Objections that have been raised but have not yet reached the threshold
+    // are deliberately not written into the proposal record — an unchanged hold
+    // is not worth a signed commit per objection. That left them invisible to
+    // readers, showing up only in the objecting call's own response, the audit
+    // log, and the objector's repo (#202). Reported alongside the threshold so
+    // a reader can see a hold forming rather than only its arrival.
+    const objections = await pendingObjectionStatus(communityDid, rkey, record);
+
     res.status(200).json({
       uri: `at://${communityDid}/${PROPOSAL_COLLECTION}/${rkey}`,
       rkey,
-      ...result.rows[0].record,
+      ...record,
+      ...objections,
     });
   } catch (error) {
     console.error('Error in getProposal:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to get proposal' });
+  }
+}
+
+/**
+ * Countable objections standing against a proposal, and the threshold they must
+ * reach to hold its application.
+ *
+ * Reads the objectors' signed records rather than the proposal's cache, because
+ * the cache is only written once the threshold is met — which is exactly the
+ * state this exists to make visible. Returns nothing for a proposal that is not
+ * awaiting application, so the response shape is unchanged for every other
+ * proposal.
+ */
+async function pendingObjectionStatus(
+  communityDid: string,
+  proposalRkey: string,
+  proposal: any,
+): Promise<Record<string, unknown>> {
+  try {
+    const objections = await countableObjections({ communityDid, proposalRkey, proposal });
+    if (objections.length === 0) return {};
+    const settings = await communitySettingsRecord(communityDid);
+    return {
+      objectionCount: objections.length,
+      objectionThreshold: objectionThreshold(settings),
+    };
+  } catch (err) {
+    // A read of the proposal must not fail because this extra detail could not
+    // be gathered.
+    console.error('[governance] could not count pending objections:', err);
+    return {};
   }
 }

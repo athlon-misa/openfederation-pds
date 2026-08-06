@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.governance.vote",
-  "revision": 2,
-  "description": "A vote cast on a community governance proposal. Lives in the voter's own repo and is signed with the voter's key, so quorum can be verified by a third party without trusting the community's PDS.",
+  "revision": 3,
+  "description": "A vote cast on a community governance proposal. Lives in the voter's own repo and is signed with the voter's key, and carries the community-signed member and role records that entitled the voter at the moment it was cast, so a third party can recheck both the vote and the electorate against signed records. This is tamper-evidence and public consistency rather than independence from the PDS, which holds the signing keys of the accounts it hosts; independence is complete only for externally-hosted voters.",
   "defs": {
     "main": {
       "type": "record",
