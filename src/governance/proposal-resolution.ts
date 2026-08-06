@@ -33,17 +33,36 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { PROPOSAL_COLLECTION, VOTE_COLLECTION } from './vote-records.js';
+import {
+  DECISION_COLLECTION,
+  EVIDENCE_MODEL_VOTE_RECORDS,
+  MAX_CID_CHAIN,
+  checkVoteRecord,
+  decideOutcome,
+  knownProposalCids,
+  proposalUri,
+  quorumRule,
+  tallyEpoch,
+  usesVoteRecordEvidence,
+  voteOrderKey,
+  type Outcome,
+  type QuorumRule,
+  type VoteChoice,
+} from './decision-rules.js';
 
-export const DECISION_COLLECTION = 'net.openfederation.governance.decision';
-
-/** Marker on proposals whose outcome is decided from vote records. */
-export const EVIDENCE_MODEL_VOTE_RECORDS = 'vote-records';
-
-/** Upper bound on the retained proposal CID lineage. */
-const MAX_CID_CHAIN = 500;
-
-export type VoteChoice = 'for' | 'against';
-export type Outcome = 'approved' | 'rejected';
+// The rules themselves live in `decision-rules.ts` so the offline verifier can
+// apply exactly the same ones without reaching a database. Re-exported here
+// because this module has always been their public entry point.
+export {
+  DECISION_COLLECTION,
+  EVIDENCE_MODEL_VOTE_RECORDS,
+  decideOutcome,
+  knownProposalCids,
+  proposalUri,
+  quorumRule,
+  usesVoteRecordEvidence,
+};
+export type { Outcome, QuorumRule, VoteChoice };
 
 export interface CountedVote {
   voter: string;
@@ -63,44 +82,6 @@ export interface RecordTally {
   votesFor: CountedVote[];
   votesAgainst: CountedVote[];
   uncounted: UncountedVote[];
-}
-
-export interface QuorumRule {
-  model: string;
-  threshold: number;
-  rule: string;
-}
-
-export function proposalUri(communityDid: string, proposalRkey: string): string {
-  return `at://${communityDid}/${PROPOSAL_COLLECTION}/${proposalRkey}`;
-}
-
-/** Proposals created before this change keep the old array-based mechanics. */
-export function usesVoteRecordEvidence(proposal: any): boolean {
-  return proposal?.evidenceModel === EVIDENCE_MODEL_VOTE_RECORDS;
-}
-
-/**
- * Every proposal CID a vote may legitimately cite: the current one plus the
- * lineage of states the proposal passed through, maintained by
- * `putProposalRecord`.
- */
-export function knownProposalCids(proposal: any, currentCid: string): Set<string> {
-  const chain: unknown = proposal?.cidChain;
-  const cids = new Set<string>(Array.isArray(chain) ? chain.filter((c): c is string => typeof c === 'string') : []);
-  cids.add(currentCid);
-  return cids;
-}
-
-/**
- * Votes cast before an amendment do not carry over: `amendProposal` clears the
- * vote cache, so the record tally has to start from the same point.
- */
-function tallyEpoch(proposal: any): string | null {
-  const amendments = Array.isArray(proposal?.amendments) ? proposal.amendments : [];
-  const last = amendments[amendments.length - 1];
-  const epoch = last?.amendedAt ?? proposal?.createdAt;
-  return typeof epoch === 'string' ? epoch : null;
 }
 
 /**
@@ -176,35 +157,16 @@ export async function tallyFromVoteRecords(input: {
   for (const row of rows.rows) {
     const record = row.record ?? {};
     const voter = row.repo_did;
-    const vote = record.vote;
 
-    const reject = (reason: string) => {
-      if (!counted.has(voter) && !rejected.has(voter)) rejected.set(voter, reason);
-    };
-
-    if (vote !== 'for' && vote !== 'against') {
-      reject('invalid-vote-value');
-      continue;
-    }
-    // The vote must point at this exact proposal record, not merely mention it.
-    if (record.proposal?.uri !== uri || record.proposalCollection !== PROPOSAL_COLLECTION) {
-      reject('proposal-uri-mismatch');
-      continue;
-    }
-    // ...and at a state this proposal actually passed through.
-    if (typeof record.proposal?.cid !== 'string' || !knownCids.has(record.proposal.cid)) {
-      reject('unknown-proposal-cid');
-      continue;
-    }
-    // Votes predating the latest amendment were cleared from the tally.
-    const createdAt = typeof record.createdAt === 'string' ? record.createdAt : '';
-    if (epoch && createdAt < epoch) {
-      reject('stale-vote-record');
+    // Exactly the predicate the offline verifier re-runs on the same record.
+    const eligibility = checkVoteRecord(record, { proposalUri: uri, knownCids, epoch });
+    if (!eligibility.countable) {
+      if (!counted.has(voter) && !rejected.has(voter)) rejected.set(voter, eligibility.reason);
       continue;
     }
 
     // One vote per voter: earliest record wins, deterministically.
-    const key = `${createdAt}|${row.rkey}`;
+    const key = voteOrderKey(eligibility.createdAt, row.rkey);
     const previous = orderKey.get(voter);
     if (previous !== undefined && previous <= key) continue;
 
@@ -212,9 +174,9 @@ export async function tallyFromVoteRecords(input: {
     rejected.delete(voter);
     counted.set(voter, {
       voter,
-      vote,
+      vote: eligibility.vote,
       record: { uri: `at://${voter}/${VOTE_COLLECTION}/${row.rkey}`, cid: row.cid },
-      proposalCid: record.proposal.cid,
+      proposalCid: eligibility.proposalCid,
       ...(typeof record.castBy === 'string' ? { castBy: record.castBy } : {}),
     });
   }
@@ -236,20 +198,6 @@ export async function tallyFromVoteRecords(input: {
     votesFor: votes.filter(v => v.vote === 'for'),
     votesAgainst: votes.filter(v => v.vote === 'against'),
     uncounted,
-  };
-}
-
-/** The quorum rule applied to a counted tally. Null means "not yet resolvable". */
-export function decideOutcome(votesFor: number, votesAgainst: number, quorum: number): Outcome | null {
-  if (votesFor + votesAgainst < quorum) return null;
-  return votesFor > votesAgainst ? 'approved' : 'rejected';
-}
-
-export function quorumRule(model: string, threshold: number): QuorumRule {
-  return {
-    model,
-    threshold,
-    rule: `resolves once counted votes >= ${threshold}; approved when votes for exceed votes against`,
   };
 }
 

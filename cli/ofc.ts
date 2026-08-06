@@ -1691,6 +1691,89 @@ governance
     );
   }));
 
+governance
+  .command('verify-decision')
+  .description('Verify a governance decision from CAR exports — offline, no server contact')
+  .requiredOption('--car <file...>', 'CAR export(s): the community repo plus each voter repo')
+  .requiredOption('--did-docs <file>', 'JSON file of DID documents (array, or object keyed by DID)')
+  .option('--decision <rkey>', 'Which decision record to verify (needed when the exports hold more than one)')
+  .action(run(async () => {
+    const cmd = governance.commands.find(c => c.name() === 'verify-decision')!;
+    const opts = cmd.opts();
+
+    const [
+      { parseRepoCar, findDecisions, buildVerifyInput, parseDidDocuments },
+      { verifyDecision },
+    ] = await Promise.all([
+      import('../src/governance/decision-evidence.js'),
+      import('../src/governance/verify-decision.js'),
+    ]);
+
+    const files: string[] = opts.car;
+    const repos = [];
+    for (const file of files) {
+      try {
+        repos.push(await parseRepoCar(new Uint8Array(readFileSync(file))));
+      } catch (err) {
+        throw new Error(`Failed to read CAR "${file}": ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    const didDocuments = parseDidDocuments(JSON.parse(readFileSync(opts.didDocs, 'utf-8')));
+
+    let candidates = findDecisions(repos);
+    if (opts.decision) candidates = candidates.filter(d => d.rkey === opts.decision);
+    if (candidates.length === 0) {
+      throw new Error(opts.decision
+        ? `No decision record with rkey "${opts.decision}" in the supplied exports`
+        : 'No governance decision records in the supplied exports');
+    }
+    if (candidates.length > 1) {
+      throw new Error(
+        `The exports hold ${candidates.length} decisions; pass --decision <rkey> to pick one: ` +
+        candidates.map(d => d.rkey).join(', '),
+      );
+    }
+
+    const verdict = await verifyDecision(buildVerifyInput(candidates[0], repos, didDocuments));
+
+    // The exit code is the verdict, in both modes: a script that pipes --json
+    // to jq must not have to parse the answer to learn whether it passed.
+    if (isJsonMode()) {
+      json(verdict);
+      if (verdict.status === 'invalid') process.exit(1);
+      return;
+    }
+
+    keyValue([
+      ['Decision', verdict.summary.decisionUri],
+      ['Community', verdict.summary.community || '—'],
+      ['Proposal', verdict.summary.proposalRkey || '—'],
+      ['Outcome', verdict.summary.outcome || '—'],
+      ['Quorum', verdict.summary.quorumThreshold === null ? '—' : String(verdict.summary.quorumThreshold)],
+      ['Counted', `${verdict.summary.countedFor} for / ${verdict.summary.countedAgainst} against`],
+      ['Verified votes', `${verdict.summary.verifiedVotes} of ${verdict.summary.citedVotes} cited`],
+      ['Eligible in exports', String(verdict.summary.eligibleVotesFound)],
+      ['Evidence complete', verdict.summary.evidenceComplete ? 'yes' : `no (${verdict.summary.disclosedUncounted} disclosed)`],
+      ...(verdict.summary.supersedes ? [['Supersedes', verdict.summary.supersedes] as [string, string]] : []),
+      ...(verdict.summary.supersededBy ? [['Superseded by', verdict.summary.supersededBy] as [string, string]] : []),
+    ]);
+
+    for (const note of verdict.notes) info(`note [${note.code}] ${note.message}`);
+
+    if (verdict.status === 'valid') {
+      success('Decision verifies against the evidence it cites');
+      return;
+    }
+    if (verdict.status === 'superseded') {
+      warn('Decision is sound but has been superseded by a later decision for the same proposal');
+      return;
+    }
+    for (const problem of verdict.problems) error(`[${problem.code}] ${problem.message}`);
+    error(`Verification failed: ${verdict.code}`);
+    process.exit(1);
+  }));
+
 // ── ofc profile ──────────────────────────────────────────────────────
 
 const profileCmd = program.command('profile').description('User profile management');

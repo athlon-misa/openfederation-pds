@@ -19,8 +19,10 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 
-export const VOTE_COLLECTION = 'net.openfederation.governance.vote';
-export const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
+// Defined in `decision-rules.ts` so the offline verifier can name the same
+// collections without importing anything that reaches the database.
+export { VOTE_COLLECTION, PROPOSAL_COLLECTION } from './decision-rules.js';
+import { VOTE_COLLECTION, PROPOSAL_COLLECTION } from './decision-rules.js';
 
 export interface StrongRef {
   uri: string;

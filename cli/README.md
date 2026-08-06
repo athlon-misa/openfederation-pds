@@ -174,6 +174,49 @@ ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.
 | `governance propose --did <communityDid> --collection <col> --rkey <rkey> --action <write\|delete> [--record <json>]` | Voter | Create a governance proposal |
 | `governance vote --did <communityDid> --proposal <rkey> --vote <for\|against>` | Voter | Vote on a proposal |
 | `governance list-proposals --did <communityDid> [--status <status>]` | No | List governance proposals |
+| `governance verify-decision --car <file...> --did-docs <file> [--decision <rkey>]` | No | Verify a decision offline from CAR exports |
+
+#### Verifying a decision without trusting the PDS
+
+`governance verify-decision` contacts nothing — no server, no database, no DID
+resolution over the network. Give it the community's repo export, every voter's
+repo export, and a JSON file of the relevant DID documents, and it rechecks the
+decision from the evidence alone:
+
+```bash
+# One CAR per repo — the community plus each voter named in the decision
+curl -s "$PDS/xrpc/com.atproto.sync.getRepo?did=did:plc:community" > community.car
+curl -s "$PDS/xrpc/com.atproto.sync.getRepo?did=did:plc:alice"     > alice.car
+
+# DID documents from a source you already trust: a JSON array, or an object
+# keyed by DID. Nothing is fetched for you.
+ofc governance verify-decision \
+  --car community.car alice.car bob.car carol.car \
+  --did-docs did-docs.json
+```
+
+Exit status is the verdict in both output modes: `0` when the decision verifies
+(or is soundly superseded), `1` when it does not. `--json` emits the full
+verdict — `status`, a stable machine-readable `code`, every `problem`, and the
+`notes` that record disclosed-but-legitimate conditions.
+
+| `code` | Meaning |
+|--------|---------|
+| `valid` | Every check passed |
+| `superseded` | Sound, but replaced by a later decision for the same proposal |
+| `malformed-decision` | The decision record is not shaped as the lexicon requires, or contradicts itself |
+| `forged-signature` | A repo's commit signature does not verify against its DID document's atproto key |
+| `tampered-evidence` | The decision or proposal is not in the community's signed repo at the cited CID |
+| `tampered-vote` | A counted vote is not in the voter's signed repo at the cited CID, or says something else |
+| `ineligible-vote` | A counted vote is authentic but should not have counted |
+| `uncounted-vote` | An eligible vote in the supplied exports was left out |
+| `missing-evidence` | A CAR or DID document needed for a check was not supplied |
+| `miscounted-tally` | The published tally does not match the votes cited |
+| `insufficient-quorum` | Fewer counted votes than the published threshold |
+| `wrong-outcome` | Quorum met, but the outcome is not what the published rule produces |
+
+Pass `--decision <rkey>` when an export holds more than one decision record; the
+command refuses to guess.
 
 ### `ofc profile` — User Profiles
 
