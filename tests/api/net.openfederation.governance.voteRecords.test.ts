@@ -187,19 +187,41 @@ describe('Voter-signed governance vote records', () => {
   });
 
   describe('unwritable voter repos leave an audit trail', () => {
+    /**
+     * Audit rows for one voter, scoped to this run's community.
+     *
+     * `audit_log` is never truncated between runs, so a query keyed only on the
+     * action and a fixed voter DID accumulates a row per run and an
+     * `expect(length).toBe(1)` starts failing the second time the suite meets
+     * the same database (#203). Scoping by the community — which is created
+     * fresh per run — makes the count mean "this run" rather than "since the
+     * database was created".
+     */
     async function auditEntriesFor(voterDid: string) {
       const res = await query<{ actor_id: string; target_id: string; meta: any }>(
         `SELECT actor_id, target_id, meta FROM audit_log
-         WHERE action = 'community.proposal.vote.recordFailed' AND meta->>'voterDid' = $1`,
-        [voterDid],
+          WHERE action = 'community.proposal.vote.recordFailed'
+            AND target_id = $1
+            AND meta->>'voterDid' = $2
+          ORDER BY created_at`,
+        [communityDid, voterDid],
       );
       return res.rows;
     }
 
+    /**
+     * The DIDs below stand in for accounts that cannot sign, so they are never
+     * registered and cannot come from `createTestUser`. Making them unique per
+     * run keeps two runs against one database from colliding even before the
+     * community scope applies.
+     */
+    const unsignableDid = (label: string) =>
+      `did:plc:${label}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
     it('audits a counted vote whose voter has no repo', async () => {
       if (!plcAvailable) return;
 
-      const voterWithoutRepo = 'did:plc:norepovoter000000000000';
+      const voterWithoutRepo = unsignableDid('norepo');
       const result = await writeVoteRecord({
         voterDid: voterWithoutRepo,
         communityDid,
@@ -223,7 +245,7 @@ describe('Voter-signed governance vote records', () => {
 
       // A DID that reports a repo but has no signing key, so the write throws
       // instead of taking the no-repo path.
-      const brokenSigner = 'did:plc:nokeyvoter00000000000000';
+      const brokenSigner = unsignableDid('nokey');
       const rootRes = await query<{ root_cid: string; rev: string }>(
         'SELECT root_cid, rev FROM repo_roots WHERE did = $1',
         [directVoter.did],

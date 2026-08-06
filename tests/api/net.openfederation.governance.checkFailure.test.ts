@@ -142,9 +142,14 @@ describe('a failed recordability check defers, it never excludes', () => {
     // The audit names the reason the write actually established, not one the
     // failed check assumed.
     const audits = await query<{ meta: any }>(
+      // Scoped to this run's community: audit_log is never truncated, so an
+      // action-plus-voter filter counts every run that ever touched this
+      // database rather than just this one (#203).
       `SELECT meta FROM audit_log
-       WHERE action = 'community.proposal.vote.recordFailed' AND meta->>'voterDid' = $1`,
-      [delegator.did],
+       WHERE action = 'community.proposal.vote.recordFailed'
+         AND target_id = $1
+         AND meta->>'voterDid' = $2`,
+      [communityDid, delegator.did],
     );
     expect(audits.rows.length).toBe(1);
     expect(audits.rows[0].meta.reason).toBe('no-repo');
