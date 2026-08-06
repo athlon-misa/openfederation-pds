@@ -26,6 +26,21 @@ export function xrpcAuthPost(nsid: string, token: string, body?: any) {
     .send(body || {});
 }
 
+/**
+ * POST with a Bearer token and an explicit browser `Origin`.
+ *
+ * Custodial wallet consent and signing bind the consent to the origin the
+ * request came from (issue #101), so those endpoints need a real Origin the
+ * way a browser would send one. Supertest sends none by default.
+ */
+export function xrpcAuthPostFromOrigin(nsid: string, token: string, origin: string, body?: any) {
+  return api
+    .post(`/xrpc/${nsid}`)
+    .set('Authorization', `Bearer ${token}`)
+    .set('Origin', origin)
+    .send(body || {});
+}
+
 /** GET from an XRPC endpoint with Bearer token */
 export function xrpcAuthGet(nsid: string, token: string, params?: Record<string, string>) {
   const qs = params ? '?' + new URLSearchParams(params).toString() : '';

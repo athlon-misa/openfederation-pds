@@ -1905,7 +1905,7 @@ export type NetOpenfederationWalletGrantConsentOutput = {
   "expiresAt": string;
   "revokedAt"?: string;
 };
-export type NetOpenfederationWalletGrantConsentError = "InvalidRequest" | "UnsupportedChain";
+export type NetOpenfederationWalletGrantConsentError = "InvalidRequest" | "OriginMismatch" | "OriginRequired" | "UnsupportedChain";
 
 export type NetOpenfederationWalletListConsentsInput = undefined;
 export type NetOpenfederationWalletListConsentsOutput = {
@@ -1968,7 +1968,7 @@ export type NetOpenfederationWalletSignOutput = {
   "signature": string;
   "dappOrigin": string;
 };
-export type NetOpenfederationWalletSignError = "ConsentRequired" | "InvalidRequest" | "SigningFailed" | "UnsupportedChain" | "UnsupportedTier" | "WalletInactive" | "WalletNotFound";
+export type NetOpenfederationWalletSignError = "ConsentRequired" | "InvalidRequest" | "OriginMismatch" | "OriginRequired" | "SigningFailed" | "UnsupportedChain" | "UnsupportedTier" | "WalletInactive" | "WalletNotFound";
 
 export type NetOpenfederationWalletSignTransactionInput = {
   "chain": string;
@@ -1984,7 +1984,7 @@ export type NetOpenfederationWalletSignTransactionOutput = {
   "signedTx"?: string;
   "signature"?: string;
 };
-export type NetOpenfederationWalletSignTransactionError = "ConsentRequired" | "InvalidRequest" | "SigningFailed" | "UnsupportedChain" | "UnsupportedTier" | "WalletInactive" | "WalletNotFound";
+export type NetOpenfederationWalletSignTransactionError = "ConsentRequired" | "InvalidRequest" | "OriginMismatch" | "OriginRequired" | "SigningFailed" | "UnsupportedChain" | "UnsupportedTier" | "WalletInactive" | "WalletNotFound";
 
 export interface LexiconInputMap {
   'com.atproto.admin.deleteAccount': ComAtprotoAdminDeleteAccountInput;
@@ -2683,11 +2683,11 @@ export const lexiconContracts = {
   'net.openfederation.vault.requestShareRelease': { revision: 1, errors: ["ShareNotFound", "VerificationRequired"] as const },
   'net.openfederation.vault.storeCustodialSecret': { revision: 2, errors: [] as const },
   'net.openfederation.wallet.finalizeTierChange': { revision: 2, errors: ["InvalidPassword", "InvalidRequest", "NotFound", "UnsupportedChain", "UnsupportedTransition", "WalletInactive", "WalletNotFound"] as const },
-  'net.openfederation.wallet.grantConsent': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain"] as const },
+  'net.openfederation.wallet.grantConsent': { revision: 2, errors: ["InvalidRequest", "OriginMismatch", "OriginRequired", "UnsupportedChain"] as const },
   'net.openfederation.wallet.listConsents': { revision: 2, errors: [] as const },
   'net.openfederation.wallet.provision': { revision: 1, errors: ["InvalidRequest", "ProvisionFailed", "UnsupportedChain"] as const },
   'net.openfederation.wallet.retrieveForUpgrade': { revision: 3, errors: ["AccountLocked", "InvalidPassword", "InvalidRequest", "NotFound", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
   'net.openfederation.wallet.revokeConsent': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain"] as const },
-  'net.openfederation.wallet.sign': { revision: 2, errors: ["ConsentRequired", "InvalidRequest", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
-  'net.openfederation.wallet.signTransaction': { revision: 1, errors: ["ConsentRequired", "InvalidRequest", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
+  'net.openfederation.wallet.sign': { revision: 3, errors: ["ConsentRequired", "InvalidRequest", "OriginMismatch", "OriginRequired", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
+  'net.openfederation.wallet.signTransaction': { revision: 2, errors: ["ConsentRequired", "InvalidRequest", "OriginMismatch", "OriginRequired", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
 } as const;

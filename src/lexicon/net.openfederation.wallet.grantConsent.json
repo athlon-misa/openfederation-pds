@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.wallet.grantConsent",
-  "revision": 1,
+  "revision": 2,
   "description": "Grant time-bounded consent for a dApp origin to sign with a Tier 1 wallet. Scope can target a single wallet (chain + walletAddress) or all Tier 1 wallets (omit both).",
   "defs": {
     "main": {
@@ -10,12 +10,26 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["dappOrigin"],
+          "required": [
+            "dappOrigin"
+          ],
           "properties": {
-            "dappOrigin": { "type": "string", "description": "Full origin URL (e.g. https://game.example.com)." },
-            "chain": { "type": "string", "description": "Required if walletAddress is provided." },
-            "walletAddress": { "type": "string", "description": "Required if chain is provided; scope narrows to this single wallet." },
-            "ttlSeconds": { "type": "integer", "description": "Grant lifetime. Default 604800 (7 days), max 2592000 (30 days), min 60." }
+            "dappOrigin": {
+              "type": "string",
+              "description": "Full origin URL (e.g. https://game.example.com)."
+            },
+            "chain": {
+              "type": "string",
+              "description": "Required if walletAddress is provided."
+            },
+            "walletAddress": {
+              "type": "string",
+              "description": "Required if chain is provided; scope narrows to this single wallet."
+            },
+            "ttlSeconds": {
+              "type": "integer",
+              "description": "Grant lifetime. Default 604800 (7 days), max 2592000 (30 days), min 60."
+            }
           }
         }
       },
@@ -23,21 +37,54 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["id", "dappOrigin", "grantedAt", "expiresAt"],
+          "required": [
+            "id",
+            "dappOrigin",
+            "grantedAt",
+            "expiresAt"
+          ],
           "properties": {
-            "id": { "type": "string" },
-            "dappOrigin": { "type": "string" },
-            "chain": { "type": "string" },
-            "walletAddress": { "type": "string" },
-            "grantedAt": { "type": "string" },
-            "expiresAt": { "type": "string" },
-            "revokedAt": { "type": "string" }
+            "id": {
+              "type": "string"
+            },
+            "dappOrigin": {
+              "type": "string"
+            },
+            "chain": {
+              "type": "string"
+            },
+            "walletAddress": {
+              "type": "string"
+            },
+            "grantedAt": {
+              "type": "string"
+            },
+            "expiresAt": {
+              "type": "string"
+            },
+            "revokedAt": {
+              "type": "string"
+            }
           }
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing dappOrigin, malformed origin URL, or invalid ttl/scope." },
-        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana if provided." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing dappOrigin, malformed origin URL, or invalid ttl/scope."
+        },
+        {
+          "name": "UnsupportedChain",
+          "description": "chain must be ethereum or solana if provided."
+        },
+        {
+          "name": "OriginRequired",
+          "description": "The request carried no usable browser Origin header. Custodial wallet consent and signing are browser-only; server-side clients must use a Tier 2 or Tier 3 wallet and sign locally."
+        },
+        {
+          "name": "OriginMismatch",
+          "description": "dappOrigin did not match the Origin the request was sent from. A consent grant authorizes one origin and only that origin may use it."
+        }
       ]
     }
   }

@@ -9,6 +9,7 @@ import {
   getAdminToken,
   isPLCAvailable,
   uniqueHandle,
+  xrpcAuthPostFromOrigin,
 } from './helpers.js';
 
 // End-to-end tests for Tier 1 custodial wallets: provision, grant consent,
@@ -127,7 +128,7 @@ describe('Tier 1 custodial wallets', () => {
       const ethWallet = list.body.walletLinks.find((l: any) => l.chain === 'ethereum');
       expect(ethWallet).toBeDefined();
 
-      const res = await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://game.example.com', {
         dappOrigin: 'https://game.example.com',
         chain: 'ethereum',
         walletAddress: ethWallet.walletAddress,
@@ -141,7 +142,7 @@ describe('Tier 1 custodial wallets', () => {
 
     it('rejects ttlSeconds beyond 30 days', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://game.example.com', {
         dappOrigin: 'https://game.example.com',
         ttlSeconds: 365 * 24 * 60 * 60,
       });
@@ -150,7 +151,7 @@ describe('Tier 1 custodial wallets', () => {
 
     it('rejects malformed origin', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'not-a-url', {
         dappOrigin: 'not-a-url',
       });
       expect(res.status).toBe(400);
@@ -158,7 +159,7 @@ describe('Tier 1 custodial wallets', () => {
 
     it('rejects inconsistent scope (chain without walletAddress)', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://game.example.com', {
         dappOrigin: 'https://game.example.com',
         chain: 'ethereum',
       });
@@ -174,7 +175,7 @@ describe('Tier 1 custodial wallets', () => {
 
       // Consent was granted above; sign should succeed.
       const message = 'Hello from a Tier 1 wallet';
-      const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://game.example.com', {
         chain: 'ethereum',
         walletAddress: ethWallet.walletAddress,
         message,
@@ -194,7 +195,7 @@ describe('Tier 1 custodial wallets', () => {
       const solWallet = list.body.walletLinks.find((l: any) => l.chain === 'solana');
 
       // Grant Solana consent.
-      const grantRes = await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+      const grantRes = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://sol.example.com', {
         dappOrigin: 'https://sol.example.com',
         chain: 'solana',
         walletAddress: solWallet.walletAddress,
@@ -202,7 +203,7 @@ describe('Tier 1 custodial wallets', () => {
       expect(grantRes.status).toBe(200);
 
       const message = 'hola from solana tier 1';
-      const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://sol.example.com', {
         chain: 'solana',
         walletAddress: solWallet.walletAddress,
         message,
@@ -221,7 +222,7 @@ describe('Tier 1 custodial wallets', () => {
       const list = await xrpcAuthGet('net.openfederation.identity.listWalletLinks', user.accessJwt);
       const ethWallet = list.body.walletLinks.find((l: any) => l.chain === 'ethereum');
 
-      const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://malicious.example.com', {
         chain: 'ethereum',
         walletAddress: ethWallet.walletAddress,
         message: 'hi',
@@ -242,7 +243,7 @@ describe('Tier 1 custodial wallets', () => {
         walletAddress: solWallet.walletAddress,
       });
 
-      const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://sol.example.com', {
         chain: 'solana',
         walletAddress: solWallet.walletAddress,
         message: 'after revoke',
@@ -259,7 +260,7 @@ describe('Tier 1 custodial wallets', () => {
       // WalletNotFound. This covers the theft-attempt scenario without having
       // to register a second user (which would trip the createLimiter).
       const notOwned = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
-      const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://game.example.com', {
         chain: 'ethereum',
         walletAddress: notOwned,
         message: 'theft attempt',
@@ -273,7 +274,7 @@ describe('Tier 1 custodial wallets', () => {
       if (!plcAvailable) return;
       const list = await xrpcAuthGet('net.openfederation.identity.listWalletLinks', user.accessJwt);
       const ethWallet = list.body.walletLinks.find((l: any) => l.chain === 'ethereum');
-      const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://game.example.com', {
         chain: 'ethereum',
         walletAddress: ethWallet.walletAddress,
         message: 'x'.repeat(5000),
@@ -286,6 +287,8 @@ describe('Tier 1 custodial wallets', () => {
       if (!plcAvailable) return;
       const list = await xrpcAuthGet('net.openfederation.identity.listWalletLinks', user.accessJwt);
       const ethWallet = list.body.walletLinks.find((l: any) => l.chain === 'ethereum');
+      // No Origin either — the missing-dappOrigin check runs before the origin
+      // binding, so this stays a 400 rather than becoming a 403.
       const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
         chain: 'ethereum',
         walletAddress: ethWallet.walletAddress,

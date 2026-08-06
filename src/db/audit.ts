@@ -90,6 +90,11 @@ export type AuditAction =
   | 'wallet.signTransaction'
   | 'wallet.consent.grant'
   | 'wallet.consent.revoke'
+  // Refused because the declared dApp origin did not match the Origin the
+  // request came from — the attempted impersonation is the thing worth keeping.
+  | 'wallet.sign.originRejected'
+  | 'wallet.signTransaction.originRejected'
+  | 'wallet.consent.originRejected'
   | 'identity.signInAssert'
   | 'identity.setPrimaryWallet'
   | 'wallet.retrieveForUpgrade'

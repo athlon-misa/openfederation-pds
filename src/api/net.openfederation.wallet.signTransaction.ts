@@ -6,6 +6,8 @@ import {
   assertCustodialSigningEligible,
   isWalletChain,
   normalizeDappOrigin,
+  assertDappOriginBinding,
+  DappOriginBindingRejection,
   signTransactionWithCustodialKey,
   WalletEligibilityRejection,
   type EvmTransactionRequest,
@@ -58,6 +60,25 @@ export default async function walletSignTransaction(req: AuthRequest, res: Respo
     } catch (err) {
       res.status(400).json({ error: 'InvalidRequest', message: (err as Error).message });
       return;
+    }
+
+    // Same binding as wallet.sign: the consent that unlocks the key must belong
+    // to the origin the request actually came from. See src/wallet/origin-binding.ts.
+    try {
+      origin = assertDappOriginBinding(req.headers.origin as string | undefined, origin);
+    } catch (err) {
+      if (err instanceof DappOriginBindingRejection) {
+        await auditLog('wallet.signTransaction.originRejected', req.auth!.userId, req.auth!.did, {
+          declaredOrigin: origin,
+          requestOrigin: (req.headers.origin as string | undefined) ?? null,
+          reason: err.code,
+          chain,
+          walletAddress,
+        });
+        res.status(err.status).json({ error: err.code, message: err.message });
+        return;
+      }
+      throw err;
     }
 
     // Chain-specific payload validation.
