@@ -3,7 +3,7 @@ import {
   xrpcPost, xrpcGet, xrpcAuthPost,
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
-import { getClient } from '../../src/db/client.js';
+import { getClient, query } from '../../src/db/client.js';
 
 describe('Community Governance', () => {
   let plcAvailable: boolean;
@@ -54,6 +54,14 @@ describe('Community Governance', () => {
     it('should reject invalid model', async () => {
       if (!plcAvailable) return;
       const res = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
+        communityDid, governanceModel: 'plutocracy',
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject on-chain without config', async () => {
+      if (!plcAvailable) return;
+      const res = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
         communityDid, governanceModel: 'on-chain',
       });
       expect(res.status).toBe(400);
@@ -72,7 +80,7 @@ describe('Community Governance', () => {
       const res = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
         communityDid,
         governanceModel: 'simple-majority',
-        governanceConfig: { quorum: 2, voterRole: 'moderator', proposalTtlDays: 7 },
+        governanceConfig: { quorum: 2, voterRole: 'moderator', proposalTtlDays: 7, timelockHours: 0 },
       });
       expect(res.status).toBe(200);
       expect(res.body.governanceModel).toBe('simple-majority');
@@ -225,12 +233,38 @@ describe('Community Governance', () => {
   });
 
   describe('switch back to benevolent-dictator', () => {
-    it('should allow downgrade from simple-majority', async () => {
+    it('refuses a direct model change under a voting model — no admin override', async () => {
       if (!plcAvailable) return;
       const res = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
         communityDid, governanceModel: 'benevolent-dictator',
       });
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('GovernanceDenied');
+      expect(res.body.requiresProposal).toBe(true);
+    });
+
+    it('should allow downgrade from simple-majority through a proposal', async () => {
+      if (!plcAvailable) return;
+      const settings = await query<{ record: any }>(
+        `SELECT record FROM records_index
+         WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
+        [communityDid],
+      );
+      const proposal = await xrpcAuthPost('net.openfederation.community.createProposal', owner.accessJwt, {
+        communityDid,
+        targetCollection: 'net.openfederation.community.settings',
+        targetRkey: 'self',
+        action: 'write',
+        proposedRecord: { ...settings.rows[0].record, governanceModel: 'benevolent-dictator' },
+      });
+      expect(proposal.status).toBe(200);
+
+      const vote = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter1.accessJwt, {
+        communityDid, proposalRkey: proposal.body.rkey, vote: 'for',
+      });
+      expect(vote.status).toBe(200);
+      expect(vote.body.status).toBe('approved');
+      expect(vote.body.applied).toBe(true);
     });
 
     it('should allow direct writes after downgrade', async () => {

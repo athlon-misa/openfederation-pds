@@ -5,6 +5,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
+import { putProposalRecord } from '../governance/proposal-resolution.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DEFAULT_TTL_DAYS = 7;
@@ -72,7 +73,10 @@ export default async function amendProposal(req: AuthRequest, res: Response): Pr
 
     const engine = new RepoEngine(communityDid);
     const keypair = await getKeypairForDid(communityDid);
-    const result = await engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, updatedProposal);
+    // Via putProposalRecord so the amended proposal keeps its CID lineage: vote
+    // records cast before the amendment are cleared from the tally by the reset
+    // above, and the lineage is what lets later votes cite a checkable state.
+    const result = await putProposalRecord(engine, keypair, communityDid, proposalRkey, updatedProposal);
 
     await auditLog('community.proposal.amend', req.auth!.userId, communityDid, {
       rkey: proposalRkey, amendmentCount: updatedProposal.amendments.length,

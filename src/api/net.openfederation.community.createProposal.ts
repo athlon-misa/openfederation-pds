@@ -5,6 +5,9 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
+import { canRecordVote, writeVoteRecord } from '../governance/vote-records.js';
+import { EVIDENCE_MODEL_VOTE_RECORDS } from '../governance/proposal-resolution.js';
+import { SETTINGS_COLLECTION, checkGovernanceSettings } from '../governance/settings-rules.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DEFAULT_TTL_DAYS = 7;
@@ -33,6 +36,18 @@ export default async function createProposal(req: AuthRequest, res: Response): P
       return;
     }
 
+    // A settings proposal is the only route to a community's governance model
+    // under a voting model (#198), so it answers to the same predicate the
+    // direct endpoint applies — here, where the proposer can still fix it,
+    // rather than at apply time where a quorum has already voted for it.
+    if (targetCollection === SETTINGS_COLLECTION && action === 'write') {
+      const invalid = checkGovernanceSettings(proposedRecord, { normalize: true });
+      if (invalid) {
+        res.status(400).json({ error: 'InvalidRequest', message: invalid.message });
+        return;
+      }
+    }
+
     const settingsResult = await query<{ record: any }>(
       `SELECT record FROM records_index
        WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
@@ -40,10 +55,13 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     );
 
     const settings = settingsResult.rows[0]?.record;
-    if (!settings || settings.governanceModel !== 'simple-majority') {
+    // `on-chain` resolves proposals through the same vote-record evidence path
+    // as `simple-majority` — it is that governance plus anchoring (#198), not a
+    // separate mechanism — so both models can propose.
+    if (!settings || !['simple-majority', 'on-chain'].includes(settings.governanceModel)) {
       res.status(400).json({
         error: 'GovernanceNotActive',
-        message: 'Community is not using simple-majority governance',
+        message: 'Community is not using a voting governance model (simple-majority or on-chain)',
       });
       return;
     }
@@ -61,6 +79,23 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     const keypair = await getKeypairForDid(communityDid);
     const rkey = RepoEngine.generateTid();
 
+    // The seed vote only counts if the proposer can sign a record for it. A
+    // proposer with no repo can still propose, but starts the proposal at zero
+    // votes rather than seeding a name the tally can never verify.
+    // A failed check is not an answer: rather than guess, fail the creation
+    // before anything is written so the caller can retry.
+    let seedVote: boolean;
+    try {
+      seedVote = await canRecordVote(req.auth!.did);
+    } catch (error) {
+      console.error(`[governance] repo check failed for proposer ${req.auth!.did}:`, error);
+      res.status(500).json({
+        error: 'InternalServerError',
+        message: 'Could not determine whether the proposer vote can be recorded; please retry',
+      });
+      return;
+    }
+
     const record = {
       targetCollection,
       targetRkey,
@@ -68,17 +103,43 @@ export default async function createProposal(req: AuthRequest, res: Response): P
       ...(proposedRecord ? { proposedRecord } : {}),
       proposedBy: req.auth!.did,
       status: 'open',
-      votesFor: [req.auth!.did],
+      votesFor: seedVote ? [req.auth!.did] : ([] as string[]),
       votesAgainst: [] as string[],
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       resolvedAt: null,
+      // This proposal's outcome will be decided from voter-signed vote records;
+      // the vote arrays above are a read cache. Proposals without this marker
+      // predate the evidence model and resolve on the arrays alone.
+      evidenceModel: EVIDENCE_MODEL_VOTE_RECORDS,
+      // Lineage of proposal CIDs a vote record may legitimately cite; appended
+      // to on every rewrite of this record.
+      cidChain: [] as string[],
     };
 
     const result = await engine.putRecord(keypair, PROPOSAL_COLLECTION, rkey, record);
 
+    // The proposer's seed vote is a counted vote, so it gets a voter-signed
+    // record like any other — otherwise the authoritative tally would be short
+    // by one from the moment the proposal exists.
+    const proposerVote = seedVote
+      ? await writeVoteRecord({
+          voterDid: req.auth!.did,
+          communityDid,
+          proposalRkey: rkey,
+          proposalCid: result.cid,
+          vote: 'for',
+        })
+      : null;
+
     await auditLog('community.proposal.create', req.auth!.userId, communityDid, {
-      rkey, targetCollection, action,
+      rkey,
+      targetCollection,
+      action,
+      proposalCid: result.cid,
+      evidenceModel: EVIDENCE_MODEL_VOTE_RECORDS,
+      seedVote,
+      ...(proposerVote ? { proposerVoteUri: proposerVote.uri, proposerVoteCid: proposerVote.cid } : {}),
     });
 
     res.status(200).json({ uri: result.uri, cid: result.cid, rkey });

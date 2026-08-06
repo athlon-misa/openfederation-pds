@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import { cidForRecord } from '@atproto/repo';
-import type { OracleContext } from '../auth/oracle-guard.js';
-import { query, withTransaction } from '../db/client.js';
-import { HttpError } from '../xrpc/errors.js';
-import type { GovernanceProof } from './chain-adapter.js';
-import type { GovernanceResult } from './enforcement.js';
+import type { OracleContext } from './oracle-context.js';
+import { query, withTransaction } from '../../db/client.js';
+import { HttpError } from '../../xrpc/errors.js';
+import type { GovernanceProof } from '../../governance/attestor.js';
+import type { GovernanceResult } from '../../governance/enforcement.js';
 
 export interface OracleMutationAudit {
   oracle: OracleContext;
@@ -193,11 +193,11 @@ function parseGovernanceProof(
  * an on-chain protected mutation eligible to proceed.
  */
 export function prepareOracleMutationAudit(input: {
-  governance: GovernanceResult;
+  governance: GovernanceResult | null;
   oracle: OracleContext | null;
   governanceProof: unknown;
 }): OracleMutationAudit | null {
-  if (input.governance.governanceModel !== 'on-chain' || !input.oracle) {
+  if (input.governance?.governanceModel !== 'on-chain' || !input.oracle) {
     return null;
   }
 

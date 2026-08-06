@@ -1,3 +1,27 @@
+/**
+ * Switch a community's governance model (#198).
+ *
+ * This endpoint used to hold a ratchet: once a community was `on-chain` it
+ * could not leave without "a PDS admin override" (`GovernanceDowngradeBlocked`).
+ * That encoded the belief the rest of this refactor removes — that a chain-
+ * backed community is a privileged tier whose members can be locked into it,
+ * and that a PDS operator is the authority who lets them out.
+ *
+ * There is no tier and no override. `governanceModel` is a field on
+ * `net.openfederation.community.settings`, which is a MANDATORY_PROTECTED
+ * collection, so changing it is exactly as governed as any other change to that
+ * record: free under `benevolent-dictator`, and a proposal plus a quorum under
+ * every model that requires one — including the model change that would leave
+ * that model. A community can adopt anchoring, and can drop it again, by the
+ * same route it decides anything else.
+ *
+ * So the enforcement call below is not a formality: it is the only thing that
+ * used to be missing here. Before it, an owner with `community.settings.write`
+ * could rewrite the governance model of a simple-majority community directly,
+ * which made the ratchet the *only* constraint on model changes and made it a
+ * constraint in the wrong direction.
+ */
+
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
@@ -5,8 +29,9 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
-
-const VALID_MODELS = ['benevolent-dictator', 'simple-majority', 'on-chain'];
+import { enforceGovernance, type GovernanceResult } from '../governance/enforcement.js';
+import { resolveGovernanceContext, runGovernedMutation } from '../governance/request-authority.js';
+import { SETTINGS_COLLECTION, checkGovernanceSettings } from '../governance/settings-rules.js';
 
 export default async function setGovernanceModel(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -19,106 +44,25 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
       return;
     }
 
-    if (!VALID_MODELS.includes(governanceModel)) {
-      res.status(400).json({
-        error: 'InvalidRequest',
-        message: `governanceModel must be one of: ${VALID_MODELS.join(', ')}`,
-      });
-      return;
-    }
-
     const hasPermission = await requireCommunityPermission(
       req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.settings.write'
     );
     if (!hasPermission) return;
 
-    if (governanceModel === 'simple-majority') {
-      if (!governanceConfig || typeof governanceConfig !== 'object') {
-        res.status(400).json({
-          error: 'InvalidRequest',
-          message: 'governanceConfig is required for simple-majority (quorum, voterRole)',
-        });
-        return;
-      }
-      if (!governanceConfig.quorum || typeof governanceConfig.quorum !== 'number' || governanceConfig.quorum < 1) {
-        res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.quorum must be a positive integer' });
-        return;
-      }
-      if (!governanceConfig.voterRole || typeof governanceConfig.voterRole !== 'string') {
-        res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.voterRole is required' });
-        return;
-      }
-
-      // Validate protectedCollections if provided
-      if (governanceConfig.protectedCollections) {
-        if (!Array.isArray(governanceConfig.protectedCollections)) {
-          res.status(400).json({ error: 'InvalidRequest', message: 'protectedCollections must be an array' });
-          return;
-        }
-        const mandatory = ['net.openfederation.community.settings', 'net.openfederation.community.role'];
-        const normalized = governanceConfig.protectedCollections.map((c: string) =>
-          c.startsWith('net.openfederation.community.') ? c : `net.openfederation.community.${c}`
-        );
-        for (const m of mandatory) {
-          if (!normalized.includes(m)) {
-            normalized.push(m);
-          }
-        }
-        governanceConfig.protectedCollections = normalized;
-      }
-    }
-
-    if (governanceModel === 'on-chain') {
-      if (!governanceConfig || typeof governanceConfig !== 'object') {
-        res.status(400).json({
-          error: 'InvalidRequest',
-          message: 'governanceConfig is required for on-chain (chainId, contractAddress)',
-        });
-        return;
-      }
-      if (!governanceConfig.chainId || typeof governanceConfig.chainId !== 'string') {
-        res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.chainId is required' });
-        return;
-      }
-      if (!governanceConfig.contractAddress || typeof governanceConfig.contractAddress !== 'string') {
-        res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.contractAddress is required' });
-        return;
-      }
-
-      // Verify an active Oracle credential exists for this community
-      const oracleResult = await query(
-        `SELECT 1 FROM oracle_credentials WHERE community_did = $1 AND status = 'active'`,
-        [communityDid]
-      );
-      if (oracleResult.rows.length === 0) {
-        res.status(400).json({
-          error: 'InvalidRequest',
-          message: 'An active Oracle credential must exist for this community before enabling on-chain governance. Create one first.',
-        });
-        return;
-      }
-
-      // Normalize protectedCollections (same logic as simple-majority)
-      if (governanceConfig.protectedCollections) {
-        if (!Array.isArray(governanceConfig.protectedCollections)) {
-          res.status(400).json({ error: 'InvalidRequest', message: 'protectedCollections must be an array' });
-          return;
-        }
-        const mandatory = ['net.openfederation.community.settings', 'net.openfederation.community.role'];
-        const normalized = governanceConfig.protectedCollections.map((c: string) =>
-          c.startsWith('net.openfederation.community.') ? c : `net.openfederation.community.${c}`
-        );
-        for (const m of mandatory) {
-          if (!normalized.includes(m)) normalized.push(m);
-        }
-        governanceConfig.protectedCollections = normalized;
-      }
+    // The same predicate the proposal route applies (`checkGovernanceSettings`
+    // in governance/settings-rules.ts). Neither route may be the lenient one:
+    // whichever is, becomes the way to give a community a governance model
+    // nothing recognizes.
+    const invalid = checkGovernanceSettings({ governanceModel, governanceConfig }, { normalize: true });
+    if (invalid) {
+      res.status(400).json({ error: 'InvalidRequest', message: invalid.message });
+      return;
     }
 
     const settingsResult = await query<{ record: any }>(
       `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
-      [communityDid]
+       WHERE community_did = $1 AND collection = $2 AND rkey = 'self'`,
+      [communityDid, SETTINGS_COLLECTION]
     );
 
     if (settingsResult.rows.length === 0) {
@@ -129,10 +73,19 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
     const currentSettings = settingsResult.rows[0].record;
     const currentModel = currentSettings.governanceModel || 'benevolent-dictator';
 
-    if (currentModel === 'on-chain') {
+    // The settings record is protected, so the community's *current* model
+    // decides who may rewrite it — including to change that model. No ratchet,
+    // no override: a community under a voting model leaves it the same way it
+    // does anything else, by proposing and passing the change.
+    const requestContext = resolveGovernanceContext(req);
+    const governance: GovernanceResult = await enforceGovernance(
+      communityDid, SETTINGS_COLLECTION, 'write', requestContext,
+    );
+    if (!governance.allowed) {
       res.status(403).json({
-        error: 'GovernanceDowngradeBlocked',
-        message: 'Cannot downgrade from on-chain governance without PDS admin override.',
+        error: 'GovernanceDenied',
+        message: governance.reason || 'Governance model change blocked by governance policy',
+        ...(governance.requiresProposal ? { requiresProposal: true } : {}),
       });
       return;
     }
@@ -146,7 +99,18 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
       ...(governanceConfig ? { governanceConfig } : {}),
     };
 
-    await engine.putRecord(keypair, 'net.openfederation.community.settings', 'self', updatedSettings);
+    await runGovernedMutation({
+      request: req,
+      context: requestContext,
+      governance,
+      communityDid,
+      collection: SETTINGS_COLLECTION,
+      rkey: 'self',
+      action: 'write',
+      operation: 'put',
+      record: updatedSettings,
+      mutate: () => engine.putRecord(keypair, SETTINGS_COLLECTION, 'self', updatedSettings),
+    });
 
     await auditLog('community.governance.setModel', req.auth!.userId, communityDid, {
       previousModel: currentModel,

@@ -165,6 +165,25 @@ railway run psql $DATABASE_URL -f scripts/migrate-001-repo-roots.sql
 railway run psql $DATABASE_URL -f scripts/migrate-002-user-signing-keys.sql
 ```
 
+### ⚠️ Governance indexes must be applied by hand on an existing database
+
+`ensureSchema()` runs `src/db/schema.sql` **only when the `users` table is
+absent** — that is, only on a brand-new database. Every `CREATE INDEX IF NOT
+EXISTS` added to `schema.sql` for an already-deployed PDS therefore never
+executes on upgrade. The governance refactor added three, and they must be run
+manually:
+
+```bash
+railway run psql $DATABASE_URL -f scripts/migrate-035-governance-vote-record-index.sql
+railway run psql $DATABASE_URL -f scripts/migrate-036-governance-objection-index.sql
+railway run psql $DATABASE_URL -f scripts/migrate-037-governance-anchor-audit-index.sql
+```
+
+036 is the one that bites first: `net.openfederation.community.getProposal` is
+reachable **unauthenticated** on a public community and reads the objection
+records for any proposal awaiting application. Without that index each such read
+is a sequential scan of `records_index`.
+
 ---
 
 ## 7. Verify Deployment

@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.voteOnProposal",
-  "revision": 2,
-  "description": "Cast a vote on a governance proposal.",
+  "revision": 6,
+  "description": "Cast a vote on a governance proposal. Quorum and outcome are computed from voter-signed net.openfederation.governance.vote records; the proposal's vote arrays are a non-authoritative read cache.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -42,11 +42,24 @@
             },
             "status": {
               "type": "string",
-              "description": "Proposal status after vote."
+              "description": "Proposal status after vote: open, rejected, expired, pending-application when the proposal passed and is waiting out the community timelock, or approved when it passed and applied immediately (the community set governanceConfig.timelockHours to 0, or the proposal predates the vote-record evidence model)."
             },
             "applied": {
               "type": "boolean",
-              "description": "Whether the proposed change was auto-applied."
+              "description": "Whether the proposed change was applied in this request. Only possible when the community sets governanceConfig.timelockHours to 0; otherwise application waits out the contest window."
+            },
+            "pendingApplication": {
+              "type": "boolean",
+              "description": "Present and true when the proposal passed and entered the timelock window. The decision is final; the change is not yet applied. Distinct from resolutionDeferred, which means nothing was decided at all."
+            },
+            "applyAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "End of the objection window: the earliest instant the approved change is applied. Present with pendingApplication."
+            },
+            "resolutionDeferred": {
+              "type": "boolean",
+              "description": "Present and true when quorum was reached on the cached vote arrays but the vote records disagree about the outcome. The proposal stays open and the divergence is audited rather than resolved on evidence that is not there."
             }
           },
           "required": [
@@ -75,6 +88,10 @@
         {
           "name": "NotMember",
           "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "VoteNotRecordable",
+          "description": "The voter has no repository, so the vote cannot be written as a voter-signed record and is refused rather than counted as unverifiable evidence."
         }
       ]
     }

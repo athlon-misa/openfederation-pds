@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Governance: verifiable decisions, a contest window, and no chain authority
+
+Community governance is now decided from voter-signed records and published as
+evidence a third party can recheck offline. The chain, where a community uses
+one, is a notary that witnesses a decision — never an authority that makes one.
+No outcome anywhere depends on a chain read.
+
+#### Added
+- **`net.openfederation.governance.vote`** (new lexicon): every counted vote is a
+  record in the *voter's own* repo, signed with the voter's key. The proposal's
+  `votesFor`/`votesAgainst` arrays are now a non-authoritative read cache.
+- **`net.openfederation.governance.decision`** (new lexicon): written to the
+  community repo when a proposal resolves, citing the proposal CID, the CID of
+  every counted vote record, the quorum rule applied, the outcome, and any
+  disclosed gap (`uncountedVotes` / `evidenceComplete`).
+- **`net.openfederation.governance.objection`** (new lexicon): an objector-signed
+  record in the objector's own repo contesting the *application* of a decision.
+- **`net.openfederation.community.objectToProposal`** (new endpoint): raise such
+  an objection inside a proposal's timelock window. Eligibility is the same
+  `community.governance.write` permission that gates voting.
+- **`ofc governance verify-decision`** (new CLI command): verifies a decision
+  offline from CAR exports and DID documents — no server, no database, no
+  network DID resolution. Exit status is the verdict in both output modes.
+  `src/governance/decision-rules.ts` is the single rule implementation shared by
+  online resolution and this verifier, so the two cannot drift.
+- `governanceConfig.timelockHours` and `governanceConfig.objectionThreshold`
+  settings.
+
+#### Changed — behaviour changes for existing communities
+
+1. **`setGovernanceModel` now enforces governance.** Changing the governance
+   model is a write to the protected settings record, so under `simple-majority`
+   or `on-chain` it requires a proposal and a quorum. An owner with
+   `community.settings.write` can no longer change the model directly; the
+   endpoint answers `403 GovernanceDenied` with `requiresProposal: true`. The
+   old `on-chain` downgrade ratchet and its "PDS admin override" are gone —
+   a community leaves a model by the same route it decides anything else.
+2. **A passed proposal no longer applies immediately.** It resolves into
+   `pending-application` and waits `governanceConfig.timelockHours`, which
+   defaults to **24 hours** when the settings record does not state it. To keep
+   the previous behaviour a community must set `timelockHours: 0` explicitly —
+   and, under a voting model, must do so through a proposal. During the window
+   any member who could have voted may object; once
+   `governanceConfig.objectionThreshold` (**default 1**) countable objections
+   exist the change is held. **A hold is permanent**: there is no expiry, no
+   re-review, and no automatic re-vote, so at the default threshold a single
+   eligible member can veto a passed proposal indefinitely. Raise
+   `objectionThreshold` if that is not what the community wants.
+3. **A voter with no repository can no longer vote.** `voteOnProposal` answers
+   `400 VoteNotRecordable` for accounts that cannot sign a vote record
+   (external accounts, the bootstrap admin). Counting them would put a
+   permanently unevidenced name in the tally and deadlock resolution, which
+   requires the records and the cache to agree.
+
+Proposals created before this change carry no `evidenceModel` marker and
+continue to resolve under the old array arithmetic; nothing is rewritten
+retroactively.
+
+#### Upgrade note
+`ensureSchema()` only runs `schema.sql` when the `users` table is absent, so the
+indexes added for this work do **not** apply to an existing database. Run
+`scripts/migrate-035-governance-vote-record-index.sql`,
+`scripts/migrate-036-governance-objection-index.sql`, and
+`scripts/migrate-037-governance-anchor-audit-index.sql` by hand on upgrade — see
+`DEPLOYMENT.md`.
+
+#### Known limits
+Verification establishes tamper-evidence and public consistency, not
+independence from a PDS that holds its users' signing keys; and voter
+*eligibility* (that a counted DID was a member with `community.governance.write`
+at the time) is not checked online or offline. Both are stated in
+`src/governance/verify-decision.ts` and `cli/README.md`.
+
 ## [1.2.0] - 2026-06-25
 
 ### Added

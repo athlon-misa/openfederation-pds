@@ -1,0 +1,182 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.governance.decision",
+  "revision": 1,
+  "description": "The outcome of a community governance proposal, written into the community repo at resolution time. It cites the exact evidence the outcome was computed from — the proposal state, the voter-signed vote records that were counted, and the quorum rule applied — so a third party can recheck the decision without trusting the community's PDS.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Governance decision record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "community",
+          "proposal",
+          "proposalCollection",
+          "proposalRkey",
+          "outcome",
+          "quorum",
+          "tally",
+          "votes",
+          "evidenceComplete",
+          "resolvedAt"
+        ],
+        "properties": {
+          "community": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community whose repo holds this decision."
+          },
+          "proposal": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference (uri + cid) to the proposal record as it stood when the decision was computed, before the resolution rewrite."
+          },
+          "proposalCollection": {
+            "type": "string",
+            "format": "nsid",
+            "description": "Collection of the proposal record (net.openfederation.community.proposal)."
+          },
+          "proposalRkey": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Record key of the proposal record in the community repo."
+          },
+          "outcome": {
+            "type": "string",
+            "knownValues": ["approved", "rejected"],
+            "description": "The decided outcome."
+          },
+          "quorum": {
+            "type": "ref",
+            "ref": "#quorumRule",
+            "description": "The quorum rule that was applied to reach this outcome."
+          },
+          "tally": {
+            "type": "ref",
+            "ref": "#tally",
+            "description": "Counts derived exclusively from the cited vote records."
+          },
+          "votes": {
+            "type": "array",
+            "description": "Every voter-signed vote record counted toward this outcome.",
+            "items": {
+              "type": "ref",
+              "ref": "#countedVote"
+            }
+          },
+          "uncountedVotes": {
+            "type": "array",
+            "description": "Votes present in the proposal's non-authoritative vote cache that produced no countable vote record, and were therefore excluded from the tally. Present so the gap is enumerable rather than silent.",
+            "items": {
+              "type": "ref",
+              "ref": "#uncountedVote"
+            }
+          },
+          "evidenceComplete": {
+            "type": "boolean",
+            "description": "True when every vote in the proposal's cache was backed by a countable vote record — i.e. uncountedVotes is empty."
+          },
+          "supersedes": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference to an earlier decision record for the same proposal that this one replaces. Written when a resolution is retried after a crash and the tally has since moved to a different outcome, so the contradiction is explicit rather than silent."
+          },
+          "action": {
+            "type": "ref",
+            "ref": "#decidedAction",
+            "description": "The change the proposal asked for. Whether it was successfully applied is recorded in the audit log, not here."
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+    "quorumRule": {
+      "type": "object",
+      "required": ["model", "threshold", "rule"],
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Governance model in force (e.g. simple-majority)."
+        },
+        "threshold": {
+          "type": "integer",
+          "description": "Minimum number of counted votes required to resolve."
+        },
+        "rule": {
+          "type": "string",
+          "description": "Human-readable statement of the rule applied."
+        }
+      }
+    },
+    "tally": {
+      "type": "object",
+      "required": ["votesFor", "votesAgainst", "total"],
+      "properties": {
+        "votesFor": { "type": "integer" },
+        "votesAgainst": { "type": "integer" },
+        "total": { "type": "integer" }
+      }
+    },
+    "countedVote": {
+      "type": "object",
+      "required": ["voter", "vote", "record", "proposalCid"],
+      "properties": {
+        "voter": {
+          "type": "string",
+          "format": "did",
+          "description": "DID of the voter, i.e. the owner of the repo holding the vote record."
+        },
+        "vote": {
+          "type": "string",
+          "knownValues": ["for", "against"]
+        },
+        "record": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef",
+          "description": "Strong reference to the voter-signed net.openfederation.governance.vote record."
+        },
+        "proposalCid": {
+          "type": "string",
+          "description": "The proposal CID the vote record attests to; always a member of the proposal's CID lineage."
+        },
+        "castBy": {
+          "type": "string",
+          "format": "did",
+          "description": "Delegate who cast this vote, when the vote record carries delegation provenance."
+        }
+      }
+    },
+    "uncountedVote": {
+      "type": "object",
+      "required": ["voter", "vote", "reason"],
+      "properties": {
+        "voter": { "type": "string", "format": "did" },
+        "vote": {
+          "type": "string",
+          "knownValues": ["for", "against"]
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the vote produced no countable record (e.g. no-vote-record, unknown-proposal-cid, stale-vote-record)."
+        }
+      }
+    },
+    "decidedAction": {
+      "type": "object",
+      "required": ["targetCollection", "targetRkey", "action"],
+      "properties": {
+        "targetCollection": { "type": "string", "format": "nsid" },
+        "targetRkey": { "type": "string", "maxLength": 512 },
+        "action": {
+          "type": "string",
+          "knownValues": ["write", "delete"]
+        }
+      }
+    }
+  }
+}

@@ -56,7 +56,7 @@ services:
       retries: 5
 
   pds:
-    image: node:22-alpine
+    image: node:24-alpine
     working_dir: /app
     volumes:
       - ./:/app
@@ -122,7 +122,7 @@ docker run -d \
   -p 3000:3000 \
   -v $(pwd):/app \
   -w /app \
-  node:22-alpine \
+  node:24-alpine \
   sh -c "npm install && npm run build && npm start"
 ```
 
@@ -244,6 +244,23 @@ The PDS auto-initializes its schema on first startup. If you see errors about mi
 ```bash
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f src/db/schema.sql
 ```
+
+### Upgrading an existing database: governance indexes are NOT auto-applied
+
+`ensureSchema()` runs `schema.sql` only when the `users` table is missing, so an
+existing deployment never re-reads it — including the `CREATE INDEX IF NOT
+EXISTS` statements the governance refactor added. Apply these by hand when
+upgrading:
+
+```bash
+psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-035-governance-vote-record-index.sql
+psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-036-governance-objection-index.sql
+psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-037-governance-anchor-audit-index.sql
+```
+
+They are `IF NOT EXISTS`, so re-running them is safe. Skipping 036 in particular
+leaves an unauthenticated `getProposal` on a public community with a proposal
+awaiting application doing a sequential scan of `records_index` on every read.
 
 ### Server Won't Start
 

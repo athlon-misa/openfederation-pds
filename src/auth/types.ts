@@ -1,6 +1,5 @@
 import type { Request } from 'express';
 import type { PartnerContext } from './partner-guard.js';
-import type { OracleContext } from './oracle-guard.js';
 
 export type UserStatus = 'pending' | 'approved' | 'rejected' | 'disabled' | 'suspended' | 'takendown' | 'deactivated';
 export type UserRole = 'admin' | 'moderator' | 'partner-manager' | 'auditor' | 'user';
@@ -28,6 +27,4 @@ export interface AuthRequest extends Request {
   partnerAuth?: PartnerContext;
   /** Set by authMiddleware when X-Partner-Key is present but invalid/unverified. */
   partnerAuthError?: { status: number; code: string; message: string };
-  /** Set by authMiddleware when a valid X-Oracle-Key header is present. */
-  oracleAuth?: OracleContext;
 }

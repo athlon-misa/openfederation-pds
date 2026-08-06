@@ -5,8 +5,9 @@
  * on-chain adapter verification, caching, and oracle-trust fallback.
  * Requires PLC directory.
  */
-import { registerAdapter, clearAdapters } from '../../src/governance/chain-adapter.js';
-import type { GovernanceProof, VerificationResult } from '../../src/governance/chain-adapter.js';
+import { registerAttestor, clearAttestors } from '../../src/governance/attestor.js';
+import type { GovernanceProof, VerificationResult } from '../../src/governance/attestor.js';
+import { setChainModuleEnabledForTests } from '../../src/config.js';
 import {
   isPLCAvailable, getAdminToken, createTestUser, uniqueHandle,
   xrpcAuthPost, createOracleForCommunity,
@@ -20,11 +21,15 @@ let oracleKey: string;
 const TX_HASH = '0xdeadbeef1234567890abcdef';
 
 beforeAll(async () => {
+  // net.openfederation.oracle.* endpoints are gated behind chain-module
+  // activation (#191). Force the module on for this file's duration only.
+  setChainModuleEnabledForTests(true);
+
   plcAvailable = await isPLCAvailable();
   if (!plcAvailable) return;
 
   // Register mock adapter for eip155:31337
-  registerAdapter({
+  registerAttestor({
     chainId: 'eip155:31337',
     name: 'MockLocalnet',
     async verifyProof(_proof: GovernanceProof): Promise<VerificationResult> {
@@ -44,7 +49,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  clearAdapters();
+  clearAttestors();
+  setChainModuleEnabledForTests(undefined);
 });
 
 describe('Chain Proof Verification', () => {

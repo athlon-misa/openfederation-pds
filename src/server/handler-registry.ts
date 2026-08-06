@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type rateLimit from 'express-rate-limit';
 import type { LexiconNsid } from '../lexicon/generated.js';
 import { authLimiter, registrationLimiter, createLimiter, discoveryLimiter, walletSignLimiter } from './rate-limits.js';
+import { isChainModuleEnabled } from '../config.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
 import getRecord from '../api/com.atproto.repo.getRecord.js';
 import resolveHandle from '../api/com.atproto.identity.resolveHandle.js';
@@ -113,6 +114,7 @@ import listRolesHandler from '../api/net.openfederation.community.listRoles.js';
 import setGovernanceModel from '../api/net.openfederation.community.setGovernanceModel.js';
 import createProposal from '../api/net.openfederation.community.createProposal.js';
 import voteOnProposal from '../api/net.openfederation.community.voteOnProposal.js';
+import objectToProposal from '../api/net.openfederation.community.objectToProposal.js';
 import listProposals from '../api/net.openfederation.community.listProposals.js';
 import getProposalHandler from '../api/net.openfederation.community.getProposal.js';
 import amendProposal from '../api/net.openfederation.community.amendProposal.js';
@@ -125,10 +127,15 @@ import deleteExportSchedule from '../api/net.openfederation.admin.deleteExportSc
 import listExportSnapshots from '../api/net.openfederation.admin.listExportSnapshots.js';
 import createVerificationChallenge from '../api/net.openfederation.admin.createVerificationChallenge.js';
 import verifyChallenge from '../api/net.openfederation.admin.verifyChallenge.js';
-import createOracleCredential from '../api/net.openfederation.oracle.createCredential.js';
-import listOracleCredentials from '../api/net.openfederation.oracle.listCredentials.js';
-import revokeOracleCredential from '../api/net.openfederation.oracle.revokeCredential.js';
-import submitProof from '../api/net.openfederation.oracle.submitProof.js';
+// Chain module handlers. This file is one of the two composition roots
+// permitted to import a module (see scripts/check-import-boundaries.ts), and
+// only ever through the module's public entry point.
+import {
+  oracleCreateCredential as createOracleCredential,
+  oracleListCredentials as listOracleCredentials,
+  oracleRevokeCredential as revokeOracleCredential,
+  oracleSubmitProof as submitProof,
+} from '../modules/chain/index.js';
 import vaultRequestShareRelease from '../api/net.openfederation.vault.requestShareRelease.js';
 import vaultRegisterEscrow from '../api/net.openfederation.vault.registerEscrow.js';
 import vaultExportRecoveryKey from '../api/net.openfederation.vault.exportRecoveryKey.js';
@@ -168,7 +175,18 @@ import listRsvpsHandler from '../api/net.openfederation.calendar.listRsvps.js';
 
 // XRPC Handler type
 export type XRPCHandler = (req: Request, res: Response) => Promise<void> | void;
-export type HandlerEntry = { handler: XRPCHandler; limiter?: ReturnType<typeof rateLimit> };
+export type HandlerEntry = {
+  handler: XRPCHandler;
+  limiter?: ReturnType<typeof rateLimit>;
+  /**
+   * Module-contributed conditional registration. When present, the router
+   * checks this before dispatching; a `false` result is treated as the
+   * method not existing on this server build (MethodNotImplemented), not
+   * as a runtime authorization failure. Purely config-driven — no request
+   * state is consulted.
+   */
+  enabledWhen?: () => boolean;
+};
 
 // Static handler registry (frozen after initialization to prevent runtime modification)
 const handlers = Object.freeze({
@@ -269,6 +287,7 @@ const handlers = Object.freeze({
   'net.openfederation.community.setGovernanceModel': { handler: setGovernanceModel },
   'net.openfederation.community.createProposal': { handler: createProposal },
   'net.openfederation.community.voteOnProposal': { handler: voteOnProposal },
+  'net.openfederation.community.objectToProposal': { handler: objectToProposal },
   'net.openfederation.community.listProposals': { handler: listProposals, limiter: discoveryLimiter },
   'net.openfederation.community.getProposal': { handler: getProposalHandler, limiter: discoveryLimiter },
   'net.openfederation.community.amendProposal': { handler: amendProposal },
@@ -341,13 +360,16 @@ const handlers = Object.freeze({
   'net.openfederation.admin.createVerificationChallenge': { handler: createVerificationChallenge },
   'net.openfederation.admin.verifyChallenge': { handler: verifyChallenge },
 
-  // Oracle credential management (admin only)
-  'net.openfederation.oracle.createCredential': { handler: createOracleCredential },
-  'net.openfederation.oracle.listCredentials': { handler: listOracleCredentials },
-  'net.openfederation.oracle.revokeCredential': { handler: revokeOracleCredential },
+  // Oracle credential management (admin only) — chain-module surface; gated
+  // behind isChainModuleEnabled() (see src/config.ts). A pure-federation PDS
+  // carries zero chain surface, so these register only when the chain
+  // module is activated (CHAIN_ADAPTERS or GOVERNANCE_CHAIN_ENABLED=true).
+  'net.openfederation.oracle.createCredential': { handler: createOracleCredential, enabledWhen: isChainModuleEnabled },
+  'net.openfederation.oracle.listCredentials': { handler: listOracleCredentials, enabledWhen: isChainModuleEnabled },
+  'net.openfederation.oracle.revokeCredential': { handler: revokeOracleCredential, enabledWhen: isChainModuleEnabled },
 
   // Oracle proof verification
-  'net.openfederation.oracle.submitProof': { handler: submitProof },
+  'net.openfederation.oracle.submitProof': { handler: submitProof, enabledWhen: isChainModuleEnabled },
 
   // Vault service — threshold key custody
   'net.openfederation.vault.requestShareRelease': { handler: vaultRequestShareRelease, limiter: authLimiter },

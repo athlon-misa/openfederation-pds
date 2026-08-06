@@ -1,0 +1,214 @@
+/**
+ * Chain module: Oracle request authentication.
+ *
+ * `X-Oracle-Key` is chain-module surface, not core auth. It is therefore NOT
+ * handled by the global auth middleware and NOT carried on the shared
+ * `AuthRequest` type. Instead this file owns:
+ *
+ *   1. `oracleAuthMiddleware` — mounted by the module on exactly the routes
+ *      that can be Oracle-authorized, and inert unless the chain module is
+ *      enabled at request time.
+ *   2. A per-request context store (WeakMap, not a request field).
+ *   3. The `GovernanceRequestAuthority` implementation registered into core,
+ *      which is how Oracle context reaches `enforceGovernance()` and how
+ *      Oracle-attributed mutations get their durable audit evidence.
+ *
+ * What "a pure-federation PDS carries no oracle surface" means concretely:
+ * every entry point here — middleware, context lookup, and the authority's
+ * `contextFor`/`runMutation` — short-circuits on `isChainModuleEnabled()`
+ * before touching any chain logic, so with the module off a core repo write
+ * costs one cached boolean read and then runs its own `mutate()` unwrapped.
+ * Installation is deliberately not gated at boot: the express routes cannot be
+ * unmounted, and the flag is a runtime toggle, so gating registration would
+ * make the toggle unobservable. `uninstallOracleAuth()` (re-exported from the
+ * module index as `uninstallChainModule`) is the matching teardown seam for
+ * callers that want the authority gone entirely.
+ */
+
+import type { Express, NextFunction, Request, Response } from 'express';
+import { isChainModuleEnabled } from '../../config.js';
+import type { OracleContext } from './oracle-context.js';
+import { verifyOracleKey } from './oracle-credentials.js';
+import {
+  executeOracleGovernedMutation,
+  prepareOracleMutationAudit,
+} from './oracle-mutation-audit.js';
+import {
+  clearGovernanceRequestAuthority,
+  registerGovernanceRequestAuthority,
+  registeredAuthorityName,
+  type GovernanceRequestAuthority,
+  type GovernanceRequestContext,
+  type GovernedMutation,
+} from '../../governance/request-authority.js';
+
+/** `source` stamped on every context this module attributes. */
+export const CHAIN_ORACLE_AUTHORITY = 'chain-oracle';
+
+/**
+ * Routes that may carry an `X-Oracle-Key`. Everything else in the PDS is
+ * unreachable by Oracle authentication, by construction.
+ */
+export const ORACLE_AUTHENTICATED_NSIDS = [
+  'net.openfederation.oracle.submitProof',
+  'com.atproto.repo.createRecord',
+  'com.atproto.repo.putRecord',
+  'com.atproto.repo.deleteRecord',
+] as const;
+
+/**
+ * Per-request Oracle context. A WeakMap rather than a request property so
+ * core's shared auth types stay free of chain fields.
+ */
+const oracleContexts = new WeakMap<object, OracleContext>();
+
+/** Read the Oracle context attributed to a request, if any. */
+export function getOracleContext(request: unknown): OracleContext | null {
+  if (!isChainModuleEnabled()) return null;
+  if (typeof request !== 'object' || request === null) return null;
+  return oracleContexts.get(request) ?? null;
+}
+
+/**
+ * Validate `X-Oracle-Key` and stash the resulting context for this request.
+ * A missing/invalid key is not an error here — route guards decide whether
+ * Oracle authentication was required.
+ */
+export async function oracleAuthMiddleware(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if (!isChainModuleEnabled()) {
+    next();
+    return;
+  }
+
+  const rawKey = req.headers['x-oracle-key'];
+  if (typeof rawKey === 'string' && rawKey.length > 0) {
+    try {
+      const result = await verifyOracleKey({
+        rawKey,
+        origin: req.headers.origin as string | undefined,
+      });
+      if (result.ok) {
+        oracleContexts.set(req, result.oracle);
+      }
+    } catch (err) {
+      console.error('Oracle key verification failed:', err);
+    }
+  }
+
+  next();
+}
+
+/**
+ * Guard: require a valid Oracle key on this request.
+ * Returns the context, or sends 401 and returns null.
+ */
+export function requireOracleAuth(req: Request, res: Response): OracleContext | null {
+  const oracle = getOracleContext(req);
+  if (!oracle) {
+    res.status(401).json({ error: 'AuthRequired', message: 'Valid X-Oracle-Key header required' });
+    return null;
+  }
+  return oracle;
+}
+
+function toOracleContext(context: GovernanceRequestContext | null): OracleContext | null {
+  if (!context || context.source !== CHAIN_ORACLE_AUTHORITY) return null;
+  return {
+    credentialId: context.credentialId,
+    communityDid: context.communityDid,
+    name: context.name,
+  };
+}
+
+function governanceProofOf(request: unknown): unknown {
+  const body = (request as { body?: unknown } | null)?.body;
+  if (typeof body !== 'object' || body === null) return undefined;
+  return (body as { governanceProof?: unknown }).governanceProof;
+}
+
+/** The chain module's implementation of core's governance authority contract. */
+export const oracleRequestAuthority: GovernanceRequestAuthority = {
+  name: CHAIN_ORACLE_AUTHORITY,
+
+  contextFor(request: unknown): GovernanceRequestContext | null {
+    const oracle = getOracleContext(request);
+    if (!oracle) return null;
+    return {
+      source: CHAIN_ORACLE_AUTHORITY,
+      communityDid: oracle.communityDid,
+      credentialId: oracle.credentialId,
+      name: oracle.name,
+    };
+  },
+
+  async runMutation<T>(mutation: GovernedMutation<T>): Promise<T> {
+    // Disabled module: leave core's mutation entirely alone.
+    //
+    // For every context core actually produces this is a no-op, because core
+    // only ever passes what `contextFor` returned, and `contextFor` returns
+    // null while the module is disabled — so the audit below would resolve to
+    // null and fall through to `mutate()` anyway. The guard makes that path
+    // explicit rather than emergent.
+    //
+    // It is NOT a no-op for a hand-constructed context (a caller synthesising
+    // a chain-oracle context while the module is off): before this guard such
+    // a mutation would have been rejected for missing proof evidence, and now
+    // it runs unwrapped. That direction is deliberate — a disabled module must
+    // not adjudicate mutations — and is covered in
+    // tests/unit/oracle-auth-module.test.ts.
+    if (!isChainModuleEnabled()) return mutation.mutate();
+
+    const audit = prepareOracleMutationAudit({
+      governance: mutation.governance,
+      oracle: toOracleContext(mutation.context),
+      governanceProof: governanceProofOf(mutation.request),
+    });
+
+    return executeOracleGovernedMutation({
+      audit,
+      communityDid: mutation.communityDid,
+      collection: mutation.collection,
+      rkey: mutation.rkey,
+      action: mutation.action,
+      operation: mutation.operation,
+      record: mutation.record,
+      mutate: mutation.mutate,
+    });
+  },
+};
+
+/**
+ * Install the chain module's Oracle authentication: mount the middleware on
+ * the routes that accept an Oracle key, and register the module's authority
+ * with core governance.
+ *
+ * Mounting is unconditional but every entry point re-checks
+ * `isChainModuleEnabled()` per request, so the module can be toggled at
+ * runtime (tests) and a disabled module authenticates no Oracle anywhere.
+ */
+export function installOracleAuth(app: Express): void {
+  app.post(
+    ORACLE_AUTHENTICATED_NSIDS.map((nsid) => `/xrpc/${nsid}`),
+    oracleAuthMiddleware,
+  );
+  registerGovernanceRequestAuthority(oracleRequestAuthority);
+}
+
+/**
+ * Teardown counterpart to `installOracleAuth`: withdraw **this module's**
+ * authority from core governance. The express middleware stays mounted (routes
+ * cannot be unmounted) but it is inert without the module enabled.
+ *
+ * The registry holds a single authority today, so the ownership check is
+ * latent — but a module's teardown unregistering somebody else's authority is
+ * exactly the kind of silent cross-module damage this boundary work exists to
+ * rule out. If a different authority is registered, this is a no-op.
+ */
+export function uninstallOracleAuth(): void {
+  if (registeredAuthorityName() !== CHAIN_ORACLE_AUTHORITY) return;
+  clearGovernanceRequestAuthority();
+}

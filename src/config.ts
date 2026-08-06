@@ -173,3 +173,31 @@ export const config = {
     serviceAuthPerMin: parseInt(process.env.SERVICE_AUTH_RATE_LIMIT || '60', 10),
   },
 };
+
+// ── Chain module activation ─────────────────────────────────────
+//
+// Blockchain is a notary, never an authority: a pure-federation PDS carries
+// zero chain surface. The chain module (attestor registration, oracle
+// endpoints) activates only when explicitly configured — either by
+// supplying at least one chain adapter, or by opting in directly.
+//
+// Read once and cached; `setChainModuleEnabledForTests` lets tests flip
+// the flag at runtime without re-importing this module or mutating
+// `process.env` mid-suite.
+
+let cachedChainModuleEnabled: boolean | null = null;
+let chainModuleEnabledTestOverride: boolean | undefined;
+
+export function isChainModuleEnabled(): boolean {
+  if (chainModuleEnabledTestOverride !== undefined) return chainModuleEnabledTestOverride;
+  if (cachedChainModuleEnabled === null) {
+    cachedChainModuleEnabled =
+      Boolean(process.env.CHAIN_ADAPTERS?.trim()) || process.env.GOVERNANCE_CHAIN_ENABLED === 'true';
+  }
+  return cachedChainModuleEnabled;
+}
+
+/** Test-only override. Pass `undefined` to restore normal env-driven behavior. */
+export function setChainModuleEnabledForTests(value: boolean | undefined): void {
+  chainModuleEnabledTestOverride = value;
+}

@@ -1,0 +1,116 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.objectToProposal",
+  "revision": 1,
+  "description": "Object to the application of a passed proposal during its timelock window. Writes an objector-signed net.openfederation.governance.objection record into the objector's own repo. The change is held once governanceConfig.objectionThreshold countable objections exist; that threshold defaults to 1. Eligibility is the same community.governance.write permission that gates voting. WARNING: a hold is permanent and there is no automatic re-review — an 'objected' proposal is never reopened, revoted, or applied. At the default threshold of 1 this means any single member with community.governance.write can veto any decision of the community indefinitely, whatever the vote was. Communities that do not want unanimity-by-any-objector must raise governanceConfig.objectionThreshold, which is itself a governed change to the settings record.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "communityDid": {
+              "type": "string"
+            },
+            "proposalRkey": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Rationale published with the objection record."
+            }
+          },
+          "required": [
+            "communityDid",
+            "proposalRkey"
+          ]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "recorded": {
+              "type": "boolean"
+            },
+            "status": {
+              "type": "string",
+              "description": "Proposal status after the objection; 'objected' when the application is held, otherwise unchanged ('pending-application') because the objection threshold has not been reached."
+            },
+            "objectionCount": {
+              "type": "integer",
+              "description": "Countable objections standing against this decision, including this one."
+            },
+            "objectionThreshold": {
+              "type": "integer",
+              "description": "Countable objections required to hold the change (governanceConfig.objectionThreshold; defaults to 1)."
+            },
+            "objection": {
+              "type": "ref",
+              "ref": "#objectionRef",
+              "description": "The objector-signed record, readable through com.atproto.repo.getRecord."
+            }
+          },
+          "required": [
+            "recorded",
+            "status",
+            "objection"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing fields, or reason longer than 2000 characters."
+        },
+        {
+          "name": "ProposalNotFound",
+          "description": "No proposal with given rkey."
+        },
+        {
+          "name": "ProposalNotPending",
+          "description": "The proposal is not awaiting application, so there is no window to object into."
+        },
+        {
+          "name": "ObjectionWindowClosed",
+          "description": "The timelock window has elapsed, or the application is already held by an objection."
+        },
+        {
+          "name": "AlreadyObjected",
+          "description": "You have already objected to this proposal."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "ObjectionNotRecordable",
+          "description": "The objector has no repository, so the objection cannot be written as an objector-signed record and is refused rather than held on unverifiable evidence."
+        }
+      ]
+    },
+    "objectionRef": {
+      "type": "object",
+      "required": [
+        "uri",
+        "cid",
+        "rkey"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string"
+        },
+        "cid": {
+          "type": "string"
+        },
+        "rkey": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

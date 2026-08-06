@@ -1,7 +1,8 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { query } from '../../src/db/client.js';
 import { decryptKeyBytes } from '../../src/auth/encryption.js';
+import { setChainModuleEnabledForTests } from '../../src/config.js';
 import {
   getServiceDid,
   signServiceAuthJwt,
@@ -155,6 +156,18 @@ describe('com.atproto.repo collection mutation security', () => {
   let oracleCommunityDid: string;
   let oracleCredential: { id: string; key: string };
   let adminToken: string;
+
+  // This file exercises net.openfederation.oracle.* endpoints (createCredential,
+  // revokeCredential) as part of governed-collection deletion flows; those
+  // endpoints are gated behind chain-module activation (#191). Force the
+  // module on for this file's duration only.
+  beforeAll(() => {
+    setChainModuleEnabledForTests(true);
+  });
+
+  afterAll(() => {
+    setChainModuleEnabledForTests(undefined);
+  });
 
   beforeAll(async () => {
     owner = await createApprovedUser('rp-owner');

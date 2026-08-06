@@ -137,6 +137,18 @@ CREATE TABLE IF NOT EXISTS records_index (
 CREATE INDEX idx_records_community_collection ON records_index(community_did, collection);
 CREATE INDEX idx_records_cid ON records_index(cid);
 
+-- Governance tallies read vote records across every voter's repo, so they
+-- filter by the proposal a record points at rather than by repo DID.
+CREATE INDEX IF NOT EXISTS idx_records_governance_vote_proposal
+    ON records_index ((record->>'community'), (record->>'proposalRkey'))
+    WHERE collection = 'net.openfederation.governance.vote';
+
+-- Objections are read the same way, across every objector's repo, and on read
+-- paths reachable without authentication (application is evaluated lazily).
+CREATE INDEX IF NOT EXISTS idx_records_governance_objection_proposal
+    ON records_index ((record->>'community'), (record->>'proposalRkey'))
+    WHERE collection = 'net.openfederation.governance.objection';
+
 -- Members Unique table: enforces one membership per DID per community
 -- This prevents duplicate memberships as per the schema fix in documentation
 CREATE TABLE IF NOT EXISTS members_unique (
@@ -208,6 +220,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_actor ON audit_log(actor_id);
 CREATE INDEX idx_audit_log_created ON audit_log(created_at);
+
+-- The anchor retry queue is derived from audit rows: it reads a community's
+-- recent anchorFailed rows and matching anchored successes to decide what to
+-- retry, on a path that runs inside a member's vote. idx_audit_log_action alone
+-- would scan those actions across every community on the PDS.
+CREATE INDEX IF NOT EXISTS idx_audit_log_decision_anchor_target
+    ON audit_log (target_id, id DESC)
+    WHERE action IN ('community.proposal.decision.anchored', 'community.proposal.decision.anchorFailed');
 
 -- Partner API keys: allows trusted partners to register users directly
 CREATE TABLE IF NOT EXISTS partner_keys (

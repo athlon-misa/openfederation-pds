@@ -47,7 +47,7 @@ describe('private community read boundary', () => {
     expect((await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
       communityDid: privateCommunityDid,
       governanceModel: 'simple-majority',
-      governanceConfig: { quorum: 1, voterRole: 'member', proposalTtlDays: 7 },
+      governanceConfig: { quorum: 1, voterRole: 'member', proposalTtlDays: 7, timelockHours: 0 },
     })).status).toBe(200);
 
     const proposal = await xrpcAuthPost('net.openfederation.community.createProposal', owner.accessJwt, {

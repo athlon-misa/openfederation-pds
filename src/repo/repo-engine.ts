@@ -28,7 +28,7 @@ const MEMBER_COLLECTION = 'net.openfederation.community.member';
 export class RepoEngine {
   private storage: PgBlockstore;
 
-  constructor(private did: string) {
+  constructor(public readonly did: string) {
     this.storage = new PgBlockstore(did);
   }
 

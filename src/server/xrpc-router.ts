@@ -27,6 +27,13 @@ export function createXrpcRouter(): Router {
         });
       }
 
+      if (entry.enabledWhen && !entry.enabledWhen()) {
+        return res.status(501).json({
+          error: 'MethodNotImplemented',
+          message: 'XRPC method not implemented'
+        });
+      }
+
       enforceXrpcErrorResponses(nsid, res);
 
       const validationTarget = req.method === 'GET' ? req.query : req.body ?? {};

@@ -52,9 +52,22 @@ export type AuditAction =
   | 'community.governance.setModel'
   | 'community.proposal.create'
   | 'community.proposal.vote'
+  | 'community.proposal.vote.recordFailed'
   | 'community.proposal.approve'
   | 'community.proposal.reject'
   | 'community.proposal.expire'
+  | 'community.proposal.resolution.deferred'
+  // Timelock: decided, waiting out the contest window, then applied or held.
+  | 'community.proposal.pendingApplication'
+  | 'community.proposal.objection'
+  | 'community.proposal.applicationHeld'
+  | 'community.proposal.apply'
+  | 'community.proposal.applyFailed'
+  | 'community.proposal.decision.superseded'
+  // Anchoring: a decision notarized externally, or an attempt that failed and
+  // will be retried. Never a precondition of the decision itself.
+  | 'community.proposal.decision.anchored'
+  | 'community.proposal.decision.anchorFailed'
   | 'admin.export.schedule.create'
   | 'admin.export.schedule.delete'
   | 'admin.export.snapshot.success'

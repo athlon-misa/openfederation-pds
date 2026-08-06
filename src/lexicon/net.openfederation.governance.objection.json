@@ -1,0 +1,54 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.governance.objection",
+  "revision": 1,
+  "description": "An objection to the application of a passed governance decision, raised inside the community's timelock window. Lives in the objector's own repo and is signed with the objector's key, so a contested application can be verified by a third party without trusting the community's PDS.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Objector-signed governance objection record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["community", "proposal", "proposalCollection", "proposalRkey", "decision", "createdAt"],
+        "properties": {
+          "community": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the community the proposal belongs to."
+          },
+          "proposal": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference (uri + cid) to the proposal record as it stood when the objection was raised."
+          },
+          "proposalCollection": {
+            "type": "string",
+            "format": "nsid",
+            "description": "Collection of the proposal record (net.openfederation.community.proposal)."
+          },
+          "proposalRkey": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Record key of the proposal record in the community repo."
+          },
+          "decision": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference to the net.openfederation.governance.decision record whose application is contested. An objection naming a different decision does not hold this application."
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Rationale published with the objection."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the objection was raised. An objection created at or after the proposal's applyAt is late and does not hold the application."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,15 +1,15 @@
 import { Response } from 'express';
-import type { AuthRequest } from '../auth/types.js';
-import { requireOracleAuth } from '../auth/guards.js';
-import { getAdapter } from '../governance/chain-adapter.js';
-import { getCachedVerification, cacheVerification } from '../governance/proof-cache.js';
-import { auditLog } from '../db/audit.js';
-import type { GovernanceProof } from '../governance/chain-adapter.js';
+import type { AuthRequest } from '../../../auth/types.js';
+import { requireOracleAuth } from '../oracle-auth.js';
+import { resolveAttestor } from '../../../governance/attestor.js';
+import { getCachedVerification, cacheVerification } from '../proof-cache.js';
+import { auditLog } from '../../../db/audit.js';
+import type { GovernanceProof } from '../../../governance/attestor.js';
 
 export default async function submitProof(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!requireOracleAuth(req, res)) return;
-    const oracle = req.oracleAuth;
+    const oracle = requireOracleAuth(req, res);
+    if (!oracle) return;
 
     // 2. Validate input
     const { chainId, transactionHash, blockNumber, contractAddress, expectedOutcome } = req.body || {};
@@ -61,8 +61,8 @@ export default async function submitProof(req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // 4. Find adapter
-    const adapter = getAdapter(chainId);
+    // 4. Find attestor
+    const adapter = resolveAttestor(chainId);
 
     if (!adapter) {
       // Graceful fallback: trust the Oracle, log as unverified

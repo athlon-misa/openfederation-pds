@@ -69,6 +69,14 @@ const PROTECTED_COLLECTION_POLICIES: Record<string, CollectionMutationPolicy> = 
     },
     requiresDedicatedEndpoint: true,
   },
+  'net.openfederation.governance.decision': {
+    permissions: {
+      create: PERMISSIONS.GOVERNANCE_WRITE,
+      update: PERMISSIONS.GOVERNANCE_WRITE,
+      delete: PERMISSIONS.GOVERNANCE_WRITE,
+    },
+    requiresDedicatedEndpoint: true,
+  },
   'net.openfederation.community.delegation': {
     permissions: {
       create: PERMISSIONS.GOVERNANCE_WRITE,
@@ -78,6 +86,28 @@ const PROTECTED_COLLECTION_POLICIES: Record<string, CollectionMutationPolicy> = 
     requiresDedicatedEndpoint: true,
   },
 };
+
+/**
+ * Collections that live in ordinary user repositories but are only ever written
+ * by the PDS on the user's behalf through a dedicated endpoint. Self-writes to
+ * these are refused so the records keep their meaning as attestations produced
+ * by a governed flow rather than arbitrary user-authored claims.
+ */
+const SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS = new Set<string>([
+  'net.openfederation.governance.vote',
+  // An objection holds a community's decided change, and it counts because the
+  // objector was eligible to vote and raised it inside the window. Both facts
+  // are established by `objectToProposal`; a hand-written record in one's own
+  // repo would assert them instead.
+  'net.openfederation.governance.objection',
+  // A decision belongs to the community repo that resolved the proposal, and
+  // `verifyDecision` refuses one found anywhere else. But the offline CLI scans
+  // every supplied export for decision records, so a self-written decision in a
+  // voter's repo would make `--decision <rkey>` mandatory on every verification
+  // of a proposal that voter took part in — griefing the verification path
+  // rather than the outcome. Refused at the source.
+  'net.openfederation.governance.decision',
+]);
 
 const FALLBACK_PERMISSIONS: OperationPermissions = {
   create: PERMISSIONS.MEMBER_WRITE,
@@ -105,7 +135,16 @@ export async function authorizeCollectionMutation(input: {
   });
 
   if (!capabilities.exists) {
-    if (input.repo === input.actor.did) return;
+    if (input.repo === input.actor.did) {
+      if (SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS.has(input.collection)) {
+        throw new HttpError(
+          400,
+          'UseDedicatedEndpoint',
+          `Records in "${input.collection}" must be mutated through their dedicated endpoint`,
+        );
+      }
+      return;
+    }
     throw new HttpError(403, 'Forbidden', 'Cannot mutate another repository');
   }
 

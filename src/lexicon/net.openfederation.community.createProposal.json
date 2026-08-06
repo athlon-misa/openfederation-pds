@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.createProposal",
-  "revision": 2,
-  "description": "Propose a change to a protected collection in a simple-majority governed community.",
+  "revision": 5,
+  "description": "Propose a change to a protected collection in a community governed by vote (simple-majority or on-chain). The proposal's outcome is decided from voter-signed net.openfederation.governance.vote records; the proposer's seed vote produces one, and is omitted when the proposer has no repository to sign it.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -27,7 +27,7 @@
         },
         {
           "name": "GovernanceNotActive",
-          "description": "Community is not using simple-majority governance."
+          "description": "Community is not using a voting governance model (simple-majority or on-chain)."
         },
         {
           "name": "NotMember",

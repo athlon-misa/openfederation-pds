@@ -1,10 +1,10 @@
 import { Response } from 'express';
 import crypto from 'crypto';
-import type { AuthRequest } from '../auth/types.js';
-import { requireAuth, requireRole } from '../auth/guards.js';
-import { generateOracleKey } from '../auth/oracle-keys.js';
-import { auditLog } from '../db/audit.js';
-import { query } from '../db/client.js';
+import type { AuthRequest } from '../../../auth/types.js';
+import { requireAuth, requireRole } from '../../../auth/guards.js';
+import { generateOracleKey } from '../oracle-keys.js';
+import { auditLog } from '../../../db/audit.js';
+import { query } from '../../../db/client.js';
 
 export default async function createOracleCredential(req: AuthRequest, res: Response): Promise<void> {
   try {
