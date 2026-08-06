@@ -20,8 +20,9 @@
  * costs one cached boolean read and then runs its own `mutate()` unwrapped.
  * Installation is deliberately not gated at boot: the express routes cannot be
  * unmounted, and the flag is a runtime toggle, so gating registration would
- * make the toggle unobservable. `uninstallChainOracleAuth()` is the matching
- * teardown seam for callers that want the authority gone entirely.
+ * make the toggle unobservable. `uninstallOracleAuth()` (re-exported from the
+ * module index as `uninstallChainModule`) is the matching teardown seam for
+ * callers that want the authority gone entirely.
  */
 
 import type { Express, NextFunction, Request, Response } from 'express';
@@ -35,6 +36,7 @@ import {
 import {
   clearGovernanceRequestAuthority,
   registerGovernanceRequestAuthority,
+  registeredAuthorityName,
   type GovernanceRequestAuthority,
   type GovernanceRequestContext,
   type GovernedMutation,
@@ -144,10 +146,20 @@ export const oracleRequestAuthority: GovernanceRequestAuthority = {
   },
 
   async runMutation<T>(mutation: GovernedMutation<T>): Promise<T> {
-    // Disabled module: leave core's mutation entirely alone. This is not a
-    // behavioural shortcut — with the module off, `contextFor` never produces
-    // a context, so the audit below would resolve to null and fall through to
-    // `mutate()` anyway. The explicit guard just makes that visible.
+    // Disabled module: leave core's mutation entirely alone.
+    //
+    // For every context core actually produces this is a no-op, because core
+    // only ever passes what `contextFor` returned, and `contextFor` returns
+    // null while the module is disabled — so the audit below would resolve to
+    // null and fall through to `mutate()` anyway. The guard makes that path
+    // explicit rather than emergent.
+    //
+    // It is NOT a no-op for a hand-constructed context (a caller synthesising
+    // a chain-oracle context while the module is off): before this guard such
+    // a mutation would have been rejected for missing proof evidence, and now
+    // it runs unwrapped. That direction is deliberate — a disabled module must
+    // not adjudicate mutations — and is covered in
+    // tests/unit/oracle-auth-module.test.ts.
     if (!isChainModuleEnabled()) return mutation.mutate();
 
     const audit = prepareOracleMutationAudit({
@@ -187,10 +199,16 @@ export function installOracleAuth(app: Express): void {
 }
 
 /**
- * Teardown counterpart to `installOracleAuth`: withdraw the module's authority
- * from core governance. The express middleware stays mounted (routes cannot be
- * unmounted) but it is inert without the module enabled.
+ * Teardown counterpart to `installOracleAuth`: withdraw **this module's**
+ * authority from core governance. The express middleware stays mounted (routes
+ * cannot be unmounted) but it is inert without the module enabled.
+ *
+ * The registry holds a single authority today, so the ownership check is
+ * latent — but a module's teardown unregistering somebody else's authority is
+ * exactly the kind of silent cross-module damage this boundary work exists to
+ * rule out. If a different authority is registered, this is a no-op.
  */
 export function uninstallOracleAuth(): void {
+  if (registeredAuthorityName() !== CHAIN_ORACLE_AUTHORITY) return;
   clearGovernanceRequestAuthority();
 }

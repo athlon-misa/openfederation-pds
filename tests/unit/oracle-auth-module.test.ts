@@ -239,4 +239,20 @@ describe('chain module install/uninstall seam', () => {
       mutate: async () => 'written',
     })).resolves.toBe('written');
   });
+
+  it('uninstalling does not withdraw another module\'s authority', () => {
+    // Latent today (the registry holds one authority), but a module tearing
+    // down somebody else's registration is exactly the cross-module damage the
+    // boundary work exists to rule out.
+    const other = {
+      name: 'some-other-module',
+      contextFor: () => null,
+      runMutation: async <T>(m: { mutate: () => Promise<T> }) => m.mutate(),
+    };
+    registerGovernanceRequestAuthority(other);
+
+    uninstallOracleAuth();
+
+    expect(registeredAuthorityName()).toBe('some-other-module');
+  });
 });

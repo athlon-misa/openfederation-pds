@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { findBoundaryViolations } from '../../scripts/check-import-boundaries.js';
+import { COMPOSITION_ROOTS, findBoundaryViolations } from '../../scripts/check-import-boundaries.js';
 
 /** Build a throwaway `src/` tree and run the checker over it. */
 function checkTree(files: Record<string, string>): ReturnType<typeof findBoundaryViolations> {
@@ -93,6 +93,46 @@ describe('import boundaries', () => {
     })).toEqual([]);
   });
 
+  it('catches bare side-effect imports', () => {
+    // No binding is imported, so no module code is *used* — but the load-order
+    // dependency on the module is real, and that is what the rule forbids.
+    const violations = checkTree({
+      'src/governance/enforcement.ts': "import '../modules/chain/index.js';\n",
+      'src/modules/chain/index.ts': 'export const x = 1;\n',
+    });
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].reason).toMatch(/core must never depend on a module/);
+  });
+
+  it('catches require() calls', () => {
+    // createRequire() is idiomatic in this repo (src/identity/plc-client.ts,
+    // src/vault/shamir.ts), so this evasion is writable in normal local style.
+    const violations = checkTree({
+      'src/governance/enforcement.ts':
+        "import { createRequire } from 'module';\n"
+        + "const require = createRequire(import.meta.url);\n"
+        + "const chain = require('../modules/chain/index.js');\n",
+      'src/modules/chain/index.ts': 'export const x = 1;\n',
+    });
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].reason).toMatch(/core must never depend on a module/);
+  });
+
+  it('catches a require bound to a name other than "require"', () => {
+    const violations = checkTree({
+      'src/governance/enforcement.ts':
+        "import { createRequire } from 'module';\n"
+        + "const load = createRequire(import.meta.url);\n"
+        + "const chain = load('../modules/chain/index.js');\n",
+      'src/modules/chain/index.ts': 'export const x = 1;\n',
+    });
+
+    expect(violations).toHaveLength(1);
+    expect(violations[0].reason).toMatch(/core must never depend on a module/);
+  });
+
   it('catches dynamic imports too', () => {
     const violations = checkTree({
       'src/governance/enforcement.ts':
@@ -102,5 +142,15 @@ describe('import boundaries', () => {
 
     expect(violations).toHaveLength(1);
     expect(violations[0].reason).toMatch(/core must never depend on a module/);
+  });
+
+  it('pins the composition-root allowlist', () => {
+    // Every entry is a place where core knows a module exists. Widening the
+    // exception must be a deliberate, reviewed edit to this assertion — not a
+    // one-line append riding along with the dependency that wanted it.
+    expect(COMPOSITION_ROOTS).toEqual([
+      'src/server/index.ts',
+      'src/server/handler-registry.ts',
+    ]);
   });
 });

@@ -31,6 +31,10 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /**
  * The only files permitted to import a module. Keep this list tiny and
  * deliberate — every entry is a place where core knows a module exists.
+ *
+ * Its exact contents are pinned by `tests/unit/import-boundaries.test.ts`, so
+ * widening the exception cannot ride along with the dependency that needs it:
+ * it requires a separate, visible test edit.
  */
 export const COMPOSITION_ROOTS = [
   'src/server/index.ts',
@@ -43,8 +47,49 @@ export interface BoundaryViolation {
   reason: string;
 }
 
-const IMPORT_PATTERN =
-  /(?:^|[\s;}])(?:import|export)\s[^;]*?from\s*['"]([^'"]+)['"]|(?:^|[\s;}(=])import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+/**
+ * Every way a file can name another module. All four alternatives capture the
+ * specifier, so `findBoundaryViolations` takes the first non-null group:
+ *
+ *   1. `import … from '…'` / `export … from '…'`
+ *   2. `import('…')`   — dynamic import
+ *   3. `import '…'`    — bare side-effect import
+ *   4. `require('…')`  — `createRequire()` style, idiomatic in this repo
+ *      (`src/identity/plc-client.ts`, `src/vault/shamir.ts`)
+ *
+ * 3 and 4 import no binding, so they cannot introduce a *usage* of module code
+ * — but they do introduce a load-order dependency on it, which is exactly what
+ * this boundary exists to prevent.
+ *
+ * The require alternative is built per file, so whatever local name
+ * `createRequire()` was bound to is matched too, not just the literal
+ * `require`.
+ */
+const CREATE_REQUIRE_BINDING =
+  /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*createRequire\s*\(/g;
+
+function importPatternFor(source: string): RegExp {
+  const requireNames = new Set(['require']);
+  for (const match of source.matchAll(CREATE_REQUIRE_BINDING)) {
+    requireNames.add(match[1]);
+  }
+  const callers = [...requireNames]
+    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+
+  return new RegExp(
+    [
+      /(?:^|[\s;}])(?:import|export)\s[^;]*?from\s*['"]([^'"]+)['"]/.source,
+      /(?:^|[\s;}(=,])import\s*\(\s*['"]([^'"]+)['"]\s*\)/.source,
+      /(?:^|[\s;}])import\s*['"]([^'"]+)['"]/.source,
+      String.raw`(?:^|[^.\w])(?:${callers})\s*\(\s*['"]([^'"]+)['"]\s*\)`,
+    ].join('|'),
+    'g',
+  );
+}
+
+/** Number of capture groups produced by `importPatternFor` — one per form. */
+const SPECIFIER_GROUPS = 4;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -93,8 +138,16 @@ export function findBoundaryViolations(root = REPO_ROOT): BoundaryViolation[] {
     const source = readFileSync(absolute, 'utf8');
     const owningModule = moduleOf(file);
 
-    for (const match of source.matchAll(IMPORT_PATTERN)) {
-      const specifier = match[1] ?? match[2];
+    for (const match of source.matchAll(importPatternFor(source))) {
+      let specifier: string | undefined;
+      for (let group = 1; group <= SPECIFIER_GROUPS; group++) {
+        if (match[group] !== undefined) {
+          specifier = match[group];
+          break;
+        }
+      }
+      if (specifier === undefined) continue;
+
       const target = resolveSpecifier(file, specifier);
       if (!target) continue;
 
