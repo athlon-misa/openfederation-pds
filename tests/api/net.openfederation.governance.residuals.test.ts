@@ -16,6 +16,7 @@ import {
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { recordToWrite } from '../../src/governance/timelock.js';
+import { checkGovernanceSettings } from '../../src/governance/settings-rules.js';
 import { query } from '../../src/db/client.js';
 
 type User = { accessJwt: string; did: string; handle: string };
@@ -73,6 +74,41 @@ describe('governanceConfig merges instead of being replaced (#202)', () => {
     }) as any;
     expect(merged.governanceConfig.timelockHours).toBe(0);
     expect(merged.governanceConfig.quorum).toBe(3);
+  });
+
+  it('removes a key a proposal sets to null', async () => {
+    if (!plcAvailable) return;
+
+    // Merging alone would make removal inexpressible — dropping `anchoring` is
+    // how a community stops anchoring. JSON Merge Patch (RFC 7386) keeps both
+    // properties: omit to leave alone, null to remove.
+    const merged = await recordToWrite(communityDid, {
+      targetCollection: SETTINGS_COLLECTION,
+      targetRkey: 'self',
+      proposedRecord: { governanceConfig: { objectionThreshold: null } },
+    }) as any;
+
+    expect('objectionThreshold' in merged.governanceConfig).toBe(false);
+    expect(merged.governanceConfig.quorum).toBe(3);
+    expect(merged.governanceConfig.timelockHours).toBe(48);
+  });
+
+  it('accepts a proposal whose only change is a removal', async () => {
+    if (!plcAvailable) return;
+
+    // The validator sees the merge patch, not the merged record. A `null` there
+    // describes what will be absent, so judging it as a value would reject a
+    // sound proposal — this is what `createProposal` calls.
+    expect(checkGovernanceSettings(
+      { governanceModel: 'simple-majority', governanceConfig: { quorum: 3, voterRole: 'moderator', anchoring: null } },
+      { normalize: true },
+    )).toBeNull();
+
+    // A real value is still judged as one.
+    expect(checkGovernanceSettings(
+      { governanceModel: 'simple-majority', governanceConfig: { quorum: 3, voterRole: 'moderator', objectionThreshold: 0 } },
+      { normalize: true },
+    )).not.toBeNull();
   });
 
   it('still merges unrelated top-level settings fields', async () => {

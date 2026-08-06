@@ -33,7 +33,9 @@ Three small items carried past #189, grouped (issue #202).
   proposal to change only `quorum` also reset `timelockHours` to 24 and
   `objectionThreshold` to 1 — governance changes nobody voted for, arriving as a
   side effect of the one that was. A decision now changes exactly what it
-  proposed; to restore a key to its default, name it explicitly.
+  proposed. Merge semantics follow JSON Merge Patch (RFC 7386): omitting a key
+  leaves it alone, and `null` removes it — removal has to stay expressible,
+  since dropping `anchoring` is how a community stops anchoring.
 - **A standing objection is visible before it holds.** Below
   `objectionThreshold` the proposal's `objections` cache is deliberately not
   written, so an objection that had been raised but not yet taken effect existed

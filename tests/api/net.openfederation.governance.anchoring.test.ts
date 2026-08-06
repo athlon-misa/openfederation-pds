@@ -480,7 +480,6 @@ describe('Governance anchoring (#198)', () => {
       anchored = [];
       const settings = await communitySettings(communityDid);
       const { governanceConfig } = settings;
-      delete governanceConfig.anchoring;
 
       const adopted = await passProposal('unused-target-2', {
         targetCollection: SETTINGS_COLLECTION,
@@ -488,7 +487,12 @@ describe('Governance anchoring (#198)', () => {
         proposedRecord: {
           ...settings,
           governanceModel: 'on-chain',
-          governanceConfig: { ...governanceConfig, chainId: CHAIN_ID },
+          // `governanceConfig` merges rather than replaces (#202), so dropping
+          // `anchoring` is expressed as an explicit null. Omitting it would now
+          // mean "leave it as it is", which is the opposite of the intent here:
+          // this asserts that on-chain anchors by default with no explicit
+          // anchoring block at all.
+          governanceConfig: { ...governanceConfig, chainId: CHAIN_ID, anchoring: null },
         },
       });
       expect(adopted.resolution.applied).toBe(true);

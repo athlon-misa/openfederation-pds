@@ -226,8 +226,11 @@ export async function proposalApplicationProblem(communityDid: string, proposal:
  * arriving as a side effect of the one that was. A decision should change
  * exactly what it proposed.
  *
- * To restore a key to its default, name it explicitly with that value; merging
- * means omission now reads as "leave it alone" rather than "reset it".
+ * Merge semantics follow JSON Merge Patch (RFC 7386): omitting a key leaves it
+ * alone, and `null` removes it. Merging alone would have made removal
+ * inexpressible, which matters — dropping `anchoring` is how a community stops
+ * anchoring — so the two are kept separable rather than trading one silent
+ * behaviour for another.
  */
 export async function recordToWrite(communityDid: string, proposal: any): Promise<Record<string, unknown>> {
   if (proposal?.targetCollection !== SETTINGS_COLLECTION || proposal?.targetRkey !== 'self') {
@@ -241,7 +244,12 @@ export async function recordToWrite(communityDid: string, proposal: any): Promis
   const currentConfig = (current as Record<string, unknown>).governanceConfig;
   const proposedConfig = proposal.proposedRecord?.governanceConfig;
   if (isPlainObject(currentConfig) && isPlainObject(proposedConfig)) {
-    merged.governanceConfig = { ...currentConfig, ...proposedConfig };
+    const config: Record<string, unknown> = { ...currentConfig };
+    for (const [key, value] of Object.entries(proposedConfig)) {
+      if (value === null) delete config[key];
+      else config[key] = value;
+    }
+    merged.governanceConfig = config;
   }
   return merged;
 }
