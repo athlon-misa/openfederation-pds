@@ -4,8 +4,17 @@ nixPkgs = ["nodejs_24"]
 [phases.install]
 cmds = ["npm install --include=dev"]
 
+# Clear stale build output before building, but leave `.next/cache` alone:
+# Railway bind-mounts it as a build cache, so a plain `rm -rf .next` fails with
+# "cannot remove '.next/cache': Device or resource busy" and takes the whole
+# build down with it. Deleting the siblings is safe, and doing it by exclusion
+# is more thorough than naming each one, which silently missed any new entry
+# Next.js started emitting.
 [phases.build]
-cmds = ["rm -rf .next", "NODE_ENV=production npm run build"]
+cmds = [
+  "find .next -mindepth 1 -maxdepth 1 -not -name cache -exec rm -rf {} + 2>/dev/null || true",
+  "NODE_ENV=production npm run build",
+]
 
 [start]
 cmd = "npm start"

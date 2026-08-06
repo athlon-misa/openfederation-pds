@@ -165,24 +165,30 @@ railway run psql $DATABASE_URL -f scripts/migrate-001-repo-roots.sql
 railway run psql $DATABASE_URL -f scripts/migrate-002-user-signing-keys.sql
 ```
 
-### ⚠️ Governance indexes must be applied by hand on an existing database
+### Migrations apply themselves on deploy
 
-`ensureSchema()` runs `src/db/schema.sql` **only when the `users` table is
-absent** — that is, only on a brand-new database. Every `CREATE INDEX IF NOT
-EXISTS` added to `schema.sql` for an already-deployed PDS therefore never
-executes on upgrade. The governance refactor added three, and they must be run
-manually:
+`ensureSchema()` reads `src/db/schema.sql` only when the `users` table is absent
+(fresh database), but it applies every `scripts/migrate-*.sql` file on **every**
+startup, in sorted order. Deploying is all that is needed — there is no manual
+migration step on Railway.
+
+Confirm it in the deploy log:
 
 ```bash
-railway run psql $DATABASE_URL -f scripts/migrate-035-governance-vote-record-index.sql
-railway run psql $DATABASE_URL -f scripts/migrate-036-governance-objection-index.sql
-railway run psql $DATABASE_URL -f scripts/migrate-037-governance-anchor-audit-index.sql
+railway logs -s openfederation-pds -d --latest | grep "Applied .* migrations"
 ```
 
-036 is the one that bites first: `net.openfederation.community.getProposal` is
-reachable **unauthenticated** on a public community and reads the objection
-records for any proposal awaiting application. Without that index each such read
-is a sequential scan of `records_index`.
+```
+Applied 38 migrations (migrate-001-repo-roots.sql..migrate-037-governance-anchor-audit-index.sql).
+```
+
+A migration that fails is fatal: the server logs `Migration <file> failed: ...`
+and refuses to start, so a broken migration shows up as a failed healthcheck
+rather than a silently half-migrated database.
+
+Because of this, adding an index to `schema.sql` alone does nothing for the
+existing deployment — it also needs a numbered `scripts/migrate-NNN-*.sql`
+file, which is the copy that actually runs.
 
 ---
 
