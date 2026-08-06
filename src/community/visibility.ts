@@ -36,22 +36,9 @@ export interface CallerCommunityCapabilities extends CommunityAccess {
   permissions: string[];
 }
 
-const LEGACY_ROLE_PERMISSIONS: Record<string, string[]> = {
-  owner: [...ALL_PERMISSIONS],
-  moderator: [
-    'community.profile.write',
-    'community.member.read',
-    'community.member.write',
-    'community.member.delete',
-    'community.role.read',
-    'community.attestation.write',
-    'community.attestation.delete',
-    'community.governance.write',
-    'community.forum.write',
-    'community.forum.moderate',
-  ],
-  member: ['community.member.read', 'community.role.read'],
-};
+// Shared with the offline verifier; see decision-rules.ts.
+export { LEGACY_ROLE_PERMISSIONS } from '../governance/decision-rules.js';
+import { LEGACY_ROLE_PERMISSIONS } from '../governance/decision-rules.js';
 
 type RoleRecord = { name?: string; permissions?: string[] };
 

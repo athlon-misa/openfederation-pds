@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.governance.vote",
-  "revision": 1,
+  "revision": 2,
   "description": "A vote cast on a community governance proposal. Lives in the voter's own repo and is signed with the voter's key, so quorum can be verified by a third party without trusting the community's PDS.",
   "defs": {
     "main": {
@@ -10,7 +10,14 @@
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["community", "proposal", "proposalCollection", "proposalRkey", "vote", "createdAt"],
+        "required": [
+          "community",
+          "proposal",
+          "proposalCollection",
+          "proposalRkey",
+          "vote",
+          "createdAt"
+        ],
         "properties": {
           "community": {
             "type": "string",
@@ -34,7 +41,10 @@
           },
           "vote": {
             "type": "string",
-            "knownValues": ["for", "against"],
+            "knownValues": [
+              "for",
+              "against"
+            ],
             "description": "The vote choice."
           },
           "castBy": {
@@ -50,6 +60,34 @@
           "createdAt": {
             "type": "string",
             "format": "datetime"
+          },
+          "eligibility": {
+            "type": "object",
+            "description": "Membership evidence as it stood when the vote was cast: the community-signed member and role records consulted, and the permission they resolved to. Lets a third party recheck the electorate instead of trusting the tally.",
+            "properties": {
+              "member": {
+                "type": "ref",
+                "ref": "com.atproto.repo.strongRef",
+                "description": "The voter's member record in the community repo."
+              },
+              "roleRecord": {
+                "type": "ref",
+                "ref": "com.atproto.repo.strongRef",
+                "description": "The role record naming the permission set."
+              },
+              "roleName": {
+                "type": "string",
+                "description": "Role named on the member record at cast time."
+              },
+              "grantedGovernanceWrite": {
+                "type": "boolean",
+                "description": "Whether that role carried community.governance.write."
+              },
+              "unresolved": {
+                "type": "string",
+                "description": "Set when the evidence could not be assembled, naming why."
+              }
+            }
           }
         }
       }

@@ -131,6 +131,18 @@ export interface ScenarioOpts {
   mutateDecision?: (decision: Record<string, any>) => void;
   /** Close the proposal as expired instead of resolved (orphan decision). */
   expireProposal?: boolean;
+  /**
+   * Membership evidence on each vote (#200).
+   *
+   *   undefined  no evidence at all — a vote written before #200 existed
+   *   'role'     member records assigning a role record that grants
+   *              community.governance.write
+   *   'legacy'   member records naming a built-in role, no role record
+   *   'no-perm'  a role record that does *not* grant governance.write
+   */
+  eligibility?: 'role' | 'legacy' | 'no-perm';
+  /** Applied to each vote's eligibility block before the record is written. */
+  mutateEligibility?: (e: Record<string, any>, index: number) => void;
 }
 
 export async function buildScenario(opts: ScenarioOpts = {}): Promise<Scenario> {
@@ -187,6 +199,45 @@ export async function buildScenario(opts: ScenarioOpts = {}): Promise<Scenario> 
   };
   let proposalCid = await community.put(PROPOSAL_COLLECTION, PROPOSAL_RKEY, proposalValue);
 
+  // Membership evidence (#200): the community-signed records a vote cites to
+  // show its caster was entitled to vote.
+  const MEMBER_COLLECTION = 'net.openfederation.community.member';
+  const ROLE_COLLECTION = 'net.openfederation.community.role';
+  const eligibilityFor = new Map<string, Record<string, any>>();
+  if (opts.eligibility) {
+    const roleRkey = '3lrolemoderator';
+    let roleCid: string | null = null;
+    if (opts.eligibility !== 'legacy') {
+      roleCid = await community.put(ROLE_COLLECTION, roleRkey, {
+        $type: ROLE_COLLECTION,
+        name: 'moderator',
+        permissions: opts.eligibility === 'no-perm'
+          ? ['community.member.read']
+          : ['community.member.read', 'community.governance.write'],
+        createdAt: CREATED_AT,
+      });
+    }
+    for (const voter of [...voters, ...extraVoters]) {
+      const memberRkey = `3lmember${voter.name}`;
+      const memberValue: Record<string, any> = {
+        $type: MEMBER_COLLECTION,
+        did: voter.repo.did,
+        role: opts.eligibility === 'legacy' ? 'moderator' : 'member',
+        createdAt: CREATED_AT,
+      };
+      if (opts.eligibility !== 'legacy') memberValue.roleRkey = roleRkey;
+      const memberCid = await community.put(MEMBER_COLLECTION, memberRkey, memberValue);
+      eligibilityFor.set(voter.repo.did, {
+        member: { uri: `at://${community.did}/${MEMBER_COLLECTION}/${memberRkey}`, cid: memberCid },
+        roleRecord: roleCid
+          ? { uri: `at://${community.did}/${ROLE_COLLECTION}/${roleRkey}`, cid: roleCid }
+          : null,
+        roleName: 'moderator',
+        grantedGovernanceWrite: opts.eligibility !== 'no-perm',
+      });
+    }
+  }
+
   // Each vote: the voter signs a record citing the proposal state they saw,
   // then the proposal is rewritten with the vote cache and the CID lineage.
   const cited: Array<Record<string, unknown>> = [];
@@ -204,7 +255,13 @@ export async function buildScenario(opts: ScenarioOpts = {}): Promise<Scenario> 
       proposalRkey: PROPOSAL_RKEY,
       vote: voter.choice,
       createdAt: voter.castAt,
-    };
+    } as Record<string, any>;
+    const ev = eligibilityFor.get(voter.repo.did);
+    if (ev) {
+      const copy = JSON.parse(JSON.stringify(ev));
+      opts.mutateEligibility?.(copy, i);
+      voteValue.eligibility = copy;
+    }
     const voteCid = await voter.repo.put(VOTE_COLLECTION, voter.rkey, voteValue);
     if (voters.includes(voter)) {
       cited.push({

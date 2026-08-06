@@ -28,16 +28,21 @@
  *     externally-hosted voter's repo converts into full independence: a vote
  *     record in a repo this PDS does not hold the keys for cannot be forged by
  *     this PDS at all.
- *   - **Voter eligibility is not checked, at all.** Neither
- *     `tallyFromVoteRecords` (online) nor this function (offline) verifies that
- *     a counted DID was a member of the community holding
- *     `community.governance.write` at the time it voted. A decision citing five
- *     authentic, well-formed votes from five DIDs that were never members
- *     verifies as `valid` here. The comment below records this for objections;
- *     it applies identically to votes, and silently. Closing it needs the
- *     decision record to cite the member-list record CID it counted against, so
- *     that membership becomes evidence rather than an assumption — a follow-up,
- *     deliberately not smuggled in as a behaviour change here.
+ *   - **Voter eligibility is checked, as of the moment each vote was cast**
+ *     (#200). A vote record carries the community-signed member and role records
+ *     consulted when it was written, and this function rechecks them against the
+ *     community's own repo: present at the cited CIDs, naming the claimed role,
+ *     and that role carrying `community.governance.write`. Evidence that
+ *     *disproves* entitlement is a problem (`ineligible-vote`); evidence that
+ *     can no longer be resolved is a note (`membership-unverified`), never a
+ *     pass and never an accusation — repo exports prune superseded blocks, so an
+ *     honest decision goes uncheckable with time.
+ *
+ *     Eligibility is judged as cast, not at resolution: a signed act is not
+ *     unmade by a later removal, and tying it to resolution-time membership
+ *     would let an owner flip a result by removing voters mid-vote. Votes
+ *     written before this evidence existed carry none, and verify with the note
+ *     rather than failing.
  *
  * What is actually proved, and in what order:
  *
@@ -134,6 +139,8 @@ import {
   PROPOSAL_COLLECTION,
   SETTINGS_COLLECTION,
   VOTE_COLLECTION,
+  GOVERNANCE_WRITE_PERMISSION,
+  LEGACY_ROLE_PERMISSIONS,
   checkVoteRecord,
   decideOutcome,
   knownProposalCids,
@@ -222,7 +229,17 @@ export type FailureCode = Exclude<VerificationCode, 'valid' | 'superseded'>;
  *                        one the community's settings record now states, while
  *                        the tally still satisfies both.
  */
-export type NoteCode = FailureCode | 'disclosed-gap' | 'quorum-rule-drift';
+export type NoteCode =
+  | FailureCode
+  | 'disclosed-gap'
+  | 'quorum-rule-drift'
+  /**
+   * A counted vote's membership evidence could not be rechecked — the member or
+   * role record it names is no longer in the community's export, or the vote
+   * predates the evidence being recorded at all. Not an accusation: repo exports
+   * prune superseded blocks, so an honest decision goes unverifiable with time.
+   */
+  | 'membership-unverified';
 
 /**
  * Reported worst-first, and `code` is the head of this list.
@@ -442,6 +459,145 @@ type Located =
  * walk is what ties the record to the signature, the hash check is what stops a
  * block map from carrying content that does not match its key.
  */
+type MembershipVerdict =
+  | { code: 'ok' }
+  | { code: 'ineligible'; message: string }
+  | { code: 'unverifiable'; message: string };
+
+/**
+ * Was this voter entitled to vote, according to the community's own records?
+ *
+ * The vote record names the member and role records consulted when it was cast.
+ * Those live in the community's repo and are signed with the community key, so
+ * this rechecks them rather than trusting the tally's account of who the
+ * electorate was (#200).
+ *
+ * Three outcomes, deliberately distinct:
+ *
+ *   ok            the cited records are present at the cited CIDs and the role
+ *                 does carry `community.governance.write`
+ *   ineligible    the records are present and say the voter was *not* entitled —
+ *                 a claim the evidence disproves, so it is a problem
+ *   unverifiable  the evidence is absent or no longer resolvable. Repo exports
+ *                 prune superseded blocks, so an honest decision becomes
+ *                 uncheckable over time; that is reported, never passed off as
+ *                 verified and never treated as proof of wrongdoing.
+ */
+async function checkMembershipEvidence(
+  voteRecord: Record<string, any>,
+  communityRepo: LoadedRepo,
+  community: string,
+): Promise<MembershipVerdict> {
+  const evidence = voteRecord?.eligibility;
+  if (!evidence || typeof evidence !== 'object') {
+    return { code: 'unverifiable', message: 'the vote record carries no membership evidence' };
+  }
+  if (typeof evidence.unresolved === 'string' && evidence.unresolved.length > 0) {
+    return {
+      code: 'unverifiable',
+      message: `membership evidence was not assembled when the vote was cast (${evidence.unresolved})`,
+    };
+  }
+  if (evidence.grantedGovernanceWrite !== true) {
+    return {
+      code: 'ineligible',
+      message: `the vote record itself states role "${String(evidence.roleName)}" did not carry community.governance.write`,
+    };
+  }
+  if (!communityRepo.signatureVerified) {
+    return { code: 'unverifiable', message: "the community's repo export could not be verified" };
+  }
+
+  const memberRef = parseAtUri(evidence.member?.uri);
+  if (!memberRef || typeof evidence.member?.cid !== 'string') {
+    return { code: 'unverifiable', message: 'membership evidence does not cite a member record' };
+  }
+  if (memberRef.repo !== community) {
+    return {
+      code: 'ineligible',
+      message: `membership evidence cites a member record in ${memberRef.repo}, not the deciding community`,
+    };
+  }
+
+  const member = await locateRecord(communityRepo, memberRef.collection, memberRef.rkey);
+  if (!member.found) {
+    return { code: 'unverifiable', message: `the cited member record is ${member.reason}` };
+  }
+  if (member.cid !== evidence.member.cid) {
+    // The record moved on. That is ordinary — membership changes — and says
+    // nothing about whether the vote was proper when cast.
+    return {
+      code: 'unverifiable',
+      message: `the member record has changed since the vote (cited ${evidence.member.cid}, repo holds ${member.cid})`,
+    };
+  }
+
+  const memberValue = member.value as Record<string, any>;
+
+  // Two ways a member gets permissions, and they resolve differently — mirroring
+  // `getCallerCommunityCapabilities`. A member record naming a `roleRkey` takes
+  // them from that role record, and its own `role` string is then just a display
+  // label that may still read "member"; comparing the two would reject perfectly
+  // ordinary moderators.
+  if (!memberValue?.roleRkey) {
+    // No assigned role record: the built-in table keyed by the role name on the
+    // member record, shared with the live check. Fully checkable offline.
+    const roleName = memberValue?.role ?? 'member';
+    if (roleName !== evidence.roleName) {
+      return {
+        code: 'ineligible',
+        message: `membership evidence claims role "${String(evidence.roleName)}" but the member record says "${String(roleName)}"`,
+      };
+    }
+    const granted = (LEGACY_ROLE_PERMISSIONS[String(roleName)] ?? [])
+      .includes(GOVERNANCE_WRITE_PERMISSION);
+    return granted
+      ? { code: 'ok' }
+      : {
+          code: 'ineligible',
+          message: `role "${String(roleName)}" does not carry ${GOVERNANCE_WRITE_PERMISSION}`,
+        };
+  }
+
+  const roleRef = parseAtUri(evidence.roleRecord?.uri);
+  if (!roleRef || typeof evidence.roleRecord?.cid !== 'string') {
+    return { code: 'unverifiable', message: 'membership evidence does not cite a role record' };
+  }
+  // The role checked must be the one the member record actually assigns.
+  if (roleRef.rkey !== memberValue.roleRkey) {
+    return {
+      code: 'ineligible',
+      message: `membership evidence cites role record ${roleRef.rkey} but the member record assigns ${String(memberValue.roleRkey)}`,
+    };
+  }
+  const roleRec = await locateRecord(communityRepo, roleRef.collection, roleRef.rkey);
+  if (!roleRec.found) {
+    return { code: 'unverifiable', message: `the cited role record is ${roleRec.reason}` };
+  }
+  if (roleRec.cid !== evidence.roleRecord.cid) {
+    return {
+      code: 'unverifiable',
+      message: `the role record has changed since the vote (cited ${evidence.roleRecord.cid}, repo holds ${roleRec.cid})`,
+    };
+  }
+
+  const value = roleRec.value as Record<string, any>;
+  if (value?.name !== evidence.roleName) {
+    return {
+      code: 'ineligible',
+      message: `the cited role record is "${String(value?.name)}", not the "${String(evidence.roleName)}" the evidence claims`,
+    };
+  }
+  const permissions = value?.permissions;
+  if (!Array.isArray(permissions) || !permissions.includes(GOVERNANCE_WRITE_PERMISSION)) {
+    return {
+      code: 'ineligible',
+      message: `role "${String(evidence.roleName)}" does not carry ${GOVERNANCE_WRITE_PERMISSION} in the community's own record`,
+    };
+  }
+  return { code: 'ok' };
+}
+
 async function locateRecord(loaded: LoadedRepo, collection: string, rkey: string): Promise<Located> {
   if (!loaded.repo) return { found: false, reason: 'no readable repo export' };
   let cid: CID | null;
@@ -783,6 +939,22 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
         uri: refUri,
       });
       continue;
+    }
+
+    // Was this voter actually entitled to vote? The vote record names the
+    // community-signed member and role records consulted when it was cast; check
+    // them against the community's own repo rather than taking the tally's word
+    // for who the electorate was (#200).
+    const membership = await checkMembershipEvidence(record, communityRepo, community);
+    if (membership.code === 'ineligible') {
+      problems.push({ code: 'ineligible-vote', message: `counted vote from ${voter}: ${membership.message}`, voter, uri: refUri });
+      continue;
+    }
+    if (membership.code === 'unverifiable') {
+      // Not an accusation. The member record may simply have moved on — repo
+      // exports prune superseded blocks — so say what could not be rechecked
+      // instead of implying the vote was improper.
+      notes.push({ code: 'membership-unverified', message: `counted vote from ${voter}: ${membership.message}`, voter, uri: refUri });
     }
     summary.verifiedVotes++;
   }
