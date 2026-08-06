@@ -17,6 +17,7 @@ import {
   PROPOSAL_COLLECTION,
 } from './decision-rules.js';
 import type { CitedRecord, RepoProof, VerifyDecisionInput, DidDocumentLike } from './verify-decision.js';
+import type { VerifyApplicationInput } from './verify-application.js';
 
 /** A parsed CAR export, plus the records that were read out of it. */
 export interface ParsedRepo {
@@ -117,6 +118,57 @@ export function buildVerifyInput(
     repos: repos.map(r => r.proof),
     didDocuments,
     siblingDecisions,
+  };
+}
+
+export interface ProposalCandidate {
+  /** The repo the proposal was found in, which is the community. */
+  community: string;
+  rkey: string;
+  record: CitedRecord;
+}
+
+/**
+ * Every proposal record across the supplied exports.
+ *
+ * A proposal that was never decided is included: whether there was anything to
+ * apply is the verdict's business, not the search's.
+ */
+export function findProposals(repos: ParsedRepo[]): ProposalCandidate[] {
+  const found: ProposalCandidate[] = [];
+  for (const parsed of repos) {
+    for (const [key, record] of parsed.records) {
+      if (!key.startsWith(`${PROPOSAL_COLLECTION}/`)) continue;
+      found.push({
+        community: parsed.proof.did,
+        rkey: key.slice(PROPOSAL_COLLECTION.length + 1),
+        record,
+      });
+    }
+  }
+  return found;
+}
+
+/**
+ * Assemble the application verifier's input: the proposal, every export as a
+ * repo proof, and the supplied DID documents.
+ *
+ * Every export is passed through rather than only the objectors named on the
+ * proposal — a hold rests on the objectors' own signed records, and filtering to
+ * the ones the community already admits to would let a community hide an
+ * objection by leaving it out of its cache.
+ */
+export function buildApplicationInput(
+  proposal: ProposalCandidate,
+  repos: ParsedRepo[],
+  didDocuments: DidDocumentLike[],
+  asOf?: string,
+): VerifyApplicationInput {
+  return {
+    proposal: proposal.record,
+    repos: repos.map(r => r.proof),
+    didDocuments,
+    ...(asOf ? { asOf } : {}),
   };
 }
 

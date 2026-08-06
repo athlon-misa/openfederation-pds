@@ -1813,6 +1813,98 @@ governance
     process.exit(1);
   }));
 
+governance
+  .command('verify-application')
+  .description('Verify that a decided change was legitimately applied — offline, no server contact')
+  .requiredOption('--car <file...>', "CAR export(s): the community repo plus each objector's repo")
+  .requiredOption('--did-docs <file>', 'JSON file of DID documents (array, or object keyed by DID)')
+  .option('--proposal <rkey>', 'Which proposal to check (needed when the exports hold more than one)')
+  .option('--as-of <datetime>', 'Instant to judge an unapplied proposal against; omit to leave the contest window unevaluated')
+  .action(run(async () => {
+    const cmd = governance.commands.find(c => c.name() === 'verify-application')!;
+    const opts = cmd.opts();
+
+    const [
+      { parseRepoCar, findProposals, buildApplicationInput, parseDidDocuments },
+      { verifyApplication },
+    ] = await Promise.all([
+      import('../src/governance/decision-evidence.js'),
+      import('../src/governance/verify-application.js'),
+    ]);
+
+    const files: string[] = opts.car;
+    const repos = [];
+    for (const file of files) {
+      try {
+        repos.push(await parseRepoCar(new Uint8Array(readFileSync(file))));
+      } catch (err) {
+        throw new Error(`Failed to read CAR "${file}": ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    const didDocuments = parseDidDocuments(JSON.parse(readFileSync(opts.didDocs, 'utf-8')));
+
+    let candidates = findProposals(repos);
+    if (opts.proposal) candidates = candidates.filter(p => p.rkey === opts.proposal);
+    if (candidates.length === 0) {
+      throw new Error(opts.proposal
+        ? `No proposal with rkey "${opts.proposal}" in the supplied exports`
+        : 'No proposal records in the supplied exports');
+    }
+    if (candidates.length > 1) {
+      throw new Error(
+        `The exports hold ${candidates.length} proposals; pass --proposal <rkey> to pick one: ` +
+        candidates.map(p => p.rkey).join(', '),
+      );
+    }
+
+    // Unlike `verify-decision`, assembly cannot fail on missing evidence: the
+    // verifier takes the exports as they are and reports the gap itself.
+    const verdict = await verifyApplication(
+      buildApplicationInput(candidates[0], repos, didDocuments, opts.asOf),
+    );
+
+    // The exit code is the verdict, in both modes. Only `illegitimate` is a
+    // failure: a pending or indeterminate application is a state of the world,
+    // and a script that treated it as an error would report every community
+    // with an open contest window as broken.
+    if (isJsonMode()) {
+      json(verdict);
+      if (verdict.status === 'illegitimate') process.exit(1);
+      return;
+    }
+
+    keyValue([
+      ['Proposal', verdict.summary.proposalUri],
+      ['Community', verdict.summary.community || '—'],
+      ['Proposal status', verdict.summary.proposalStatus || '—'],
+      ['Decision', verdict.summary.decisionUri || '—'],
+      ['Resolved at', verdict.summary.resolvedAt || '—'],
+      ['Applicable from', verdict.summary.applyAt || '— (no contest window)'],
+      ['Applied at', verdict.summary.appliedAt || '— (not applied)'],
+      ['Objections', `${verdict.summary.countableObjections} countable of ${verdict.summary.cachedObjections} cached`],
+      ['Threshold', `${verdict.summary.objectionThreshold}`
+        + (verdict.summary.thresholdFromSettings ? '' : ' (default — settings record unavailable)')],
+    ]);
+
+    for (const objector of verdict.summary.objectors) {
+      info(`objection by ${objector.objector} at ${objector.createdAt}`);
+    }
+    for (const note of verdict.notes) info(`note [${note.code}] ${note.message}`);
+
+    if (verdict.status === 'legitimate') {
+      success(`Application verifies against the evidence: ${verdict.code}`);
+      return;
+    }
+    if (verdict.status === 'pending' || verdict.status === 'indeterminate') {
+      warn(`No application to verify yet: ${verdict.code}`);
+      return;
+    }
+    for (const problem of verdict.problems) error(`[${problem.code}] ${problem.message}`);
+    error(`Application verification failed: ${verdict.code}`);
+    process.exit(1);
+  }));
+
 // ── ofc profile ──────────────────────────────────────────────────────
 
 const profileCmd = program.command('profile').description('User profile management');

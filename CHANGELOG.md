@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Governance: the application half of the evidence chain is verifiable offline
+
+`verifyDecision` answers whether a decision was soundly *reached*, and
+deliberately ignores objections — an objection contests the application, not the
+votes cited, and treating one as a defect would make a sound decision verify as
+unsound because someone disagreed. That left the other half unanswerable
+offline: a decision can be perfectly sound and still have been applied a day
+early, or applied over a hold that should have stopped it (issue #201).
+
+`verifyApplication` is the sibling that answers it, under the same constraints —
+no database, no network, no clock — reusing `checkObjectionRecord` and
+`objectionThreshold` from `decision-rules.ts` so the online and offline rules
+cannot drift. Exposed as `ofc governance verify-application`.
+
+- **Application is lazy, and the verdict respects that.** There is no scheduler:
+  a proposal whose window has elapsed is applied by the next interaction that
+  touches it, so the timelock is a floor on the delay rather than a promise of
+  an instant. An unapplied proposal past its `applyAt` is `application-due` — a
+  state, not a defect. Only the inverse is provable dishonesty:
+  `early-application`, a change applied before the window it published closed.
+- **Distinct codes rather than a boolean**: `applied`, `held`,
+  `nothing-to-apply`, `window-open`, `application-due`, `pending-application`,
+  `closed-unapplied`, `early-application`, `applied-over-objection`,
+  `unevidenced-hold`, plus the structural `malformed-proposal` /
+  `missing-evidence` / `forged-signature` / `tampered-evidence`. Only
+  illegitimate verdicts exit 1.
+- **Time enters only where it must.** `--as-of` is optional; every clock-free
+  verdict renders without it, and only the open/due distinction is left
+  unevaluated rather than resolved against an invented now. A verdict that
+  silently depended on when it was run would not be reproducible.
+- **`closed-unapplied` is its own verdict** because the signed record genuinely
+  does not separate a passed change refused as unapplicable — which the PDS
+  records exactly this way — from an application silently skipped.
+- **What it cannot decide, it says.** An objection record carries no membership
+  evidence (unlike a vote record since #200), so objector entitlement rests on
+  the community's word: `objector-eligibility-unverified` travels with every
+  verdict that counts one. Symmetrically, a hold whose objector's repo was not
+  supplied is the `hold-unverified` note, never an accusation; it becomes
+  `unevidenced-hold` only when that repo *is* supplied, verifies, and contains
+  no countable objection.
+- `loadRepo` / `locateRecord` are now exported from `verify-decision.ts` and
+  shared, so both verifiers mean the same thing by "in the signed repo".
+- Corrects a stale claim in `cli/README.md` that voter eligibility is unchecked;
+  #200 made it checked, as of the moment each vote was cast.
+
 ### Governance: decision records are reproducible
 
 `votes` on a decision record was emitted in Map insertion order, which followed

@@ -92,11 +92,12 @@
  * a sound decision verify as unsound because someone disagreed with it — the
  * opposite of what a contest window is for. The two questions are separable and
  * are kept separate: "is this decision sound?" is answered here; "was the
- * change legitimately applied?" is answered from the community's signed
- * proposal record (`status`, `applyAt`, `objections`) and the objectors' signed
- * objection records, under `checkObjectionRecord` — the same predicate the
- * online path applies, and for the same reason the vote rules are shared.
- * `verifyDecision` still never reads the proposal's `status`.
+ * change legitimately applied?" is answered by `verifyApplication` in
+ * `verify-application.ts`, from the community's signed proposal record
+ * (`status`, `applyAt`, `objections`) and the objectors' signed objection
+ * records, under `checkObjectionRecord` — the same predicate the online path
+ * applies, and for the same reason the vote rules are shared. `verifyDecision`
+ * still never reads the proposal's `status`.
  *
  * **Anchor receipts (#198) do not enter this verdict either, and deliberately
  * do not appear in the decision record at all.** When a community anchors, a
@@ -351,8 +352,14 @@ export interface DecisionVerdict {
   };
 }
 
-/** A repo export that has been parsed and had its commit signature checked. */
-interface LoadedRepo {
+/**
+ * A repo export that has been parsed and had its commit signature checked.
+ *
+ * Exported for `verify-application.ts`, which answers the application question
+ * from the same signed exports and must load them the same way — two loaders
+ * would mean two notions of what "in the signed repo" means.
+ */
+export interface LoadedRepo {
   did: string;
   repo: Repo | null;
   blocks: BlockMap;
@@ -386,7 +393,7 @@ function parseAtUri(uri: unknown): { repo: string; collection: string; rkey: str
  * export is kept so records can still be located and reported on, but
  * `signatureVerified` stays false and nothing downstream counts it as proof.
  */
-async function loadRepo(
+export async function loadRepo(
   proof: RepoProof,
   didDocs: Map<string, DidDocumentLike>,
   problems: VerificationProblem[],
@@ -449,7 +456,7 @@ async function loadRepo(
   return { did: proof.did, repo, blocks: proof.blocks, signatureVerified: ok };
 }
 
-type Located =
+export type Located =
   | { found: true; cid: string; value: Record<string, unknown> }
   | { found: false; reason: string };
 
@@ -598,7 +605,7 @@ async function checkMembershipEvidence(
   return { code: 'ok' };
 }
 
-async function locateRecord(loaded: LoadedRepo, collection: string, rkey: string): Promise<Located> {
+export async function locateRecord(loaded: LoadedRepo, collection: string, rkey: string): Promise<Located> {
   if (!loaded.repo) return { found: false, reason: 'no readable repo export' };
   let cid: CID | null;
   try {
