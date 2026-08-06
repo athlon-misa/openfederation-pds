@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.getProposal",
-  "revision": 2,
+  "revision": 3,
   "description": "Get a specific governance proposal.",
   "defs": {
     "main": {
@@ -70,13 +70,15 @@
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Non-authoritative read cache of voters who voted for. The authoritative tally is the set of voter-signed vote records."
         },
         "votesAgainst": {
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Non-authoritative read cache of voters who voted against."
         },
         "createdAt": {
           "type": "string"
@@ -86,6 +88,22 @@
         },
         "resolvedAt": {
           "type": "string"
+        },
+        "evidenceModel": {
+          "type": "string",
+          "description": "Set to 'vote-records' when this proposal's outcome is decided from voter-signed vote records. Absent on proposals created before that model."
+        },
+        "cidChain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Lineage of proposal record CIDs a vote record may cite."
+        },
+        "decision": {
+          "type": "ref",
+          "ref": "#decisionRef",
+          "description": "The net.openfederation.governance.decision record this proposal was resolved by. Present only on resolved evidence-model proposals."
         }
       },
       "required": [
@@ -95,6 +113,25 @@
         "action",
         "status"
       ]
+    },
+    "decisionRef": {
+      "type": "object",
+      "required": [
+        "uri",
+        "cid",
+        "rkey"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string"
+        },
+        "cid": {
+          "type": "string"
+        },
+        "rkey": {
+          "type": "string"
+        }
+      }
     }
   }
 }

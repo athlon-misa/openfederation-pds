@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.voteOnProposal",
-  "revision": 2,
-  "description": "Cast a vote on a governance proposal.",
+  "revision": 3,
+  "description": "Cast a vote on a governance proposal. Quorum and outcome are computed from voter-signed net.openfederation.governance.vote records; the proposal's vote arrays are a non-authoritative read cache.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -47,6 +47,10 @@
             "applied": {
               "type": "boolean",
               "description": "Whether the proposed change was auto-applied."
+            },
+            "resolutionDeferred": {
+              "type": "boolean",
+              "description": "Present and true when quorum was reached on the cached vote arrays but the vote records disagree about the outcome. The proposal stays open and the divergence is audited rather than resolved on evidence that is not there."
             }
           },
           "required": [

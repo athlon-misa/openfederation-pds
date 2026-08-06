@@ -6,6 +6,18 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query, withAdvisoryLock } from '../db/client.js';
 import { writeVoteRecords, type VoteRecordInput } from '../governance/vote-records.js';
+import {
+  auditDeferredResolution,
+  decideFromRecords,
+  decideOutcome,
+  ensureDecisionRecord,
+  putProposalRecord,
+  quorumRule,
+  tallyFromVoteRecords,
+  usesVoteRecordEvidence,
+  type DecisionRef,
+  type Outcome,
+} from '../governance/proposal-resolution.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
@@ -47,6 +59,7 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     // CID of the proposal as it stood when this vote was cast — the state the
     // voter is attesting to, captured before the tally rewrites the record.
     const proposalCid = proposalResult.rows[0].cid;
+    const evidenceFromRecords = usesVoteRecordEvidence(proposal);
 
     if (proposal.status !== 'open') {
       res.status(400).json({ error: 'ProposalClosed', message: 'This proposal is no longer open for voting' });
@@ -56,7 +69,7 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     if (proposal.expiresAt && new Date(proposal.expiresAt) < new Date()) {
       const engine = new RepoEngine(communityDid);
       const keypair = await getKeypairForDid(communityDid);
-      await engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, {
+      await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
         ...proposal, status: 'expired', resolvedAt: new Date().toISOString(),
       });
       await auditLog('community.proposal.expire', null, communityDid, { rkey: proposalRkey });
@@ -77,7 +90,8 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       updatedProposal.votesAgainst = [...(proposal.votesAgainst || []), voterDid];
     }
 
-    // Vote records to dual-write into voter repos once the tally is committed.
+    // Vote records to write into voter repos: for evidence-model proposals these
+    // are the tally, so they are written before the tally is computed.
     const voteRecordInputs: VoteRecordInput[] = [
       { voterDid, communityDid, proposalRkey, proposalCid, vote },
     ];
@@ -114,65 +128,123 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       });
     }
 
+    // Voter-signed vote records in each voter's own repo. Written first: for
+    // evidence-model proposals the tally below is computed from them. Failures
+    // are logged inside writeVoteRecords and never change the response — the
+    // resulting gap is reconciled against the vote cache at resolution.
+    const writtenVoteRecords = await writeVoteRecords(voteRecordInputs);
+
     const settingsResult = await query<{ record: any }>(
       `SELECT record FROM records_index
        WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
       [communityDid]
     );
-    const quorum = settingsResult.rows[0]?.record?.governanceConfig?.quorum || 3;
+    const settings = settingsResult.rows[0]?.record;
+    const quorum = settings?.governanceConfig?.quorum || 3;
 
-    const totalVotes = updatedProposal.votesFor.length + updatedProposal.votesAgainst.length;
+    const engine = new RepoEngine(communityDid);
+    const keypair = await getKeypairForDid(communityDid);
+
+    let outcome: Outcome | null = null;
+    let deferred = false;
+    let decision: DecisionRef | undefined;
+    let countedVoteCids: string[] = [];
+    let evidenceComplete = true;
+
+    if (evidenceFromRecords) {
+      const tally = await tallyFromVoteRecords({
+        communityDid, proposalRkey, proposal: updatedProposal, proposalCid,
+      });
+      const decided = decideFromRecords({ tally, proposal: updatedProposal, quorum });
+      deferred = decided.deferred;
+      outcome = decided.outcome;
+      countedVoteCids = [...tally.votesFor, ...tally.votesAgainst].map(v => v.record.cid);
+      evidenceComplete = tally.uncounted.length === 0;
+
+      if (deferred) {
+        await auditDeferredResolution({
+          communityDid,
+          proposalRkey,
+          tally,
+          recordOutcome: decideOutcome(tally.votesFor.length, tally.votesAgainst.length, quorum),
+          cacheOutcome: decided.cacheOutcome,
+          quorum,
+        });
+      }
+
+      if (outcome) {
+        // Decision record first, so the proposal is never closed while citing a
+        // decision that does not exist. A crash here leaves the proposal open
+        // and the retry reuses this record.
+        decision = await ensureDecisionRecord({
+          engine,
+          keypair,
+          communityDid,
+          proposalRkey,
+          proposalCid,
+          proposal: updatedProposal,
+          tally,
+          quorum: quorumRule(settings?.governanceModel ?? 'simple-majority', quorum),
+          outcome,
+        });
+      }
+    } else {
+      // Proposals created before the vote-record evidence model resolve on the
+      // cached arrays exactly as they always did.
+      const cachedFor = updatedProposal.votesFor.length;
+      const cachedAgainst = updatedProposal.votesAgainst.length;
+      outcome = decideOutcome(cachedFor, cachedAgainst, quorum);
+    }
+
     let applied = false;
 
-    if (totalVotes >= quorum) {
-      if (updatedProposal.votesFor.length > updatedProposal.votesAgainst.length) {
-        updatedProposal.status = 'approved';
-        updatedProposal.resolvedAt = new Date().toISOString();
+    if (outcome) {
+      updatedProposal.status = outcome;
+      updatedProposal.resolvedAt = new Date().toISOString();
+      if (decision) {
+        updatedProposal.decision = { uri: decision.uri, cid: decision.cid, rkey: decision.rkey };
+      }
 
-        const engine = new RepoEngine(communityDid);
-        const keypair = await getKeypairForDid(communityDid);
+      // Closing the proposal before applying the change keeps the change
+      // single-shot: a crash after this point cannot re-enter the apply step,
+      // because the proposal is no longer open.
+      await putProposalRecord(engine, keypair, communityDid, proposalRkey, updatedProposal);
 
-        await engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, updatedProposal);
-
+      if (outcome === 'approved') {
         if (proposal.action === 'write' && proposal.proposedRecord) {
           await engine.putRecord(keypair, proposal.targetCollection, proposal.targetRkey, proposal.proposedRecord);
         } else if (proposal.action === 'delete') {
           await engine.deleteRecord(keypair, proposal.targetCollection, proposal.targetRkey);
         }
-
         applied = true;
         await auditLog('community.proposal.approve', req.auth!.userId, communityDid, {
-          rkey: proposalRkey, targetCollection: proposal.targetCollection, applied,
+          rkey: proposalRkey,
+          targetCollection: proposal.targetCollection,
+          applied,
+          ...(decision ? { decisionUri: decision.uri, decisionCid: decision.cid, countedVoteCids, evidenceComplete } : {}),
         });
       } else {
-        updatedProposal.status = 'rejected';
-        updatedProposal.resolvedAt = new Date().toISOString();
-
-        const engine = new RepoEngine(communityDid);
-        const keypair = await getKeypairForDid(communityDid);
-        await engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, updatedProposal);
-
-        await auditLog('community.proposal.reject', req.auth!.userId, communityDid, { rkey: proposalRkey });
+        await auditLog('community.proposal.reject', req.auth!.userId, communityDid, {
+          rkey: proposalRkey,
+          ...(decision ? { decisionUri: decision.uri, decisionCid: decision.cid, countedVoteCids, evidenceComplete } : {}),
+        });
       }
     } else {
-      const engine = new RepoEngine(communityDid);
-      const keypair = await getKeypairForDid(communityDid);
-      await engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, updatedProposal);
+      await putProposalRecord(engine, keypair, communityDid, proposalRkey, updatedProposal);
     }
 
-    // Dual-write: voter-signed vote records in each voter's own repo. The
-    // proposal record above stays the authoritative tally; failures here are
-    // logged inside writeVoteRecords and never change the response.
-    await writeVoteRecords(voteRecordInputs);
-
     await auditLog('community.proposal.vote', req.auth!.userId, communityDid, {
-      rkey: proposalRkey, vote,
+      rkey: proposalRkey,
+      vote,
+      proposalCid,
+      voteRecords: writtenVoteRecords.map(r => ({ voter: r.voterDid, uri: r.uri, cid: r.cid })),
     });
 
     res.status(200).json({
       recorded: true,
       status: updatedProposal.status,
       ...(applied ? { applied: true } : {}),
+      ...(deferred ? { resolutionDeferred: true } : {}),
     });
     });
   } catch (error) {

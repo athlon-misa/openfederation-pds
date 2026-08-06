@@ -137,6 +137,12 @@ CREATE TABLE IF NOT EXISTS records_index (
 CREATE INDEX idx_records_community_collection ON records_index(community_did, collection);
 CREATE INDEX idx_records_cid ON records_index(cid);
 
+-- Governance tallies read vote records across every voter's repo, so they
+-- filter by the proposal a record points at rather than by repo DID.
+CREATE INDEX IF NOT EXISTS idx_records_governance_vote_proposal
+    ON records_index ((record->>'community'), (record->>'proposalRkey'))
+    WHERE collection = 'net.openfederation.governance.vote';
+
 -- Members Unique table: enforces one membership per DID per community
 -- This prevents duplicate memberships as per the schema fix in documentation
 CREATE TABLE IF NOT EXISTS members_unique (

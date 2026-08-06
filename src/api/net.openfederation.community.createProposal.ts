@@ -5,6 +5,8 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
+import { writeVoteRecord } from '../governance/vote-records.js';
+import { EVIDENCE_MODEL_VOTE_RECORDS } from '../governance/proposal-resolution.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DEFAULT_TTL_DAYS = 7;
@@ -73,12 +75,35 @@ export default async function createProposal(req: AuthRequest, res: Response): P
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       resolvedAt: null,
+      // This proposal's outcome will be decided from voter-signed vote records;
+      // the vote arrays above are a read cache. Proposals without this marker
+      // predate the evidence model and resolve on the arrays alone.
+      evidenceModel: EVIDENCE_MODEL_VOTE_RECORDS,
+      // Lineage of proposal CIDs a vote record may legitimately cite; appended
+      // to on every rewrite of this record.
+      cidChain: [] as string[],
     };
 
     const result = await engine.putRecord(keypair, PROPOSAL_COLLECTION, rkey, record);
 
+    // The proposer's seed vote is a counted vote, so it gets a voter-signed
+    // record like any other — otherwise the authoritative tally would be short
+    // by one from the moment the proposal exists.
+    const proposerVote = await writeVoteRecord({
+      voterDid: req.auth!.did,
+      communityDid,
+      proposalRkey: rkey,
+      proposalCid: result.cid,
+      vote: 'for',
+    });
+
     await auditLog('community.proposal.create', req.auth!.userId, communityDid, {
-      rkey, targetCollection, action,
+      rkey,
+      targetCollection,
+      action,
+      proposalCid: result.cid,
+      evidenceModel: EVIDENCE_MODEL_VOTE_RECORDS,
+      ...(proposerVote ? { proposerVoteUri: proposerVote.uri, proposerVoteCid: proposerVote.cid } : {}),
     });
 
     res.status(200).json({ uri: result.uri, cid: result.cid, rkey });

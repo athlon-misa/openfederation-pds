@@ -69,6 +69,14 @@ const PROTECTED_COLLECTION_POLICIES: Record<string, CollectionMutationPolicy> = 
     },
     requiresDedicatedEndpoint: true,
   },
+  'net.openfederation.governance.decision': {
+    permissions: {
+      create: PERMISSIONS.GOVERNANCE_WRITE,
+      update: PERMISSIONS.GOVERNANCE_WRITE,
+      delete: PERMISSIONS.GOVERNANCE_WRITE,
+    },
+    requiresDedicatedEndpoint: true,
+  },
   'net.openfederation.community.delegation': {
     permissions: {
       create: PERMISSIONS.GOVERNANCE_WRITE,

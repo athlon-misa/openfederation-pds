@@ -56,6 +56,7 @@ export type AuditAction =
   | 'community.proposal.approve'
   | 'community.proposal.reject'
   | 'community.proposal.expire'
+  | 'community.proposal.resolution.deferred'
   | 'admin.export.schedule.create'
   | 'admin.export.schedule.delete'
   | 'admin.export.snapshot.success'
