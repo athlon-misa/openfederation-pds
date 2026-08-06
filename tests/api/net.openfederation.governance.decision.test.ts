@@ -8,7 +8,7 @@ import { PgBlockstore } from '../../src/repo/pg-blockstore.js';
 import { RepoEngine } from '../../src/repo/repo-engine.js';
 import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
 import { query } from '../../src/db/client.js';
-import { ensureDecisionRecord, putProposalRecord, quorumRule } from '../../src/governance/proposal-resolution.js';
+import { prepareDecisionRecord, putProposalRecord, quorumRule } from '../../src/governance/proposal-resolution.js';
 import { buildVerifyInput, findDecisions, parseRepoCar } from '../../src/governance/decision-evidence.js';
 import { verifyDecision } from '../../src/governance/verify-decision.js';
 
@@ -591,22 +591,33 @@ describe('Governance decision records and vote-record tallies', () => {
         votesAgainst: original.value.votes.filter((v: any) => v.vote === 'against'),
         uncounted: [],
       };
-      const same = await ensureDecisionRecord({
-        engine, keypair, communityDid, proposalRkey, proposalCid, proposal,
+      const same = await prepareDecisionRecord({
+        communityDid, proposalRkey, proposalCid, proposal,
         tally: sameTally,
         quorum: quorumRule('simple-majority', QUORUM),
         outcome: 'approved',
       });
-      expect(same.uri).toBe(original.uri);
-      expect(same.cid).toBe(original.cid);
+      expect(same.ref.uri).toBe(original.uri);
+      expect(same.ref.cid).toBe(original.cid);
+      // Reuse means no write at all: the decision is prepared rather than
+      // committed since #188, so "reused" is the absence of an op.
+      expect(same.write).toBeUndefined();
 
-      const superseding = await ensureDecisionRecord({
-        engine, keypair, communityDid, proposalRkey, proposalCid, proposal,
+      const prepared = await prepareDecisionRecord({
+        communityDid, proposalRkey, proposalCid, proposal,
         tally: { votesFor: [], votesAgainst: [], uncounted: [] },
         quorum: quorumRule('simple-majority', QUORUM),
         outcome: 'rejected',
       });
+      const superseding = prepared.ref;
       expect(superseding.uri).not.toBe(original.uri);
+      // The caller commits it; here that stands in for the resolution batch.
+      expect(prepared.write).toBeDefined();
+      await engine.applyWrites(keypair, [prepared.write!]);
+      // The CID the caller was handed has to be the one that landed, because
+      // the proposal record cites it in the same commit.
+      const written = await engine.getRecord(prepared.write!.collection, prepared.write!.rkey);
+      expect(written!.cid).toBe(superseding.cid);
 
       const decisions = await decisionFor(communityDid, owner.accessJwt, proposalRkey);
       expect(decisions.length).toBe(2);

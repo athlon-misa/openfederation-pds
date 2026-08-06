@@ -15,7 +15,8 @@ import {
   auditDeferredResolution,
   decideFromRecords,
   decideOutcome,
-  ensureDecisionRecord,
+  prepareDecisionRecord,
+  proposalWriteOp,
   putProposalRecord,
   quorumRule,
   tallyFromVoteRecords,
@@ -27,9 +28,10 @@ import { anchorDecision, anchorPendingDecisions } from '../governance/anchoring.
 import {
   OVERRIDE_STATUS,
   PENDING_STATUS,
+  UnapplicableProposalError,
   applyDueProposals,
-  applyProposedChange,
   closeExpiredOverrides,
+  proposedChangeOps,
   pendingApplicationState,
   proposalApplicationProblem,
   proposalLockKey,
@@ -263,6 +265,8 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     let outcome: Outcome | null = null;
     let deferred = false;
     let decision: DecisionRef | undefined;
+    /** The decision's write op, absent when an existing decision is reused. */
+    let decisionWrite: { action: 'write'; collection: string; rkey: string; record: Record<string, unknown> } | undefined;
     let countedVoteCids: string[] = [];
     let evidenceComplete = true;
 
@@ -308,12 +312,11 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       }
 
       if (outcome) {
-        // Decision record first, so the proposal is never closed while citing a
-        // decision that does not exist. A crash here leaves the proposal open
-        // and the retry reuses this record.
-        decision = await ensureDecisionRecord({
-          engine,
-          keypair,
+        // Prepared, not written: the decision goes into the same commit as the
+        // proposal that cites it and the change it authorizes (#188), so a
+        // proposal can no longer be closed citing a decision that does not
+        // exist — and no crash can separate the three.
+        const prepared = await prepareDecisionRecord({
           communityDid,
           proposalRkey,
           proposalCid,
@@ -322,6 +325,8 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
           quorum: quorumRule(settings?.governanceModel ?? 'simple-majority', quorum),
           outcome,
         });
+        decision = prepared.ref;
+        decisionWrite = prepared.write;
       }
     } else {
       // Proposals created before the vote-record evidence model resolve on the
@@ -357,27 +362,41 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       const window = outcome === 'approved' && decision && !overrideRound
         ? pendingApplicationState(settings, resolvedAt)
         : null;
-      if (overrideRound && outcome === 'approved') {
-        updatedProposal.overrideOutcome = 'carried';
-        // Whether the change *can* be made is settled before the record claims
-        // it was, exactly as `applyIfDue` settles it: discovering the refusal
-        // afterwards would leave a signed record asserting an `appliedAt` that
-        // never happened, contradicted only by an audit row. A refused change
-        // still closes the proposal — the override carried, and the decision
-        // stands — it simply makes no claim to have taken effect.
-        overrideRefusal = await proposalApplicationProblem(communityDid, proposal);
-        if (!overrideRefusal) updatedProposal.appliedAt = resolvedAt;
-      }
+      if (overrideRound && outcome === 'approved') updatedProposal.overrideOutcome = 'carried';
       if (window) {
         updatedProposal.status = PENDING_STATUS;
         updatedProposal.applyAt = window.applyAt;
         pendingApplication = window.applyAt;
       }
 
-      // Closing the proposal before applying the change keeps the change
-      // single-shot: a crash after this point cannot re-enter the apply step,
-      // because the proposal is no longer open.
-      await putProposalRecord(engine, keypair, communityDid, proposalRkey, updatedProposal);
+      // The change this resolution authorizes, computed before anything is
+      // written. A settings proposal that would leave the community with a
+      // model nothing recognizes is refused here (see `proposedChangeOps`), and
+      // refusing *before* the write is what keeps the record honest: the
+      // proposal still closes — the decision stands — but it makes no claim to
+      // have been applied.
+      let changeOps: Awaited<ReturnType<typeof proposedChangeOps>> = [];
+      if (outcome === 'approved' && !window) {
+        try {
+          changeOps = await proposedChangeOps(communityDid, proposal);
+          applied = true;
+          if (overrideRound) updatedProposal.appliedAt = resolvedAt;
+        } catch (error) {
+          if (!(error instanceof UnapplicableProposalError)) throw error;
+          overrideRefusal = error.message;
+        }
+      }
+
+      // One signed commit for the decision, the proposal's terminal state, and
+      // the change (#188). Nothing here can be half-done: resolution used to
+      // close the proposal in one commit and apply the change in another, so a
+      // crash between them stranded an `approved` proposal whose change never
+      // happened — and, no longer being pending, it would never be revisited.
+      await engine.applyWrites(keypair, [
+        ...(decisionWrite ? [decisionWrite] : []),
+        await proposalWriteOp(communityDid, proposalRkey, updatedProposal),
+        ...changeOps,
+      ]);
 
       if (overrideRound && outcome === 'approved') {
         await auditLog('community.proposal.overrideCarried', req.auth!.userId, communityDid, {
@@ -398,29 +417,13 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
           resolvedAt,
           ...(decision ? { decisionUri: decision.uri, decisionCid: decision.cid, countedVoteCids, evidenceComplete } : {}),
         });
-      } else if (outcome === 'approved' && overrideRefusal) {
-        // Settled above, before the record was written. Named as withheld
-        // rather than silently skipped.
-        await auditLog('community.proposal.applyFailed', req.auth!.userId, communityDid, {
-          rkey: proposalRkey,
-          targetCollection: proposal.targetCollection,
-          reason: overrideRefusal,
-        });
       } else if (outcome === 'approved') {
-        // The change can be refused at this point — a settings proposal that
-        // would leave the community with a model nothing recognizes is not
-        // applied (see `applyProposedChange`). The decision still stands and is
-        // still recorded; only the effect is withheld, and named as withheld,
-        // exactly as the lazy timelock path does through `applyIfDueSafely`.
-        try {
-          await applyProposedChange(engine, keypair, proposal);
-          applied = true;
-        } catch (error) {
-          console.error(`[governance] could not apply ${communityDid}/${proposalRkey}:`, error);
+        if (overrideRefusal) {
+          // Settled before the commit, so the record never claimed otherwise.
           await auditLog('community.proposal.applyFailed', req.auth!.userId, communityDid, {
             rkey: proposalRkey,
             targetCollection: proposal.targetCollection,
-            reason: error instanceof Error ? error.message : String(error),
+            reason: overrideRefusal,
           });
         }
         await auditLog('community.proposal.approve', req.auth!.userId, communityDid, {

@@ -94,6 +94,110 @@ export class RepoEngine {
   }
 
   /**
+   * Write and delete several records in **one** signed commit (#188).
+   *
+   * The atomicity this buys is not cosmetic. Governance resolution used to
+   * close a proposal in one commit and perform the change it decided in
+   * another, so a crash between them left a durable `approved` proposal whose
+   * change had never happened — and, because the proposal was no longer
+   * pending, nothing would ever revisit it. One commit removes the window
+   * rather than making it recoverable: `PgBlockstore.applyCommit` writes the
+   * new blocks and the new root inside a single Postgres transaction, so either
+   * every record in the batch is in the repo or none of them is.
+   *
+   * It is also the more faithful reading of the protocol. A decision and the
+   * change it authorizes are one act, and a repo revision is what ATProto has
+   * to say "these happened together".
+   *
+   * `records_index` is synced after the commit, as it is for every other write.
+   * It is a derived cache, so a crash in between leaves it stale rather than
+   * wrong: the repo is the record, and the lazy sweep re-derives from the cache
+   * and converges, because writing the same records again produces the same
+   * CIDs.
+   */
+  async applyWrites(
+    keypair: Keypair,
+    ops: Array<
+      | { action: 'write'; collection: string; rkey: string; record: Record<string, unknown> }
+      | { action: 'delete'; collection: string; rkey: string }
+    >,
+  ): Promise<Array<{ collection: string; rkey: string; uri: string; cid?: string }>> {
+    if (ops.length === 0) return [];
+
+    const repo = await Repo.load(this.storage);
+
+    // Which writes are creates and which are updates, in one round-trip rather
+    // than one per op.
+    const writeKeys = ops
+      .filter(op => op.action === 'write')
+      .map(op => `${op.collection}/${op.rkey}`);
+    const existing = new Set<string>();
+    if (writeKeys.length > 0) {
+      const rows = await query<{ collection: string; rkey: string }>(
+        `SELECT collection, rkey FROM records_index
+         WHERE community_did = $1 AND (collection || '/' || rkey) = ANY($2)`,
+        [this.did, writeKeys],
+      );
+      for (const row of rows.rows) existing.add(`${row.collection}/${row.rkey}`);
+    }
+
+    const writeOps: RecordWriteOp[] = [];
+    const results: Array<{ collection: string; rkey: string; uri: string; cid?: string }> = [];
+    const indexOps: Array<{ action: WriteOpAction; collection: string; rkey: string; record?: Record<string, unknown>; cid?: string }> = [];
+
+    for (const op of ops) {
+      const uri = `at://${this.did}/${op.collection}/${op.rkey}`;
+      if (op.action === 'delete') {
+        writeOps.push({ action: WriteOpAction.Delete, collection: op.collection, rkey: op.rkey });
+        indexOps.push({ action: WriteOpAction.Delete, collection: op.collection, rkey: op.rkey });
+        results.push({ collection: op.collection, rkey: op.rkey, uri });
+        continue;
+      }
+      const action = existing.has(`${op.collection}/${op.rkey}`) ? WriteOpAction.Update : WriteOpAction.Create;
+      const cid = (await cidForRecord(op.record)).toString();
+      writeOps.push({ action, collection: op.collection, rkey: op.rkey, record: op.record });
+      indexOps.push({ action, collection: op.collection, rkey: op.rkey, record: op.record, cid });
+      results.push({ collection: op.collection, rkey: op.rkey, uri, cid });
+    }
+
+    await repo.applyWrites(writeOps, keypair);
+
+    for (const op of indexOps) {
+      if (op.action === WriteOpAction.Delete) {
+        await this.removeFromRecordsIndex(op.collection, op.rkey);
+      } else {
+        await this.syncRecordsIndex([{
+          action: op.action,
+          collection: op.collection,
+          rkey: op.rkey,
+          record: op.record!,
+          cid: op.cid,
+        }]);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Drop a record from the read cache, and from the membership uniqueness index
+   * when it was a member record. Shared by `deleteRecord` and `applyWrites` so
+   * a delete means the same thing whichever way it was issued.
+   */
+  private async removeFromRecordsIndex(collection: string, rkey: string): Promise<void> {
+    await query(
+      'DELETE FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
+      [this.did, collection, rkey]
+    );
+    if (collection === MEMBER_COLLECTION) {
+      await query(
+        'DELETE FROM members_unique WHERE community_did = $1 AND record_rkey = $2',
+        [this.did, rkey]
+      );
+    }
+  }
+
+  /**
    * Delete a record, producing a new signed commit.
    */
   async deleteRecord(
@@ -111,19 +215,7 @@ export class RepoEngine {
 
     await repo.applyWrites(writeOp, keypair);
 
-    // Remove from records_index cache
-    await query(
-      'DELETE FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
-      [this.did, collection, rkey]
-    );
-
-    // Clean up members_unique if this was a member record
-    if (collection === 'net.openfederation.community.member') {
-      await query(
-        'DELETE FROM members_unique WHERE community_did = $1 AND record_rkey = $2',
-        [this.did, rkey]
-      );
-    }
+    await this.removeFromRecordsIndex(collection, rkey);
   }
 
   /**
