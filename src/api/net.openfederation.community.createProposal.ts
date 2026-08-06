@@ -42,10 +42,13 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     );
 
     const settings = settingsResult.rows[0]?.record;
-    if (!settings || settings.governanceModel !== 'simple-majority') {
+    // `on-chain` resolves proposals through the same vote-record evidence path
+    // as `simple-majority` — it is that governance plus anchoring (#198), not a
+    // separate mechanism — so both models can propose.
+    if (!settings || !['simple-majority', 'on-chain'].includes(settings.governanceModel)) {
       res.status(400).json({
         error: 'GovernanceNotActive',
-        message: 'Community is not using simple-majority governance',
+        message: 'Community is not using a voting governance model (simple-majority or on-chain)',
       });
       return;
     }

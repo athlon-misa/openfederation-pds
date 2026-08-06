@@ -64,6 +64,10 @@ export type AuditAction =
   | 'community.proposal.apply'
   | 'community.proposal.applyFailed'
   | 'community.proposal.decision.superseded'
+  // Anchoring: a decision notarized externally, or an attempt that failed and
+  // will be retried. Never a precondition of the decision itself.
+  | 'community.proposal.decision.anchored'
+  | 'community.proposal.decision.anchorFailed'
   | 'admin.export.schedule.create'
   | 'admin.export.schedule.delete'
   | 'admin.export.snapshot.success'

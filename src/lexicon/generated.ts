@@ -935,7 +935,7 @@ export type NetOpenfederationCommunitySetGovernanceModelOutput = {
   "success": boolean;
   "governanceModel": string;
 };
-export type NetOpenfederationCommunitySetGovernanceModelError = "GovernanceDowngradeBlocked" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunitySetGovernanceModelError = "GovernanceDenied" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunitySuspendInput = {
   "did": string;
@@ -2571,7 +2571,7 @@ export const lexiconContracts = {
   'net.openfederation.calendar.rsvp': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
   'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
-  'net.openfederation.community.createProposal': { revision: 4, errors: ["GovernanceNotActive", "InvalidRequest", "NotMember"] as const },
+  'net.openfederation.community.createProposal': { revision: 5, errors: ["GovernanceNotActive", "InvalidRequest", "NotMember"] as const },
   'net.openfederation.community.createRole': { revision: 2, errors: ["InvalidRequest", "NotMember", "RoleNameTaken"] as const },
   'net.openfederation.community.delete': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.deleteAttestation': { revision: 1, errors: ["AttestationNotFound", "InvalidRequest"] as const },
@@ -2598,7 +2598,7 @@ export const lexiconContracts = {
   'net.openfederation.community.resolveJoinRequest': { revision: 1, errors: ["AlreadyResolved", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.revokeDelegation': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.community.setDelegation': { revision: 2, errors: ["NotMember"] as const },
-  'net.openfederation.community.setGovernanceModel': { revision: 3, errors: ["GovernanceDowngradeBlocked", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.setGovernanceModel': { revision: 4, errors: ["GovernanceDenied", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.suspend': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.takedown': { revision: 1, errors: ["AlreadyTakenDown", "ExportRequired", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.transfer': { revision: 1, errors: ["CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound"] as const },

@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.setGovernanceModel",
-  "revision": 3,
-  "description": "Switch a community's governance model.",
+  "revision": 4,
+  "description": "Switch a community's governance model. The model lives on the protected community settings record, so the change is governed exactly like any other change to that record: free under benevolent-dictator, and a proposal plus a quorum under simple-majority or on-chain. There is no downgrade ratchet and no admin override.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -26,8 +26,8 @@
           "description": "Invalid model or missing config."
         },
         {
-          "name": "GovernanceDowngradeBlocked",
-          "description": "Cannot downgrade from on-chain without admin override."
+          "name": "GovernanceDenied",
+          "description": "The community's current governance model requires this settings change to go through a proposal."
         },
         {
           "name": "NotFound",
@@ -43,11 +43,11 @@
         },
         "governanceModel": {
           "type": "string",
-          "description": "Target governance model: benevolent-dictator or simple-majority. on-chain not yet available."
+          "description": "Target governance model: benevolent-dictator, simple-majority, or on-chain. on-chain is simple-majority governance plus anchoring: outcomes are decided from voter-signed vote records exactly as under simple-majority, and each decision is additionally notarized through a registered attestor. No outcome depends on a chain read."
         },
         "governanceConfig": {
           "type": "unknown",
-          "description": "Config for the target model (quorum, voterRole, proposalTtlDays, timelockHours). timelockHours is the contest window a passed proposal waits out before its change is applied; defaults to 24 when absent, and 0 (immediate application) must be stated explicitly."
+          "description": "Config for the target model (quorum, voterRole, proposalTtlDays, timelockHours, chainId, anchoring). timelockHours is the contest window a passed proposal waits out before its change is applied; defaults to 24 when absent, and 0 (immediate application) must be stated explicitly. anchoring is { enabled, chainId } and turns external notarization of decisions on or off; on-chain enables it by default from chainId. Anchoring never affects an outcome."
         }
       },
       "required": [

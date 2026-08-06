@@ -29,6 +29,15 @@ import { putProposalRecord } from '../../src/governance/proposal-resolution.js';
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const OBJECTION_COLLECTION = 'net.openfederation.governance.objection';
 const TARGET_COLLECTION = 'app.example.governed';
+const SETTINGS_COLLECTION = 'net.openfederation.community.settings';
+
+async function communitySettings(communityDid: string) {
+  const res = await query<{ record: any }>(
+    `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = 'self'`,
+    [communityDid, SETTINGS_COLLECTION],
+  );
+  return res.rows[0]?.record;
+}
 
 type User = { accessJwt: string; did: string; handle: string };
 
@@ -500,14 +509,45 @@ describe('Governance timelock and objection window', () => {
   describe('a community may waive the window, but only by saying so', () => {
     it('applies immediately when timelockHours is 0', async () => {
       if (!plcAvailable) return;
-      const set = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
+
+      // Waiving the window is a change to the community's protected settings
+      // record, so under a voting model it goes through a proposal like any
+      // other (#198) — there is no operator switch for it.
+      const direct = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
         communityDid,
         governanceModel: 'simple-majority',
         governanceConfig: {
           quorum: QUORUM, voterRole: 'moderator', proposalTtlDays: 7, timelockHours: 0,
         },
       });
-      expect(set.status).toBe(200);
+      expect(direct.status).toBe(403);
+      expect(direct.body.requiresProposal).toBe(true);
+
+      const settings = await communitySettings(communityDid);
+      const waive = await xrpcAuthPost('net.openfederation.community.createProposal', owner.accessJwt, {
+        communityDid,
+        targetCollection: SETTINGS_COLLECTION,
+        targetRkey: 'self',
+        action: 'write',
+        proposedRecord: {
+          ...settings,
+          governanceConfig: { ...settings.governanceConfig, timelockHours: 0 },
+        },
+      });
+      expect(waive.status).toBe(200);
+      for (const voter of [voter1, voter2]) {
+        const vote = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter.accessJwt, {
+          communityDid, proposalRkey: waive.body.rkey, vote: 'for',
+        });
+        expect(vote.status).toBe(200);
+      }
+      // The waiver is itself decided under the old window, so it waits it out.
+      await closeWindow(communityDid, waive.body.rkey);
+      const applied = await xrpcGet('net.openfederation.community.getProposal', {
+        communityDid, rkey: waive.body.rkey,
+      });
+      expect(applied.body.status).toBe('approved');
+      expect((await communitySettings(communityDid)).governanceConfig.timelockHours).toBe(0);
 
       const passed = await passProposal('instant-1');
       expect(passed.resolution.status).toBe('approved');

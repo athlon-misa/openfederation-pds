@@ -62,6 +62,29 @@
  * objection records, under `checkObjectionRecord` — the same predicate the
  * online path applies, and for the same reason the vote rules are shared.
  * `verifyDecision` still never reads the proposal's `status`.
+ *
+ * **Anchor receipts (#198) do not enter this verdict either, and deliberately
+ * do not appear in the decision record at all.** When a community anchors, a
+ * registered attestor notarizes the decision's CID and the receipt is written
+ * to the audit log (`src/governance/anchoring.ts`). Nothing here reads it, for
+ * three reasons that all say the same thing:
+ *
+ *   - Checking a receipt means reading a chain. This function reads no network,
+ *     by construction, because a verdict that needs a live external service is
+ *     not an offline verdict.
+ *   - A missing or failed anchor would then become a defect, which would make a
+ *     decision's soundness depend on a notary's availability — the exact
+ *     inversion (chain as authority rather than witness) this whole refactor
+ *     removes. Anchoring can only ever add evidence; it can never subtract any.
+ *   - The anchored CID *is* the decision's CID, so a receipt proves only that
+ *     the record this function already verifies existed at some time. Whether
+ *     that record is sound is answered here, from signatures alone, with or
+ *     without a notary — and a caller holding a receipt can compare its
+ *     `anchoredCid` against `summary.decisionUri`'s CID without any help.
+ *
+ * An anchor is therefore a strictly additive, independently checkable claim
+ * about a decision, verified (if at all) by whoever trusts that chain, against
+ * the same CID this function reports on.
  */
 
 import { CID } from 'multiformats/cid';

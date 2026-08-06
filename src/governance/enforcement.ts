@@ -122,15 +122,22 @@ export async function enforceGovernance(
       };
 
     case 'on-chain':
-      // An external authority (registered by a module) may attest that this
-      // request is authorized to act for the community. Core never learns
-      // what kind of authority it is.
+      // `on-chain` is `simple-majority` plus anchoring (#198): the community
+      // decides in its own repos and a notary may witness the result. So the
+      // fallback here is the proposal flow, exactly as for simple-majority —
+      // there is always a route to a decision that needs no chain at all.
+      //
+      // An external authority (registered by a module) may additionally attest
+      // that this request is authorized to act for the community, which is a
+      // way of carrying delegated authority into a request rather than a way of
+      // deciding anything. Core never learns what kind of authority it is.
       if (requestContext && requestContext.communityDid === communityDid) {
         return { allowed: true, governanceModel };
       }
       return {
         allowed: false,
-        reason: 'GovernanceRequired: on-chain governance is active. Writes to protected collections must come via an authorized Oracle service.',
+        requiresProposal: true,
+        reason: 'This community uses on-chain governance. Changes to protected collections require a proposal and majority vote, or an authorized service request.',
         governanceModel,
       };
 

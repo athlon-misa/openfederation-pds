@@ -23,6 +23,7 @@ import {
   type DecisionRef,
   type Outcome,
 } from '../governance/proposal-resolution.js';
+import { anchorDecision, anchorPendingDecisions } from '../governance/anchoring.js';
 import {
   PENDING_STATUS,
   applyDueProposals,
@@ -328,6 +329,22 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       proposalCid,
       voteRecords: writtenVoteRecords.map(r => ({ voter: r.voterDid, uri: r.uri, cid: r.cid })),
     });
+
+    // Notarization, strictly after the fact. Everything this resolution does to
+    // the community's data — the decision record, the proposal rewrite, the
+    // application or the pending window, and their audit entries — is already
+    // done above. Anchoring runs last, returns nothing that is read back, and
+    // cannot throw: an attestor that is absent, slow, or failing leaves a
+    // retriable audit entry and an otherwise identical outcome. The same call
+    // drains anchors this community failed to place earlier, which is the whole
+    // of the retry mechanism.
+    if (decision) {
+      const receipt = await anchorDecision({ communityDid, proposalRkey, decision, settings });
+      // Only drain the backlog when the notary has just demonstrated it is
+      // answering. Retrying against one that has already failed this request
+      // would spend a timeout per stale entry inside a member's vote.
+      if (receipt) await anchorPendingDecisions({ communityDid, settings });
+    }
 
     res.status(200).json({
       recorded: true,
