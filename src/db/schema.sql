@@ -221,6 +221,14 @@ CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_actor ON audit_log(actor_id);
 CREATE INDEX idx_audit_log_created ON audit_log(created_at);
 
+-- The anchor retry queue is derived from audit rows: it reads a community's
+-- recent anchorFailed rows and matching anchored successes to decide what to
+-- retry, on a path that runs inside a member's vote. idx_audit_log_action alone
+-- would scan those actions across every community on the PDS.
+CREATE INDEX IF NOT EXISTS idx_audit_log_decision_anchor_target
+    ON audit_log (target_id, id DESC)
+    WHERE action IN ('community.proposal.decision.anchored', 'community.proposal.decision.anchorFailed');
+
 -- Partner API keys: allows trusted partners to register users directly
 CREATE TABLE IF NOT EXISTS partner_keys (
     id VARCHAR(36) PRIMARY KEY,
