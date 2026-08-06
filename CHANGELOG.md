@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Governance: resolution is crash-atomic
+
+Resolving a proposal wrote three separate signed commits — the decision record,
+the proposal's terminal state, then the change the proposal authorized. A crash
+between the second and the third left a durable `approved` proposal whose change
+had never happened, and nothing would ever revisit it, because the proposal was
+no longer `pending-application`. #205 made that window observable (the failure is
+audited) and reachable from a read (lazy application runs on `getProposal`), but
+not impossible (issue #188).
+
+The three writes are now **one** signed commit. `PgBlockstore.applyCommit`
+already wrote its blocks and its new root inside a single Postgres transaction,
+so batching through `Repo.applyWrites` makes the whole resolution atomic without
+an outbox, a durable intermediate status, or a retry path: either the repo holds
+the decision, the closed proposal and the change, or it holds none of them.
+
+It is also the more faithful reading of the protocol — a decision and the change
+it authorizes are one act, and a repo revision is what ATProto has to say "these
+happened together".
+
+- `RepoEngine.applyWrites(keypair, ops)` writes and deletes several records in
+  one commit. `deleteRecord` now shares its cache cleanup, so a delete means the
+  same thing whichever way it was issued.
+- `ensureDecisionRecord` becomes `prepareDecisionRecord`, returning the decision
+  reference plus a write op for the caller to batch instead of committing. Reuse
+  of an existing decision — an override round's supersession (#199), or a
+  pre-#188 crash — is unchanged, and is now expressed as the absence of an op.
+- `proposalWriteOp` and `proposedChangeOps` expose the proposal write and the
+  authorized change as ops. Both the immediate path (`voteOnProposal`) and the
+  lazy timelock path (`applyIfDue`) commit once.
+- **An ordering rule disappears rather than being managed.** The decision was
+  written first specifically so a proposal could never be closed citing a
+  decision that did not exist; one commit makes that impossible by construction.
+- **Applicability is settled before the commit on every path.** A settings
+  proposal that would leave the community ungoverned is refused while the
+  proposal record is still being built, so a refused change can never leave a
+  record asserting an `appliedAt` that did not happen. Previously only the
+  timelock and override paths did this.
+- **A delete of a record that is already gone is dropped rather than issued.**
+  Idempotence is what makes a retry after a crash safe, and `applyWrites` would
+  reject a delete of a missing rkey — failing on exactly the path that exists to
+  recover.
+- Fault-injection tests inject at the blockstore transaction, where a real
+  process death would land, and sweep how many commits survive: the invariant
+  (a proposal is open/pending, or closed with its change applied — never closed
+  without it) is asserted at each. Failing *every* commit would have proved
+  nothing, since the old code's first commit would have failed too.
+
 ### Governance: an objection no longer ends the matter
 
 PRD #189 specified "objection → application held pending **re-review per

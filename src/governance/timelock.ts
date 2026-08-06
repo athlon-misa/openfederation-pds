@@ -73,7 +73,7 @@ import {
   timelockHours,
 } from './decision-rules.js';
 import { countEligibleVoters } from './electorate.js';
-import { putProposalRecord } from './proposal-resolution.js';
+import { proposalWriteOp, putProposalRecord } from './proposal-resolution.js';
 import { SETTINGS_COLLECTION, checkGovernanceSettings } from './settings-rules.js';
 
 export {
@@ -439,14 +439,52 @@ export async function applyProposedChange(
   keypair: Keypair,
   proposal: any,
 ): Promise<void> {
+  const ops = await proposedChangeOps(engine.did, proposal);
+  if (ops.length > 0) await engine.applyWrites(keypair, ops);
+}
+
+/**
+ * The change a proposal authorizes, as ops rather than commits (#188).
+ *
+ * Returned so the change can go into the same signed commit as the proposal's
+ * terminal state and the decision that authorized it, which is what makes a
+ * resolution crash-atomic: either the repo has the closed proposal *and* the
+ * change, or it has neither.
+ *
+ * A delete of a record that is not there is dropped rather than issued.
+ * Idempotence is the property that makes a retry after a crash safe, and
+ * `applyWrites` would reject a delete of a missing rkey — so a resolution
+ * re-run against a repo it already changed would fail on exactly the path that
+ * exists to recover.
+ */
+export async function proposedChangeOps(
+  communityDid: string,
+  proposal: any,
+): Promise<Array<
+  | { action: 'write'; collection: string; rkey: string; record: Record<string, unknown> }
+  | { action: 'delete'; collection: string; rkey: string }
+>> {
   if (proposal?.action === 'write' && proposal?.proposedRecord) {
-    const problem = await proposalApplicationProblem(engine.did, proposal);
+    const problem = await proposalApplicationProblem(communityDid, proposal);
     if (problem) throw new UnapplicableProposalError(problem);
-    const record = await recordToWrite(engine.did, proposal);
-    await engine.putRecord(keypair, proposal.targetCollection, proposal.targetRkey, record);
-  } else if (proposal?.action === 'delete') {
-    await engine.deleteRecord(keypair, proposal.targetCollection, proposal.targetRkey);
+    return [{
+      action: 'write',
+      collection: proposal.targetCollection,
+      rkey: proposal.targetRkey,
+      record: await recordToWrite(communityDid, proposal),
+    }];
   }
+
+  if (proposal?.action === 'delete') {
+    const present = await query<{ rkey: string }>(
+      `SELECT rkey FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
+      [communityDid, proposal.targetCollection, proposal.targetRkey],
+    );
+    if (present.rows.length === 0) return [];
+    return [{ action: 'delete', collection: proposal.targetCollection, rkey: proposal.targetRkey }];
+  }
+
+  return [];
 }
 
 export type ApplyOutcome =
@@ -559,15 +597,23 @@ export async function applyIfDue(input: {
       return { state: 'unapplicable', reason: problem };
     }
 
-    // Status rewrite before the change, as at resolution: closing the proposal
-    // first is what keeps the change single-shot, because a crash after this
-    // point cannot re-enter a state that still says `pending-application`.
-    await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
-      ...proposal,
-      status: 'approved',
-      appliedAt: now.toISOString(),
-    });
-    await applyProposedChange(engine, keypair, proposal);
+    // The proposal's terminal state and the change it authorizes go into **one**
+    // signed commit (#188). They used to be two: the status rewrite first, so a
+    // crash could not re-enter a state that still said `pending-application` and
+    // apply the change twice — but a crash *between* them left a durable
+    // `approved` proposal whose change had never happened, and nothing would
+    // ever revisit it, because it was no longer pending. One commit gives both
+    // properties at once: single-shot, because either the closed proposal and
+    // the change are in the repo or neither is.
+    const ops = await proposedChangeOps(communityDid, proposal);
+    await engine.applyWrites(keypair, [
+      await proposalWriteOp(communityDid, proposalRkey, {
+        ...proposal,
+        status: 'approved',
+        appliedAt: now.toISOString(),
+      }),
+      ...ops,
+    ]);
 
     await auditLog('community.proposal.apply', null, communityDid, {
       rkey: proposalRkey,

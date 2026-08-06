@@ -29,6 +29,7 @@
  */
 
 import type { Keypair } from '@atproto/crypto';
+import { cidForRecord } from '@atproto/repo';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
@@ -96,9 +97,31 @@ export async function putProposalRecord(
   proposalRkey: string,
   record: Record<string, unknown>,
 ): Promise<{ uri: string; cid: string }> {
-  if (record.evidenceModel !== EVIDENCE_MODEL_VOTE_RECORDS) {
-    return engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, record);
-  }
+  const op = await proposalWriteOp(communityDid, proposalRkey, record);
+  return engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, op.record);
+}
+
+/**
+ * The proposal write, as an op rather than a commit.
+ *
+ * Split out so a resolution can put the proposal into the same signed commit as
+ * the decision it cites and the change it authorizes (#188). The lineage
+ * bookkeeping has to happen here rather than at the call sites: a vote record
+ * cites the proposal state its caster saw, and `knownProposalCids` is what
+ * decides whether that citation is still recognized.
+ */
+export async function proposalWriteOp(
+  communityDid: string,
+  proposalRkey: string,
+  record: Record<string, unknown>,
+): Promise<{ action: 'write'; collection: string; rkey: string; record: Record<string, unknown> }> {
+  const op = {
+    action: 'write' as const,
+    collection: PROPOSAL_COLLECTION,
+    rkey: proposalRkey,
+    record,
+  };
+  if (record.evidenceModel !== EVIDENCE_MODEL_VOTE_RECORDS) return op;
 
   const current = await query<{ cid: string }>(
     `SELECT cid FROM records_index
@@ -112,10 +135,13 @@ export async function putProposalRecord(
   const previousCid = current.rows[0]?.cid;
   const chain = previousCid && !existing.includes(previousCid) ? [...existing, previousCid] : existing;
 
-  return engine.putRecord(keypair, PROPOSAL_COLLECTION, proposalRkey, {
-    ...record,
-    cidChain: chain.slice(-MAX_CID_CHAIN),
-  });
+  return {
+    ...op,
+    record: {
+      ...record,
+      cidChain: chain.slice(-MAX_CID_CHAIN),
+    },
+  };
 }
 
 interface VoteRow {
@@ -270,17 +296,20 @@ export interface DecisionRef {
 }
 
 /**
- * Write the decision record into the community repo, or return the one already
- * written for this proposal.
+ * The decision record for this resolution: the one already written for the
+ * proposal when it still cites the same evidence, or a fresh record to write.
  *
- * Resolution order is: decision record first, then the proposal status rewrite,
- * then the proposed change. A crash before the status rewrite leaves a decision
- * record with the proposal still open — the retry finds and reuses it rather
- * than minting a second decision, and the proposed change is still applied
- * exactly once because it only ever runs after the status rewrite closes the
- * proposal.
+ * Nothing is committed here. Since #188 the decision, the proposal's terminal
+ * state and the change the proposal authorizes are one signed commit, so this
+ * returns the write op for the caller to batch rather than performing it. That
+ * removed an ordering rule as well as a crash window: resolution used to write
+ * the decision first specifically so a proposal could never be closed citing a
+ * decision that did not exist, which an atomic commit makes impossible by
+ * construction.
  *
- * The reuse is only safe while the existing decision still cites *the same
+ * Reuse still matters, because a decision can legitimately already exist — an
+ * override round's second decision supersedes the first (#199), and a
+ * pre-#188 resolution may have left one. It is only safe while the existing decision still cites *the same
  * evidence*. Matching outcomes are not enough. After a crash the tally can
  * legitimately have moved on — the crashed voter's vote record is committed
  * even though the cache rewrite never happened — and the next vote can then
@@ -297,9 +326,7 @@ export interface DecisionRef {
  * — writes a fresh decision that supersedes the stale one, which is the case
  * the verifier already knows how to excuse, and audits why.
  */
-export async function ensureDecisionRecord(input: {
-  engine: RepoEngine;
-  keypair: Keypair;
+export async function prepareDecisionRecord(input: {
   communityDid: string;
   proposalRkey: string;
   proposalCid: string;
@@ -307,8 +334,12 @@ export async function ensureDecisionRecord(input: {
   tally: RecordTally;
   quorum: QuorumRule;
   outcome: Outcome;
-}): Promise<DecisionRef> {
-  const { engine, keypair, communityDid, proposalRkey, proposalCid, proposal, tally, quorum, outcome } = input;
+}): Promise<{
+  ref: DecisionRef;
+  /** Absent when an existing decision is reused. */
+  write?: { action: 'write'; collection: string; rkey: string; record: Record<string, unknown> };
+}> {
+  const { communityDid, proposalRkey, proposalCid, proposal, tally, quorum, outcome } = input;
 
   // Latest first: decisions can form a supersession chain.
   const existing = await query<{ rkey: string; cid: string; record: any }>(
@@ -329,7 +360,7 @@ export async function ensureDecisionRecord(input: {
     const sameEvidence = citedCids.size === countedCids.size
       && [...countedCids].every(c => citedCids.has(c));
     if (record?.proposalRkey === proposalRkey && record?.outcome === outcome && sameEvidence) {
-      return { uri, cid, rkey };
+      return { ref: { uri, cid, rkey } };
     }
     supersedes = { uri, cid };
     await auditLog('community.proposal.decision.superseded', null, communityDid, {
@@ -377,8 +408,14 @@ export async function ensureDecisionRecord(input: {
     resolvedAt: new Date().toISOString(),
   };
 
-  const { uri, cid } = await engine.putRecord(keypair, DECISION_COLLECTION, rkey, record);
-  return { uri, cid, rkey };
+  return {
+    ref: {
+      uri: `at://${communityDid}/${DECISION_COLLECTION}/${rkey}`,
+      cid: (await cidForRecord(record)).toString(),
+      rkey,
+    },
+    write: { action: 'write', collection: DECISION_COLLECTION, rkey, record },
+  };
 }
 
 /**
