@@ -248,9 +248,41 @@ psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f src/db/schema.sql
 ### Upgrading an existing database: governance indexes are NOT auto-applied
 
 `ensureSchema()` runs `schema.sql` only when the `users` table is missing, so an
-existing deployment never re-reads it — including the `CREATE INDEX IF NOT
-EXISTS` statements the governance refactor added. Apply these by hand when
-upgrading:
+existing deployment never re-reads it — including the `CREATE INDEX` statements
+the governance refactor added. You must apply migrations 035, 036 and 037 once,
+against each existing database, after deploying.
+
+Skipping 036 in particular leaves an unauthenticated `getProposal` on a public
+community with a proposal awaiting application doing a sequential scan of
+`records_index` on every read.
+
+#### On Railway
+
+Railway injects the database credentials into the service, so the safest route is
+to let it supply them rather than copying a connection string around.
+
+```bash
+railway login                 # opens a browser; once per machine
+railway link                  # pick the project, then the PDS service
+railway run bash scripts/apply-governance-indexes.sh
+```
+
+`railway run` executes locally with the service's environment variables
+populated, so the script picks up `DB_HOST` / `DB_NAME` / `DB_USER` /
+`DB_PASSWORD` without them ever being typed or pasted.
+
+If you would rather use Railway's own psql session, `railway connect Postgres`
+opens one — then run `\i scripts/migrate-035-governance-vote-record-index.sql`
+for each of the three files.
+
+#### Anywhere else
+
+```bash
+bash scripts/apply-governance-indexes.sh
+```
+
+with `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` set — the same
+variables the server itself uses. To drive `psql` directly instead:
 
 ```bash
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-035-governance-vote-record-index.sql
@@ -258,9 +290,21 @@ psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-036-governance-objec
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-037-governance-anchor-audit-index.sql
 ```
 
-They are `IF NOT EXISTS`, so re-running them is safe. Skipping 036 in particular
-leaves an unauthenticated `getProposal` on a public community with a proposal
-awaiting application doing a sequential scan of `records_index` on every read.
+#### What to expect
+
+The indexes are built `CONCURRENTLY`, so they do **not** block writes while they
+are created — you can run this against a live PDS. The trade-off is that they
+take longer, and a build that fails partway leaves an `INVALID` index behind that
+must be dropped before retrying. The script checks for that and tells you what to
+do; to check by hand:
+
+```sql
+SELECT indexrelid::regclass FROM pg_index WHERE NOT indisvalid;
+```
+
+Every statement is `IF NOT EXISTS`, so running the script twice is safe and the
+second run is a no-op. `NOTICE: relation ... already exists, skipping` is the
+expected output on a re-run, not an error.
 
 ### Server Won't Start
 

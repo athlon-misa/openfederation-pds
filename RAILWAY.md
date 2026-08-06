@@ -171,13 +171,30 @@ railway run psql $DATABASE_URL -f scripts/migrate-002-user-signing-keys.sql
 absent** — that is, only on a brand-new database. Every `CREATE INDEX IF NOT
 EXISTS` added to `schema.sql` for an already-deployed PDS therefore never
 executes on upgrade. The governance refactor added three, and they must be run
-manually:
+once against each existing database, after deploying:
 
 ```bash
-railway run psql $DATABASE_URL -f scripts/migrate-035-governance-vote-record-index.sql
-railway run psql $DATABASE_URL -f scripts/migrate-036-governance-objection-index.sql
-railway run psql $DATABASE_URL -f scripts/migrate-037-governance-anchor-audit-index.sql
+railway login                 # opens a browser; once per machine
+railway link                  # pick the project, then the PDS service
+railway run bash scripts/apply-governance-indexes.sh
 ```
+
+`railway run` runs the command locally with the service's environment variables
+populated, so the script reads `DB_HOST` / `DB_NAME` / `DB_USER` / `DB_PASSWORD`
+straight from Railway — no connection string is typed or pasted anywhere.
+
+The script applies all three, verifies each index exists afterwards, and exits
+non-zero if any is missing. It needs the `psql` client locally
+(`brew install postgresql@15`); if you would rather not install it, use
+Railway's own session instead — `railway connect Postgres`, then
+`\i scripts/migrate-035-governance-vote-record-index.sql` for each of the three
+files.
+
+**This is safe to run against a live PDS.** The indexes are built
+`CONCURRENTLY`, so writes are not blocked while they build, and every statement
+is `IF NOT EXISTS`, so a second run is a harmless no-op. If a build is
+interrupted it leaves an `INVALID` index behind; the script detects that on the
+next run and tells you exactly what to drop.
 
 036 is the one that bites first: `net.openfederation.community.getProposal` is
 reachable **unauthenticated** on a public community and reads the objection
