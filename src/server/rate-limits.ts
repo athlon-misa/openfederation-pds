@@ -4,7 +4,7 @@ import { config } from '../config.js';
 // Rate limiters
 export const globalLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 120,              // 120 requests per minute
+  max: config.rateLimits.globalPerMin,  // 120/min per IP by default
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many requests, please try again later' },

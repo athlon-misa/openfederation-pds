@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Testing: the global rate limit is configurable
+
+Found while investigating #222, which it does **not** close: the suite still
+fails intermittently without it, so this is a real bug that was masking nothing.
+
+`globalLimiter` applies to every request at 120/minute per IP and its ceiling was
+written in code. It was therefore the one limiter `tests/api/setup.ts` could not
+raise, though that file raises the other four for precisely this reason and says
+so. Every test file drives the same long-lived app from `127.0.0.1`, so the suite
+exhausts 120 requests inside its first minute; whichever test is running when the
+budget runs out gets a 429. A single file stays under the cap, which is why every
+failure looked spurious when re-run alone.
+
+- `GLOBAL_RATE_LIMIT` now sets it, defaulting to the same 120 — **no change to
+  production behaviour**. It is also a knob operators wanted anyway: a
+  deployment whose clients share an egress IP (a corporate NAT, a mobile
+  carrier, a proxy that does not forward the real address) was rate-limiting
+  them collectively with no way to say otherwise.
+- Documented in `.env.example` and the `CLAUDE.md` environment table.
+- A regression test pins both halves: the ceiling comes from the environment,
+  and a burst above the production default draws no 429. Hard-coding `max: 120`
+  again fails it immediately.
+
 ### Security: time-limited disclosure grants expire when they say they do
 
 Fifteen columns were `timestamp WITHOUT time zone`, and the two things written
