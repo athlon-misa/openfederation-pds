@@ -116,10 +116,11 @@ const VARIABLE_KEYS = new Set([
 
 function normalize(value: any): any {
   if (Array.isArray(value)) {
-    // Order within `votes` follows the order the vote records come back from
-    // the database, which is unspecified and not something anchoring can
-    // influence either way. Compare the set, not the sequence.
-    return value.map(normalize).map(v => JSON.stringify(v)).sort().map(v => JSON.parse(v));
+    // Sequence-sensitive on purpose. `votes` used to arrive in whatever order
+    // the database returned, so this compared sets; since #204 the tally sorts
+    // by the same earliest-record key the one-vote-per-voter rule uses, so the
+    // order is part of what anchoring must leave untouched.
+    return value.map(normalize);
   }
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};

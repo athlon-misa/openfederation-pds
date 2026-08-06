@@ -141,11 +141,16 @@ export async function tallyFromVoteRecords(input: {
   const epoch = tallyEpoch(proposal);
 
   const rows = await query<VoteRow>(
+    // Ordered so the scan itself is reproducible. The tally does not depend on
+    // it -- the earliest-record rule and the sort below both order explicitly --
+    // but an unordered scan makes two identical runs differ in the intermediate
+    // state, which is needless variance in something meant to be replayable.
     `SELECT community_did AS repo_did, rkey, cid, record
      FROM records_index
      WHERE collection = $1
        AND record->>'community' = $2
-       AND record->>'proposalRkey' = $3`,
+       AND record->>'proposalRkey' = $3
+     ORDER BY community_did, rkey`,
     [VOTE_COLLECTION, communityDid, proposalRkey],
   );
 
@@ -193,8 +198,26 @@ export async function tallyFromVoteRecords(input: {
     uncounted.push({ voter, vote, reason: rejected.get(voter) ?? 'no-vote-record' });
   }
 
-  const votes = [...counted.values()];
+  // Order deterministically before the decision record is built (#204).
+  //
+  // A Map yields insertion order, which here follows an unordered SQL result,
+  // so two resolutions of identical evidence could emit `votes` in different
+  // orders — different record content, therefore a different CID for the same
+  // decision. Everything downstream compares CID *sets* and so never noticed,
+  // but it meant two PDSes replaying one history could not produce the same
+  // record, and every test comparing decisions had to normalise first.
+  //
+  // `voteOrderKey` is the same ordering the one-vote-per-voter rule already
+  // uses — earliest `createdAt`, ties broken by rkey — so this introduces no
+  // new notion of order, it just applies the existing one to the output.
+  const votes = [...counted.values()].sort((a, b) => {
+    const ka = orderKey.get(a.voter) ?? '';
+    const kb = orderKey.get(b.voter) ?? '';
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    return a.voter < b.voter ? -1 : a.voter > b.voter ? 1 : 0;
+  });
   return {
+    // `filter` preserves order, so each side stays chronological.
     votesFor: votes.filter(v => v.vote === 'for'),
     votesAgainst: votes.filter(v => v.vote === 'against'),
     uncounted,
