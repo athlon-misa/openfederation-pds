@@ -5,7 +5,10 @@ import {
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { PgBlockstore } from '../../src/repo/pg-blockstore.js';
+import { RepoEngine } from '../../src/repo/repo-engine.js';
+import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
 import { query } from '../../src/db/client.js';
+import { ensureDecisionRecord, quorumRule } from '../../src/governance/proposal-resolution.js';
 
 const VOTE_COLLECTION = 'net.openfederation.governance.vote';
 const DECISION_COLLECTION = 'net.openfederation.governance.decision';
@@ -400,6 +403,179 @@ describe('Governance decision records and vote-record tallies', () => {
         repo: communityDid, collection: TARGET_COLLECTION, rkey: 'legacy-1',
       });
       expect(applied.status).toBe(200);
+    });
+  });
+
+  describe('a vote that cannot be recorded is refused, not counted', () => {
+    let noRepoVoter: User;
+
+    beforeAll(async () => {
+      if (!plcAvailable) return;
+
+      noRepoVoter = await createTestUser(uniqueHandle('dec-norepo'));
+      const rolesRes = await xrpcGet('net.openfederation.community.listRoles', { communityDid });
+      const modRoleRkey = rolesRes.body.roles.find((r: any) => r.name === 'moderator').rkey;
+      await xrpcAuthPost('net.openfederation.community.join', noRepoVoter.accessJwt, { did: communityDid });
+      await xrpcAuthPost('net.openfederation.community.updateMember', owner.accessJwt, {
+        communityDid, memberDid: noRepoVoter.did, roleRkey: modRoleRkey,
+      });
+
+      // Reproduce an account that can never sign a vote record — an external
+      // user or the bootstrap admin — by removing its repo root.
+      await query('DELETE FROM repo_roots WHERE did = $1', [noRepoVoter.did]);
+    });
+
+    it('refuses the vote instead of adding an unbacked name to the cache', async () => {
+      if (!plcAvailable) return;
+      const created = await createProposal('norepo-1');
+
+      const res = await xrpcAuthPost('net.openfederation.community.voteOnProposal', noRepoVoter.accessJwt, {
+        communityDid, proposalRkey: created.rkey, vote: 'for',
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('VoteNotRecordable');
+
+      // The tally is untouched, so this community can still reach quorum.
+      const proposal = await getProposal(communityDid, created.rkey);
+      expect(proposal.votesFor).toEqual([owner.did]);
+      expect(proposal.votesAgainst ?? []).toEqual([]);
+      expect(proposal.status).toBe('open');
+    });
+
+    it('seeds no proposer vote when the proposer cannot record one', async () => {
+      if (!plcAvailable) return;
+      const res = await xrpcAuthPost('net.openfederation.community.createProposal', noRepoVoter.accessJwt, {
+        communityDid,
+        targetCollection: TARGET_COLLECTION,
+        targetRkey: 'norepo-proposer',
+        action: 'write',
+        proposedRecord: { value: 'norepo-proposer' },
+      });
+      expect(res.status).toBe(200);
+
+      const proposal = await getProposal(communityDid, res.body.rkey);
+      expect(proposal.votesFor).toEqual([]);
+      expect(proposal.evidenceModel).toBe('vote-records');
+
+      const [meta] = await auditEntries('community.proposal.create', communityDid, res.body.rkey);
+      expect(meta.seedVote).toBe(false);
+      expect(meta.proposerVoteUri).toBeUndefined();
+    });
+
+    it('still reaches quorum from the voters who can record', async () => {
+      if (!plcAvailable) return;
+      // Cache and records agree at every step now, so nothing defers.
+      const created = await createProposal('norepo-quorum');
+      const first = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter1.accessJwt, {
+        communityDid, proposalRkey: created.rkey, vote: 'for',
+      });
+      expect(first.body.status).toBe('open');
+      const second = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter2.accessJwt, {
+        communityDid, proposalRkey: created.rkey, vote: 'for',
+      });
+      expect(second.body.status).toBe('approved');
+      expect(second.body.applied).toBe(true);
+      expect(second.body.resolutionDeferred).toBeUndefined();
+    });
+  });
+
+  describe('a transient record failure defers instead of resolving', () => {
+    it('never resolves and never applies when a counted vote lost its record', async () => {
+      if (!plcAvailable) return;
+      const created = await createProposal('transient-1');
+      const proposalRkey = created.rkey;
+
+      const first = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter1.accessJwt, {
+        communityDid, proposalRkey, vote: 'for',
+      });
+      expect(first.body.status).toBe('open');
+
+      // The residual case the up-front check cannot cover: hasRepo() was true,
+      // the vote was counted into the cache, and the commit did not survive.
+      const held = await voteRecordOf(voter1, proposalRkey);
+      await query(
+        `DELETE FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
+        [voter1.did, VOTE_COLLECTION, held!.uri.split('/').pop()],
+      );
+
+      const second = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter2.accessJwt, {
+        communityDid, proposalRkey, vote: 'for',
+      });
+      expect(second.status).toBe(200);
+      // Cache: 3 for = quorum. Records: 2 for = below quorum. Deferred.
+      expect(second.body.status).toBe('open');
+      expect(second.body.applied).toBeUndefined();
+      expect(second.body.resolutionDeferred).toBe(true);
+
+      expect((await decisionFor(communityDid, owner.accessJwt, proposalRkey)).length).toBe(0);
+      const applied = await xrpcGet('com.atproto.repo.getRecord', {
+        repo: communityDid, collection: TARGET_COLLECTION, rkey: 'transient-1',
+      });
+      expect(applied.status).toBe(404);
+      const resolved = await getProposal(communityDid, proposalRkey);
+      expect(resolved.status).toBe('open');
+      expect(resolved.decision).toBeUndefined();
+
+      const [deferral] = await auditEntries('community.proposal.resolution.deferred', communityDid, proposalRkey);
+      expect(deferral.recordOutcome).toBeNull();
+      expect(deferral.cacheOutcome).toBe('approved');
+      expect(deferral.uncountedVotes).toEqual([
+        { voter: voter1.did, vote: 'for', reason: 'no-vote-record' },
+      ]);
+    });
+  });
+
+  describe('a retried resolution never reuses a contradicting decision', () => {
+    it('supersedes the stale decision instead of citing it for a different outcome', async () => {
+      if (!plcAvailable) return;
+      const created = await createProposal('supersede-1');
+      const proposalRkey = created.rkey;
+
+      await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter1.accessJwt, {
+        communityDid, proposalRkey, vote: 'for',
+      });
+      const resolveRes = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter2.accessJwt, {
+        communityDid, proposalRkey, vote: 'for',
+      });
+      expect(resolveRes.body.status).toBe('approved');
+
+      const [original] = await decisionFor(communityDid, owner.accessJwt, proposalRkey);
+      expect(original.value.outcome).toBe('approved');
+
+      const engine = new RepoEngine(communityDid);
+      const keypair = await getKeypairForDid(communityDid);
+      const proposal = await getProposal(communityDid, proposalRkey);
+      const proposalCid = await getProposalCid(communityDid, proposalRkey);
+
+      // Same proposal, same call — but the tally has moved, as it can after a
+      // crash between the decision write and the status rewrite.
+      const same = await ensureDecisionRecord({
+        engine, keypair, communityDid, proposalRkey, proposalCid, proposal,
+        tally: { votesFor: [], votesAgainst: [], uncounted: [] },
+        quorum: quorumRule('simple-majority', QUORUM),
+        outcome: 'approved',
+      });
+      expect(same.uri).toBe(original.uri);
+      expect(same.cid).toBe(original.cid);
+
+      const superseding = await ensureDecisionRecord({
+        engine, keypair, communityDid, proposalRkey, proposalCid, proposal,
+        tally: { votesFor: [], votesAgainst: [], uncounted: [] },
+        quorum: quorumRule('simple-majority', QUORUM),
+        outcome: 'rejected',
+      });
+      expect(superseding.uri).not.toBe(original.uri);
+
+      const decisions = await decisionFor(communityDid, owner.accessJwt, proposalRkey);
+      expect(decisions.length).toBe(2);
+      const fresh = decisions.find(d => d.uri === superseding.uri)!;
+      expect(fresh.value.outcome).toBe('rejected');
+      expect(fresh.value.supersedes).toEqual({ uri: original.uri, cid: original.cid });
+
+      const [audit] = await auditEntries('community.proposal.decision.superseded', communityDid, proposalRkey);
+      expect(audit.supersededUri).toBe(original.uri);
+      expect(audit.previousOutcome).toBe('approved');
+      expect(audit.outcome).toBe('rejected');
     });
   });
 

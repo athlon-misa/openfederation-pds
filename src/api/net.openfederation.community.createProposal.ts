@@ -5,7 +5,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
-import { writeVoteRecord } from '../governance/vote-records.js';
+import { canRecordVote, writeVoteRecord } from '../governance/vote-records.js';
 import { EVIDENCE_MODEL_VOTE_RECORDS } from '../governance/proposal-resolution.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
@@ -63,6 +63,11 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     const keypair = await getKeypairForDid(communityDid);
     const rkey = RepoEngine.generateTid();
 
+    // The seed vote only counts if the proposer can sign a record for it. A
+    // proposer with no repo can still propose, but starts the proposal at zero
+    // votes rather than seeding a name the tally can never verify.
+    const seedVote = await canRecordVote(req.auth!.did);
+
     const record = {
       targetCollection,
       targetRkey,
@@ -70,7 +75,7 @@ export default async function createProposal(req: AuthRequest, res: Response): P
       ...(proposedRecord ? { proposedRecord } : {}),
       proposedBy: req.auth!.did,
       status: 'open',
-      votesFor: [req.auth!.did],
+      votesFor: seedVote ? [req.auth!.did] : ([] as string[]),
       votesAgainst: [] as string[],
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
@@ -89,13 +94,15 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     // The proposer's seed vote is a counted vote, so it gets a voter-signed
     // record like any other — otherwise the authoritative tally would be short
     // by one from the moment the proposal exists.
-    const proposerVote = await writeVoteRecord({
-      voterDid: req.auth!.did,
-      communityDid,
-      proposalRkey: rkey,
-      proposalCid: result.cid,
-      vote: 'for',
-    });
+    const proposerVote = seedVote
+      ? await writeVoteRecord({
+          voterDid: req.auth!.did,
+          communityDid,
+          proposalRkey: rkey,
+          proposalCid: result.cid,
+          vote: 'for',
+        })
+      : null;
 
     await auditLog('community.proposal.create', req.auth!.userId, communityDid, {
       rkey,
@@ -103,6 +110,7 @@ export default async function createProposal(req: AuthRequest, res: Response): P
       action,
       proposalCid: result.cid,
       evidenceModel: EVIDENCE_MODEL_VOTE_RECORDS,
+      seedVote,
       ...(proposerVote ? { proposerVoteUri: proposerVote.uri, proposerVoteCid: proposerVote.cid } : {}),
     });
 

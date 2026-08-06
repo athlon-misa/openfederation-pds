@@ -294,6 +294,14 @@ export interface DecisionRef {
  * than minting a second decision, and the proposed change is still applied
  * exactly once because it only ever runs after the status rewrite closes the
  * proposal.
+ *
+ * The reuse is only safe while the outcome still matches. After a crash the
+ * tally can legitimately have moved on (the crashed voter's vote record is
+ * committed even though the cache rewrite never happened), and handing back a
+ * decision that says `approved` for a proposal now resolving as `rejected`
+ * would mint signed, permanent, self-contradictory governance evidence. When
+ * the outcomes differ a fresh decision is written that supersedes the stale
+ * one, and the supersession is audited.
  */
 export async function ensureDecisionRecord(input: {
   engine: RepoEngine;
@@ -308,15 +316,29 @@ export async function ensureDecisionRecord(input: {
 }): Promise<DecisionRef> {
   const { engine, keypair, communityDid, proposalRkey, proposalCid, proposal, tally, quorum, outcome } = input;
 
-  const existing = await query<{ rkey: string; cid: string }>(
-    `SELECT rkey, cid FROM records_index
+  // Latest first: decisions can form a supersession chain.
+  const existing = await query<{ rkey: string; cid: string; record: any }>(
+    `SELECT rkey, cid, record FROM records_index
      WHERE community_did = $1 AND collection = $2 AND record->>'proposalRkey' = $3
-     ORDER BY rkey ASC LIMIT 1`,
+     ORDER BY rkey DESC LIMIT 1`,
     [communityDid, DECISION_COLLECTION, proposalRkey],
   );
+
+  let supersedes: { uri: string; cid: string } | undefined;
   if (existing.rows.length > 0) {
-    const { rkey, cid } = existing.rows[0];
-    return { uri: `at://${communityDid}/${DECISION_COLLECTION}/${rkey}`, cid, rkey };
+    const { rkey, cid, record } = existing.rows[0];
+    const uri = `at://${communityDid}/${DECISION_COLLECTION}/${rkey}`;
+    if (record?.proposalRkey === proposalRkey && record?.outcome === outcome) {
+      return { uri, cid, rkey };
+    }
+    supersedes = { uri, cid };
+    await auditLog('community.proposal.decision.superseded', null, communityDid, {
+      rkey: proposalRkey,
+      supersededUri: uri,
+      supersededCid: cid,
+      previousOutcome: record?.outcome ?? null,
+      outcome,
+    });
   }
 
   const votes = [...tally.votesFor, ...tally.votesAgainst];
@@ -337,6 +359,7 @@ export async function ensureDecisionRecord(input: {
     votes,
     ...(tally.uncounted.length > 0 ? { uncountedVotes: tally.uncounted } : {}),
     evidenceComplete: tally.uncounted.length === 0,
+    ...(supersedes ? { supersedes } : {}),
     ...(proposal?.targetCollection && proposal?.targetRkey && proposal?.action
       ? {
           action: {

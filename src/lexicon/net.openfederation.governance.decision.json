@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.governance.decision",
-  "revision": 1,
+  "revision": 2,
   "description": "The outcome of a community governance proposal, written into the community repo at resolution time. It cites the exact evidence the outcome was computed from — the proposal state, the voter-signed vote records that were counted, and the quorum rule applied — so a third party can recheck the decision without trusting the community's PDS.",
   "defs": {
     "main": {
@@ -77,6 +77,11 @@
           "evidenceComplete": {
             "type": "boolean",
             "description": "True when every vote in the proposal's cache was backed by a countable vote record — i.e. uncountedVotes is empty."
+          },
+          "supersedes": {
+            "type": "ref",
+            "ref": "com.atproto.repo.strongRef",
+            "description": "Strong reference to an earlier decision record for the same proposal that this one replaces. Written when a resolution is retried after a crash and the tally has since moved to a different outcome, so the contradiction is explicit rather than silent."
           },
           "action": {
             "type": "ref",

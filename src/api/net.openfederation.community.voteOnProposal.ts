@@ -5,7 +5,12 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query, withAdvisoryLock } from '../db/client.js';
-import { writeVoteRecords, type VoteRecordInput } from '../governance/vote-records.js';
+import {
+  auditUnrecordableVote,
+  canRecordVote,
+  writeVoteRecords,
+  type VoteRecordInput,
+} from '../governance/vote-records.js';
 import {
   auditDeferredResolution,
   decideFromRecords,
@@ -83,6 +88,19 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       return;
     }
 
+    // A voter with no repo can never sign a vote record, so counting them would
+    // put a permanently unevidenced name in the tally — and, because resolution
+    // requires the cache and the records to agree, would deadlock this
+    // community's governance. Refuse the vote here instead, where the voter
+    // learns about it.
+    if (evidenceFromRecords && !(await canRecordVote(voterDid))) {
+      res.status(400).json({
+        error: 'VoteNotRecordable',
+        message: 'This account has no repository, so its vote cannot be recorded as verifiable evidence',
+      });
+      return;
+    }
+
     const updatedProposal = { ...proposal };
     if (vote === 'for') {
       updatedProposal.votesFor = [...(proposal.votesFor || []), voterDid];
@@ -108,13 +126,10 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       if (!delegatorDid) continue;
       // Skip if delegator already voted directly on this proposal
       if (updatedProposal.votesFor.includes(delegatorDid) || updatedProposal.votesAgainst.includes(delegatorDid)) continue;
-      // Add delegator's vote in same direction as delegate
-      if (vote === 'for') {
-        updatedProposal.votesFor.push(delegatorDid);
-      } else {
-        updatedProposal.votesAgainst.push(delegatorDid);
-      }
-      voteRecordInputs.push({
+      // Same rule as for the direct voter: a delegator who cannot produce a
+      // vote record is not counted. The delegate's own vote still stands, so
+      // this is dropped and audited rather than raised.
+      const delegatedVote: VoteRecordInput = {
         voterDid: delegatorDid,
         communityDid,
         proposalRkey,
@@ -125,7 +140,18 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
           uri: `at://${communityDid}/${DELEGATION_COLLECTION}/${del.rkey}`,
           cid: del.cid,
         },
-      });
+      };
+      if (evidenceFromRecords && !(await canRecordVote(delegatorDid))) {
+        await auditUnrecordableVote(delegatedVote);
+        continue;
+      }
+      // Add delegator's vote in same direction as delegate
+      if (vote === 'for') {
+        updatedProposal.votesFor.push(delegatorDid);
+      } else {
+        updatedProposal.votesAgainst.push(delegatorDid);
+      }
+      voteRecordInputs.push(delegatedVote);
     }
 
     // Voter-signed vote records in each voter's own repo. Written first: for

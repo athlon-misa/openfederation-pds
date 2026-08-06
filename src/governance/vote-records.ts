@@ -72,6 +72,33 @@ async function auditMissingVoteRecord(input: VoteRecordInput, reason: string): P
 }
 
 /**
+ * Whether a vote by this DID can produce a voter-signed record at all.
+ *
+ * A DID with no repo (external accounts, the bootstrap admin) can never sign a
+ * vote record, so counting its vote would put an unevidenced name in the tally
+ * permanently. Callers check this *before* counting, so the voter is told at
+ * the moment they vote rather than through a governance deadlock later.
+ */
+export async function canRecordVote(voterDid: string): Promise<boolean> {
+  try {
+    return await new RepoEngine(voterDid).hasRepo();
+  } catch (error) {
+    console.error(`[governance] failed to check repo for ${voterDid}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Record a vote that was deliberately not counted because the voter could never
+ * produce a record for it. Unlike `auditMissingVoteRecord` this is not a gap in
+ * the tally — it is the tally refusing to grow — but it is logged the same way
+ * so both remain enumerable from one place.
+ */
+export async function auditUnrecordableVote(input: VoteRecordInput): Promise<void> {
+  await auditMissingVoteRecord(input, 'no-repo');
+}
+
+/**
  * Write one voter-signed vote record into the voter's own repo.
  * Returns null if the voter has no repo or signing key, or if the commit fails —
  * the authoritative tally has already been written by then, so the miss is
