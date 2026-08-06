@@ -37,6 +37,37 @@ CSRF / session swapping (issue #146).
   callback. `net.openfederation.account.resolveExternal` revision 1→2 for the new
   optional `codeChallenge` input.
 
+### Governance: voter eligibility is evidence, not an assumption
+
+Nothing checked that a counted vote came from someone entitled to cast it.
+Neither the online tally nor the offline verifier looked at membership, so a
+decision citing five authentic, well-formed votes from five DIDs that were never
+members verified as `valid` — the largest remaining gap in the evidence chain
+(issue #200).
+
+A vote record now carries the community-signed member and role records consulted
+when it was cast, plus the permission they resolved to, and the offline verifier
+rechecks them against the community's own repo.
+
+- **Judged as cast, not at resolution.** A signed act is not unmade by a later
+  removal, and tying eligibility to resolution-time membership would let an owner
+  flip a result by removing voters mid-vote. No live outcome changes.
+- Evidence that *disproves* entitlement — a cited role record without
+  `community.governance.write`, a member record naming a different role, a
+  citation pointing at another community — is `ineligible-vote`.
+- Evidence that can no longer be resolved is the new `membership-unverified`
+  note, never a pass and never an accusation: repo exports prune superseded
+  blocks, so an honest decision becomes uncheckable with time. Votes written
+  before this existed carry no evidence and verify with the note.
+- Permission resolution mirrors `getCallerCommunityCapabilities` exactly,
+  including the `roleRkey` indirection — a member record can name role "member"
+  while being assigned moderator, and resolving by name would have read the wrong
+  permission set. `LEGACY_ROLE_PERMISSIONS` moved into `decision-rules.ts` so the
+  live check and the verifier share one table; tests assert the shared constants
+  equal the auth layer's.
+- `net.openfederation.governance.vote` revision 1→2 for the new `eligibility`
+  block.
+
 ### Security: Tier 1 wallet consent is bound to the browser Origin
 
 **Breaking for server-side callers of Tier 1 signing.** A `wallet_dapp_consents`

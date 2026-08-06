@@ -16,6 +16,7 @@
  */
 
 import { RepoEngine } from '../repo/repo-engine.js';
+import { collectEligibilityEvidence } from './eligibility-evidence.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 
@@ -119,6 +120,11 @@ export async function writeVoteRecord(input: VoteRecordInput): Promise<VoteRecor
     const keypair = await getKeypairForDid(input.voterDid);
     const rkey = RepoEngine.generateTid();
 
+    // Captured now, not at tally: a vote is judged eligible as cast, and
+    // recording the member and role records consulted is what lets a third
+    // party tell a real electorate from a fabricated one (#200).
+    const eligibility = await collectEligibilityEvidence(input.communityDid, input.voterDid);
+
     const record: Record<string, unknown> = {
       $type: VOTE_COLLECTION,
       community: input.communityDid,
@@ -131,6 +137,7 @@ export async function writeVoteRecord(input: VoteRecordInput): Promise<VoteRecor
       vote: input.vote,
       ...(input.castBy ? { castBy: input.castBy } : {}),
       ...(input.delegation ? { delegation: input.delegation } : {}),
+      eligibility,
       createdAt: new Date().toISOString(),
     };
 

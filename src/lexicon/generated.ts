@@ -2645,7 +2645,7 @@ export const lexiconContracts = {
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },
   'net.openfederation.governance.decision': { revision: 1, errors: [] as const },
   'net.openfederation.governance.objection': { revision: 1, errors: [] as const },
-  'net.openfederation.governance.vote': { revision: 1, errors: [] as const },
+  'net.openfederation.governance.vote': { revision: 2, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
   'net.openfederation.identity.getDidAugmentation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.identity.getExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },

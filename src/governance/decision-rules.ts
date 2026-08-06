@@ -257,3 +257,55 @@ export function quorumRule(model: string, threshold: number): QuorumRule {
     rule: `resolves once counted votes >= ${threshold}; approved when votes for exceed votes against`,
   };
 }
+
+/**
+ * The permission a role must carry for its members to vote.
+ *
+ * Duplicated from `src/auth/permissions.ts` rather than imported: that module
+ * reaches the database, and this one is the pure rule core the offline verifier
+ * depends on. The string is the contract, and it is asserted equal to the auth
+ * module's constant in the test suite so the two cannot drift apart.
+ */
+export const GOVERNANCE_WRITE_PERMISSION = 'community.governance.write';
+
+/**
+ * Permissions for a member record that names no `roleRkey`. Exported so the
+ * governance eligibility evidence resolves permissions exactly the way the live
+ * capability check does — two copies of this table would drift, and the whole
+ * point of the evidence is that it reflects the rule actually applied.
+ */
+export const LEGACY_ROLE_PERMISSIONS: Record<string, string[]> = {
+  // Owner holds every permission. Spelled out rather than imported from
+  // `src/auth/permissions.ts` so this module stays free of the auth layer; the
+  // test suite asserts this list equals ALL_PERMISSIONS so they cannot drift.
+  owner: [
+    'community.settings.write',
+    'community.profile.write',
+    'community.member.read',
+    'community.member.write',
+    'community.member.delete',
+    'community.role.read',
+    'community.role.write',
+    'community.attestation.write',
+    'community.attestation.delete',
+    'community.application.write',
+    'community.application.delete',
+    'community.governance.write',
+    'community.forum.write',
+    'community.forum.moderate',
+    'community.calendar.write',
+  ],
+  moderator: [
+    'community.profile.write',
+    'community.member.read',
+    'community.member.write',
+    'community.member.delete',
+    'community.role.read',
+    'community.attestation.write',
+    'community.attestation.delete',
+    'community.governance.write',
+    'community.forum.write',
+    'community.forum.moderate',
+  ],
+  member: ['community.member.read', 'community.role.read'],
+};
