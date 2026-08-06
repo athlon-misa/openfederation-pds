@@ -1,6 +1,15 @@
 -- OpenFederation PDS Database Schema
 -- Version: 1.0
 -- Date: 2026-02-05
+--
+-- CONVENTION: every timestamp column is TIMESTAMPTZ. Not a style preference —
+-- a naive `TIMESTAMP` means whatever clock its writer was on, and this schema
+-- has two writers who disagree: Postgres defaults (CURRENT_TIMESTAMP, NOW())
+-- produce local wall-clock time, while the application passes a JS Date that
+-- the driver serialises as UTC. Mixing them made a 60-minute disclosure grant
+-- expire two hours before it was issued east of UTC, and stay redeemable hours
+-- past its expiry west of it (#221, migrate-038). Adding a naive column
+-- reintroduces that, and the deployment runs UTC so nothing will notice.
 
 -- Users table: stores account information for auth
 CREATE TABLE IF NOT EXISTS users (
@@ -350,7 +359,7 @@ CREATE TABLE IF NOT EXISTS wallet_links (
     label VARCHAR(64),
     challenge TEXT NOT NULL,
     signature TEXT NOT NULL,
-    linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    linked_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     -- Progressive custody tier for this wallet. See migration 021.
     custody_tier TEXT NOT NULL DEFAULT 'self_custody'
         CHECK (custody_tier IN ('custodial', 'user_encrypted', 'self_custody')),
@@ -376,8 +385,8 @@ CREATE TABLE IF NOT EXISTS wallet_link_challenges (
     chain VARCHAR(32) NOT NULL,
     wallet_address VARCHAR(255) NOT NULL,
     challenge TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     -- 'link' for BYOW wallet-link proof, 'signin' for SIWOF (migration 022)
     purpose TEXT NOT NULL DEFAULT 'link'
         CHECK (purpose IN ('link', 'signin')),
@@ -443,8 +452,8 @@ CREATE TABLE IF NOT EXISTS vault_shares (
     share_holder VARCHAR(32) NOT NULL,
     escrow_provider_did VARCHAR(255),
     recovery_tier INTEGER NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_did, share_index)
 );
 CREATE INDEX IF NOT EXISTS idx_vault_shares_did ON vault_shares(user_did);
@@ -457,7 +466,7 @@ CREATE TABLE IF NOT EXISTS vault_audit_log (
     actor_did VARCHAR(255),
     share_index INTEGER,
     metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_vault_audit_did ON vault_audit_log(user_did);
 
@@ -470,7 +479,7 @@ CREATE TABLE IF NOT EXISTS escrow_providers (
     public_key TEXT,
     status VARCHAR(20) DEFAULT 'active',
     registered_by VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Recovery attempts: tracks identity recovery operations
@@ -504,7 +513,7 @@ CREATE TABLE IF NOT EXISTS attestation_encryption (
     issuer_signature TEXT,
     schema_hash VARCHAR(128),
     access_policy JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(community_did, rkey)
 );
 
@@ -515,11 +524,11 @@ CREATE TABLE IF NOT EXISTS viewing_grants (
     attestation_rkey VARCHAR(255) NOT NULL,
     subject_did VARCHAR(255) NOT NULL,
     granted_to_did VARCHAR(255) NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
     granted_fields JSONB,
     status VARCHAR(20) DEFAULT 'active',
     subject_signature TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_viewing_grants_attestation ON viewing_grants(attestation_community_did, attestation_rkey);
 CREATE INDEX IF NOT EXISTS idx_viewing_grants_grantee ON viewing_grants(granted_to_did);
@@ -532,9 +541,9 @@ CREATE TABLE IF NOT EXISTS disclosure_sessions (
     session_key_hash VARCHAR(128) NOT NULL,
     watermark_id VARCHAR(36) NOT NULL,
     access_count INTEGER DEFAULT 0,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_accessed_at TIMESTAMP
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    last_accessed_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_disclosure_sessions_grant ON disclosure_sessions(grant_id);
 
@@ -549,7 +558,7 @@ CREATE TABLE IF NOT EXISTS disclosure_audit_log (
     watermark_id VARCHAR(36),
     ip_address VARCHAR(45),
     metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_disclosure_audit_attestation ON disclosure_audit_log(attestation_community_did, attestation_rkey);
 
