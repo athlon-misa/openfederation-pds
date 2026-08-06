@@ -2,7 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { applyDueProposals } from '../governance/timelock.js';
+import { applyDueProposals, closeExpiredOverrides } from '../governance/timelock.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 
@@ -24,6 +24,7 @@ export default async function listProposals(req: AuthRequest, res: Response): Pr
     // community whose contest window has elapsed unobjected is applied before
     // the listing is read, so the statuses returned are current.
     await applyDueProposals(communityDid);
+    await closeExpiredOverrides(communityDid);
 
     let sql = `SELECT rkey, record FROM records_index WHERE community_did = $1 AND collection = $2`;
     const params: (string | number)[] = [communityDid, PROPOSAL_COLLECTION];

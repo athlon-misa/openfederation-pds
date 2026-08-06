@@ -93,6 +93,39 @@ function checkVotingConfig(
     }
   }
 
+  // How a held proposal is re-reviewed (#199). An unrecognized value is
+  // rejected rather than defaulted: `objectionReview: 'non'` silently meaning
+  // `override` is fine, but the reverse — a typo silently restoring a permanent
+  // single-member veto — is not, and only refusing both keeps that impossible.
+  if (governanceConfig.objectionReview !== undefined
+    && governanceConfig.objectionReview !== 'override'
+    && governanceConfig.objectionReview !== 'none') {
+    return {
+      message: "governanceConfig.objectionReview must be 'override' (a held proposal opens one override round) "
+        + "or 'none' (a hold is final)",
+    };
+  }
+
+  if (governanceConfig.objectionOverrideQuorum !== undefined) {
+    const value = governanceConfig.objectionOverrideQuorum;
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+      return {
+        message: 'governanceConfig.objectionOverrideQuorum must be a positive integer '
+          + '(absent means two-thirds of the electorate, never below quorum + 1)',
+      };
+    }
+  }
+
+  if (governanceConfig.objectionOverrideDays !== undefined) {
+    const value = governanceConfig.objectionOverrideDays;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+      return {
+        message: 'governanceConfig.objectionOverrideDays must be a positive number of days '
+          + '(a round with no window could never expire, so 0 is not allowed)',
+      };
+    }
+  }
+
   if (governanceConfig.protectedCollections !== undefined) {
     if (!Array.isArray(governanceConfig.protectedCollections)) {
       return { message: 'protectedCollections must be an array' };

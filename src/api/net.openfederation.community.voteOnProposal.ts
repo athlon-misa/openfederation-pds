@@ -25,12 +25,16 @@ import {
 } from '../governance/proposal-resolution.js';
 import { anchorDecision, anchorPendingDecisions } from '../governance/anchoring.js';
 import {
+  OVERRIDE_STATUS,
   PENDING_STATUS,
   applyDueProposals,
   applyProposedChange,
+  closeExpiredOverrides,
   pendingApplicationState,
+  proposalApplicationProblem,
   proposalLockKey,
 } from '../governance/timelock.js';
+import { decideOverride } from '../governance/decision-rules.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
@@ -61,6 +65,10 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     // now. `applyDueProposals` takes each proposal's lock itself, so it must not
     // run inside the one below.
     await applyDueProposals(communityDid);
+    // ...and any override round that ran out of time, for the same reason and by
+    // the same rule: no scheduler exists, so an elapsed window is closed by the
+    // next interaction that touches this community's proposals (#199).
+    await closeExpiredOverrides(communityDid);
 
     // The lock covers the decision and everything it changes, and nothing else.
     // What it deliberately does NOT cover is anchoring: that call waits on a
@@ -88,12 +96,32 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     const proposalCid = proposalResult.rows[0].cid;
     const evidenceFromRecords = usesVoteRecordEvidence(proposal);
 
-    if (proposal.status !== 'open') {
+    // A held proposal in its override round accepts votes, and that is the only
+    // second round there is: the electorate answers a higher bar (#199).
+    const overrideRound = proposal.status === OVERRIDE_STATUS;
+    if (proposal.status !== 'open' && !overrideRound) {
       res.status(400).json({ error: 'ProposalClosed', message: 'This proposal is no longer open for voting' });
       return;
     }
 
-    if (proposal.expiresAt && new Date(proposal.expiresAt) < new Date()) {
+    if (overrideRound) {
+      const expiresAt = typeof proposal.overrideExpiresAt === 'string' ? proposal.overrideExpiresAt : null;
+      // Reached only when the sweep above could not close the round. The window
+      // is over either way, and a late vote does not carry an override.
+      if (!expiresAt || new Date().toISOString() >= expiresAt) {
+        res.status(400).json({
+          error: 'ProposalClosed',
+          message: 'The override round for this proposal has closed',
+        });
+        return;
+      }
+    }
+
+    // `expiresAt` bounds the *original* round. An override round has its own
+    // window, checked above; letting the original one expire it would close a
+    // round that had only just opened, since a hold necessarily happens after
+    // the proposal was decided and often after it would have expired unvoted.
+    if (!overrideRound && proposal.expiresAt && new Date(proposal.expiresAt) < new Date()) {
       const engine = new RepoEngine(communityDid);
       const keypair = await getKeypairForDid(communityDid);
       await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
@@ -219,7 +247,15 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       [communityDid]
     );
     const settings = settingsResult.rows[0]?.record;
-    const quorum = settings?.governanceConfig?.quorum || 3;
+    const ordinaryQuorum = settings?.governanceConfig?.quorum || 3;
+
+    // The bar this round answers to. An override round's bar was computed and
+    // frozen onto the proposal when the round opened, so it cannot be moved
+    // mid-round by editing the settings or by changing who is a member.
+    const overrideQuorum = overrideRound && typeof proposal.overrideQuorum === 'number'
+      ? proposal.overrideQuorum
+      : null;
+    const quorum = overrideQuorum ?? ordinaryQuorum;
 
     const engine = new RepoEngine(communityDid);
     const keypair = await getKeypairForDid(communityDid);
@@ -234,7 +270,27 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       const tally = await tallyFromVoteRecords({
         communityDid, proposalRkey, proposal: updatedProposal, proposalCid,
       });
-      const decided = decideFromRecords({ tally, proposal: updatedProposal, quorum });
+      // An override round is decided by a different rule, not a different
+      // number: only votes *for* count, because the round asks whether a
+      // stronger mandate exists than the one that was objected to, and
+      // abstention and opposition answer that the same way. It cannot resolve
+      // to `rejected` from a vote either — falling short is what the round's
+      // expiry is for, so the round stays open until the bar is cleared or the
+      // window closes.
+      const recordOutcome = overrideQuorum === null
+        ? decideOutcome(tally.votesFor.length, tally.votesAgainst.length, quorum)
+        : decideOverride(tally.votesFor.length, overrideQuorum);
+      const cacheOutcome = overrideQuorum === null
+        ? decideOutcome(updatedProposal.votesFor.length, updatedProposal.votesAgainst.length, quorum)
+        : decideOverride(updatedProposal.votesFor.length, overrideQuorum);
+
+      // The cache and the records must agree before anything is decided, in
+      // both rounds and for the same reason: a divergence means some vote
+      // record could not be written, and resolving on either side alone would
+      // decide on evidence that does not exist or ignore evidence that does.
+      const decided = overrideQuorum === null
+        ? decideFromRecords({ tally, proposal: updatedProposal, quorum })
+        : { outcome: recordOutcome === cacheOutcome ? recordOutcome : null, deferred: recordOutcome !== cacheOutcome, cacheOutcome };
       deferred = decided.deferred;
       outcome = decided.outcome;
       countedVoteCids = [...tally.votesFor, ...tally.votesAgainst].map(v => v.record.cid);
@@ -245,7 +301,7 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
           communityDid,
           proposalRkey,
           tally,
-          recordOutcome: decideOutcome(tally.votesFor.length, tally.votesAgainst.length, quorum),
+          recordOutcome,
           cacheOutcome: decided.cacheOutcome,
           quorum,
         });
@@ -272,11 +328,14 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       // cached arrays exactly as they always did.
       const cachedFor = updatedProposal.votesFor.length;
       const cachedAgainst = updatedProposal.votesAgainst.length;
-      outcome = decideOutcome(cachedFor, cachedAgainst, quorum);
+      outcome = overrideQuorum === null
+        ? decideOutcome(cachedFor, cachedAgainst, quorum)
+        : decideOverride(cachedFor, overrideQuorum);
     }
 
     let applied = false;
     let pendingApplication: string | undefined;
+    let overrideRefusal: string | null = null;
 
     if (outcome) {
       const resolvedAt = new Date().toISOString();
@@ -290,9 +349,25 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       // touches the repo. Only decisions carry something an objection can name,
       // so proposals predating the evidence model apply as they always did
       // rather than entering a window nobody could contest.
-      const window = outcome === 'approved' && decision
+      //
+      // An override that carries applies at once. It has already served a full
+      // contest window — that window is what produced the objection that opened
+      // this round — and objecting again is refused by `objectToProposal`, so a
+      // second window would be a delay nobody could use (#199).
+      const window = outcome === 'approved' && decision && !overrideRound
         ? pendingApplicationState(settings, resolvedAt)
         : null;
+      if (overrideRound && outcome === 'approved') {
+        updatedProposal.overrideOutcome = 'carried';
+        // Whether the change *can* be made is settled before the record claims
+        // it was, exactly as `applyIfDue` settles it: discovering the refusal
+        // afterwards would leave a signed record asserting an `appliedAt` that
+        // never happened, contradicted only by an audit row. A refused change
+        // still closes the proposal — the override carried, and the decision
+        // stands — it simply makes no claim to have taken effect.
+        overrideRefusal = await proposalApplicationProblem(communityDid, proposal);
+        if (!overrideRefusal) updatedProposal.appliedAt = resolvedAt;
+      }
       if (window) {
         updatedProposal.status = PENDING_STATUS;
         updatedProposal.applyAt = window.applyAt;
@@ -304,6 +379,17 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       // because the proposal is no longer open.
       await putProposalRecord(engine, keypair, communityDid, proposalRkey, updatedProposal);
 
+      if (overrideRound && outcome === 'approved') {
+        await auditLog('community.proposal.overrideCarried', req.auth!.userId, communityDid, {
+          rkey: proposalRkey,
+          targetCollection: proposal.targetCollection,
+          overrideQuorum,
+          overrideOpenedAt: proposal.overrideOpenedAt,
+          resolvedAt,
+          ...(decision ? { decisionUri: decision.uri, decisionCid: decision.cid, countedVoteCids, evidenceComplete } : {}),
+        });
+      }
+
       if (window) {
         await auditLog('community.proposal.pendingApplication', req.auth!.userId, communityDid, {
           rkey: proposalRkey,
@@ -311,6 +397,14 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
           applyAt: window.applyAt,
           resolvedAt,
           ...(decision ? { decisionUri: decision.uri, decisionCid: decision.cid, countedVoteCids, evidenceComplete } : {}),
+        });
+      } else if (outcome === 'approved' && overrideRefusal) {
+        // Settled above, before the record was written. Named as withheld
+        // rather than silently skipped.
+        await auditLog('community.proposal.applyFailed', req.auth!.userId, communityDid, {
+          rkey: proposalRkey,
+          targetCollection: proposal.targetCollection,
+          reason: overrideRefusal,
         });
       } else if (outcome === 'approved') {
         // The change can be refused at this point — a settings proposal that

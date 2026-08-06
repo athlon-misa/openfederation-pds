@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.voteOnProposal",
-  "revision": 6,
+  "revision": 7,
   "description": "Cast a vote on a governance proposal. Quorum and outcome are computed from voter-signed net.openfederation.governance.vote records; the proposal's vote arrays are a non-authoritative read cache.",
   "defs": {
     "main": {
@@ -42,7 +42,7 @@
             },
             "status": {
               "type": "string",
-              "description": "Proposal status after vote: open, rejected, expired, pending-application when the proposal passed and is waiting out the community timelock, or approved when it passed and applied immediately (the community set governanceConfig.timelockHours to 0, or the proposal predates the vote-record evidence model)."
+              "description": "Proposal status after vote: open, rejected, expired, pending-application when the proposal passed and is waiting out the community timelock, objection-override while a held proposal's override round is running, or approved when it passed and applied immediately (the community set governanceConfig.timelockHours to 0, the proposal predates the vote-record evidence model, or an override round just carried). A vote cast in an override round counts towards overrideQuorum only if it is FOR: the round asks whether a stronger mandate exists than the one that was objected to."
             },
             "applied": {
               "type": "boolean",

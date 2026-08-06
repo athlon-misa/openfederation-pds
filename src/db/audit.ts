@@ -61,6 +61,11 @@ export type AuditAction =
   | 'community.proposal.pendingApplication'
   | 'community.proposal.objection'
   | 'community.proposal.applicationHeld'
+  // The override round a hold opens (#199): its outcome either way.
+  | 'community.proposal.overrideOpened'
+  | 'community.proposal.overrideCarried'
+  | 'community.proposal.overrideExpired'
+  | 'community.proposal.overrideCloseFailed'
   | 'community.proposal.apply'
   | 'community.proposal.applyFailed'
   | 'community.proposal.decision.superseded'

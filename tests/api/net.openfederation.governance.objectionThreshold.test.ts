@@ -213,15 +213,17 @@ describe('objectionThreshold decides how many objectors hold a change', () => {
     });
     expect(second.status).toBe(200);
     expect(second.body.objectionCount).toBe(2);
-    expect(second.body.status).toBe('objected');
+    // The hold opens an override round since #199; `objected` is now the state
+    // only for a community that opted out of the re-review.
+    expect(second.body.status).toBe('objection-override');
 
     const proposal = await proposalRecord(did, rkey);
-    expect(proposal.status).toBe('objected');
+    expect(proposal.status).toBe('objection-override');
     expect(proposal.objections).toHaveLength(2);
 
     await closeWindow(did, rkey);
     const read = await xrpcGet('net.openfederation.community.getProposal', { communityDid: did, rkey });
-    expect(read.body.status).toBe('objected');
+    expect(read.body.status).toBe('objection-override');
     expect((await xrpcGet('com.atproto.repo.getRecord', {
       repo: did, collection: TARGET_COLLECTION, rkey: 'thresh-met',
     })).status).toBe(404);
