@@ -93,12 +93,28 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     // requires the cache and the records to agree, would deadlock this
     // community's governance. Refuse the vote here instead, where the voter
     // learns about it.
-    if (evidenceFromRecords && !(await canRecordVote(voterDid))) {
-      res.status(400).json({
-        error: 'VoteNotRecordable',
-        message: 'This account has no repository, so its vote cannot be recorded as verifiable evidence',
-      });
-      return;
+    if (evidenceFromRecords) {
+      let voterCanRecord: boolean;
+      try {
+        voterCanRecord = await canRecordVote(voterDid);
+      } catch (error) {
+        // The check failed, which is not the same as "no repo". Nothing has been
+        // written yet, so the honest answer is a retryable failure rather than a
+        // permanent verdict on this account.
+        console.error(`[governance] repo check failed for voter ${voterDid}:`, error);
+        res.status(500).json({
+          error: 'InternalServerError',
+          message: 'Could not determine whether this vote can be recorded; please retry',
+        });
+        return;
+      }
+      if (!voterCanRecord) {
+        res.status(400).json({
+          error: 'VoteNotRecordable',
+          message: 'This account has no repository, so its vote cannot be recorded as verifiable evidence',
+        });
+        return;
+      }
     }
 
     const updatedProposal = { ...proposal };
@@ -141,9 +157,24 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
           cid: del.cid,
         },
       };
-      if (evidenceFromRecords && !(await canRecordVote(delegatorDid))) {
-        await auditUnrecordableVote(delegatedVote);
-        continue;
+      if (evidenceFromRecords) {
+        let delegatorCanRecord = true;
+        try {
+          delegatorCanRecord = await canRecordVote(delegatorDid);
+        } catch (error) {
+          // A failed check is not a determination that this delegator has no
+          // repo. Dropping the vote on that basis would remove it from the
+          // cache and the record set at once — the two would agree without it
+          // and the proposal would resolve as if the delegation never existed.
+          // Keep counting it: writeVoteRecords will make the real attempt and
+          // audit the real reason if it fails, and the cache/record divergence
+          // defers the resolution rather than deciding it.
+          console.error(`[governance] repo check failed for delegator ${delegatorDid}:`, error);
+        }
+        if (!delegatorCanRecord) {
+          await auditUnrecordableVote(delegatedVote);
+          continue;
+        }
       }
       // Add delegator's vote in same direction as delegate
       if (vote === 'for') {

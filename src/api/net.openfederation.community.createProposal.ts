@@ -66,7 +66,19 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     // The seed vote only counts if the proposer can sign a record for it. A
     // proposer with no repo can still propose, but starts the proposal at zero
     // votes rather than seeding a name the tally can never verify.
-    const seedVote = await canRecordVote(req.auth!.did);
+    // A failed check is not an answer: rather than guess, fail the creation
+    // before anything is written so the caller can retry.
+    let seedVote: boolean;
+    try {
+      seedVote = await canRecordVote(req.auth!.did);
+    } catch (error) {
+      console.error(`[governance] repo check failed for proposer ${req.auth!.did}:`, error);
+      res.status(500).json({
+        error: 'InternalServerError',
+        message: 'Could not determine whether the proposer vote can be recorded; please retry',
+      });
+      return;
+    }
 
     const record = {
       targetCollection,

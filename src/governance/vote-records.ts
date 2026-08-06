@@ -78,14 +78,15 @@ async function auditMissingVoteRecord(input: VoteRecordInput, reason: string): P
  * vote record, so counting its vote would put an unevidenced name in the tally
  * permanently. Callers check this *before* counting, so the voter is told at
  * the moment they vote rather than through a governance deadlock later.
+ *
+ * Throws if the check itself could not be made. "No repo" is a permanent
+ * determination that removes a vote from the tally; a failed lookup is not, and
+ * conflating the two would let a connection blip drop a vote from both the
+ * cache and the record set — which reads as agreement and would resolve the
+ * proposal as if the voter had never voted. Callers must handle the throw.
  */
 export async function canRecordVote(voterDid: string): Promise<boolean> {
-  try {
-    return await new RepoEngine(voterDid).hasRepo();
-  } catch (error) {
-    console.error(`[governance] failed to check repo for ${voterDid}:`, error);
-    return false;
-  }
+  return new RepoEngine(voterDid).hasRepo();
 }
 
 /**
