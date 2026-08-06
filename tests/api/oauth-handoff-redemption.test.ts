@@ -30,12 +30,20 @@ beforeAll(() => {
 const complete = (body: Record<string, unknown>) =>
   request(app).post('/oauth/external/complete').send(body);
 
+/**
+ * Distinguishes this run's rows from every earlier run's.
+ *
+ * `audit_log` is never truncated between runs, so an assertion keyed only on
+ * the action would match rows left behind by previous runs against the same
+ * database (#203).
+ */
+const RUN = Math.random().toString(36).slice(2, 8);
 let n = 0;
 function seed(opts: { challenge: string | null; requiresVerifier: boolean }) {
   const code = `test-code-${Date.now()}-${n++}`;
   seedPendingCodeForTests(code, {
     tokens: {
-      did: `did:plc:handoff${n}`,
+      did: `did:plc:handoff${RUN}${n}`,
       handle: `handoff${n}.test`,
       email: `handoff${n}@test.local`,
       accessJwt: 'access-jwt',
@@ -181,7 +189,9 @@ describe('external login handoff redemption (#146)', () => {
       const rows = await query<{ meta: any }>(
         `SELECT meta FROM audit_log
           WHERE action = 'auth.external.handoffRejected'
+            AND target_id LIKE $1
           ORDER BY created_at DESC LIMIT 1`,
+        [`did:plc:handoff${RUN}%`],
       );
       expect(rows.rows.length).toBe(1);
       expect(rows.rows[0].meta.reason).toBe('VerifierMissing');
