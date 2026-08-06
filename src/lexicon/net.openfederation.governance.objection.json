@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.governance.objection",
-  "revision": 1,
-  "description": "An objection to the application of a passed governance decision, raised inside the community's timelock window. Lives in the objector's own repo and is signed with the objector's key, so a contested application can be verified by a third party without trusting the community's PDS.",
+  "revision": 2,
+  "description": "An objection to the application of a passed governance decision, raised inside the community's timelock window. Lives in the objector's own repo and is signed with the objector's key, so a contested application can be rechecked against signed records. This is tamper-evidence and public consistency rather than independence from the PDS, which holds the signing keys of the accounts it hosts; independence is complete only for externally-hosted objectors.",
   "defs": {
     "main": {
       "type": "record",
@@ -10,7 +10,14 @@
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["community", "proposal", "proposalCollection", "proposalRkey", "decision", "createdAt"],
+        "required": [
+          "community",
+          "proposal",
+          "proposalCollection",
+          "proposalRkey",
+          "decision",
+          "createdAt"
+        ],
         "properties": {
           "community": {
             "type": "string",

@@ -155,6 +155,14 @@ export function checkGovernanceSettings(
   options: { normalize?: boolean } = {},
 ): SettingsProblem | null {
   const normalize = options.normalize === true;
+
+  // A proposal's config is a merge patch, not a whole object (#202): `null`
+  // means "remove this key". Validating a null as if it were a value would
+  // reject a perfectly good proposal to drop one — so strip the removals and
+  // judge what will actually remain. Apply time validates the merged record, so
+  // the result is still checked in full before anything is written.
+  settings = stripRemovals(settings);
+
   const model = settings.governanceModel ?? 'benevolent-dictator';
 
   if (typeof model !== 'string' || !(VALID_GOVERNANCE_MODELS as readonly string[]).includes(model)) {
@@ -197,4 +205,22 @@ export function checkGovernanceSettings(
   }
 
   return null;
+}
+
+/**
+ * Drop `governanceConfig` keys set to `null`.
+ *
+ * Those are removals under the merge-patch semantics `recordToWrite` applies,
+ * so they describe what will be *absent* after the merge. Validating them as
+ * values would reject a proposal whose only fault is asking for a key to go.
+ */
+function stripRemovals<T extends { governanceModel?: unknown; governanceConfig?: unknown }>(settings: T): T {
+  const config = settings.governanceConfig;
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return settings;
+  const entries = Object.entries(config as Record<string, unknown>);
+  if (!entries.some(([, v]) => v === null)) return settings;
+  return {
+    ...settings,
+    governanceConfig: Object.fromEntries(entries.filter(([, v]) => v !== null)),
+  };
 }

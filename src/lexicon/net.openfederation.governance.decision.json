@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.governance.decision",
-  "revision": 1,
-  "description": "The outcome of a community governance proposal, written into the community repo at resolution time. It cites the exact evidence the outcome was computed from — the proposal state, the voter-signed vote records that were counted, and the quorum rule applied — so a third party can recheck the decision without trusting the community's PDS.",
+  "revision": 2,
+  "description": "The outcome of a community governance proposal, written into the community repo at resolution time. It cites the exact evidence the outcome was computed from \u2014 the proposal state, the voter-signed vote records that were counted, the membership that entitled each voter, and the quorum rule applied \u2014 so a third party can recheck the decision against signed records rather than taking the tally on trust. Note this is tamper-evidence and public consistency, not independence from the PDS: the PDS holds the signing keys of the accounts it hosts, so a dishonest operator does not fail these checks, it has to forge coherently and in the open. Independence is complete only for voters whose repos this PDS does not hold keys for.",
   "defs": {
     "main": {
       "type": "record",
@@ -45,7 +45,10 @@
           },
           "outcome": {
             "type": "string",
-            "knownValues": ["approved", "rejected"],
+            "knownValues": [
+              "approved",
+              "rejected"
+            ],
             "description": "The decided outcome."
           },
           "quorum": {
@@ -76,7 +79,7 @@
           },
           "evidenceComplete": {
             "type": "boolean",
-            "description": "True when every vote in the proposal's cache was backed by a countable vote record — i.e. uncountedVotes is empty."
+            "description": "True when every vote in the proposal's cache was backed by a countable vote record \u2014 i.e. uncountedVotes is empty."
           },
           "supersedes": {
             "type": "ref",
@@ -97,7 +100,11 @@
     },
     "quorumRule": {
       "type": "object",
-      "required": ["model", "threshold", "rule"],
+      "required": [
+        "model",
+        "threshold",
+        "rule"
+      ],
       "properties": {
         "model": {
           "type": "string",
@@ -115,16 +122,31 @@
     },
     "tally": {
       "type": "object",
-      "required": ["votesFor", "votesAgainst", "total"],
+      "required": [
+        "votesFor",
+        "votesAgainst",
+        "total"
+      ],
       "properties": {
-        "votesFor": { "type": "integer" },
-        "votesAgainst": { "type": "integer" },
-        "total": { "type": "integer" }
+        "votesFor": {
+          "type": "integer"
+        },
+        "votesAgainst": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        }
       }
     },
     "countedVote": {
       "type": "object",
-      "required": ["voter", "vote", "record", "proposalCid"],
+      "required": [
+        "voter",
+        "vote",
+        "record",
+        "proposalCid"
+      ],
       "properties": {
         "voter": {
           "type": "string",
@@ -133,7 +155,10 @@
         },
         "vote": {
           "type": "string",
-          "knownValues": ["for", "against"]
+          "knownValues": [
+            "for",
+            "against"
+          ]
         },
         "record": {
           "type": "ref",
@@ -153,12 +178,22 @@
     },
     "uncountedVote": {
       "type": "object",
-      "required": ["voter", "vote", "reason"],
+      "required": [
+        "voter",
+        "vote",
+        "reason"
+      ],
       "properties": {
-        "voter": { "type": "string", "format": "did" },
+        "voter": {
+          "type": "string",
+          "format": "did"
+        },
         "vote": {
           "type": "string",
-          "knownValues": ["for", "against"]
+          "knownValues": [
+            "for",
+            "against"
+          ]
         },
         "reason": {
           "type": "string",
@@ -168,13 +203,26 @@
     },
     "decidedAction": {
       "type": "object",
-      "required": ["targetCollection", "targetRkey", "action"],
+      "required": [
+        "targetCollection",
+        "targetRkey",
+        "action"
+      ],
       "properties": {
-        "targetCollection": { "type": "string", "format": "nsid" },
-        "targetRkey": { "type": "string", "maxLength": 512 },
+        "targetCollection": {
+          "type": "string",
+          "format": "nsid"
+        },
+        "targetRkey": {
+          "type": "string",
+          "maxLength": 512
+        },
         "action": {
           "type": "string",
-          "knownValues": ["write", "delete"]
+          "knownValues": [
+            "write",
+            "delete"
+          ]
         }
       }
     }
