@@ -16,8 +16,14 @@ import {
   oracleAuthMiddleware,
   oracleRequestAuthority,
   requireOracleAuth,
-} from '../../src/governance/oracle-auth.js';
-import { clearGovernanceRequestAuthority } from '../../src/governance/request-authority.js';
+  uninstallOracleAuth,
+} from '../../src/modules/chain/oracle-auth.js';
+import {
+  clearGovernanceRequestAuthority,
+  registerGovernanceRequestAuthority,
+  registeredAuthorityName,
+  runGovernedMutation,
+} from '../../src/governance/request-authority.js';
 
 function mockRes(): any {
   const r: any = { statusCode: 200, body: null };
@@ -175,5 +181,62 @@ describe('oracle request authority', () => {
     })).rejects.toMatchObject({ status: 400 });
 
     expect(ran).toBe(0);
+  });
+
+  it('leaves the mutation entirely alone when the module is disabled', async () => {
+    // Registration is not gated at boot (the flag is a runtime toggle and
+    // express routes cannot be unmounted), so the authority stays registered.
+    // The guarantee is that a disabled module contributes nothing but a
+    // boolean read: core's own mutate() runs, unwrapped and un-audited.
+    setChainModuleEnabledForTests(false);
+    let ran = 0;
+
+    const result = await oracleRequestAuthority.runMutation({
+      request: mockReq({ 'x-oracle-key': 'ofo_whatever' }),
+      context: {
+        source: CHAIN_ORACLE_AUTHORITY,
+        communityDid: 'did:plc:community',
+        credentialId: '00000000-0000-4000-8000-000000000000',
+        name: 'Test Oracle',
+      },
+      governance: { allowed: true, governanceModel: 'on-chain' },
+      communityDid: 'did:plc:community',
+      collection: 'net.openfederation.community.settings',
+      rkey: 'self',
+      action: 'write',
+      operation: 'put',
+      mutate: async () => { ran++; return 'written'; },
+    });
+
+    expect(result).toBe('written');
+    expect(ran).toBe(1);
+  });
+});
+
+describe('chain module install/uninstall seam', () => {
+  afterEach(() => {
+    setChainModuleEnabledForTests(undefined);
+    clearGovernanceRequestAuthority();
+  });
+
+  it('uninstalling withdraws the module authority from core governance', async () => {
+    registerGovernanceRequestAuthority(oracleRequestAuthority);
+    expect(registeredAuthorityName()).toBe(CHAIN_ORACLE_AUTHORITY);
+
+    uninstallOracleAuth();
+
+    expect(registeredAuthorityName()).toBeNull();
+    // Core is back on the pure-federation path: no module code in the write.
+    await expect(runGovernedMutation({
+      request: mockReq(),
+      context: null,
+      governance: null,
+      communityDid: 'did:plc:community',
+      collection: 'net.openfederation.community.settings',
+      rkey: 'self',
+      action: 'write',
+      operation: 'put',
+      mutate: async () => 'written',
+    })).resolves.toBe('written');
   });
 });

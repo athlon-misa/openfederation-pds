@@ -6,7 +6,7 @@
  */
 
 import { JsonRpcProvider } from 'ethers';
-import type { GovernanceAttestor, GovernanceProof, VerificationResult } from '../attestor.js';
+import type { GovernanceAttestor, GovernanceProof, VerificationResult } from '../../governance/attestor.js';
 
 const MIN_CONFIRMATIONS = 6;
 

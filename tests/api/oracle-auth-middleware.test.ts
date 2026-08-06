@@ -10,13 +10,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { query } from '../../src/db/client.js';
 import { setChainModuleEnabledForTests } from '../../src/config.js';
-import { generateOracleKey } from '../../src/auth/oracle-keys.js';
+import { generateOracleKey } from '../../src/modules/chain/oracle-keys.js';
 import {
   getOracleContext,
   oracleAuthMiddleware,
   oracleRequestAuthority,
   requireOracleAuth,
-} from '../../src/governance/oracle-auth.js';
+} from '../../src/modules/chain/oracle-auth.js';
 import { api, xrpcPost } from './helpers.js';
 
 const COMMUNITY_DID = `did:plc:oracleauth${Date.now().toString(36)}`;

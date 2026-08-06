@@ -6,8 +6,8 @@
  */
 
 import crypto from 'crypto';
-import { query } from '../db/client.js';
-import type { GovernanceProof, VerificationResult } from './attestor.js';
+import { query } from '../../db/client.js';
+import type { GovernanceProof, VerificationResult } from '../../governance/attestor.js';
 
 const VERIFIED_CACHE_TTL_SECONDS = 5 * 60;
 const NEGATIVE_CACHE_TTL_SECONDS = 30;

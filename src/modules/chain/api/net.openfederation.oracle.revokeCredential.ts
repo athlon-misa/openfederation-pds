@@ -1,8 +1,8 @@
 import { Response } from 'express';
-import type { AuthRequest } from '../auth/types.js';
-import { requireAuth, requireRole } from '../auth/guards.js';
-import { auditLog } from '../db/audit.js';
-import { query } from '../db/client.js';
+import type { AuthRequest } from '../../../auth/types.js';
+import { requireAuth, requireRole } from '../../../auth/guards.js';
+import { auditLog } from '../../../db/audit.js';
+import { query } from '../../../db/client.js';
 
 export default async function revokeOracleCredential(req: AuthRequest, res: Response): Promise<void> {
   try {

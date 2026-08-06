@@ -1,10 +1,10 @@
 import { Response } from 'express';
-import type { AuthRequest } from '../auth/types.js';
-import { requireOracleAuth } from '../governance/oracle-auth.js';
-import { resolveAttestor } from '../governance/attestor.js';
-import { getCachedVerification, cacheVerification } from '../governance/proof-cache.js';
-import { auditLog } from '../db/audit.js';
-import type { GovernanceProof } from '../governance/attestor.js';
+import type { AuthRequest } from '../../../auth/types.js';
+import { requireOracleAuth } from '../oracle-auth.js';
+import { resolveAttestor } from '../../../governance/attestor.js';
+import { getCachedVerification, cacheVerification } from '../proof-cache.js';
+import { auditLog } from '../../../db/audit.js';
+import type { GovernanceProof } from '../../../governance/attestor.js';
 
 export default async function submitProof(req: AuthRequest, res: Response): Promise<void> {
   try {

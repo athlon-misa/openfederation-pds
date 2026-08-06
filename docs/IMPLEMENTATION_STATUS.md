@@ -109,7 +109,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 
 ## On-chain governance — **needs-validation** ([#76](https://github.com/athlon-misa/openfederation-pds/issues/76))
 
-- Code: `src/governance/` — `ChainAdapter` interface, EVM adapter (ethers v6), `oracle-credentials.ts`, proof caching
+- Code: `src/modules/chain/` — EVM adapter (ethers v6), `oracle-credentials.ts`, oracle auth middleware, proof caching, oracle XRPC handlers. Core keeps only the neutral `GovernanceAttestor` / `GovernanceRequestAuthority` contracts in `src/governance/`; `scripts/check-import-boundaries.ts` (`npm run lint:boundaries`, run by `npm run build`) fails if core ever imports the module.
 - XRPC endpoints registered: `createOracleCredential`, `getOracleCredential`, `listOracleCredentials`, `revokeOracleCredential`, `submitProof`, `listProofs`, `verifyGovernanceProof`
 - Not validated against a real (or test) RPC endpoint; `CHAIN_ADAPTERS` env flow not exercised end-to-end
 

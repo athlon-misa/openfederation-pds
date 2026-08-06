@@ -51,7 +51,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
 
   // NOTE: module credentials (e.g. the chain module's X-Oracle-Key) are
   // deliberately NOT handled here. Modules mount their own middleware on the
-  // routes that accept them — see src/governance/oracle-auth.ts.
+  // routes that accept them — see src/modules/chain/oracle-auth.ts.
 
   next();
 }

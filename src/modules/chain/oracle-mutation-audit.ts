@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import { cidForRecord } from '@atproto/repo';
-import type { OracleContext } from '../auth/oracle-guard.js';
-import { query, withTransaction } from '../db/client.js';
-import { HttpError } from '../xrpc/errors.js';
-import type { GovernanceProof } from './attestor.js';
-import type { GovernanceResult } from './enforcement.js';
+import type { OracleContext } from './oracle-context.js';
+import { query, withTransaction } from '../../db/client.js';
+import { HttpError } from '../../xrpc/errors.js';
+import type { GovernanceProof } from '../../governance/attestor.js';
+import type { GovernanceResult } from '../../governance/enforcement.js';
 
 export interface OracleMutationAudit {
   oracle: OracleContext;

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { hashToken } from './tokens.js';
+import { hashToken } from '../../auth/tokens.js';
 
 const ORACLE_KEY_PREFIX = 'ofo_';
 

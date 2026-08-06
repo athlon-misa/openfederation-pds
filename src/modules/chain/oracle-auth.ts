@@ -3,8 +3,7 @@
  *
  * `X-Oracle-Key` is chain-module surface, not core auth. It is therefore NOT
  * handled by the global auth middleware and NOT carried on the shared
- * `AuthRequest` type — a pure-federation PDS has zero oracle surface in its
- * hot path. Instead this file owns:
+ * `AuthRequest` type. Instead this file owns:
  *
  *   1. `oracleAuthMiddleware` — mounted by the module on exactly the routes
  *      that can be Oracle-authorized, and inert unless the chain module is
@@ -14,24 +13,32 @@
  *      which is how Oracle context reaches `enforceGovernance()` and how
  *      Oracle-attributed mutations get their durable audit evidence.
  *
- * Ownership note: this is module code living under `src/governance/` only
- * until the chain module is physically relocated to `src/modules/chain/`.
+ * What "a pure-federation PDS carries no oracle surface" means concretely:
+ * every entry point here — middleware, context lookup, and the authority's
+ * `contextFor`/`runMutation` — short-circuits on `isChainModuleEnabled()`
+ * before touching any chain logic, so with the module off a core repo write
+ * costs one cached boolean read and then runs its own `mutate()` unwrapped.
+ * Installation is deliberately not gated at boot: the express routes cannot be
+ * unmounted, and the flag is a runtime toggle, so gating registration would
+ * make the toggle unobservable. `uninstallChainOracleAuth()` is the matching
+ * teardown seam for callers that want the authority gone entirely.
  */
 
 import type { Express, NextFunction, Request, Response } from 'express';
-import { isChainModuleEnabled } from '../config.js';
-import type { OracleContext } from '../auth/oracle-guard.js';
-import { verifyOracleKey } from '../auth/verification.js';
+import { isChainModuleEnabled } from '../../config.js';
+import type { OracleContext } from './oracle-context.js';
+import { verifyOracleKey } from './oracle-credentials.js';
 import {
   executeOracleGovernedMutation,
   prepareOracleMutationAudit,
 } from './oracle-mutation-audit.js';
 import {
+  clearGovernanceRequestAuthority,
   registerGovernanceRequestAuthority,
   type GovernanceRequestAuthority,
   type GovernanceRequestContext,
   type GovernedMutation,
-} from './request-authority.js';
+} from '../../governance/request-authority.js';
 
 /** `source` stamped on every context this module attributes. */
 export const CHAIN_ORACLE_AUTHORITY = 'chain-oracle';
@@ -137,6 +144,12 @@ export const oracleRequestAuthority: GovernanceRequestAuthority = {
   },
 
   async runMutation<T>(mutation: GovernedMutation<T>): Promise<T> {
+    // Disabled module: leave core's mutation entirely alone. This is not a
+    // behavioural shortcut — with the module off, `contextFor` never produces
+    // a context, so the audit below would resolve to null and fall through to
+    // `mutate()` anyway. The explicit guard just makes that visible.
+    if (!isChainModuleEnabled()) return mutation.mutate();
+
     const audit = prepareOracleMutationAudit({
       governance: mutation.governance,
       oracle: toOracleContext(mutation.context),
@@ -171,4 +184,13 @@ export function installOracleAuth(app: Express): void {
     oracleAuthMiddleware,
   );
   registerGovernanceRequestAuthority(oracleRequestAuthority);
+}
+
+/**
+ * Teardown counterpart to `installOracleAuth`: withdraw the module's authority
+ * from core governance. The express middleware stays mounted (routes cannot be
+ * unmounted) but it is inert without the module enabled.
+ */
+export function uninstallOracleAuth(): void {
+  clearGovernanceRequestAuthority();
 }

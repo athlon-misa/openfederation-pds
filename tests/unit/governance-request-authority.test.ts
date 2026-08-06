@@ -1,20 +1,18 @@
 /**
  * Oracle auth extracted from core into module middleware (#193).
  *
- * Two things are asserted here:
+ * What is asserted here:
  *
- *   1. The core seam (`src/governance/request-authority.ts`) behaves as a
- *      pure-federation PDS needs it to: inert with no module registered,
- *      fail-closed when a module misbehaves, and never swallowing an
- *      authority's mutation error.
- *   2. Core stays structurally free of oracle/chain surface — the global auth
- *      middleware, shared guards, shared auth types, and the three ATProto
- *      repo write endpoints must not mention oracle or chain at all.
+ *   - The core seam (`src/governance/request-authority.ts`) behaves as a
+ *     pure-federation PDS needs it to: inert with no module registered,
+ *     fail-closed when a module misbehaves, and never swallowing an
+ *     authority's mutation error.
+ *
+ * The structural half — core never importing module code — is enforced by
+ * `scripts/check-import-boundaries.ts` and covered by
+ * `tests/unit/import-boundaries.test.ts`.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import {
   clearGovernanceRequestAuthority,
   registerGovernanceRequestAuthority,
@@ -25,8 +23,6 @@ import {
   type GovernanceRequestContext,
   type GovernedMutation,
 } from '../../src/governance/request-authority.js';
-
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 function baseMutation<T>(mutate: () => Promise<T>): GovernedMutation<T> {
   return {
@@ -125,30 +121,5 @@ describe('governance request authority registry (core seam)', () => {
 
     expect(registeredAuthorityName()).toBeNull();
     await expect(runGovernedMutation(baseMutation(async () => 'ok'))).resolves.toBe('ok');
-  });
-});
-
-describe('core is free of oracle/chain surface', () => {
-  const CORE_FILES = [
-    'src/auth/middleware.ts',
-    'src/auth/guards.ts',
-    'src/auth/types.ts',
-    'src/api/com.atproto.repo.createRecord.ts',
-    'src/api/com.atproto.repo.putRecord.ts',
-    'src/api/com.atproto.repo.deleteRecord.ts',
-  ];
-
-  it.each(CORE_FILES)('%s has no oracle or chain references', (relPath) => {
-    const source = readFileSync(join(REPO_ROOT, relPath), 'utf8');
-    // Comments explaining the absence are allowed; identifiers and imports
-    // are not. Strip line comments before matching.
-    const code = source
-      .split('\n')
-      .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*') && !line.trim().startsWith('/*'))
-      .join('\n');
-
-    expect(code).not.toMatch(/oracle/i);
-    expect(code).not.toMatch(/x-oracle-key/i);
-    expect(code).not.toMatch(/chain/i);
   });
 });

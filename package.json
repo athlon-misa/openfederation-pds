@@ -17,7 +17,7 @@
     "ofc": "./dist/cli/ofc.js"
   },
   "scripts": {
-    "build": "tsc && npm run build:sdk",
+    "build": "npm run lint:boundaries && tsc && npm run build:sdk",
     "build:sdk": "cd packages/openfederation-sdk && NPM_CONFIG_PRODUCTION=false npm install && npm run build && mkdir -p ../../dist/sdk && cp dist/index.global.js ../../dist/sdk/v1.js",
     "start": "node dist/src/index.js",
     "dev": "node --loader ts-node/esm src/index.ts",
@@ -26,6 +26,7 @@
     "db:init": "node --loader ts-node/esm scripts/init-db.ts",
     "db:check": "node --loader ts-node/esm scripts/check-db.ts",
     "db:seed-admin": "node --loader ts-node/esm scripts/seed-bootstrap-admin.ts",
+    "lint:boundaries": "node --loader ts-node/esm scripts/check-import-boundaries.ts",
     "lexicon:validate": "node --loader ts-node/esm scripts/validate-lexicon-revisions.ts",
     "lexicon:generate": "node --loader ts-node/esm scripts/generate-lexicon-contracts.ts",
     "lexicon:check": "npm run lexicon:validate && node --loader ts-node/esm scripts/generate-lexicon-contracts.ts --check",

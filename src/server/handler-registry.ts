@@ -126,10 +126,15 @@ import deleteExportSchedule from '../api/net.openfederation.admin.deleteExportSc
 import listExportSnapshots from '../api/net.openfederation.admin.listExportSnapshots.js';
 import createVerificationChallenge from '../api/net.openfederation.admin.createVerificationChallenge.js';
 import verifyChallenge from '../api/net.openfederation.admin.verifyChallenge.js';
-import createOracleCredential from '../api/net.openfederation.oracle.createCredential.js';
-import listOracleCredentials from '../api/net.openfederation.oracle.listCredentials.js';
-import revokeOracleCredential from '../api/net.openfederation.oracle.revokeCredential.js';
-import submitProof from '../api/net.openfederation.oracle.submitProof.js';
+// Chain module handlers. This file is one of the two composition roots
+// permitted to import a module (see scripts/check-import-boundaries.ts), and
+// only ever through the module's public entry point.
+import {
+  oracleCreateCredential as createOracleCredential,
+  oracleListCredentials as listOracleCredentials,
+  oracleRevokeCredential as revokeOracleCredential,
+  oracleSubmitProof as submitProof,
+} from '../modules/chain/index.js';
 import vaultRequestShareRelease from '../api/net.openfederation.vault.requestShareRelease.js';
 import vaultRegisterEscrow from '../api/net.openfederation.vault.registerEscrow.js';
 import vaultExportRecoveryKey from '../api/net.openfederation.vault.exportRecoveryKey.js';

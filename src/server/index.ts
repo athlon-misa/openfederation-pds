@@ -11,8 +11,7 @@ import { createOAuthRouter } from '../oauth/oauth-routes.js';
 import { createExternalOAuthClient } from '../oauth/external-client.js';
 import { createExternalOAuthRouter } from '../oauth/external-routes.js';
 import { registerAttestor } from '../governance/attestor.js';
-import { installOracleAuth } from '../governance/oracle-auth.js';
-import { createEvmAdapter } from '../governance/adapters/evm-adapter.js';
+import { createEvmAdapter, installChainModule } from '../modules/chain/index.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { setSecurityHeaders } from './security-headers.js';
@@ -163,7 +162,7 @@ app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
 // that accept it, and registers the module's governance request authority
 // with core. Every entry point re-checks isChainModuleEnabled() per request,
 // so a PDS without the chain module authenticates no Oracle anywhere.
-installOracleAuth(app);
+installChainModule(app);
 
 // XRPC Router - supports both GET and POST
 app.use('/xrpc', createXrpcRouter());
