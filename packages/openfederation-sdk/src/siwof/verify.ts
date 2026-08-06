@@ -13,6 +13,7 @@ import { sha256 } from '@noble/hashes/sha2';
 import { keccak_256 } from '@noble/hashes/sha3';
 import bs58 from 'bs58';
 import nacl from 'tweetnacl';
+import { fetchGuarded, OutboundFetchError, type GuardedFetchOptions } from './net-guard.js';
 
 const DEFAULT_PLC_URL = 'https://plc.directory';
 
@@ -60,6 +61,13 @@ export interface VerifySignInOptions {
    * string like "did:key:zQ3sh..." for the given DID.
    */
   resolveSigningKey?: (did: string) => Promise<string>;
+  /**
+   * Tuning for the outbound `did:web` document fetch: timeout, response size
+   * cap, redirect budget, and a `fetch` override for tests. The destination
+   * guard itself is not optional — the issuer comes from an unverified token,
+   * so it always applies.
+   */
+  network?: GuardedFetchOptions;
 }
 
 export class SiwofVerifyError extends Error {
@@ -170,7 +178,7 @@ export async function verifySignInAssertion(
   // 2. Resolve the issuer DID → atproto signing key → verify JWT signature.
   const signingKeyDidKey = opts.resolveSigningKey
     ? await opts.resolveSigningKey(iss)
-    : await resolveAtprotoKey(iss, opts.plcUrl ?? DEFAULT_PLC_URL);
+    : await resolveAtprotoKey(iss, opts.plcUrl ?? DEFAULT_PLC_URL, opts.network ?? {});
   const keyBytes = parseDidKey(signingKeyDidKey);
   const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
   const digest = sha256(signingInput);
@@ -246,10 +254,18 @@ function verifyEip191(msgBytes: Uint8Array, signatureHex: string, expectedAddres
 
 // ─── DID resolution (minimal) ──────────────────────────────────────────────
 
-async function resolveAtprotoKey(did: string, plcUrl: string): Promise<string> {
+export async function resolveAtprotoKey(
+  did: string,
+  plcUrl: string,
+  netOptions: GuardedFetchOptions = {},
+): Promise<string> {
   let docUrl: string;
+  let guard: boolean;
   if (did.startsWith('did:plc:')) {
     docUrl = `${plcUrl.replace(/\/$/, '')}/${did}`;
+    // The PLC directory URL is supplied by the integrator, not by the token, so
+    // it is deliberately exempt: a self-hosted or local PLC is a normal setup.
+    guard = false;
   } else if (did.startsWith('did:web:')) {
     const rest = did.slice('did:web:'.length);
     // did:web:host[:path:segments] — colons become slashes, host may have ports.
@@ -257,13 +273,35 @@ async function resolveAtprotoKey(did: string, plcUrl: string): Promise<string> {
     const host = decodeURIComponent(parts.shift()!);
     const path = parts.length === 0 ? '/.well-known/did.json' : '/' + parts.map(decodeURIComponent).join('/') + '/did.json';
     docUrl = `https://${host}${path}`;
+    // The issuer comes from an unverified JWT payload, so this destination is
+    // attacker-chosen and must be validated before anything is requested.
+    guard = true;
   } else {
     throw new SiwofVerifyError('UnresolvableDid', `Only did:plc and did:web are supported; got ${did}`);
   }
 
-  const res = await fetch(docUrl, { headers: { Accept: 'application/did+json, application/json' } });
-  if (!res.ok) throw new SiwofVerifyError('UnresolvableDid', `DID document fetch failed (${res.status})`);
-  const doc = await res.json() as { verificationMethod?: Array<{ id?: string; type?: string; publicKeyMultibase?: string }> };
+  let body: string;
+  if (guard) {
+    try {
+      body = await fetchGuarded(docUrl, netOptions);
+    } catch (err) {
+      const reason = err instanceof OutboundFetchError ? err.message : 'DID document could not be fetched';
+      throw new SiwofVerifyError('UnresolvableDid', reason);
+    }
+  } else {
+    const res = await (netOptions.fetchImpl ?? fetch)(docUrl, {
+      headers: { Accept: 'application/did+json, application/json' },
+    });
+    if (!res.ok) throw new SiwofVerifyError('UnresolvableDid', `DID document fetch failed (${res.status})`);
+    body = await res.text();
+  }
+
+  let doc: { verificationMethod?: Array<{ id?: string; type?: string; publicKeyMultibase?: string }> };
+  try {
+    doc = JSON.parse(body);
+  } catch {
+    throw new SiwofVerifyError('UnresolvableDid', 'DID document is not valid JSON');
+  }
   const methods = doc.verificationMethod ?? [];
   const atprotoMethod = methods.find((m) => typeof m.id === 'string' && m.id.endsWith('#atproto'));
   if (!atprotoMethod?.publicKeyMultibase) {

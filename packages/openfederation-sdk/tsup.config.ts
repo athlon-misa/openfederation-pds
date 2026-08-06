@@ -14,5 +14,9 @@ export default defineConfig({
   // and npm consumers bring their own ethers. If a page loads the IIFE and
   // calls asEthersSigner() without ethers present on window/globalThis, the
   // dynamic import throws a clear install-me error at call time.
-  external: ['ethers'],
+  // `node:dns/promises` is imported dynamically by the SIWOF outbound guard to
+  // resolve did:web hosts before fetching them. Keeping it external means the
+  // browser builds do not try to bundle a Node builtin; the import throws there
+  // and the guard falls back to its isomorphic checks.
+  external: ['ethers', 'node:dns/promises'],
 });

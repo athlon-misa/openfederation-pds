@@ -1173,6 +1173,24 @@ try {
 - **Message ↔ token cross-check** — verifier confirms the `walletAddress`, `chain`, and `chainIdCaip2` claims in the JWT match the `walletProof` exactly. Tampering either side fails with `ProofMismatch`.
 - **Audience binding** — the `aud` claim is the normalized dApp URL; pass `expectedAudience` to the verifier to block tokens minted for a different origin.
 - **Replay of the didToken** — short TTL (5 min). If longer sessions are needed, the dApp should exchange the `didToken` for its own long-lived session once on receipt.
+- **Outbound request guard on `did:web`** — the issuer is read from the *unverified* JWT payload, so a caller can name any `did:web` host and steer the DID-document fetch your backend performs. Since 0.2.1 that fetch is validated on every hop: HTTPS only, no embedded credentials, private / loopback / link-local / reserved addresses refused, redirects followed manually and re-validated rather than trusted, and the response bounded in size and time. On Node the hostname is also resolved and each resulting address re-checked, which is what catches a public name pointing at an internal host. Failures surface as `UnresolvableDid`.
+
+  `did:plc` resolution against your configured `plcUrl` is deliberately exempt — that URL comes from you, not from the token, so a self-hosted or local directory keeps working.
+
+  The guard is always on. `network` only tunes its budgets:
+
+  ```ts
+  await verifySignInAssertion(body.didToken, body.walletProof, {
+    expectedAudience: 'https://your-dapp.com',
+    network: {
+      timeoutMs: 5_000,      // whole exchange, redirects included
+      maxBytes: 64 * 1024,   // DID documents are small
+      maxRedirects: 3,
+    },
+  });
+  ```
+
+  In a browser build the DNS step is unavailable and is skipped; the other checks and the browser's own network isolation still apply. The documented use of this verifier is server-side, which is where the risk actually lives.
 
 
 ---
