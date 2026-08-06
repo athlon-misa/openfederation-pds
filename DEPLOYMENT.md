@@ -56,7 +56,7 @@ services:
       retries: 5
 
   pds:
-    image: node:22-alpine
+    image: node:24-alpine
     working_dir: /app
     volumes:
       - ./:/app
@@ -122,7 +122,7 @@ docker run -d \
   -p 3000:3000 \
   -v $(pwd):/app \
   -w /app \
-  node:22-alpine \
+  node:24-alpine \
   sh -c "npm install && npm run build && npm start"
 ```
 
