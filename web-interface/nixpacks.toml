@@ -1,11 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_24"]
 
 [phases.install]
 cmds = ["npm install --include=dev"]
 
 [phases.build]
-cmds = ["rm -rf .next/server .next/static .next/types .next/*.json .next/*.js 2>/dev/null || true", "NODE_ENV=production npm run build"]
+cmds = ["rm -rf .next", "NODE_ENV=production npm run build"]
 
 [start]
 cmd = "npm start"

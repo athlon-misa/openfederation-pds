@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [22, 24]
 
     services:
       postgres:
@@ -75,7 +75,7 @@ jobs:
           PGPASSWORD: test
 
       - name: Seed bootstrap admin for integration tests
-        run: node --loader ts-node/esm scripts/seed-bootstrap-admin.ts
+        run: node --import ./scripts/register-ts-node.mjs scripts/seed-bootstrap-admin.ts
         env:
           DB_HOST: localhost
           DB_PORT: "5432"
