@@ -162,20 +162,23 @@ export class UnapplicableProposalError extends Error {
  * the error; this is the backstop for anything that reaches here anyway, and it
  * refuses rather than guesses.
  */
+export function proposalApplicationProblem(proposal: any): string | null {
+  if (proposal?.action !== 'write' || !proposal?.proposedRecord) return null;
+  if (proposal.targetCollection !== SETTINGS_COLLECTION) return null;
+  const invalid = checkGovernanceSettings(proposal.proposedRecord);
+  return invalid
+    ? `refusing to apply a settings proposal that would leave this community ungoverned: ${invalid.message}`
+    : null;
+}
+
 export async function applyProposedChange(
   engine: RepoEngine,
   keypair: Keypair,
   proposal: any,
 ): Promise<void> {
   if (proposal?.action === 'write' && proposal?.proposedRecord) {
-    if (proposal.targetCollection === SETTINGS_COLLECTION) {
-      const invalid = checkGovernanceSettings(proposal.proposedRecord);
-      if (invalid) {
-        throw new UnapplicableProposalError(
-          `refusing to apply a settings proposal that would leave this community ungoverned: ${invalid.message}`,
-        );
-      }
-    }
+    const problem = proposalApplicationProblem(proposal);
+    if (problem) throw new UnapplicableProposalError(problem);
     await engine.putRecord(keypair, proposal.targetCollection, proposal.targetRkey, proposal.proposedRecord);
   } else if (proposal?.action === 'delete') {
     await engine.deleteRecord(keypair, proposal.targetCollection, proposal.targetRkey);
@@ -184,6 +187,7 @@ export async function applyProposedChange(
 
 export type ApplyOutcome =
   | { state: 'applied' }
+  | { state: 'unapplicable'; reason: string }
   | { state: 'not-pending' }
   | { state: 'window-open'; applyAt: string }
   | { state: 'objected'; objections: CountedObjection[] };
@@ -238,6 +242,30 @@ export async function applyIfDue(input: {
 
     const engine = new RepoEngine(communityDid);
     const keypair = await getKeypairForDid(communityDid);
+
+    // Whether the change can be made is decided *before* the status rewrite,
+    // because that rewrite asserts `appliedAt`. Discovering the refusal
+    // afterwards would leave a signed record claiming an application that never
+    // happened, contradicted only by an audit row — and since #198 this refusal
+    // is a deterministic, reachable case rather than a theoretical one. The
+    // proposal still closes (the decision stands, and closing is what keeps the
+    // change single-shot); it simply makes no claim to have been applied. The
+    // immediate path in `voteOnProposal` reports the same thing the same way.
+    const problem = proposalApplicationProblem(proposal);
+    if (problem) {
+      await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
+        ...proposal,
+        status: 'approved',
+      });
+      await auditLog('community.proposal.applyFailed', null, communityDid, {
+        rkey: proposalRkey,
+        targetCollection: proposal.targetCollection,
+        targetRkey: proposal.targetRkey,
+        applyAt,
+        reason: problem,
+      });
+      return { state: 'unapplicable', reason: problem };
+    }
 
     // Status rewrite before the change, as at resolution: closing the proposal
     // first is what keeps the change single-shot, because a crash after this

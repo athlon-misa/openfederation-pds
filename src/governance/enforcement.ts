@@ -156,6 +156,23 @@ export async function enforceGovernance(
       // every protected collection directly writable. `settings-rules.ts` stops
       // such a record being written; this is the backstop for the ones that
       // already exist.
+      //
+      // **Operator note — recovering such a community.** This state is closed
+      // to the API by design: `setGovernanceModel` is refused (settings is
+      // protected and this branch denies) and `createProposal` refuses with
+      // `GovernanceNotActive`, so there is deliberately no endpoint that repairs
+      // it. An escape hatch here would be exactly the admin override #198
+      // removed — a PDS operator deciding a community's governance — so the
+      // repair is an explicit, audited, out-of-band act instead: write a valid
+      // `net.openfederation.community.settings` record for the community with
+      // its own signing key (`RepoEngine(did).putRecord(await
+      // getKeypairForDid(did), 'net.openfederation.community.settings', 'self',
+      // { ...settings, governanceModel: 'benevolent-dictator' })`), after which
+      // the normal routes work again. No API path can create this state: all
+      // three write paths validate through `checkGovernanceSettings`, and raw
+      // `putRecord` to the settings collection is refused by
+      // `collection-policy.ts`. Only pre-existing or out-of-band records reach
+      // here.
       return {
         allowed: false,
         requiresProposal: true,

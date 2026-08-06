@@ -30,7 +30,7 @@ import { query } from '../../src/db/client.js';
 import { RepoEngine } from '../../src/repo/repo-engine.js';
 import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
 import { enforceGovernance } from '../../src/governance/enforcement.js';
-import { applyProposedChange } from '../../src/governance/timelock.js';
+import { applyIfDue, applyProposedChange } from '../../src/governance/timelock.js';
 import { registerAttestor, clearAttestors, type GovernanceAttestor } from '../../src/governance/attestor.js';
 import { anchoringConfig } from '../../src/governance/anchoring.js';
 
@@ -569,6 +569,68 @@ describe('Governance anchoring (#198)', () => {
         proposedRecord: { ...settings, governanceModel: 'plutocracy' },
       })).rejects.toThrow(/ungoverned/);
       // Nothing was written: the community still has the model it voted for.
+      expect((await communitySettings(communityDid)).governanceModel).toBe('on-chain');
+    });
+
+    it('rejects an on-chain config whose chainId is empty rather than silently not anchoring', async () => {
+      if (!plcAvailable) return;
+      // Validation runs before enforcement, so this is a 400 about the config
+      // rather than a 403 about the route. An empty chainId would resolve to
+      // anchoring disabled: an on-chain community that never anchors.
+      const res = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
+        communityDid,
+        governanceModel: 'on-chain',
+        governanceConfig: { quorum: QUORUM, voterRole: 'moderator', chainId: '' },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('chainId is required');
+
+      const settings = await communitySettings(communityDid);
+      const proposed = await xrpcAuthPost('net.openfederation.community.createProposal', owner.accessJwt, {
+        communityDid,
+        targetCollection: SETTINGS_COLLECTION,
+        targetRkey: 'self',
+        action: 'write',
+        proposedRecord: { ...settings, governanceConfig: { ...settings.governanceConfig, chainId: '  ' } },
+      });
+      expect(proposed.status).toBe(400);
+      expect(proposed.body.message).toContain('chainId is required');
+    });
+
+    it('never claims appliedAt for a timelocked change it refused to make', async () => {
+      if (!plcAvailable) return;
+      // A pending proposal carrying a settings record that cannot be applied.
+      // Written directly, because every endpoint now refuses to create one —
+      // which is the point: this is the backstop path.
+      const settings = await communitySettings(communityDid);
+      const engine = new RepoEngine(communityDid);
+      const keypair = await getKeypairForDid(communityDid);
+      const rkey = RepoEngine.generateTid();
+      await engine.putRecord(keypair, PROPOSAL_COLLECTION, rkey, {
+        targetCollection: SETTINGS_COLLECTION,
+        targetRkey: 'self',
+        action: 'write',
+        proposedRecord: { ...settings, governanceModel: 'plutocracy' },
+        proposedBy: owner.did,
+        status: 'pending-application',
+        votesFor: [owner.did],
+        votesAgainst: [],
+        createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        resolvedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        applyAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      });
+
+      const outcome = await applyIfDue({ communityDid, proposalRkey: rkey });
+      expect(outcome.state).toBe('unapplicable');
+
+      // Closed, so the change stays single-shot — but asserting nothing that
+      // did not happen.
+      const proposal = await proposalRecord(communityDid, rkey);
+      expect(proposal.status).toBe('approved');
+      expect(proposal.appliedAt).toBeUndefined();
+      const [meta] = await auditMetas('community.proposal.applyFailed', communityDid, rkey);
+      expect(meta.reason).toContain('ungoverned');
+      // And the community still has the governance it actually voted for.
       expect((await communitySettings(communityDid)).governanceModel).toBe('on-chain');
     });
 

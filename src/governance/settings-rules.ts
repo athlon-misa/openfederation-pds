@@ -34,6 +34,11 @@ export interface SettingsProblem {
   message: string;
 }
 
+/** A usable CAIP-2 chain id: a non-empty string. Empty is absent, not a value. */
+function isChainId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 function isVotingModel(model: string): boolean {
   return (VOTING_MODELS as readonly string[]).includes(model);
 }
@@ -115,7 +120,7 @@ function checkAnchoring(governanceConfig: any): SettingsProblem | null {
   if (anchoring.chainId !== undefined && typeof anchoring.chainId !== 'string') {
     return { message: 'governanceConfig.anchoring.chainId must be a CAIP-2 chain id string' };
   }
-  if (anchoring.enabled && !anchoring.chainId && typeof governanceConfig.chainId !== 'string') {
+  if (anchoring.enabled && !anchoring.chainId && !isChainId(governanceConfig.chainId)) {
     return { message: 'governanceConfig.anchoring.chainId is required when anchoring is enabled' };
   }
   return null;
@@ -164,7 +169,11 @@ export function checkGovernanceSettings(
     // The one thing `on-chain` still needs: somewhere to anchor. Not an Oracle
     // credential — an Oracle is a way of carrying authority into a request, not
     // a precondition for a community deciding its own affairs.
-    if (model === 'on-chain' && typeof (config as any).chainId !== 'string') {
+    // Empty counts as absent. An `on-chain` community with `chainId: ''`
+    // resolves to anchoring disabled, which is an on-chain community that
+    // silently never anchors — the one failure this model exists to make
+    // visible.
+    if (model === 'on-chain' && !isChainId((config as any).chainId)) {
       return { message: 'governanceConfig.chainId is required' };
     }
   }
