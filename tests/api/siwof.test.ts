@@ -6,6 +6,7 @@ import {
   getAdminToken,
   isPLCAvailable,
   uniqueHandle,
+  xrpcAuthPostFromOrigin,
 } from './helpers.js';
 import { verifySignInAssertion } from '../../packages/openfederation-sdk/src/siwof/verify.js';
 import { query } from '../../src/db/client.js';
@@ -76,12 +77,12 @@ describe('Sign-In With OpenFederation', () => {
     expect(solRes.status).toBe(200);
     solAddress = solRes.body.walletAddress;
 
-    await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://siwof-test.example.com', {
       dappOrigin: 'https://siwof-test.example.com',
       chain: 'ethereum',
       walletAddress: ethAddress,
     });
-    await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://siwof-test.example.com', {
       dappOrigin: 'https://siwof-test.example.com',
       chain: 'solana',
       walletAddress: solAddress,
@@ -117,7 +118,7 @@ describe('Sign-In With OpenFederation', () => {
       expect(ch.status).toBe(200);
 
       // Tier 1: the PDS signs via wallet.sign (consent already granted).
-      const signed = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const signed = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://siwof-test.example.com/login', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         message: ch.body.message,
@@ -160,7 +161,7 @@ describe('Sign-In With OpenFederation', () => {
         walletAddress: ethAddress,
         audience: 'https://siwof-test.example.com/login',
       });
-      const signed = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const signed = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://siwof-test.example.com/login', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         message: ch.body.message,
@@ -216,7 +217,7 @@ describe('Sign-In With OpenFederation', () => {
       expect(ch.status).toBe(200);
       expect(ch.body.chainIdCaip2).toBe('solana:mainnet');
 
-      const signed = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const signed = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://siwof-test.example.com/login', {
         chain: 'solana',
         walletAddress: solAddress,
         message: ch.body.message,
@@ -251,7 +252,7 @@ describe('Sign-In With OpenFederation', () => {
         walletAddress: ethAddress,
         audience: 'https://siwof-test.example.com/login',
       });
-      const signed = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const signed = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://siwof-test.example.com/login', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         message: ch.body.message,
@@ -278,7 +279,7 @@ describe('Sign-In With OpenFederation', () => {
         walletAddress: ethAddress,
         audience: 'https://siwof-test.example.com/login',
       });
-      const signed = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const signed = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://siwof-test.example.com/login', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         message: ch.body.message,
@@ -303,7 +304,7 @@ describe('Sign-In With OpenFederation', () => {
         walletAddress: ethAddress,
         audience: 'https://siwof-test.example.com/login',
       });
-      const signed = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+      const signed = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://siwof-test.example.com/login', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         message: ch.body.message,

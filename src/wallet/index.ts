@@ -3,3 +3,4 @@ export * from './custody.js';
 export * from './consent.js';
 export * from './linking.js';
 export * from './eligibility.js';
+export * from './origin-binding.js';

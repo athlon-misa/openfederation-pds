@@ -9,6 +9,7 @@ import {
   getAdminToken,
   isPLCAvailable,
   uniqueHandle,
+  xrpcAuthPostFromOrigin,
 } from './helpers.js';
 
 async function registerAndApproveUser(handle: string) {
@@ -60,12 +61,12 @@ describe('net.openfederation.wallet.signTransaction', () => {
     solAddress = t1sol.body.walletAddress;
 
     // Grant consents for both (separate grants; per-wallet scope).
-    await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://tx-demo.example.com', {
       dappOrigin: 'https://tx-demo.example.com',
       chain: 'ethereum',
       walletAddress: ethAddress,
     });
-    await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://tx-demo.example.com', {
       dappOrigin: 'https://tx-demo.example.com',
       chain: 'solana',
       walletAddress: solAddress,
@@ -75,7 +76,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
   describe('Ethereum', () => {
     it('signs an EIP-1559 transaction; signed RLP recovers to the wallet address', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.signTransaction', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://tx-demo.example.com', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         dappOrigin: 'https://tx-demo.example.com',
@@ -99,7 +100,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
 
     it('rejects a transaction missing chainId', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.signTransaction', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://tx-demo.example.com', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         dappOrigin: 'https://tx-demo.example.com',
@@ -115,7 +116,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
 
     it('rejects when no consent grants this origin', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.signTransaction', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://no-consent.example.com', {
         chain: 'ethereum',
         walletAddress: ethAddress,
         dappOrigin: 'https://no-consent.example.com',
@@ -127,7 +128,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
 
     it('rejects when wallet is not owned by caller', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.signTransaction', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://tx-demo.example.com', {
         chain: 'ethereum',
         walletAddress: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
         dappOrigin: 'https://tx-demo.example.com',
@@ -144,7 +145,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
       const messageBytes = new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
       const messageBase64 = Buffer.from(messageBytes).toString('base64');
 
-      const res = await xrpcAuthPost('net.openfederation.wallet.signTransaction', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://tx-demo.example.com', {
         chain: 'solana',
         walletAddress: solAddress,
         dappOrigin: 'https://tx-demo.example.com',
@@ -159,7 +160,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
 
     it('rejects empty messageBase64', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.signTransaction', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://tx-demo.example.com', {
         chain: 'solana',
         walletAddress: solAddress,
         dappOrigin: 'https://tx-demo.example.com',
@@ -197,13 +198,13 @@ describe('net.openfederation.wallet.signTransaction', () => {
       expect(link.status).toBe(200);
 
       // Grant consent (to pass the consent check and hit the tier check).
-      await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+      await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://tx-demo.example.com', {
         dappOrigin: 'https://tx-demo.example.com',
         chain: 'ethereum',
         walletAddress: w.address,
       });
 
-      const res = await xrpcAuthPost('net.openfederation.wallet.signTransaction', user.accessJwt, {
+      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://tx-demo.example.com', {
         chain: 'ethereum',
         walletAddress: w.address,
         dappOrigin: 'https://tx-demo.example.com',

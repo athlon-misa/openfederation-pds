@@ -8,6 +8,8 @@ import {
   normalizeDappOrigin,
   assertCustodialSigningEligible,
   WalletEligibilityRejection,
+  assertDappOriginBinding,
+  DappOriginBindingRejection,
 } from '../wallet/index.js';
 
 /**
@@ -65,6 +67,26 @@ export default async function walletSign(req: AuthRequest, res: Response): Promi
     } catch (err) {
       res.status(400).json({ error: 'InvalidRequest', message: (err as Error).message });
       return;
+    }
+
+    // The declared origin decides which consent unlocks the key, so it must be
+    // the origin the request actually came from — not merely one the caller
+    // asserts. See src/wallet/origin-binding.ts.
+    try {
+      origin = assertDappOriginBinding(req.headers.origin as string | undefined, origin);
+    } catch (err) {
+      if (err instanceof DappOriginBindingRejection) {
+        await auditLog('wallet.sign.originRejected', req.auth!.userId, req.auth!.did, {
+          declaredOrigin: origin,
+          requestOrigin: (req.headers.origin as string | undefined) ?? null,
+          reason: err.code,
+          chain,
+          walletAddress,
+        });
+        res.status(err.status).json({ error: err.code, message: err.message });
+        return;
+      }
+      throw err;
     }
 
     const userDid = req.auth!.did;

@@ -9,6 +9,7 @@ import {
   getAdminToken,
   isPLCAvailable,
   uniqueHandle,
+  xrpcAuthPostFromOrigin,
 } from './helpers.js';
 import {
   generateMnemonic,
@@ -147,13 +148,13 @@ describe('Tier 2 wallets (user-encrypted, client-side crypto)', () => {
     await linkClientSide(user.accessJwt, 'solana', w.address, w.privateKey, 'sol-t2');
 
     // Grant consent so we pass the consent gate and exercise the tier check.
-    await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://t2-test.example.com', {
       dappOrigin: 'https://t2-test.example.com',
       chain: 'solana',
       walletAddress: w.address,
     });
 
-    const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+    const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://t2-test.example.com', {
       chain: 'solana',
       walletAddress: w.address,
       message: 'should fail — server has no key',
@@ -234,13 +235,13 @@ describe('Tier 3 wallets (self-custody)', () => {
     await linkClientSide(user.accessJwt, 'solana', w.address, w.privateKey, 'sol-t3');
 
     // Grant consent to get past the consent gate; the tier check should fire first.
-    await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://t3-test.example.com', {
       dappOrigin: 'https://t3-test.example.com',
       chain: 'solana',
       walletAddress: w.address,
     });
 
-    const res = await xrpcAuthPost('net.openfederation.wallet.sign', user.accessJwt, {
+    const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.sign', user.accessJwt, 'https://t3-test.example.com', {
       chain: 'solana',
       walletAddress: w.address,
       message: 'should refuse — self-custody',

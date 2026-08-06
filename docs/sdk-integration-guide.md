@@ -997,6 +997,32 @@ const { signature } = await client.wallet.sign({
 });
 ```
 
+> **Tier 1 consent and signing are browser-only.**
+>
+> A consent grant authorizes exactly one dApp origin. That origin used to be
+> taken from the request body, which meant anyone holding a user bearer token
+> could declare another app's origin and sign under its consent — or simply
+> mint a consent for any origin and sign under that.
+>
+> `grantConsent`, `wallet.sign` and `wallet.signTransaction` now require the
+> browser's `Origin` header to match the `dappOrigin` you send. Browsers set
+> `Origin` and page script cannot forge it cross-origin, so it is the one
+> origin signal the PDS can trust from an untrusted client.
+>
+> Two consequences:
+>
+> - **In a browser, nothing changes.** The SDK already defaults `dappOrigin` to
+>   `location.origin`, which is exactly what the browser puts in `Origin`.
+> - **Server-to-server callers can no longer use Tier 1 signing.** A request
+>   with no `Origin` is refused with `OriginRequired`, because a non-browser
+>   client can set any header it likes — accepting a missing `Origin` would
+>   make the whole guard opt-out. Backends that need to sign should hold their
+>   own keys with a Tier 2 or Tier 3 wallet and sign locally.
+>
+> A mismatch is refused with `OriginMismatch` and recorded in the audit log as
+> `wallet.sign.originRejected` / `wallet.signTransaction.originRejected` /
+> `wallet.consent.originRejected`, with both the declared and actual origins.
+
 ### Tier 2 — User-encrypted wallet
 
 ```ts

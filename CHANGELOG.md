@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security: Tier 1 wallet consent is bound to the browser Origin
+
+**Breaking for server-side callers of Tier 1 signing.** A `wallet_dapp_consents`
+row authorizes one dApp origin, but that origin arrived only as a caller-declared
+body field or `X-dApp-Origin` header. Anyone holding a user bearer token could
+therefore declare another application's origin and sign under the consent that
+application received — and, because `grantConsent` took its origin the same way,
+could equally mint a consent for any origin and sign under it without one
+existing first. Guarding only the signing endpoints would have moved the attack
+one step earlier rather than stopping it, so all three are bound (issue #101).
+
+- `wallet.grantConsent`, `wallet.sign` and `wallet.signTransaction` now require
+  the browser's `Origin` header to match the declared `dappOrigin`. Mismatch is
+  `OriginMismatch` (403); an absent or opaque `null` Origin is `OriginRequired`
+  (403).
+- **Browsers are unaffected** — the SDK already sends `dappOrigin` as
+  `location.origin`, which is what the browser puts in `Origin`.
+- **Server-to-server callers can no longer use Tier 1 signing.** Accepting a
+  missing `Origin` would let any non-browser client opt out of the guard
+  entirely. Backends that need to sign should hold their own keys with a Tier 2
+  or Tier 3 wallet.
+- Refusals are audited as `wallet.sign.originRejected`,
+  `wallet.signTransaction.originRejected` and `wallet.consent.originRejected`,
+  recording both the declared and the actual origin.
+- Lexicon revisions: `wallet.sign` 2→3, `wallet.signTransaction` 1→2,
+  `wallet.grantConsent` 1→2.
+
 ### Governance: verifiable decisions, a contest window, and no chain authority
 
 Community governance is now decided from voter-signed records and published as

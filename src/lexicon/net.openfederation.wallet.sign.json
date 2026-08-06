@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.wallet.sign",
-  "revision": 2,
+  "revision": 3,
   "description": "Sign a message with a Tier 1 (custodial) wallet. Requires an active consent grant from the authenticated user to the requesting dApp origin.",
   "defs": {
     "main": {
@@ -81,7 +81,7 @@
         },
         {
           "name": "UnsupportedTier",
-          "description": "Wallet is not Tier 1 — must sign client-side or via external wallet software."
+          "description": "Wallet is not Tier 1 \u2014 must sign client-side or via external wallet software."
         },
         {
           "name": "ConsentRequired",
@@ -90,6 +90,14 @@
         {
           "name": "SigningFailed",
           "description": "Signing failed because required key material was unavailable."
+        },
+        {
+          "name": "OriginRequired",
+          "description": "The request carried no usable browser Origin header. Custodial wallet consent and signing are browser-only; server-side clients must use a Tier 2 or Tier 3 wallet and sign locally."
+        },
+        {
+          "name": "OriginMismatch",
+          "description": "dappOrigin did not match the Origin the request was sent from. A consent grant authorizes one origin and only that origin may use it."
         }
       ]
     }
