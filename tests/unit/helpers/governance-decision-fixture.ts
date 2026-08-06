@@ -20,6 +20,7 @@ import {
 import {
   DECISION_COLLECTION,
   PROPOSAL_COLLECTION,
+  SETTINGS_COLLECTION,
   VOTE_COLLECTION,
   quorumRule,
 } from '../../../src/governance/decision-rules.js';
@@ -111,6 +112,14 @@ export interface ScenarioOpts {
   choices?: Array<'for' | 'against'>;
   /** Threshold published on the decision record. */
   quorum?: number;
+  /**
+   * Threshold in the community's settings record. Defaults to whatever the
+   * decision publishes, i.e. an honest PDS. Set it apart from `quorum` to model
+   * a decision that claims a rule its community does not have.
+   */
+  settingsQuorum?: number;
+  /** Omit the settings record entirely, so the community's rule is unknowable. */
+  omitSettings?: boolean;
   /** Voters who vote and record but are deliberately left out of the decision. */
   uncited?: Array<'for' | 'against'>;
   /** Cached votes with no record at all, disclosed as uncountedVotes. */
@@ -147,6 +156,19 @@ export async function buildScenario(opts: ScenarioOpts = {}): Promise<Scenario> 
   const extraVoters: Voter[] = [];
   for (let i = 0; i < (opts.uncited ?? []).length; i++) {
     extraVoters.push(await makeVoter(opts.uncited![i], choices.length + i));
+  }
+
+  // The community's settings record — where the quorum rule actually lives, and
+  // what the verifier checks the decision's self-declared threshold against.
+  const publishedQuorum = opts.quorum ?? 3;
+  if (!opts.omitSettings) {
+    await community.put(SETTINGS_COLLECTION, 'self', {
+      $type: SETTINGS_COLLECTION,
+      displayName: 'Test Community',
+      governanceModel: 'simple-majority',
+      governanceConfig: { quorum: opts.settingsQuorum ?? publishedQuorum, voterRole: 'moderator' },
+      createdAt: CREATED_AT,
+    });
   }
 
   // Proposal v1 — open, no votes yet.
@@ -218,7 +240,7 @@ export async function buildScenario(opts: ScenarioOpts = {}): Promise<Scenario> 
     proposalCollection: PROPOSAL_COLLECTION,
     proposalRkey: PROPOSAL_RKEY,
     outcome: opts.outcome ?? (countedFor > countedAgainst ? 'approved' : 'rejected'),
-    quorum: quorumRule('simple-majority', opts.quorum ?? 3),
+    quorum: quorumRule('simple-majority', publishedQuorum),
     tally: { votesFor: countedFor, votesAgainst: countedAgainst, total: cited.length },
     votes: cited,
     ...(uncountedVotes.length > 0 ? { uncountedVotes } : {}),

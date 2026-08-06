@@ -212,8 +212,19 @@ verdict — `status`, a stable machine-readable `code`, every `problem`, and the
 | `uncounted-vote` | An eligible vote in the supplied exports was left out |
 | `missing-evidence` | A CAR or DID document needed for a check was not supplied |
 | `miscounted-tally` | The published tally does not match the votes cited |
-| `insufficient-quorum` | Fewer counted votes than the published threshold |
-| `wrong-outcome` | Quorum met, but the outcome is not what the published rule produces |
+| `insufficient-quorum` | Fewer counted votes than the quorum required — the larger of the decision's published threshold and the one in the community's signed settings record |
+| `wrong-outcome` | Quorum met, but the outcome is not what that rule produces |
+
+The quorum a decision publishes is a claim about itself, so it is never the only
+bar: the threshold in the community's `net.openfederation.community.settings/self`
+record — already in the export and already signature-checked — is applied too,
+and the stricter of the two wins. `notes` carries two codes of its own:
+`disclosed-gap` (the decision honestly declared cache votes with no record) and
+`quorum-rule-drift` (the two thresholds differ but the tally clears both).
+
+A decision that has been superseded is only reported as such when the
+superseding record is itself found in the community's signed repo at the CID it
+is offered under.
 
 Pass `--decision <rkey>` when an export holds more than one decision record; the
 command refuses to guess.

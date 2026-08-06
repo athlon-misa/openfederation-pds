@@ -134,9 +134,48 @@ describe('verifyDecision — insufficient-quorum', () => {
     const s = await buildScenario({ quorum: 5 });
     const verdict = await verifyDecision(s.input());
     expect(verdict.code).toBe('insufficient-quorum');
-    expect(verdict.problems[0].message).toMatch(/below the published quorum threshold of 5/);
+    expect(verdict.problems[0].message).toMatch(/below the quorum threshold of 5/);
     // Everything else about the decision is sound.
     expect(verdict.problems).toHaveLength(1);
+  });
+
+  it('rejects a decision that publishes a threshold its community does not have', async () => {
+    // The attack the published threshold alone cannot catch: a PDS resolves a
+    // one-vote decision in a quorum-five community and writes `threshold: 1`.
+    const s = await buildScenario({ choices: ['for'], quorum: 1, settingsQuorum: 5 });
+    const verdict = await verifyDecision(s.input());
+
+    expect(verdict.status).toBe('invalid');
+    expect(verdict.code).toBe('insufficient-quorum');
+    expect(verdict.problems[0].message).toMatch(/required by the community's settings record, though the decision publishes 1/);
+    expect(verdict.summary.quorumThreshold).toBe(1);
+    expect(verdict.summary.settingsQuorumThreshold).toBe(5);
+    expect(verdict.summary.effectiveQuorumThreshold).toBe(5);
+  });
+
+  it('applies the same `|| 3` default the online path uses', async () => {
+    const s = await buildScenario({ choices: ['for', 'for'], quorum: 2, settingsQuorum: 0 });
+    const verdict = await verifyDecision(s.input());
+    expect(verdict.summary.settingsQuorumThreshold).toBe(3);
+    expect(verdict.code).toBe('insufficient-quorum');
+  });
+
+  it('notes a threshold disagreement that the tally still satisfies', async () => {
+    // The community lowered its quorum after the fact. The decision still
+    // clears the stricter of the two, so this is disclosed, not rejected.
+    const s = await buildScenario({ quorum: 3, settingsQuorum: 2 });
+    const verdict = await verifyDecision(s.input());
+    expect(verdict.status).toBe('valid');
+    expect(verdict.notes.some(n => n.code === 'quorum-rule-drift')).toBe(true);
+    expect(verdict.summary.effectiveQuorumThreshold).toBe(3);
+  });
+
+  it('cannot check the community rule when the settings record is absent', async () => {
+    const s = await buildScenario({ omitSettings: true });
+    const verdict = await verifyDecision(s.input());
+    expect(verdict.code).toBe('missing-evidence');
+    expect(verdict.problems[0].message).toMatch(/community settings record/);
+    expect(verdict.summary.settingsQuorumThreshold).toBeNull();
   });
 });
 
@@ -296,12 +335,65 @@ describe('verifyDecision — legitimate states', () => {
     expect(replacement.status).toBe('valid');
   });
 
-  it('still fails a superseded decision that was also tampered with', async () => {
-    const s = await buildScenario();
-    const sibling: CitedRecord = {
-      uri: `at://${s.community.did}/${DECISION_COLLECTION}/3laaaadecision2`,
+  it('ignores a fabricated sibling that is not in the community\'s signed repo', async () => {
+    // Honouring a supersession excuses the exact failure this verifier exists
+    // to raise, so a caller must not be able to conjure one. This sibling names
+    // a uri that was never written and carries another record's cid.
+    const s = await buildScenario({ uncited: ['against'] });
+    const forged: CitedRecord = {
+      uri: `at://${s.community.did}/${DECISION_COLLECTION}/3laaaaforged`,
       cid: s.decision.cid,
       value: { supersedes: { uri: s.decision.uri, cid: s.decision.cid }, proposalRkey: PROPOSAL_RKEY },
+    };
+
+    const verdict = await verifyDecision({ ...s.input(), siblingDecisions: [forged] });
+    expect(verdict.status).toBe('invalid');
+    expect(verdict.code).toBe('uncounted-vote');
+    expect(verdict.summary.supersededBy).toBeUndefined();
+  });
+
+  it('ignores a real sibling record offered under the wrong cid', async () => {
+    const s = await buildScenario({ uncited: ['against'] });
+    const rkey = '3laaaadecision2';
+    await s.community.put(DECISION_COLLECTION, rkey, {
+      ...s.decision.value,
+      supersedes: { uri: s.decision.uri, cid: s.decision.cid },
+    });
+    const sibling: CitedRecord = {
+      // The record exists, but is offered at the *decision's* cid, not its own.
+      uri: `at://${s.community.did}/${DECISION_COLLECTION}/${rkey}`,
+      cid: s.decision.cid,
+      value: { supersedes: { uri: s.decision.uri, cid: s.decision.cid } },
+    };
+    const verdict = await verifyDecision({ ...s.input(), siblingDecisions: [sibling] });
+    expect(verdict.status).toBe('invalid');
+    expect(verdict.code).toBe('uncounted-vote');
+  });
+
+  it('honours a genuine superseding decision written into the community repo', async () => {
+    const s = await buildScenario({ uncited: ['against'] });
+    const rkey = '3laaaadecision2';
+    const value = { ...s.decision.value, supersedes: { uri: s.decision.uri, cid: s.decision.cid } };
+    const cid = await s.community.put(DECISION_COLLECTION, rkey, value);
+
+    const verdict = await verifyDecision({
+      ...s.input(),
+      siblingDecisions: [{ uri: `at://${s.community.did}/${DECISION_COLLECTION}/${rkey}`, cid, value }],
+    });
+    expect(verdict.status).toBe('superseded');
+    expect(verdict.problems).toEqual([]);
+    expect(verdict.notes.some(n => n.code === 'uncounted-vote')).toBe(true);
+  });
+
+  it('still fails a superseded decision that was also tampered with', async () => {
+    const s = await buildScenario();
+    const siblingRkey = '3laaaadecision2';
+    const siblingValue = { ...s.decision.value, supersedes: { uri: s.decision.uri, cid: s.decision.cid } };
+    const siblingCid = await s.community.put(DECISION_COLLECTION, siblingRkey, siblingValue);
+    const sibling: CitedRecord = {
+      uri: `at://${s.community.did}/${DECISION_COLLECTION}/${siblingRkey}`,
+      cid: siblingCid,
+      value: siblingValue,
     };
     const alice = s.voters[0];
     await alice.repo.put(VOTE_COLLECTION, alice.rkey, {
@@ -333,6 +425,9 @@ describe('verifyDecision — legitimate states', () => {
     expect(verdict.problems).toEqual([]);
     expect(verdict.status).toBe('valid');
     expect(verdict.summary.disclosedUncounted).toBe(1);
-    expect(verdict.notes.some(n => n.message.match(/declared gap/))).toBe(true);
+    // Its own code — a consumer filtering for votes someone left out must not
+    // trip over a gap the decision honestly declared.
+    expect(verdict.notes.some(n => n.code === 'disclosed-gap')).toBe(true);
+    expect(verdict.notes.some(n => n.code === 'uncounted-vote')).toBe(false);
   });
 });

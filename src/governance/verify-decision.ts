@@ -21,17 +21,27 @@
  *      the cited CID, saying what the decision says it says.
  *   4. Those votes were eligible under the same rules resolution applied
  *      (`decision-rules.ts` — imported by both, never re-implemented here).
- *   5. No eligible vote present in the provided exports was left out, the
- *      published tally matches the votes it cites, and the outcome is what the
- *      published quorum rule produces from that tally.
+ *   5. No eligible vote present in the provided exports was left out, and the
+ *      published tally matches the votes it cites.
+ *   6. The tally clears the quorum the *community's* signed settings record
+ *      requires — not merely the threshold the decision publishes about itself,
+ *      which an adversary would simply set low — and the outcome is what that
+ *      rule produces.
+ *
+ * Nothing a caller asserts is taken on trust. In particular a superseding
+ * decision must itself be found in the community's signed repo at the CID it is
+ * offered under, because honouring it excuses the very failure this function
+ * exists to raise.
  *
  * Three states that look like corruption but are not, and are handled as such:
  *
  *   - **Superseded decisions.** A crash between the decision write and the
  *     proposal status rewrite leaves an earlier decision that a later one
  *     replaces via `supersedes`. The earlier one is legitimately stale: newer
- *     votes exist that it does not cite. Pass the sibling decisions in and the
- *     verdict is `superseded`, with the staleness demoted to a note.
+ *     votes exist that it does not cite. Pass the sibling decisions in and, if
+ *     one of them really is in the community's signed repo and really does
+ *     supersede this decision, the verdict is `superseded` with the staleness
+ *     demoted to a note.
  *   - **Orphan decisions.** A crash with no subsequent vote leaves a decision
  *     for a proposal that later expired. Nothing about its evidence is wrong,
  *     so this function deliberately never looks at the proposal's `status`.
@@ -53,7 +63,9 @@ import {
 import { getKey } from '@atproto/identity';
 import {
   DECISION_COLLECTION,
+  DEFAULT_QUORUM,
   PROPOSAL_COLLECTION,
+  SETTINGS_COLLECTION,
   VOTE_COLLECTION,
   checkVoteRecord,
   decideOutcome,
@@ -74,7 +86,8 @@ import {
  *
  *   valid                — every check passed.
  *   superseded           — sound, but replaced by a later decision for the same
- *                          proposal. Not a failure.
+ *                          proposal, found in the community's signed repo. Not
+ *                          a failure.
  *   malformed-decision   — the decision record does not have the shape the
  *                          lexicon requires, or contradicts itself (e.g.
  *                          `evidenceComplete` disagreeing with `uncountedVotes`,
@@ -100,10 +113,11 @@ import {
  *                          the decision does not cite it.
  *   miscounted-tally     — the published `tally` does not match the votes the
  *                          decision itself cites.
- *   insufficient-quorum  — fewer counted votes than the published quorum
- *                          threshold required.
+ *   insufficient-quorum  — fewer counted votes than the quorum required, taking
+ *                          the larger of the decision's published threshold and
+ *                          the community's signed settings record.
  *   wrong-outcome        — quorum was met, but the published outcome is not what
- *                          the published rule produces from the counted votes.
+ *                          the rule produces from the counted votes.
  */
 export type VerificationCode =
   | 'valid'
@@ -120,6 +134,22 @@ export type VerificationCode =
   | 'wrong-outcome';
 
 export type FailureCode = Exclude<VerificationCode, 'valid' | 'superseded'>;
+
+/**
+ * Codes that can appear on a *note* — an observation that is never a reason to
+ * reject. Failure codes appear here too, but only when something has explained
+ * them away (the `uncounted-vote` entries a supersession excuses). The two
+ * note-only codes exist so a consumer filtering on a string never has to guess
+ * which sense it is in:
+ *
+ *   disclosed-gap      — the decision itself declared cache votes that produced
+ *                        no countable record (`uncountedVotes`). An honest
+ *                        disclosure, not a vote anyone left out.
+ *   quorum-rule-drift  — the threshold the decision published differs from the
+ *                        one the community's settings record now states, while
+ *                        the tally still satisfies both.
+ */
+export type NoteCode = FailureCode | 'disclosed-gap' | 'quorum-rule-drift';
 
 /**
  * Reported worst-first, and `code` is the head of this list.
@@ -151,6 +181,10 @@ export interface VerificationProblem {
   voter?: string;
   /** AT-URI of the record a problem concerns. */
   uri?: string;
+}
+
+export interface VerificationNote extends Omit<VerificationProblem, 'code'> {
+  code: NoteCode;
 }
 
 /** A record as some other party cites it: location, hash, and claimed content. */
@@ -200,13 +234,18 @@ export interface DecisionVerdict {
   /** Every failure found, worst first. Empty when `status` is not `invalid`. */
   problems: VerificationProblem[];
   /** Disclosed, expected conditions — never a reason to reject. */
-  notes: VerificationProblem[];
+  notes: VerificationNote[];
   summary: {
     decisionUri: string;
     community: string | null;
     proposalRkey: string | null;
     outcome: string | null;
+    /** The threshold the decision publishes about itself. */
     quorumThreshold: number | null;
+    /** The threshold the community's signed settings record requires. */
+    settingsQuorumThreshold: number | null;
+    /** The larger of the two — publishing a smaller number cannot lower the bar. */
+    effectiveQuorumThreshold: number | null;
     citedVotes: number;
     /** Cited votes proved against a signed repo and found eligible. */
     verifiedVotes: number;
@@ -364,7 +403,7 @@ async function locateRecord(loaded: LoadedRepo, collection: string, rkey: string
  */
 export async function verifyDecision(input: VerifyDecisionInput): Promise<DecisionVerdict> {
   const problems: VerificationProblem[] = [];
-  const notes: VerificationProblem[] = [];
+  const notes: VerificationNote[] = [];
 
   const decisionValue = input.decision.value ?? {};
   const community = typeof decisionValue.community === 'string' ? decisionValue.community : null;
@@ -382,6 +421,8 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
     proposalRkey,
     outcome,
     quorumThreshold,
+    settingsQuorumThreshold: null,
+    effectiveQuorumThreshold: quorumThreshold,
     citedVotes: citedVotes.length,
     verifiedVotes: 0,
     countedFor: 0,
@@ -441,23 +482,13 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
   }
   if (!evidenceComplete) {
     notes.push({
-      code: 'uncounted-vote',
+      code: 'disclosed-gap',
       message: `decision discloses ${disclosedUncounted.length} cached vote(s) that produced no countable record; this is a declared gap, not a defect`,
       uri: input.decision.uri,
     });
   }
   if (isRecord(decisionValue.supersedes) && typeof decisionValue.supersedes.uri === 'string') {
     summary.supersedes = decisionValue.supersedes.uri;
-  }
-
-  // ── Supersession, before anything is judged stale ─────────────────
-  for (const sibling of input.siblingDecisions ?? []) {
-    if (sibling.uri === input.decision.uri) continue;
-    const ref = sibling.value?.supersedes;
-    if (isRecord(ref) && ref.uri === input.decision.uri && ref.cid === input.decision.cid) {
-      summary.supersededBy = sibling.uri;
-      break;
-    }
   }
 
   // ── Signed repo exports ───────────────────────────────────────────
@@ -475,6 +506,31 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
   if (!communityRepo) {
     problems.push({ code: 'missing-evidence', message: `no repo export supplied for community ${community}`, voter: community });
     return finish();
+  }
+
+  // ── Supersession, before anything is judged stale ─────────────────
+  //
+  // A supersession excuses exactly the failure this function exists to raise:
+  // eligible votes the decision does not count. So the claim is never taken on
+  // the caller's word. The superseding record has to be in the community's own
+  // signed repo at the CID it is offered under, and the `supersedes` reference
+  // is read out of the *repo's* copy rather than the caller's — otherwise a
+  // fabricated sibling could silence a genuine `uncounted-vote`.
+  if (communityRepo.signatureVerified) {
+    for (const sibling of input.siblingDecisions ?? []) {
+      if (sibling.uri === input.decision.uri) continue;
+      const loc = parseAtUri(sibling.uri);
+      if (!loc || loc.repo !== community || loc.collection !== DECISION_COLLECTION) continue;
+
+      const inRepo = await locateRecord(communityRepo, DECISION_COLLECTION, loc.rkey);
+      if (!inRepo.found || inRepo.cid !== sibling.cid) continue;
+
+      const ref = inRepo.value.supersedes;
+      if (isRecord(ref) && ref.uri === input.decision.uri && ref.cid === input.decision.cid) {
+        summary.supersededBy = sibling.uri;
+        break;
+      }
+    }
   }
 
   // ── The decision and the proposal are in the community's signed repo ──
@@ -681,15 +737,61 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
     });
   }
 
+  // The quorum rule the decision publishes is a claim about itself. Taking it
+  // at face value would make `insufficient-quorum` unenforceable against the
+  // one adversary that matters: a PDS resolving a one-vote decision in a
+  // quorum-five community and writing `threshold: 1` on the record. The rule
+  // resolution actually applied comes from the community's settings record
+  // (`voteOnProposal` reads `governanceConfig.quorum || 3`), which lives in the
+  // community repo and is therefore already signature-checked here.
+  //
+  // That record is mutable and keeps no lineage, so it states the rule *now*,
+  // not the rule at resolution time. Publishing a smaller threshold must never
+  // lower the bar, so the effective threshold is the larger of the two — a
+  // decision has to satisfy both what it claimed and what the community
+  // requires. A community that raises its quorum after the fact will therefore
+  // make older decisions read as short; the message says so, because offline
+  // there is no way to tell that apart from an under-resolved decision, and
+  // silently preferring the decision's own number is what the attack relies on.
+  const settingsInRepo = await locateRecord(communityRepo, SETTINGS_COLLECTION, 'self');
+  let settingsThreshold: number | null = null;
+  if (!settingsInRepo.found) {
+    problems.push({
+      code: 'missing-evidence',
+      message: `community settings record (${SETTINGS_COLLECTION}/self) is not in the export: ${settingsInRepo.reason}. The quorum rule the decision publishes cannot be checked against the community's own.`,
+      voter: community,
+    });
+  } else {
+    const config = isRecord(settingsInRepo.value.governanceConfig) ? settingsInRepo.value.governanceConfig : null;
+    // Same expression the online path applies, `|| 3` included.
+    settingsThreshold = (typeof config?.quorum === 'number' ? config.quorum : 0) || DEFAULT_QUORUM;
+    summary.settingsQuorumThreshold = settingsThreshold;
+  }
+
+  const effectiveThreshold = settingsThreshold === null
+    ? quorumThreshold
+    : Math.max(quorumThreshold, settingsThreshold);
+  summary.effectiveQuorumThreshold = effectiveThreshold;
+
+  if (settingsThreshold !== null && settingsThreshold !== quorumThreshold) {
+    notes.push({
+      code: 'quorum-rule-drift',
+      message: `decision publishes a quorum threshold of ${quorumThreshold}; the community's settings record requires ${settingsThreshold}. ${effectiveThreshold} was applied.`,
+      uri: input.decision.uri,
+    });
+  }
+
   const total = countedFor + countedAgainst;
-  if (total < quorumThreshold) {
+  if (total < effectiveThreshold) {
     problems.push({
       code: 'insufficient-quorum',
-      message: `${total} counted vote(s) is below the published quorum threshold of ${quorumThreshold}`,
+      message: quorumThreshold === effectiveThreshold
+        ? `${total} counted vote(s) is below the quorum threshold of ${effectiveThreshold}`
+        : `${total} counted vote(s) is below the quorum threshold of ${effectiveThreshold} required by the community's settings record, though the decision publishes ${quorumThreshold}`,
       uri: input.decision.uri,
     });
   } else {
-    const expected = decideOutcome(countedFor, countedAgainst, quorumThreshold);
+    const expected = decideOutcome(countedFor, countedAgainst, effectiveThreshold);
     if (expected !== outcome) {
       problems.push({
         code: 'wrong-outcome',

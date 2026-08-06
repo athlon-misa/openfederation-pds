@@ -12,6 +12,14 @@
 export const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 export const VOTE_COLLECTION = 'net.openfederation.governance.vote';
 export const DECISION_COLLECTION = 'net.openfederation.governance.decision';
+export const SETTINGS_COLLECTION = 'net.openfederation.community.settings';
+
+/**
+ * Quorum applied when a community's settings record names none. Mirrors the
+ * `|| 3` in `voteOnProposal`; the verifier has to reach the same number or a
+ * decision could be sound online and short offline.
+ */
+export const DEFAULT_QUORUM = 3;
 
 /** Marker on proposals whose outcome is decided from vote records. */
 export const EVIDENCE_MODEL_VOTE_RECORDS = 'vote-records';
