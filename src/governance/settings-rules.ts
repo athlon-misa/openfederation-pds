@@ -80,6 +80,19 @@ function checkVotingConfig(
     }
   }
 
+  // How many countable objections hold a decided change. Optional: absent means
+  // the default of 1 (see `objectionThreshold` in decision-rules.ts), under
+  // which a single eligible objector holds the change indefinitely.
+  if (governanceConfig.objectionThreshold !== undefined) {
+    const threshold = governanceConfig.objectionThreshold;
+    if (typeof threshold !== 'number' || !Number.isInteger(threshold) || threshold < 1) {
+      return {
+        message: 'governanceConfig.objectionThreshold must be a positive integer '
+          + '(1, the default, means a single eligible objection holds the change)',
+      };
+    }
+  }
+
   if (governanceConfig.protectedCollections !== undefined) {
     if (!Array.isArray(governanceConfig.protectedCollections)) {
       return { message: 'protectedCollections must be an array' };

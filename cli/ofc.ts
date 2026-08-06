@@ -1702,7 +1702,7 @@ governance
     const opts = cmd.opts();
 
     const [
-      { parseRepoCar, findDecisions, buildVerifyInput, parseDidDocuments },
+      { parseRepoCar, findDecisions, buildVerifyInput, parseDidDocuments, EvidenceError },
       { verifyDecision },
     ] = await Promise.all([
       import('../src/governance/decision-evidence.js'),
@@ -1735,7 +1735,44 @@ governance
       );
     }
 
-    const verdict = await verifyDecision(buildVerifyInput(candidates[0], repos, didDocuments));
+    // Assembling the evidence can fail for exactly the reason the verifier
+    // reports as `missing-evidence`: a CAR that was not supplied. Letting that
+    // escape as a generic error would break the contract this command
+    // documents — that the exit code and the JSON verdict *are* the answer —
+    // by exiting 1 with no verdict at all for a script piping `--json` to jq.
+    // So the assembly failure is reported in the verdict's own shape.
+    const candidate = candidates[0];
+    let verdict;
+    try {
+      verdict = await verifyDecision(buildVerifyInput(candidate, repos, didDocuments));
+    } catch (err) {
+      if (!(err instanceof EvidenceError)) throw err;
+      const message = err.message;
+      verdict = {
+        status: 'invalid' as const,
+        code: 'missing-evidence' as const,
+        problems: [{ code: 'missing-evidence' as const, message, uri: candidate.record.uri }],
+        notes: [],
+        summary: {
+          decisionUri: candidate.record.uri,
+          community: typeof candidate.record.value.community === 'string' ? candidate.record.value.community : null,
+          proposalRkey: candidate.proposalRkey,
+          outcome: typeof candidate.record.value.outcome === 'string' ? candidate.record.value.outcome : null,
+          quorumThreshold: null,
+          settingsQuorumThreshold: null,
+          effectiveQuorumThreshold: null,
+          citedVotes: Array.isArray(candidate.record.value.votes) ? candidate.record.value.votes.length : 0,
+          verifiedVotes: 0,
+          countedFor: 0,
+          countedAgainst: 0,
+          eligibleVotesFound: 0,
+          evidenceComplete: candidate.record.value.evidenceComplete === true,
+          disclosedUncounted: Array.isArray(candidate.record.value.uncountedVotes)
+            ? candidate.record.value.uncountedVotes.length
+            : 0,
+        },
+      };
+    }
 
     // The exit code is the verdict, in both modes: a script that pipes --json
     // to jq must not have to parse the answer to learn whether it passed.

@@ -12,7 +12,9 @@ import {
   OBJECTED_STATUS,
   PENDING_STATUS,
   applyDueProposals,
+  communitySettingsRecord,
   countableObjections,
+  objectionThreshold,
   proposalLockKey,
 } from '../governance/timelock.js';
 
@@ -111,7 +113,14 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
       }
 
       const objectorDid = req.auth!.did;
-      const already = (proposal.objections ?? []).some((o: any) => o?.objector === objectorDid);
+      // The cache names objections only once a hold has been recorded, which
+      // under a threshold above 1 happens after several. The signed records are
+      // what actually count, so they decide whether this objector has already
+      // spoken — otherwise a member below the threshold could object repeatedly
+      // and mint a record per attempt, none of which would count twice anyway.
+      const standing = await countableObjections({ communityDid, proposalRkey, proposal });
+      const already = standing.some(o => o.objector === objectorDid)
+        || (proposal.objections ?? []).some((o: any) => o?.objector === objectorDid);
       if (already) {
         res.status(409).json({ error: 'AlreadyObjected', message: 'You have already objected to this proposal' });
         return;
@@ -164,10 +173,13 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
       // so the proposal's `objections` array can only ever name objections that
       // actually exist and actually count.
       const objections = await countableObjections({ communityDid, proposalRkey, proposal });
+      const threshold = objectionThreshold(await communitySettingsRecord(communityDid));
+      const held = objections.length >= threshold;
 
-      // Only a hold changes the proposal. Rewriting it when nothing counts
-      // would mint a signed MST commit for an identical record.
-      if (objections.length > 0) {
+      // Only a hold changes the proposal. Rewriting it when the threshold is
+      // not reached would mint a signed MST commit for a proposal whose state
+      // has not changed.
+      if (held) {
         const engine = new RepoEngine(communityDid);
         const keypair = await getKeypairForDid(communityDid);
         await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
@@ -185,12 +197,16 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
         decisionUri: decision.uri,
         decisionCid: decision.cid,
         applyAt,
-        held: objections.length > 0,
+        objectionThreshold: threshold,
+        objectionCount: objections.length,
+        held,
       });
 
       res.status(200).json({
         recorded: true,
-        status: objections.length > 0 ? OBJECTED_STATUS : proposal.status,
+        status: held ? OBJECTED_STATUS : proposal.status,
+        objectionCount: objections.length,
+        objectionThreshold: threshold,
         objection: { uri: objection.uri, cid: objection.cid, rkey: objection.rkey },
       });
     });

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.governance.decision",
-  "revision": 2,
+  "revision": 1,
   "description": "The outcome of a community governance proposal, written into the community repo at resolution time. It cites the exact evidence the outcome was computed from — the proposal state, the voter-signed vote records that were counted, and the quorum rule applied — so a third party can recheck the decision without trusting the community's PDS.",
   "defs": {
     "main": {

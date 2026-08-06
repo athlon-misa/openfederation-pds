@@ -2,7 +2,7 @@
   "lexicon": 1,
   "id": "net.openfederation.community.objectToProposal",
   "revision": 1,
-  "description": "Object to the application of a passed proposal during its timelock window. Writes an objector-signed net.openfederation.governance.objection record into the objector's own repo; one countable objection holds the change. Eligibility is the same community.governance.write permission that gates voting.",
+  "description": "Object to the application of a passed proposal during its timelock window. Writes an objector-signed net.openfederation.governance.objection record into the objector's own repo. The change is held once governanceConfig.objectionThreshold countable objections exist; that threshold defaults to 1. Eligibility is the same community.governance.write permission that gates voting. WARNING: a hold is permanent and there is no automatic re-review — an 'objected' proposal is never reopened, revoted, or applied. At the default threshold of 1 this means any single member with community.governance.write can veto any decision of the community indefinitely, whatever the vote was. Communities that do not want unanimity-by-any-objector must raise governanceConfig.objectionThreshold, which is itself a governed change to the settings record.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -39,7 +39,15 @@
             },
             "status": {
               "type": "string",
-              "description": "Proposal status after the objection; 'objected' when the application is held."
+              "description": "Proposal status after the objection; 'objected' when the application is held, otherwise unchanged ('pending-application') because the objection threshold has not been reached."
+            },
+            "objectionCount": {
+              "type": "integer",
+              "description": "Countable objections standing against this decision, including this one."
+            },
+            "objectionThreshold": {
+              "type": "integer",
+              "description": "Countable objections required to hold the change (governanceConfig.objectionThreshold; defaults to 1)."
             },
             "objection": {
               "type": "ref",

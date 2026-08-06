@@ -10,12 +10,21 @@
  * So an approved proposal now resolves into `pending-application` and waits
  * `governanceConfig.timelockHours`. During the wait any member who could have
  * voted can publish a `net.openfederation.governance.objection` record in their
- * own repo; one countable objection holds the application. Nothing objected to
- * applies. Nothing unobjected-to fails to apply.
+ * own repo; once `governanceConfig.objectionThreshold` countable objections
+ * exist the application is held. Nothing sufficiently objected to applies.
+ * Nothing unobjected-to fails to apply.
  *
  * This is the `did:plc` rotation-recovery idiom — publish, wait, allow contest —
  * applied to community governance rather than to key rotation, deliberately, so
  * the stack has one story about how a signed act is challenged rather than two.
+ * The port is not symmetric with its model and the asymmetry matters: in
+ * `did:plc` the contester is the account owner recovering their own identity,
+ * whereas here the contester is one of N peers stopping something the other N-1
+ * may have voted for. **A hold is permanent.** There is no expiry, no
+ * re-review, and no re-vote — `objected` is terminal, and at the default
+ * threshold of 1 that means any single eligible member holds any decision
+ * indefinitely. `objectionThreshold` exists so a community can choose otherwise;
+ * choosing is the community's, never this module's.
  *
  * **`pending-application` is not `resolutionDeferred`.** A deferred resolution
  * is a proposal that is still `open` because the vote records and the vote cache
@@ -44,13 +53,29 @@ import {
   PROPOSAL_COLLECTION,
   applyAtFrom,
   checkObjectionRecord,
+  objectionThreshold,
   proposalUri,
   timelockHours,
 } from './decision-rules.js';
 import { putProposalRecord } from './proposal-resolution.js';
 import { SETTINGS_COLLECTION, checkGovernanceSettings } from './settings-rules.js';
 
-export { DEFAULT_TIMELOCK_HOURS, timelockHours } from './decision-rules.js';
+export {
+  DEFAULT_OBJECTION_THRESHOLD,
+  DEFAULT_TIMELOCK_HOURS,
+  objectionThreshold,
+  timelockHours,
+} from './decision-rules.js';
+
+/** The community's settings record, or `undefined` when it has none. */
+export async function communitySettingsRecord(communityDid: string): Promise<any> {
+  const result = await query<{ record: any }>(
+    `SELECT record FROM records_index
+     WHERE community_did = $1 AND collection = $2 AND rkey = 'self'`,
+    [communityDid, SETTINGS_COLLECTION],
+  );
+  return result.rows[0]?.record;
+}
 
 /** Decided and applicable, but waiting out the contest window. */
 export const PENDING_STATUS = 'pending-application';
@@ -162,13 +187,49 @@ export class UnapplicableProposalError extends Error {
  * the error; this is the backstop for anything that reaches here anyway, and it
  * refuses rather than guesses.
  */
-export function proposalApplicationProblem(proposal: any): string | null {
+export async function proposalApplicationProblem(communityDid: string, proposal: any): Promise<string | null> {
   if (proposal?.action !== 'write' || !proposal?.proposedRecord) return null;
   if (proposal.targetCollection !== SETTINGS_COLLECTION) return null;
-  const invalid = checkGovernanceSettings(proposal.proposedRecord);
+  const invalid = checkGovernanceSettings(await recordToWrite(communityDid, proposal));
   return invalid
     ? `refusing to apply a settings proposal that would leave this community ungoverned: ${invalid.message}`
     : null;
+}
+
+/**
+ * The record a `write` proposal will actually put — which is not always the
+ * record it proposed.
+ *
+ * A proposal used to be applied as a whole-record replace, which is right for a
+ * record whose contents are the community's business and wrong for
+ * `net.openfederation.community.settings`: a proposal carrying
+ * `{governanceModel, governanceConfig}` would silently drop every other field
+ * of the settings record — the joinPolicy, the visibility, the description —
+ * because it did not mention them. Since #198 made the proposal route the
+ * *only* way to change the governance model under a voting model, that is now
+ * the mandatory route for the most consequential change a community can make.
+ *
+ * So a settings proposal is merged over the settings record as it stands at
+ * apply time, rather than replacing it. Merging *here* rather than normalizing
+ * the proposal at creation time is deliberate: the settings record is mutable
+ * and can legitimately change during a proposal's life (another proposal, an
+ * ungoverned field), and a record normalized at creation would silently revert
+ * whatever moved in between — reintroducing the same whole-record replace one
+ * step earlier. The proposal states the fields it changes; everything it does
+ * not name is left alone. Nothing offline depends on this: `verifyDecision`
+ * judges whether a decision is sound from the votes it cites and never reads
+ * what the application wrote, so online and offline rules stay identical.
+ *
+ * Top-level merge only. A proposal that names `governanceConfig` replaces that
+ * object entire, which is what a proposer writing a config means.
+ */
+export async function recordToWrite(communityDid: string, proposal: any): Promise<Record<string, unknown>> {
+  if (proposal?.targetCollection !== SETTINGS_COLLECTION || proposal?.targetRkey !== 'self') {
+    return proposal.proposedRecord;
+  }
+  const current = await communitySettingsRecord(communityDid);
+  if (!current || typeof current !== 'object') return proposal.proposedRecord;
+  return { ...current, ...proposal.proposedRecord };
 }
 
 export async function applyProposedChange(
@@ -177,9 +238,10 @@ export async function applyProposedChange(
   proposal: any,
 ): Promise<void> {
   if (proposal?.action === 'write' && proposal?.proposedRecord) {
-    const problem = proposalApplicationProblem(proposal);
+    const problem = await proposalApplicationProblem(engine.did, proposal);
     if (problem) throw new UnapplicableProposalError(problem);
-    await engine.putRecord(keypair, proposal.targetCollection, proposal.targetRkey, proposal.proposedRecord);
+    const record = await recordToWrite(engine.did, proposal);
+    await engine.putRecord(keypair, proposal.targetCollection, proposal.targetRkey, record);
   } else if (proposal?.action === 'delete') {
     await engine.deleteRecord(keypair, proposal.targetCollection, proposal.targetRkey);
   }
@@ -199,6 +261,17 @@ export type ApplyOutcome =
  * Re-reads the proposal under the proposal's own advisory lock — the same lock
  * voting and objecting take — so this can be called from any read path without
  * racing a vote, an objection, or another lazy application.
+ *
+ * **The lock is taken only when there is plausibly work to do.** `getProposal`
+ * is reachable unauthenticated on a public community and calls this on every
+ * read, and `withAdvisoryLock` draws a connection from a pool half the size of
+ * the main one and serializes behind any concurrent vote or objection on the
+ * same proposal. So a single unlocked `SELECT` of the proposal's status and
+ * `applyAt` runs first, and the overwhelmingly common no-op — a proposal that
+ * is open, closed, held, or simply not yet due — returns from it. The check is
+ * advisory only: everything it decides is decided again under the lock, so a
+ * proposal that becomes due between the two reads is merely applied by the next
+ * interaction, exactly as one that becomes due a millisecond later already is.
  */
 export async function applyIfDue(input: {
   communityDid: string;
@@ -207,6 +280,17 @@ export async function applyIfDue(input: {
 }): Promise<ApplyOutcome> {
   const { communityDid, proposalRkey } = input;
   const now = input.now ?? new Date();
+
+  const preview = await query<{ status: string | null; apply_at: string | null }>(
+    `SELECT record->>'status' AS status, record->>'applyAt' AS apply_at
+     FROM records_index
+     WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
+    [communityDid, PROPOSAL_COLLECTION, proposalRkey],
+  );
+  const pending = preview.rows[0];
+  if (!pending || pending.status !== PENDING_STATUS) return { state: 'not-pending' };
+  if (!pending.apply_at) return { state: 'not-pending' };
+  if (now.toISOString() < pending.apply_at) return { state: 'window-open', applyAt: pending.apply_at };
 
   return withAdvisoryLock(proposalLockKey(communityDid, proposalRkey), async () => {
     const result = await query<{ record: any }>(
@@ -226,7 +310,9 @@ export async function applyIfDue(input: {
     // proposal's `objections` cache — a crash between writing an objection
     // record and rewriting the proposal must not let the change through.
     const objections = await countableObjections({ communityDid, proposalRkey, proposal });
-    if (objections.length > 0) {
+    const settings = await communitySettingsRecord(communityDid);
+    const threshold = objectionThreshold(settings);
+    if (objections.length >= threshold) {
       await putProposalRecord(new RepoEngine(communityDid), await getKeypairForDid(communityDid), communityDid, proposalRkey, {
         ...proposal,
         status: OBJECTED_STATUS,
@@ -235,6 +321,7 @@ export async function applyIfDue(input: {
       await auditLog('community.proposal.applicationHeld', null, communityDid, {
         rkey: proposalRkey,
         applyAt,
+        objectionThreshold: threshold,
         objections: objections.map(o => ({ objector: o.objector, uri: o.record.uri, cid: o.record.cid })),
       });
       return { state: 'objected', objections };
@@ -251,7 +338,7 @@ export async function applyIfDue(input: {
     // proposal still closes (the decision stands, and closing is what keeps the
     // change single-shot); it simply makes no claim to have been applied. The
     // immediate path in `voteOnProposal` reports the same thing the same way.
-    const problem = proposalApplicationProblem(proposal);
+    const problem = await proposalApplicationProblem(communityDid, proposal);
     if (problem) {
       await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
         ...proposal,

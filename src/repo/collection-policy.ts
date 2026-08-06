@@ -100,6 +100,13 @@ const SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS = new Set<string>([
   // are established by `objectToProposal`; a hand-written record in one's own
   // repo would assert them instead.
   'net.openfederation.governance.objection',
+  // A decision belongs to the community repo that resolved the proposal, and
+  // `verifyDecision` refuses one found anywhere else. But the offline CLI scans
+  // every supplied export for decision records, so a self-written decision in a
+  // voter's repo would make `--decision <rkey>` mandatory on every verification
+  // of a proposal that voter took part in — griefing the verification path
+  // rather than the outcome. Refused at the source.
+  'net.openfederation.governance.decision',
 ]);
 
 const FALLBACK_PERMISSIONS: OperationPermissions = {

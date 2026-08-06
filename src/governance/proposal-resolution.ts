@@ -226,6 +226,20 @@ export function decideFromRecords(input: {
   return { outcome: recordOutcome, deferred: false, cacheOutcome };
 }
 
+/**
+ * The vote record CIDs a decision cites — the evidence it actually rests on,
+ * read from the same field the offline verifier reads (`votes[].record.cid`).
+ */
+function citedVoteCids(record: any): Set<string> {
+  const votes = Array.isArray(record?.votes) ? record.votes : [];
+  const cids = new Set<string>();
+  for (const vote of votes) {
+    const cid = vote?.record?.cid;
+    if (typeof cid === 'string') cids.add(cid);
+  }
+  return cids;
+}
+
 export interface DecisionRef {
   uri: string;
   cid: string;
@@ -243,13 +257,22 @@ export interface DecisionRef {
  * exactly once because it only ever runs after the status rewrite closes the
  * proposal.
  *
- * The reuse is only safe while the outcome still matches. After a crash the
- * tally can legitimately have moved on (the crashed voter's vote record is
- * committed even though the cache rewrite never happened), and handing back a
- * decision that says `approved` for a proposal now resolving as `rejected`
- * would mint signed, permanent, self-contradictory governance evidence. When
- * the outcomes differ a fresh decision is written that supersedes the stale
- * one, and the supersession is audited.
+ * The reuse is only safe while the existing decision still cites *the same
+ * evidence*. Matching outcomes are not enough. After a crash the tally can
+ * legitimately have moved on — the crashed voter's vote record is committed
+ * even though the cache rewrite never happened — and the next vote can then
+ * produce the same outcome from a strictly larger set of votes. Reusing the
+ * decision there closes the proposal citing a record that counts N votes while
+ * N+1 eligible vote records exist, which is precisely the shape
+ * `verifyDecision` reports as `uncounted-vote` → `invalid`, with no
+ * supersession to excuse it and no repair path: the community's only decision
+ * record for a change that really was applied would be permanently
+ * unverifiable.
+ *
+ * So reuse requires both the outcome and the counted vote CID set to match. Any
+ * difference — a different outcome, an extra vote, a vote that stopped counting
+ * — writes a fresh decision that supersedes the stale one, which is the case
+ * the verifier already knows how to excuse, and audits why.
  */
 export async function ensureDecisionRecord(input: {
   engine: RepoEngine;
@@ -272,11 +295,17 @@ export async function ensureDecisionRecord(input: {
     [communityDid, DECISION_COLLECTION, proposalRkey],
   );
 
+  const votes = [...tally.votesFor, ...tally.votesAgainst];
+  const countedCids = new Set(votes.map(v => v.record.cid));
+
   let supersedes: { uri: string; cid: string } | undefined;
   if (existing.rows.length > 0) {
     const { rkey, cid, record } = existing.rows[0];
     const uri = `at://${communityDid}/${DECISION_COLLECTION}/${rkey}`;
-    if (record?.proposalRkey === proposalRkey && record?.outcome === outcome) {
+    const citedCids = citedVoteCids(record);
+    const sameEvidence = citedCids.size === countedCids.size
+      && [...countedCids].every(c => citedCids.has(c));
+    if (record?.proposalRkey === proposalRkey && record?.outcome === outcome && sameEvidence) {
       return { uri, cid, rkey };
     }
     supersedes = { uri, cid };
@@ -286,10 +315,15 @@ export async function ensureDecisionRecord(input: {
       supersededCid: cid,
       previousOutcome: record?.outcome ?? null,
       outcome,
+      // Which of the two reasons applies matters when reading this back: an
+      // outcome flip is a governance event, an evidence change is a crash the
+      // retry repaired.
+      reason: record?.outcome !== outcome ? 'outcome-changed' : 'evidence-changed',
+      previousVoteCids: [...citedCids],
+      countedVoteCids: [...countedCids],
     });
   }
 
-  const votes = [...tally.votesFor, ...tally.votesAgainst];
   const rkey = RepoEngine.generateTid();
   const record: Record<string, unknown> = {
     $type: DECISION_COLLECTION,

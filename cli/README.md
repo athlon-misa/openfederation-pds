@@ -176,7 +176,7 @@ ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.
 | `governance list-proposals --did <communityDid> [--status <status>]` | No | List governance proposals |
 | `governance verify-decision --car <file...> --did-docs <file> [--decision <rkey>]` | No | Verify a decision offline from CAR exports |
 
-#### Verifying a decision without trusting the PDS
+#### Verifying a decision without asking the PDS anything
 
 `governance verify-decision` contacts nothing — no server, no database, no DID
 resolution over the network. Give it the community's repo export, every voter's
@@ -232,6 +232,31 @@ differ but the tally clears both).
 A decision that has been superseded is only reported as such when the
 superseding record is itself found in the community's signed repo at the CID it
 is offered under.
+
+##### What a `valid` verdict does and does not establish
+
+Two limits, stated plainly, because a verdict is only as useful as the claim it
+actually supports.
+
+**This is not "without trusting the PDS."** A PDS holds the signing keys of the
+accounts it hosts, so a vote record from a locally-hosted voter is something the
+operator can produce. What the evidence chain buys is *tamper-evidence and
+public consistency*: to forge, an operator has to forge coherently — every cited
+vote in the right voter's repo, under the right MST, inside a commit chain
+anyone can fetch today and diff against what they fetched last month — and has
+to do it in the open, in published repos rather than a private database.
+Retroactive edits and selective disclosure become detectable. Independence
+becomes complete only for votes cast from repos that PDS does not hold the keys
+for: a voter hosted elsewhere, or self-hosted.
+
+**Voter eligibility is not checked.** Nothing here — and nothing on the online
+resolution path either — verifies that a counted DID was a member of the
+community with `community.governance.write` when it voted. A decision citing
+authentic, well-formed votes from DIDs that were never members verifies as
+`valid`. Closing this requires the decision record to cite the member-list
+record CID it counted against; until then, check membership yourself against the
+community repo's `net.openfederation.community.member` records if the question
+matters to you.
 
 Pass `--decision <rkey>` when an export holds more than one decision record; the
 command refuses to guess.

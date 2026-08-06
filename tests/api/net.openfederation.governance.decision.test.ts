@@ -8,7 +8,9 @@ import { PgBlockstore } from '../../src/repo/pg-blockstore.js';
 import { RepoEngine } from '../../src/repo/repo-engine.js';
 import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
 import { query } from '../../src/db/client.js';
-import { ensureDecisionRecord, quorumRule } from '../../src/governance/proposal-resolution.js';
+import { ensureDecisionRecord, putProposalRecord, quorumRule } from '../../src/governance/proposal-resolution.js';
+import { buildVerifyInput, findDecisions, parseRepoCar } from '../../src/governance/decision-evidence.js';
+import { verifyDecision } from '../../src/governance/verify-decision.js';
 
 const VOTE_COLLECTION = 'net.openfederation.governance.vote';
 const DECISION_COLLECTION = 'net.openfederation.governance.decision';
@@ -82,6 +84,41 @@ async function auditEntries(action: string, communityDid: string, rkey: string) 
     [action, communityDid, rkey],
   );
   return res.rows.map(r => r.meta);
+}
+
+/** The community's own signed CAR export, as a third party would fetch it. */
+async function exportCar(did: string): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of await new RepoEngine(did).exportAsCAR()) chunks.push(chunk);
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) { out.set(chunk, at); at += chunk.length; }
+  return out;
+}
+
+/** DID documents straight from the PLC directory — not from this PDS. */
+async function didDocument(did: string): Promise<any> {
+  const base = process.env.PLC_DIRECTORY_URL || 'http://localhost:2582';
+  const res = await fetch(`${base}/${did}`);
+  expect(res.status).toBe(200);
+  return res.json();
+}
+
+/**
+ * Run the real offline verifier over the real repos, exactly as
+ * `ofc governance verify-decision` would after `com.atproto.sync.getRepo`.
+ */
+async function verifyOffline(communityDid: string, decisionRkey: string, voters: string[]) {
+  const dids = [communityDid, ...voters];
+  const repos = [];
+  for (const did of dids) repos.push(await parseRepoCar(await exportCar(did)));
+  const didDocuments = [];
+  for (const did of dids) didDocuments.push(await didDocument(did));
+
+  const candidate = findDecisions(repos).find(d => d.rkey === decisionRkey);
+  expect(candidate).toBeTruthy();
+  return verifyDecision(buildVerifyInput(candidate!, repos, didDocuments));
 }
 
 describe('Governance decision records and vote-record tallies', () => {
@@ -547,11 +584,16 @@ describe('Governance decision records and vote-record tallies', () => {
       const proposal = await getProposal(communityDid, proposalRkey);
       const proposalCid = await getProposalCid(communityDid, proposalRkey);
 
-      // Same proposal, same call — but the tally has moved, as it can after a
-      // crash between the decision write and the status rewrite.
+      // A retry that finds the *same* evidence reuses the decision: same
+      // outcome, same counted vote records, nothing to supersede.
+      const sameTally = {
+        votesFor: original.value.votes.filter((v: any) => v.vote === 'for'),
+        votesAgainst: original.value.votes.filter((v: any) => v.vote === 'against'),
+        uncounted: [],
+      };
       const same = await ensureDecisionRecord({
         engine, keypair, communityDid, proposalRkey, proposalCid, proposal,
-        tally: { votesFor: [], votesAgainst: [], uncounted: [] },
+        tally: sameTally,
         quorum: quorumRule('simple-majority', QUORUM),
         outcome: 'approved',
       });
@@ -576,6 +618,94 @@ describe('Governance decision records and vote-record tallies', () => {
       expect(audit.supersededUri).toBe(original.uri);
       expect(audit.previousOutcome).toBe('approved');
       expect(audit.outcome).toBe('rejected');
+    });
+  });
+
+  /**
+   * The failure the whole refactor exists to prevent: an applied change whose
+   * only decision record the branch's own verifier calls `invalid`.
+   *
+   * A crash between the decision write and the proposal status rewrite leaves
+   * the proposal open with a decision citing N votes. A further voter then
+   * votes; the outcome is unchanged, but the tally is now N+1. Reusing the
+   * decision on outcome alone would close the proposal citing a record that
+   * omits an eligible vote — `uncounted-vote`, with no supersession to excuse
+   * it and no way to repair it afterwards.
+   */
+  describe('a retried resolution never reuses a decision whose evidence has moved', () => {
+    it('supersedes on a larger tally, and the decision still verifies offline', async () => {
+      if (!plcAvailable) return;
+
+      const voter3 = await createTestUser(uniqueHandle('dec-voter3'));
+      await xrpcAuthPost('net.openfederation.community.join', voter3.accessJwt, { did: communityDid });
+      const rolesRes = await xrpcGet('net.openfederation.community.listRoles', { communityDid });
+      const modRoleRkey = rolesRes.body.roles.find((r: any) => r.name === 'moderator').rkey;
+      await xrpcAuthPost('net.openfederation.community.updateMember', owner.accessJwt, {
+        communityDid, memberDid: voter3.did, roleRkey: modRoleRkey,
+      });
+
+      const created = await createProposal('evidence-moved-1');
+      const proposalRkey = created.rkey;
+
+      await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter1.accessJwt, {
+        communityDid, proposalRkey, vote: 'for',
+      });
+      const resolveRes = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter2.accessJwt, {
+        communityDid, proposalRkey, vote: 'for',
+      });
+      expect(resolveRes.body.status).toBe('approved');
+
+      const [original] = await decisionFor(communityDid, owner.accessJwt, proposalRkey);
+      expect(original.value.votes).toHaveLength(3);
+
+      // The crash this function's docstring anticipates: the decision is
+      // written, the status rewrite never lands, the proposal is still open.
+      const { uri: _u, rkey: _r, status: _s, resolvedAt: _ra, appliedAt: _aa, decision: _d, ...open }
+        = await getProposal(communityDid, proposalRkey);
+      await putProposalRecord(
+        new RepoEngine(communityDid),
+        await getKeypairForDid(communityDid),
+        communityDid,
+        proposalRkey,
+        { ...open, status: 'open' },
+      );
+
+      // A fourth vote. Same outcome, strictly larger evidence.
+      const late = await xrpcAuthPost('net.openfederation.community.voteOnProposal', voter3.accessJwt, {
+        communityDid, proposalRkey, vote: 'for',
+      });
+      expect(late.status).toBe(200);
+      expect(late.body.status).toBe('approved');
+
+      const decisions = await decisionFor(communityDid, owner.accessJwt, proposalRkey);
+      expect(decisions).toHaveLength(2);
+      const fresh = decisions.find(d => d.uri !== original.uri)!;
+      expect(fresh.value.outcome).toBe('approved');
+      expect(fresh.value.votes).toHaveLength(4);
+      expect(fresh.value.supersedes).toEqual({ uri: original.uri, cid: original.cid });
+
+      // The proposal cites the decision that actually counts every vote.
+      const closed = await getProposal(communityDid, proposalRkey);
+      expect(closed.decision.uri).toBe(fresh.uri);
+
+      const audit = (await auditEntries('community.proposal.decision.superseded', communityDid, proposalRkey))
+        .find(a => a.reason === 'evidence-changed');
+      expect(audit).toBeTruthy();
+      expect(audit.previousOutcome).toBe('approved');
+      expect(audit.outcome).toBe('approved');
+
+      // The whole point: the verifier agrees. Before this fix the proposal
+      // pointed at `original`, which omits voter3's eligible record.
+      const voters = [owner.did, voter1.did, voter2.did, voter3.did];
+      const freshVerdict = await verifyOffline(communityDid, fresh.uri.split('/').pop()!, voters);
+      expect(freshVerdict.problems).toEqual([]);
+      expect(freshVerdict.status).toBe('valid');
+
+      // And the one it replaced is excused as superseded rather than damned.
+      const staleVerdict = await verifyOffline(communityDid, original.uri.split('/').pop()!, voters);
+      expect(staleVerdict.status).toBe('superseded');
+      expect(staleVerdict.problems).toEqual([]);
+      expect(staleVerdict.notes.some(n => n.code === 'uncounted-vote')).toBe(true);
     });
   });
 

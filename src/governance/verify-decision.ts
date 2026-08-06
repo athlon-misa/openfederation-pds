@@ -2,12 +2,42 @@
  * Offline verification of a governance decision (#196).
  *
  * The point of the whole evidence chain is that a third party can recheck a
- * community's decision **without trusting the PDS that hosted it**. That is
- * only true if the check itself needs nothing from that PDS at runtime — so
+ * community's decision **without asking the PDS that hosted it anything**. That
+ * is only true if the check itself needs nothing from that PDS at runtime — so
  * `verifyDecision` reads no database, opens no socket, and resolves no DID over
  * the network. Everything it needs is passed in: the decision record, the
  * proposal it cites, signed repo exports for the community and every voter, and
  * the voters' DID documents from a source the verifier already trusts.
+ *
+ * **What that does and does not buy — stated precisely, because the difference
+ * is the whole value of the exercise.**
+ *
+ *   - *Not* "without trusting the PDS." This PDS holds the signing keys of the
+ *     accounts it hosts (`user_signing_keys`, `getKeypairForDid`), so a
+ *     voter-signed vote record from a locally-hosted account is still something
+ *     the operator can produce. A dishonest operator does not fail these checks;
+ *     it forges a coherent history that passes them.
+ *   - What is bought instead is **tamper-evidence and public consistency**. To
+ *     forge, the operator must forge *coherently* — every cited vote in the
+ *     right voter's repo, under the right MST, inside a commit chain that third
+ *     parties can fetch now and diff against what they fetched before — and
+ *     must do it *in the open*, because the forgery lives in published repos
+ *     rather than in a private database. Retroactive edits become detectable,
+ *     selective disclosure becomes detectable, and a decision stops being an
+ *     unfalsifiable assertion. That is real and it is what a self-hosted or
+ *     externally-hosted voter's repo converts into full independence: a vote
+ *     record in a repo this PDS does not hold the keys for cannot be forged by
+ *     this PDS at all.
+ *   - **Voter eligibility is not checked, at all.** Neither
+ *     `tallyFromVoteRecords` (online) nor this function (offline) verifies that
+ *     a counted DID was a member of the community holding
+ *     `community.governance.write` at the time it voted. A decision citing five
+ *     authentic, well-formed votes from five DIDs that were never members
+ *     verifies as `valid` here. The comment below records this for objections;
+ *     it applies identically to votes, and silently. Closing it needs the
+ *     decision record to cite the member-list record CID it counted against, so
+ *     that membership becomes evidence rather than an assumption — a follow-up,
+ *     deliberately not smuggled in as a behaviour change here.
  *
  * What is actually proved, and in what order:
  *

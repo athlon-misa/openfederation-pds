@@ -161,6 +161,38 @@ export function timelockHours(settings: any): number {
   return configured;
 }
 
+/**
+ * How many countable objections it takes to hold a decided change.
+ *
+ * The default is **1**, and that is a strong statement: a single member holding
+ * `community.governance.write` can stop a change a majority voted for, and
+ * nothing in this system reopens it. There is no expiry, no re-vote, no
+ * override — a held proposal stays held. A community that does not want
+ * unanimity-by-any-objector has to raise `governanceConfig.objectionThreshold`
+ * deliberately, which is itself a governed change to the settings record.
+ *
+ * The default is 1 rather than something higher because a contest window whose
+ * threshold nobody has chosen should fail towards "wait and talk", not towards
+ * "proceed anyway" — but the cost of that default is stated here, in the
+ * lexicon descriptions, and in the settings documentation, because a community
+ * that discovers it only when a change is vetoed has been surprised by its own
+ * governance.
+ */
+export const DEFAULT_OBJECTION_THRESHOLD = 1;
+
+/**
+ * The number of countable objections a community's settings record requires
+ * before a decided change is held. A malformed or missing value is the default;
+ * a *lower* bar can never be produced by accident.
+ */
+export function objectionThreshold(settings: any): number {
+  const configured = settings?.governanceConfig?.objectionThreshold;
+  if (typeof configured !== 'number' || !Number.isInteger(configured) || configured < 1) {
+    return DEFAULT_OBJECTION_THRESHOLD;
+  }
+  return configured;
+}
+
 /** The instant a proposal resolved at `resolvedAt` becomes applicable. */
 export function applyAtFrom(resolvedAt: string, hours: number): string {
   return new Date(new Date(resolvedAt).getTime() + hours * 60 * 60 * 1000).toISOString();
