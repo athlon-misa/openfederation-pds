@@ -143,6 +143,12 @@ CREATE INDEX IF NOT EXISTS idx_records_governance_vote_proposal
     ON records_index ((record->>'community'), (record->>'proposalRkey'))
     WHERE collection = 'net.openfederation.governance.vote';
 
+-- Objections are read the same way, across every objector's repo, and on read
+-- paths reachable without authentication (application is evaluated lazily).
+CREATE INDEX IF NOT EXISTS idx_records_governance_objection_proposal
+    ON records_index ((record->>'community'), (record->>'proposalRkey'))
+    WHERE collection = 'net.openfederation.governance.objection';
+
 -- Members Unique table: enforces one membership per DID per community
 -- This prevents duplicate memberships as per the schema fix in documentation
 CREATE TABLE IF NOT EXISTS members_unique (

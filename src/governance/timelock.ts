@@ -241,16 +241,26 @@ export async function applyIfDue(input: {
  * This is the lazy evaluation hook: read and write paths that touch a
  * community's proposals call it first, so a due application lands on the next
  * interaction instead of waiting for a background job that does not exist.
- * Failures are logged and swallowed — a stuck proposal must not turn an
+ * Failures are contained rather than raised — a stuck proposal must not turn an
  * unrelated read into a 500, and the next interaction retries it.
+ *
+ * **Each proposal is isolated.** The sweep order is deterministic (`rkey ASC`)
+ * and lazy evaluation is the only application mechanism, so a proposal that
+ * throws — a missing keypair, an unwritable target collection, a repo error —
+ * would otherwise abort the sweep at the same point on every subsequent call
+ * and indefinitely block every later approved change in the community. So one
+ * proposal failing skips that proposal only, and the failure is audited rather
+ * than merely logged: a governance change that could not be applied is exactly
+ * what the audit log is for.
  *
  * Must not be called while already holding a proposal's advisory lock: it takes
  * those locks itself, one at a time.
  */
 export async function applyDueProposals(communityDid: string, now: Date = new Date()): Promise<number> {
   let applied = 0;
+  let due;
   try {
-    const due = await query<{ rkey: string }>(
+    due = await query<{ rkey: string }>(
       `SELECT rkey FROM records_index
        WHERE community_did = $1 AND collection = $2
          AND record->>'status' = $3
@@ -258,12 +268,39 @@ export async function applyDueProposals(communityDid: string, now: Date = new Da
        ORDER BY rkey ASC`,
       [communityDid, PROPOSAL_COLLECTION, PENDING_STATUS, now.toISOString()],
     );
-    for (const row of due.rows) {
-      const outcome = await applyIfDue({ communityDid, proposalRkey: row.rkey, now });
-      if (outcome.state === 'applied') applied++;
-    }
   } catch (error) {
-    console.error(`[governance] timelock sweep failed for ${communityDid}:`, error);
+    console.error(`[governance] timelock sweep could not list due proposals for ${communityDid}:`, error);
+    return 0;
+  }
+
+  for (const row of due.rows) {
+    const outcome = await applyIfDueSafely({ communityDid, proposalRkey: row.rkey, now });
+    if (outcome?.state === 'applied') applied++;
   }
   return applied;
+}
+
+/**
+ * `applyIfDue`, with the failure contained and recorded.
+ *
+ * The single containment point for a failing application, so the sweep and the
+ * single-proposal read path (`getProposal`) treat a stuck proposal identically:
+ * `null` back, the error logged, and an audit entry naming the proposal that
+ * could not be applied.
+ */
+export async function applyIfDueSafely(input: {
+  communityDid: string;
+  proposalRkey: string;
+  now?: Date;
+}): Promise<ApplyOutcome | null> {
+  try {
+    return await applyIfDue(input);
+  } catch (error) {
+    console.error(`[governance] timelock application failed for ${input.communityDid}/${input.proposalRkey}:`, error);
+    await auditLog('community.proposal.applyFailed', null, input.communityDid, {
+      rkey: input.proposalRkey,
+      reason: error instanceof Error ? error.message : String(error),
+    }).catch(() => undefined);
+    return null;
+  }
 }

@@ -44,30 +44,47 @@ async function proposalRecord(communityDid: string, rkey: string) {
  * Close the contest window by moving `applyAt` into the past, through a real
  * signed commit by the community. No sleeping, and the repo stays honest.
  *
- * The new instant is placed *after* any objection already raised, so closing
- * the window models time passing rather than retroactively making a timely
- * objection late — which is a different scenario, and one the rules tests pin
- * directly.
+ * The whole episode is moved wholesale into the past — resolved 90 minutes ago,
+ * window closed 30 minutes ago, any objection raised 60 minutes ago, each
+ * re-signed by the key that produced it — rather than the window alone being
+ * dragged backwards across objections that are still timestamped "now". Every
+ * offset is fixed, so no assertion's outcome depends on how much real time
+ * elapses between here and the read that follows.
  */
+const MINUTE = 60_000;
+
 async function closeWindow(communityDid: string, rkey: string): Promise<string> {
-  const record = await proposalRecord(communityDid, rkey);
-  const raised = await query<{ created_at: string }>(
-    `SELECT record->>'createdAt' AS created_at FROM records_index
+  const anchor = Date.now();
+  const resolvedAt = new Date(anchor - 90 * MINUTE).toISOString();
+  const objectedAt = new Date(anchor - 60 * MINUTE).toISOString();
+  const applyAt = new Date(anchor - 30 * MINUTE).toISOString();
+
+  // Objections keep their place inside the window they were raised in, so
+  // closing the window models time passing rather than retroactively making a
+  // timely objection late — a different scenario, pinned by the rules tests.
+  const raised = await query<{ repo_did: string; rkey: string; record: any }>(
+    `SELECT community_did AS repo_did, rkey, record FROM records_index
      WHERE collection = $1 AND record->>'community' = $2 AND record->>'proposalRkey' = $3`,
     [OBJECTION_COLLECTION, communityDid, rkey],
   );
-  const latestObjection = raised.rows
-    .map(r => Date.parse(r.created_at))
-    .reduce((a, b) => Math.max(a, b), 0);
-  const past = new Date(Math.max(Date.now() - 60_000, latestObjection + 1)).toISOString();
+  for (const row of raised.rows) {
+    await new RepoEngine(row.repo_did).putRecord(
+      await getKeypairForDid(row.repo_did),
+      OBJECTION_COLLECTION,
+      row.rkey,
+      { ...row.record, createdAt: objectedAt },
+    );
+  }
+
+  const record = await proposalRecord(communityDid, rkey);
   await putProposalRecord(
     new RepoEngine(communityDid),
     await getKeypairForDid(communityDid),
     communityDid,
     rkey,
-    { ...record, applyAt: past },
+    { ...record, resolvedAt, applyAt },
   );
-  return past;
+  return applyAt;
 }
 
 async function targetRecord(communityDid: string, rkey: string) {
@@ -437,6 +454,46 @@ describe('Governance timelock and objection window', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('UseDedicatedEndpoint');
+    });
+  });
+
+  describe('one unappliable proposal does not block the rest', () => {
+    it('sweeps past a proposal whose application throws, and audits it', async () => {
+      if (!plcAvailable) return;
+      // Both pending before either window closes, so a single sweep sees them
+      // in `rkey ASC` order — the poisoned one first.
+      const poisoned = await passProposal('poison-1');
+      const healthy = await passProposal('after-poison');
+      expect(poisoned.rkey < healthy.rkey).toBe(true);
+
+      // An unwritable target: applying this proposal throws inside the sweep.
+      const record = await proposalRecord(communityDid, poisoned.rkey);
+      await putProposalRecord(
+        new RepoEngine(communityDid),
+        await getKeypairForDid(communityDid),
+        communityDid,
+        poisoned.rkey,
+        { ...record, targetCollection: '' },
+      );
+
+      await closeWindow(communityDid, poisoned.rkey);
+      await closeWindow(communityDid, healthy.rkey);
+
+      // One sweep, covering both.
+      const list = await xrpcGet('net.openfederation.community.listProposals', { communityDid });
+      expect(list.status).toBe(200);
+
+      // Nothing was written for the poisoned proposal...
+      expect((await targetRecord(communityDid, 'poison-1')).status).toBe(404);
+      // ...and the failure is recorded rather than only logged.
+      const [failure] = await auditEntries('community.proposal.applyFailed', communityDid, poisoned.rkey);
+      expect(failure).toBeTruthy();
+      expect(failure.reason).toBeTruthy();
+
+      // The proposal after it still applied — the sweep did not abort.
+      expect((await targetRecord(communityDid, 'after-poison')).status).toBe(200);
+      const healthyRecord = await proposalRecord(communityDid, healthy.rkey);
+      expect(healthyRecord.status).toBe('approved');
     });
   });
 

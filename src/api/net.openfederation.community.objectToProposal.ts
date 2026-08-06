@@ -165,13 +165,17 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
       // actually exist and actually count.
       const objections = await countableObjections({ communityDid, proposalRkey, proposal });
 
-      const engine = new RepoEngine(communityDid);
-      const keypair = await getKeypairForDid(communityDid);
-      await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
-        ...proposal,
-        status: objections.length > 0 ? OBJECTED_STATUS : proposal.status,
-        ...(objections.length > 0 ? { objections } : {}),
-      });
+      // Only a hold changes the proposal. Rewriting it when nothing counts
+      // would mint a signed MST commit for an identical record.
+      if (objections.length > 0) {
+        const engine = new RepoEngine(communityDid);
+        const keypair = await getKeypairForDid(communityDid);
+        await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
+          ...proposal,
+          status: OBJECTED_STATUS,
+          objections,
+        });
+      }
 
       await auditLog('community.proposal.objection', req.auth!.userId, communityDid, {
         rkey: proposalRkey,

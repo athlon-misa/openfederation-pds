@@ -62,6 +62,7 @@ export type AuditAction =
   | 'community.proposal.objection'
   | 'community.proposal.applicationHeld'
   | 'community.proposal.apply'
+  | 'community.proposal.applyFailed'
   | 'community.proposal.decision.superseded'
   | 'admin.export.schedule.create'
   | 'admin.export.schedule.delete'
