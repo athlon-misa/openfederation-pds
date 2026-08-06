@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security: external-login handoff codes are bound to the initiating browser
+
+The 60-second code that hands an external ATProto login back to the dashboard was
+a bare bearer value: whoever held it could redeem it. An attacker could complete
+OAuth as themselves, withhold the code, and send `/callback?code=...` to a
+victim, whose browser would silently become signed in as the attacker — login
+CSRF / session swapping (issue #146).
+
+- The dashboard now generates a random verifier per login attempt, keeps it in
+  `sessionStorage` (tab-scoped, so a code opened in another tab cannot borrow
+  it), and sends only its SHA-256 as `codeChallenge` on
+  `net.openfederation.account.resolveExternal`. The challenge rides in the OAuth
+  `state` the ATProto client persists, so it survives the round-trip through the
+  external PDS without a cookie — which matters because SDK consumers are
+  cross-site and a `SameSite=None` cookie would have been required otherwise.
+- `/oauth/external/complete` requires the matching `codeVerifier` for any
+  web-flow code, compared in constant time. Codes are burned on **any**
+  redemption attempt, so a failed try cannot be retried.
+- Fails closed on downgrade: a web-flow code that carries no challenge is
+  rejected rather than treated as unbound. Without this, an attacker could force
+  the SDK branch (the dashboard origin is an allowed redirect target) and obtain
+  a code the dashboard would still redeem.
+- The dashboard also refuses to present a code when the tab holds no verifier,
+  so an unbound code is never even sent.
+- Refusals are audited as `auth.external.handoffRejected`.
+- **SDK consumers are unaffected.** The redirect flow keeps working without a
+  verifier, since consumers supply and validate their own `state` on their own
+  callback. `net.openfederation.account.resolveExternal` revision 1→2 for the new
+  optional `codeChallenge` input.
+
 ### Governance: voter eligibility is evidence, not an assumption
 
 Nothing checked that a counted vote came from someone entitled to cast it.

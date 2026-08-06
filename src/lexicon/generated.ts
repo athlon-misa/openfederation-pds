@@ -270,7 +270,9 @@ export type NetOpenfederationAccountRequestPasswordResetOutput = {
 };
 export type NetOpenfederationAccountRequestPasswordResetError = never;
 
-export type NetOpenfederationAccountResolveExternalInput = JsonObject;
+export type NetOpenfederationAccountResolveExternalInput = {
+  "codeChallenge"?: string;
+};
 export type NetOpenfederationAccountResolveExternalOutput = JsonObject;
 export type NetOpenfederationAccountResolveExternalError = "ResolutionFailed" | "ServiceUnavailable";
 
@@ -2552,7 +2554,7 @@ export const lexiconContracts = {
   'net.openfederation.account.register': { revision: 3, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
   'net.openfederation.account.reject': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.requestPasswordReset': { revision: 1, errors: [] as const },
-  'net.openfederation.account.resolveExternal': { revision: 1, errors: ["ResolutionFailed", "ServiceUnavailable"] as const },
+  'net.openfederation.account.resolveExternal': { revision: 2, errors: ["ResolutionFailed", "ServiceUnavailable"] as const },
   'net.openfederation.account.revokeSession': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.updateProfile': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.updateRoles': { revision: 1, errors: ["NotFound"] as const },
