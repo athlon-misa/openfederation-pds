@@ -245,22 +245,34 @@ The PDS auto-initializes its schema on first startup. If you see errors about mi
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f src/db/schema.sql
 ```
 
-### Upgrading an existing database: governance indexes are NOT auto-applied
+### Migrations are applied automatically on startup
 
-`ensureSchema()` runs `schema.sql` only when the `users` table is missing, so an
-existing deployment never re-reads it — including the `CREATE INDEX IF NOT
-EXISTS` statements the governance refactor added. Apply these by hand when
-upgrading:
+`ensureSchema()` does two things at boot. It initializes from `schema.sql` only
+when the `users` table is missing — that part is fresh-install only — and then,
+on **every** start, it applies every `scripts/migrate-*.sql` file in sorted
+order. The migrations are written to be idempotent, so re-running them is a
+no-op, and a failure is fatal rather than silent: the server logs which file
+failed and refuses to start.
 
-```bash
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-035-governance-vote-record-index.sql
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-036-governance-objection-index.sql
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f scripts/migrate-037-governance-anchor-audit-index.sql
+You will see the result in the startup log:
+
+```
+Applied 38 migrations (migrate-001-repo-roots.sql..migrate-037-governance-anchor-audit-index.sql).
 ```
 
-They are `IF NOT EXISTS`, so re-running them is safe. Skipping 036 in particular
-leaves an unauthenticated `getProposal` on a public community with a proposal
-awaiting application doing a sequential scan of `records_index` on every read.
+**No manual step is required when upgrading.** Deploy, and the new migrations
+apply themselves.
+
+Two consequences worth knowing:
+
+- Adding an index to `schema.sql` alone is not enough for existing deployments,
+  because `schema.sql` is only read on a fresh database. Every schema change
+  needs a numbered `scripts/migrate-NNN-*.sql` file as well — that file is what
+  actually reaches production.
+- Migrations run before the server accepts traffic, but during a rolling deploy
+  the *previous* instance is still serving. A long-running `CREATE INDEX` will
+  block writes on that table for the duration, so for a large table prefer
+  `CREATE INDEX CONCURRENTLY` in the migration.
 
 ### Server Won't Start
 
