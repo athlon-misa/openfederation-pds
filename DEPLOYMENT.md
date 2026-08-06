@@ -271,6 +271,22 @@ railway run bash scripts/apply-governance-indexes.sh
 populated, so the script picks up `DB_HOST` / `DB_NAME` / `DB_USER` /
 `DB_PASSWORD` without them ever being typed or pasted.
 
+`railway login` needs a real terminal — from a tool without a TTY it fails with
+`Cannot login in non-interactive mode`. Run it from your own terminal app, or
+use `railway login --browserless` for a URL-and-code flow. The credentials are
+stored in `~/.railway/config.json` and shared by every shell on the machine.
+
+If you would rather skip the CLI, take the connection string from the Railway
+dashboard (Postgres service → Variables → **`DATABASE_PUBLIC_URL`**) and pass it
+straight in:
+
+```bash
+DATABASE_URL='postgresql://...' bash scripts/apply-governance-indexes.sh
+```
+
+`DATABASE_PUBLIC_URL` rather than `DATABASE_URL`, because the internal hostname
+only resolves inside Railway's network. The password is masked in the output.
+
 If you would rather use Railway's own psql session, `railway connect Postgres`
 opens one — then run `\i scripts/migrate-035-governance-vote-record-index.sql`
 for each of the three files.

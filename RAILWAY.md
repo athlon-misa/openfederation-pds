@@ -173,6 +173,8 @@ EXISTS` added to `schema.sql` for an already-deployed PDS therefore never
 executes on upgrade. The governance refactor added three, and they must be run
 once against each existing database, after deploying:
 
+**With the Railway CLI:**
+
 ```bash
 railway login                 # opens a browser; once per machine
 railway link                  # pick the project, then the PDS service
@@ -183,8 +185,26 @@ railway run bash scripts/apply-governance-indexes.sh
 populated, so the script reads `DB_HOST` / `DB_NAME` / `DB_USER` / `DB_PASSWORD`
 straight from Railway — no connection string is typed or pasted anywhere.
 
-The script applies all three, verifies each index exists afterwards, and exits
-non-zero if any is missing. It needs the `psql` client locally
+`railway login` needs a real terminal. If you are running it from a tool that
+does not allocate a TTY you will get `Cannot login in non-interactive mode`;
+run it from your own terminal app, or use `railway login --browserless`, which
+prints a URL and pairing code instead of opening a browser. Credentials land in
+`~/.railway/config.json` and are shared by every shell on the machine, so you
+only need to do it once.
+
+**Without the CLI**, copy the connection string from the Railway dashboard —
+Postgres service → Variables → **`DATABASE_PUBLIC_URL`** — and pass it directly:
+
+```bash
+DATABASE_URL='postgresql://...' bash scripts/apply-governance-indexes.sh
+```
+
+Use `DATABASE_PUBLIC_URL`, not `DATABASE_URL`: the internal hostname only
+resolves from inside Railway's network. The script masks the password in its
+output.
+
+Either way it applies all three, verifies each index exists afterwards, and
+exits non-zero if any is missing. It needs the `psql` client locally
 (`brew install postgresql@15`); if you would rather not install it, use
 Railway's own session instead — `railway connect Postgres`, then
 `\i scripts/migrate-035-governance-vote-record-index.sql` for each of the three
