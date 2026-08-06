@@ -95,6 +95,8 @@ export type AuditAction =
   | 'wallet.sign.originRejected'
   | 'wallet.signTransaction.originRejected'
   | 'wallet.consent.originRejected'
+  // Login handoff code presented by a browser that did not start the flow (#146).
+  | 'auth.external.handoffRejected'
   | 'identity.signInAssert'
   | 'identity.setPrimaryWallet'
   | 'wallet.retrieveForUpgrade'

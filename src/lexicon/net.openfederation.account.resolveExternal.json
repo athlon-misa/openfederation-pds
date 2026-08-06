@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.resolveExternal",
-  "revision": 1,
+  "revision": 2,
   "description": "Generated XRPC contract for net.openfederation.account.resolveExternal.",
   "defs": {
     "main": {
@@ -11,7 +11,12 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "properties": {}
+          "properties": {
+            "codeChallenge": {
+              "type": "string",
+              "description": "Base64url SHA-256 of a verifier the calling browser keeps private. Binds the login handoff code to this browser so it cannot be redeemed elsewhere."
+            }
+          }
         }
       },
       "output": {
