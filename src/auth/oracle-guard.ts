@@ -1,21 +1,13 @@
-import type { Request } from 'express';
-import { verifyOracleKey } from './verification.js';
-
+/**
+ * Oracle credential shape.
+ *
+ * Chain-module surface: it lives here only because the credential lookup
+ * (`verifyOracleKey`) still lives in `verification.ts`. Nothing in core auth
+ * imports this type — the middleware, guard, and governance plumbing that
+ * use it all live in `src/governance/oracle-auth.ts`.
+ */
 export interface OracleContext {
   credentialId: string;
   communityDid: string;
   name: string;
-}
-
-/**
- * Validate an X-Oracle-Key header and return the Oracle context.
- * Returns null if the key is missing, invalid, or doesn't match.
- * Does NOT send error responses — caller decides how to handle null.
- */
-export async function validateOracleKey(req: Request): Promise<OracleContext | null> {
-  const result = await verifyOracleKey({
-    rawKey: req.headers['x-oracle-key'] as string | undefined,
-    origin: req.headers.origin as string | undefined,
-  });
-  return result.ok ? result.oracle : null;
 }

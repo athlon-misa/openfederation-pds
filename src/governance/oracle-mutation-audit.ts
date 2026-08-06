@@ -193,11 +193,11 @@ function parseGovernanceProof(
  * an on-chain protected mutation eligible to proceed.
  */
 export function prepareOracleMutationAudit(input: {
-  governance: GovernanceResult;
+  governance: GovernanceResult | null;
   oracle: OracleContext | null;
   governanceProof: unknown;
 }): OracleMutationAudit | null {
-  if (input.governance.governanceModel !== 'on-chain' || !input.oracle) {
+  if (input.governance?.governanceModel !== 'on-chain' || !input.oracle) {
     return null;
   }
 

@@ -4,12 +4,8 @@ import { requireAuth } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { authorizeCollectionMutation } from '../repo/collection-policy.js';
-import { enforceGovernance, isCommunityDid } from '../governance/enforcement.js';
-import {
-  executeOracleGovernedMutation,
-  prepareOracleMutationAudit,
-  type OracleMutationAudit,
-} from '../governance/oracle-mutation-audit.js';
+import { enforceGovernance, isCommunityDid, type GovernanceResult } from '../governance/enforcement.js';
+import { resolveGovernanceContext, runGovernedMutation } from '../governance/request-authority.js';
 import { FORUM_THREAD, FORUM_POST, CALENDAR_EVENT, CALENDAR_RSVP } from '../forum/forum-index.js';
 import { renderXrpcError } from '../xrpc/errors.js';
 
@@ -61,13 +57,13 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
       operation: 'update',
     });
 
-    // Check for Oracle authentication
-    const oracleContext = req.oracleAuth ?? null;
-    let oracleAudit: OracleMutationAudit | null = null;
+    // Authority attributed to this request by a registered module, if any.
+    const requestContext = resolveGovernanceContext(req);
+    let governance: GovernanceResult | null = null;
 
     // Governance enforcement for community repos
     if (await isCommunityDid(repo)) {
-      const governance = await enforceGovernance(repo, collection, 'write', oracleContext);
+      governance = await enforceGovernance(repo, collection, 'write', requestContext);
       if (!governance.allowed) {
         res.status(403).json({
           error: 'GovernanceDenied',
@@ -76,18 +72,15 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
         });
         return;
       }
-      oracleAudit = prepareOracleMutationAudit({
-        governance,
-        oracle: oracleContext,
-        governanceProof: req.body.governanceProof,
-      });
     }
 
     const engine = new RepoEngine(repo);
     const keypair = await getKeypairForDid(repo);
 
-    const result = await executeOracleGovernedMutation({
-      audit: oracleAudit,
+    const result = await runGovernedMutation({
+      request: req,
+      context: requestContext,
+      governance,
       communityDid: repo,
       collection,
       rkey,

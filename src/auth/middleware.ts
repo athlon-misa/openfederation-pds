@@ -4,7 +4,6 @@ import {
   setOAuthVerifier as setAuthVerificationOAuthVerifier,
   verifyRequestAuth,
   verifyPartnerKey,
-  verifyOracleKey,
 } from './verification.js';
 
 type OAuthVerifier = {
@@ -50,16 +49,9 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     }
   }
 
-  const oracleKey = req.headers['x-oracle-key'];
-  if (typeof oracleKey === 'string' && oracleKey.length > 0) {
-    const oracleResult = await verifyOracleKey({
-      rawKey: oracleKey,
-      origin: req.headers.origin as string | undefined,
-    });
-    if (oracleResult.ok) {
-      req.oracleAuth = oracleResult.oracle;
-    }
-  }
+  // NOTE: module credentials (e.g. the chain module's X-Oracle-Key) are
+  // deliberately NOT handled here. Modules mount their own middleware on the
+  // routes that accept them — see src/governance/oracle-auth.ts.
 
   next();
 }

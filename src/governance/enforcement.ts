@@ -1,6 +1,6 @@
 import { query } from '../db/client.js';
-import type { OracleContext } from '../auth/oracle-guard.js';
 import { resolveAttestor, type GovernanceProof } from './attestor.js';
+import type { GovernanceRequestContext } from './request-authority.js';
 
 /** Collections that MUST always be protected — cannot be removed from governance */
 const MANDATORY_PROTECTED = [
@@ -47,7 +47,7 @@ export async function enforceGovernance(
   communityDid: string,
   collection: string,
   action: 'write' | 'delete',
-  oracleContext?: OracleContext | null,
+  requestContext?: GovernanceRequestContext | null,
   attestation?: AttestationRequest,
 ): Promise<GovernanceResult> {
   // ── Attestor hook (single seam core has into the attestor registry) ──
@@ -122,7 +122,10 @@ export async function enforceGovernance(
       };
 
     case 'on-chain':
-      if (oracleContext && oracleContext.communityDid === communityDid) {
+      // An external authority (registered by a module) may attest that this
+      // request is authorized to act for the community. Core never learns
+      // what kind of authority it is.
+      if (requestContext && requestContext.communityDid === communityDid) {
         return { allowed: true, governanceModel };
       }
       return {
