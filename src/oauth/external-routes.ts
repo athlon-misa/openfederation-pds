@@ -23,6 +23,7 @@
 
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
+import { auditLog } from '../db/audit.js';
 import rateLimit from 'express-rate-limit';
 import { config } from '../config.js';
 import { getExternalOAuthClient, getClientMetadata } from './external-client.js';
@@ -39,16 +40,83 @@ const REDIRECT_COOKIE = 'ofd_auth_redirect';
 // Temporary code store for the OAuth callback → frontend handoff.
 // Codes expire after 60 seconds — this is an in-memory store since codes
 // are consumed immediately by the frontend callback page.
-const pendingCodes = new Map<string, { tokens: LocalTokens; expiresAt: number }>();
+interface PendingCode {
+  tokens: LocalTokens;
+  expiresAt: number;
+  /**
+   * SHA-256 of a verifier the initiating browser kept to itself (PKCE-style).
+   *
+   * Without it the handoff code is a bare bearer: an attacker can complete
+   * OAuth as themselves, withhold the code, and send /callback?code=... to a
+   * victim, whose browser silently becomes logged in as the attacker (#146).
+   * Requiring the verifier means only the browser that started the flow can
+   * redeem the code.
+   *
+   * Null only for the SDK redirect flow, where the consumer supplies and
+   * validates its own `state` on its own callback. Web-UI codes always carry
+   * one — see `requiresVerifier`.
+   */
+  codeChallenge: string | null;
+  /**
+   * True when this code was minted for the web-interface flow, which always
+   * establishes a challenge. Tracked separately from `codeChallenge` so a code
+   * cannot be downgraded to no-verifier by omitting the challenge: an attacker
+   * who forces the SDK branch (the web UI origin is an allowed redirect target)
+   * would otherwise get an unbound code the web callback would happily redeem.
+   */
+  requiresVerifier: boolean;
+}
+
+const pendingCodes = new Map<string, PendingCode>();
 
 const MAX_PENDING_CODES = 10_000;
 
-function addPendingCode(code: string, entry: { tokens: LocalTokens; expiresAt: number }): void {
+function addPendingCode(code: string, entry: PendingCode): void {
   if (pendingCodes.size >= MAX_PENDING_CODES) {
     const oldest = pendingCodes.keys().next().value;
     if (oldest) pendingCodes.delete(oldest);
   }
   pendingCodes.set(code, entry);
+}
+
+/**
+ * Seed a handoff code directly.
+ *
+ * Test-only. Reaching `/oauth/external/complete` for real needs a live external
+ * PDS to redirect through, so this is the seam that lets the redemption rules —
+ * the security-relevant part — be exercised end to end over HTTP.
+ */
+export function seedPendingCodeForTests(code: string, entry: PendingCode): void {
+  addPendingCode(code, entry);
+}
+
+/**
+ * Pull the PKCE-style challenge out of the OAuth `state` we set when the flow
+ * began. State is our own opaque value, but treat it as untrusted anyway — it
+ * round-trips through an external PDS.
+ */
+export function readCodeChallenge(state: string | null | undefined): string | null {
+  if (!state || typeof state !== 'string') return null;
+  try {
+    const parsed = JSON.parse(state) as { codeChallenge?: unknown };
+    const challenge = parsed?.codeChallenge;
+    return typeof challenge === 'string' && challenge.length > 0 ? challenge : null;
+  } catch {
+    return null; // legacy or SDK-supplied state that is not ours
+  }
+}
+
+/** Constant-time compare of two hex/base64url digests of equal expected length. */
+export function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+/** SHA-256 of the verifier, base64url — the same shape RFC 7636 S256 uses. */
+export function deriveChallenge(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
 }
 
 interface LocalTokens {
@@ -252,17 +320,26 @@ export function createExternalOAuthRouter(): Router {
 
     try {
       const params = new URLSearchParams(req.query as Record<string, string>);
-      const { session } = await client.callback(params);
+      const { session, state: oauthState } = await client.callback(params);
       const did = session.did;
 
       // Create or find local user for this external DID
       const localTokens = await ensureExternalUser(did, session);
 
+      // The challenge rides in the OAuth `state` the ATProto client persisted
+      // when the flow started, so it survives the round-trip through the
+      // external PDS without needing a cookie that would have to be
+      // SameSite=None to work for cross-site consumers.
+      const codeChallenge = readCodeChallenge(oauthState);
+
       // Generate a temporary code for the frontend to exchange
       const tempCode = crypto.randomBytes(32).toString('hex');
+      const isWebFlow = !clientRedirect?.redirectUri;
       addPendingCode(tempCode, {
         tokens: localTokens,
         expiresAt: Date.now() + 60_000, // 60 seconds
+        codeChallenge,
+        requiresVerifier: isWebFlow,
       });
 
       if (clientRedirect?.redirectUri) {
@@ -307,7 +384,7 @@ export function createExternalOAuthRouter(): Router {
 
   // Exchange temporary code for local JWT tokens
   router.post('/oauth/external/complete', async (req: Request, res: Response) => {
-    const { code } = req.body || {};
+    const { code, codeVerifier } = req.body || {};
     if (!code || typeof code !== 'string') {
       return res.status(400).json({ error: 'InvalidRequest', message: 'code is required' });
     }
@@ -318,7 +395,34 @@ export function createExternalOAuthRouter(): Router {
       return res.status(400).json({ error: 'InvalidCode', message: 'Code is invalid or expired' });
     }
 
+    // Redeem once, whatever happens next: a code that fails verification must
+    // not stay available for another attempt.
     pendingCodes.delete(code);
+
+    if (pending.requiresVerifier || pending.codeChallenge) {
+      // Fail closed. A web-flow code with no challenge means the flow was
+      // started without one, and honouring it would reopen the bearer hole.
+      if (!pending.codeChallenge) {
+        await auditLog('auth.external.handoffRejected', null, pending.tokens.did, {
+          reason: 'MissingChallenge',
+        });
+        return res.status(400).json({
+          error: 'InvalidCode',
+          message: 'This login was not started by this browser. Start again from the sign-in page.',
+        });
+      }
+      if (!codeVerifier || typeof codeVerifier !== 'string'
+          || !safeEqual(deriveChallenge(codeVerifier), pending.codeChallenge)) {
+        await auditLog('auth.external.handoffRejected', null, pending.tokens.did, {
+          reason: codeVerifier ? 'VerifierMismatch' : 'VerifierMissing',
+        });
+        return res.status(400).json({
+          error: 'InvalidCode',
+          message: 'This login was not started by this browser. Start again from the sign-in page.',
+        });
+      }
+    }
+
     res.json({
       ...pending.tokens,
       active: true,
