@@ -175,6 +175,7 @@ ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.
 | `governance vote --did <communityDid> --proposal <rkey> --vote <for\|against>` | Voter | Vote on a proposal |
 | `governance list-proposals --did <communityDid> [--status <status>]` | No | List governance proposals |
 | `governance verify-decision --car <file...> --did-docs <file> [--decision <rkey>]` | No | Verify a decision offline from CAR exports |
+| `governance verify-application --car <file...> --did-docs <file> [--proposal <rkey>] [--as-of <datetime>]` | No | Verify offline that a decided change was legitimately applied |
 
 #### Verifying a decision without asking the PDS anything
 
@@ -249,17 +250,78 @@ Retroactive edits and selective disclosure become detectable. Independence
 becomes complete only for votes cast from repos that PDS does not hold the keys
 for: a voter hosted elsewhere, or self-hosted.
 
-**Voter eligibility is not checked.** Nothing here — and nothing on the online
-resolution path either — verifies that a counted DID was a member of the
-community with `community.governance.write` when it voted. A decision citing
-authentic, well-formed votes from DIDs that were never members verifies as
-`valid`. Closing this requires the decision record to cite the member-list
-record CID it counted against; until then, check membership yourself against the
-community repo's `net.openfederation.community.member` records if the question
-matters to you.
+**Voter eligibility is checked as of the moment each vote was cast**, not at
+resolution (#200). A vote record carries the community-signed member and role
+records consulted when it was written, and those are rechecked against the
+community's own repo. Evidence that *disproves* entitlement is
+`ineligible-vote`; evidence that can no longer be resolved is the
+`membership-unverified` note — never a pass and never an accusation, because
+repo exports prune superseded blocks and an honest decision goes uncheckable
+with time. Votes written before this evidence existed carry none and verify with
+the note.
 
 Pass `--decision <rkey>` when an export holds more than one decision record; the
 command refuses to guess.
+
+#### Verifying that a decided change was legitimately applied
+
+`verify-decision` answers whether a decision was soundly *reached*. It says
+nothing about whether the change was soundly *carried out* — deliberately, since
+an objection contests the application rather than the votes, and treating one as
+a defect would make a sound decision verify as unsound because someone
+disagreed. `governance verify-application` answers the other half, under the
+same constraints: no server, no database, no network.
+
+```bash
+# The community's repo, plus the repo of anyone who may have objected
+ofc governance verify-application \
+  --car community.car ada.car bo.car \
+  --did-docs did-docs.json \
+  --as-of 2026-02-01T00:00:00Z     # optional; see below
+```
+
+| `code` | Verdict | Meaning |
+|--------|---------|---------|
+| `applied` | legitimate | Applied at or after the `applyAt` the community published |
+| `held` | legitimate | Countable objections reached the threshold; the change was withheld |
+| `nothing-to-apply` | legitimate | Rejected, expired, or still open — there is no application to judge |
+| `window-open` | pending | `--as-of` precedes `applyAt`; the contest window is running |
+| `application-due` | pending | The window elapsed and the change has not been applied yet |
+| `pending-application` | pending | Awaiting application, with no `--as-of` to judge the window against |
+| `closed-unapplied` | indeterminate | Closed past its window claiming no application |
+| `early-application` | **illegitimate** | Applied before its own `applyAt` |
+| `applied-over-objection` | **illegitimate** | Applied although countable objections had reached the threshold |
+| `unevidenced-hold` | **illegitimate** | Held on objections the named objectors' own signed repos do not contain |
+| `malformed-proposal` / `missing-evidence` / `forged-signature` / `tampered-evidence` | **illegitimate** | The evidence itself does not hold up |
+
+Only `illegitimate` exits 1. A pending application is a state of the world, not
+a fault: application is **lazy** — a proposal whose window has elapsed is applied
+by the next interaction that touches it — so the timelock is a floor on the
+delay, never a promise of an exact instant. `application-due` therefore passes,
+and only the inverse (`early-application`) is provable dishonesty.
+
+`--as-of` is optional because the verifier reads no clock. Every other verdict
+renders without it, since each is decided by comparing instants the records
+themselves carry; only the open/due distinction needs an external one, and
+without it the command says so rather than inventing a now.
+
+`closed-unapplied` is its own verdict because the signed record genuinely does
+not distinguish two cases: a passed change refused as unapplicable (which the
+PDS records exactly this way) and an application silently skipped.
+
+Two limits, as with `verify-decision`:
+
+- **Objector eligibility is not re-derivable offline.** An objection record
+  carries no membership evidence — that check happened once, online, at
+  submission — so objections are counted structurally and temporally, and the
+  `objector-eligibility-unverified` note travels with every verdict that counts
+  one.
+- **An uncorroborated hold is a note, not an accusation.** A claimed objection
+  whose objector's repo was simply not supplied proves nothing
+  (`hold-unverified`). It becomes `unevidenced-hold` only when that repo *is*
+  supplied, verifies, and contains no countable objection.
+
+Pass `--proposal <rkey>` when an export holds more than one proposal.
 
 ### `ofc profile` — User Profiles
 
