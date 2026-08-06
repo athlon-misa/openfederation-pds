@@ -1,12 +1,10 @@
 import { query } from '../db/client.js';
 import { resolveAttestor, type GovernanceProof } from './attestor.js';
 import type { GovernanceRequestContext } from './request-authority.js';
+import { MANDATORY_PROTECTED_COLLECTIONS, SETTINGS_COLLECTION } from './settings-rules.js';
 
 /** Collections that MUST always be protected — cannot be removed from governance */
-const MANDATORY_PROTECTED = [
-  'net.openfederation.community.settings',
-  'net.openfederation.community.role',
-];
+const MANDATORY_PROTECTED = MANDATORY_PROTECTED_COLLECTIONS;
 
 /** Default protected collections when no custom config is set */
 const DEFAULT_PROTECTED = [
@@ -66,10 +64,7 @@ export async function enforceGovernance(
       }
     }
   }
-  if (
-    collection === 'net.openfederation.community.settings'
-    && action === 'delete'
-  ) {
+  if (collection === SETTINGS_COLLECTION && action === 'delete') {
     return {
       allowed: false,
       reason: 'Community settings cannot be deleted',
@@ -121,7 +116,7 @@ export async function enforceGovernance(
         governanceModel,
       };
 
-    case 'on-chain':
+    case 'on-chain': {
       // `on-chain` is `simple-majority` plus anchoring (#198): the community
       // decides in its own repos and a notary may witness the result. So the
       // fallback here is the proposal flow, exactly as for simple-majority —
@@ -131,18 +126,42 @@ export async function enforceGovernance(
       // that this request is authorized to act for the community, which is a
       // way of carrying delegated authority into a request rather than a way of
       // deciding anything. Core never learns what kind of authority it is.
-      if (requestContext && requestContext.communityDid === communityDid) {
+      //
+      // **That delegation stops at the settings record.** A service acting for
+      // a community may act *under* the community's governance; it may not
+      // change what that governance is. Without this exclusion the bypass would
+      // be a full replacement for the ratchet this task removed — an Oracle
+      // could rewrite `governanceModel` to `benevolent-dictator` and everything
+      // protected would become directly writable, which would make `on-chain`
+      // strictly weaker than `simple-majority` rather than equal to it plus a
+      // notary. The community's own quorum is the only route to its own rules.
+      const delegated = Boolean(requestContext && requestContext.communityDid === communityDid);
+      if (delegated && collection !== SETTINGS_COLLECTION) {
         return { allowed: true, governanceModel };
       }
       return {
         allowed: false,
         requiresProposal: true,
-        reason: 'This community uses on-chain governance. Changes to protected collections require a proposal and majority vote, or an authorized service request.',
+        reason: delegated
+          ? 'This community uses on-chain governance. An authorized service may act under the community\'s governance, but changes to its settings record — including the governance model itself — require a proposal and majority vote.'
+          : 'This community uses on-chain governance. Changes to protected collections require a proposal and majority vote, or an authorized service request.',
         governanceModel,
       };
+    }
 
     default:
-      return { allowed: true, governanceModel };
+      // An unrecognized model is not permission to do anything. Falling through
+      // to `allowed: true` here would mean a settings record naming a model
+      // nobody implements (a typo, a downgrade to an older PDS) silently left
+      // every protected collection directly writable. `settings-rules.ts` stops
+      // such a record being written; this is the backstop for the ones that
+      // already exist.
+      return {
+        allowed: false,
+        requiresProposal: true,
+        reason: `This community's settings record names an unrecognized governance model "${governanceModel}". Changes to protected collections are refused until it names a known model.`,
+        governanceModel,
+      };
   }
 }
 

@@ -31,86 +31,7 @@ import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
 import { enforceGovernance, type GovernanceResult } from '../governance/enforcement.js';
 import { resolveGovernanceContext, runGovernedMutation } from '../governance/request-authority.js';
-
-const VALID_MODELS = ['benevolent-dictator', 'simple-majority', 'on-chain'];
-
-const SETTINGS_COLLECTION = 'net.openfederation.community.settings';
-const MANDATORY_PROTECTED = [SETTINGS_COLLECTION, 'net.openfederation.community.role'];
-
-/** Models whose changes to protected collections are decided by vote records. */
-const VOTED_MODELS = ['simple-majority', 'on-chain'];
-
-type Invalid = { message: string };
-
-/**
- * Validation shared by every model that resolves proposals from vote records.
- * `on-chain` is that same governance plus anchoring, so it answers to the same
- * rules rather than to a parallel set of its own.
- */
-function checkVotingConfig(governanceConfig: any, requireQuorum: boolean): Invalid | null {
-  if (requireQuorum) {
-    if (!governanceConfig.quorum || typeof governanceConfig.quorum !== 'number' || governanceConfig.quorum < 1) {
-      return { message: 'governanceConfig.quorum must be a positive integer' };
-    }
-    if (!governanceConfig.voterRole || typeof governanceConfig.voterRole !== 'string') {
-      return { message: 'governanceConfig.voterRole is required' };
-    }
-  } else {
-    if (governanceConfig.quorum !== undefined
-      && (typeof governanceConfig.quorum !== 'number' || governanceConfig.quorum < 1)) {
-      return { message: 'governanceConfig.quorum must be a positive integer' };
-    }
-  }
-
-  // The contest window a passed proposal waits out before its change is
-  // applied. Optional: absent means the default (see `timelockHours` in
-  // decision-rules.ts). Instant application has to be asked for by name.
-  if (governanceConfig.timelockHours !== undefined) {
-    const hours = governanceConfig.timelockHours;
-    if (typeof hours !== 'number' || !Number.isFinite(hours) || hours < 0) {
-      return {
-        message: 'governanceConfig.timelockHours must be a non-negative number of hours (0 applies changes immediately)',
-      };
-    }
-  }
-
-  if (governanceConfig.protectedCollections !== undefined) {
-    if (!Array.isArray(governanceConfig.protectedCollections)) {
-      return { message: 'protectedCollections must be an array' };
-    }
-    const normalized = governanceConfig.protectedCollections.map((c: string) =>
-      c.startsWith('net.openfederation.community.') ? c : `net.openfederation.community.${c}`
-    );
-    for (const m of MANDATORY_PROTECTED) {
-      if (!normalized.includes(m)) normalized.push(m);
-    }
-    governanceConfig.protectedCollections = normalized;
-  }
-
-  return null;
-}
-
-/**
- * Anchoring is a plain setting, not a mode. It says which notary to publish
- * decisions to, never who decides them.
- */
-function checkAnchoring(governanceConfig: any): Invalid | null {
-  const anchoring = governanceConfig.anchoring;
-  if (anchoring === undefined) return null;
-  if (!anchoring || typeof anchoring !== 'object' || Array.isArray(anchoring)) {
-    return { message: 'governanceConfig.anchoring must be an object with { enabled, chainId }' };
-  }
-  if (typeof anchoring.enabled !== 'boolean') {
-    return { message: 'governanceConfig.anchoring.enabled must be a boolean' };
-  }
-  if (anchoring.chainId !== undefined && typeof anchoring.chainId !== 'string') {
-    return { message: 'governanceConfig.anchoring.chainId must be a CAIP-2 chain id string' };
-  }
-  if (anchoring.enabled && !anchoring.chainId && typeof governanceConfig.chainId !== 'string') {
-    return { message: 'governanceConfig.anchoring.chainId is required when anchoring is enabled' };
-  }
-  return null;
-}
+import { SETTINGS_COLLECTION, checkGovernanceSettings } from '../governance/settings-rules.js';
 
 export default async function setGovernanceModel(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -123,57 +44,19 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
       return;
     }
 
-    if (!VALID_MODELS.includes(governanceModel)) {
-      res.status(400).json({
-        error: 'InvalidRequest',
-        message: `governanceModel must be one of: ${VALID_MODELS.join(', ')}`,
-      });
-      return;
-    }
-
     const hasPermission = await requireCommunityPermission(
       req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.settings.write'
     );
     if (!hasPermission) return;
 
-    if (VOTED_MODELS.includes(governanceModel)) {
-      if (!governanceConfig || typeof governanceConfig !== 'object') {
-        res.status(400).json({
-          error: 'InvalidRequest',
-          message: governanceModel === 'simple-majority'
-            ? 'governanceConfig is required for simple-majority (quorum, voterRole)'
-            : 'governanceConfig is required for on-chain (chainId, and the quorum config governance runs on)',
-        });
-        return;
-      }
-
-      // `simple-majority` has always had to state its quorum. `on-chain` did
-      // not, because it did not use one; it does now, so an unstated quorum
-      // falls back to the same default resolution applies (DEFAULT_QUORUM)
-      // rather than breaking communities configured under the old meaning.
-      const invalid = checkVotingConfig(governanceConfig, governanceModel === 'simple-majority');
-      if (invalid) {
-        res.status(400).json({ error: 'InvalidRequest', message: invalid.message });
-        return;
-      }
-    }
-
-    if (governanceModel === 'on-chain') {
-      // The one thing `on-chain` still needs: somewhere to anchor. Not an
-      // Oracle credential — an Oracle is a way of carrying authority into a
-      // request, not a precondition for a community deciding its own affairs.
-      if (!governanceConfig.chainId || typeof governanceConfig.chainId !== 'string') {
-        res.status(400).json({ error: 'InvalidRequest', message: 'governanceConfig.chainId is required' });
-        return;
-      }
-    }
-
-    if (governanceConfig && typeof governanceConfig === 'object') {
-      const invalid = checkAnchoring(governanceConfig);
-      if (invalid) {
-        res.status(400).json({ error: 'InvalidRequest', message: invalid.message });
-        return;
-      }
+    // The same predicate the proposal route applies (`checkGovernanceSettings`
+    // in governance/settings-rules.ts). Neither route may be the lenient one:
+    // whichever is, becomes the way to give a community a governance model
+    // nothing recognizes.
+    const invalid = checkGovernanceSettings({ governanceModel, governanceConfig }, { normalize: true });
+    if (invalid) {
+      res.status(400).json({ error: 'InvalidRequest', message: invalid.message });
+      return;
     }
 
     const settingsResult = await query<{ record: any }>(

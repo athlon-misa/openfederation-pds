@@ -62,7 +62,15 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     // run inside the one below.
     await applyDueProposals(communityDid);
 
-    return await withAdvisoryLock(proposalLockKey(communityDid, proposalRkey), async () => {
+    // The lock covers the decision and everything it changes, and nothing else.
+    // What it deliberately does NOT cover is anchoring: that call waits on a
+    // third party, and holding a governance advisory lock (and a connection from
+    // the lock pool) for the length of somebody else's network timeout would
+    // make an unavailable notary a contention problem for the whole community.
+    // The closure hands back what the anchoring step needs, and the response is
+    // sent after it, so a receipt is recorded before the caller is told the
+    // proposal resolved.
+    const resolved = await withAdvisoryLock(proposalLockKey(communityDid, proposalRkey), async () => {
     const proposalResult = await query<{ record: any; cid: string }>(
       `SELECT record, cid FROM records_index
        WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
@@ -305,8 +313,22 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
           ...(decision ? { decisionUri: decision.uri, decisionCid: decision.cid, countedVoteCids, evidenceComplete } : {}),
         });
       } else if (outcome === 'approved') {
-        await applyProposedChange(engine, keypair, proposal);
-        applied = true;
+        // The change can be refused at this point — a settings proposal that
+        // would leave the community with a model nothing recognizes is not
+        // applied (see `applyProposedChange`). The decision still stands and is
+        // still recorded; only the effect is withheld, and named as withheld,
+        // exactly as the lazy timelock path does through `applyIfDueSafely`.
+        try {
+          await applyProposedChange(engine, keypair, proposal);
+          applied = true;
+        } catch (error) {
+          console.error(`[governance] could not apply ${communityDid}/${proposalRkey}:`, error);
+          await auditLog('community.proposal.applyFailed', req.auth!.userId, communityDid, {
+            rkey: proposalRkey,
+            targetCollection: proposal.targetCollection,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
         await auditLog('community.proposal.approve', req.auth!.userId, communityDid, {
           rkey: proposalRkey,
           targetCollection: proposal.targetCollection,
@@ -330,32 +352,42 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       voteRecords: writtenVoteRecords.map(r => ({ voter: r.voterDid, uri: r.uri, cid: r.cid })),
     });
 
-    // Notarization, strictly after the fact. Everything this resolution does to
-    // the community's data — the decision record, the proposal rewrite, the
-    // application or the pending window, and their audit entries — is already
-    // done above. Anchoring runs last, returns nothing that is read back, and
-    // cannot throw: an attestor that is absent, slow, or failing leaves a
-    // retriable audit entry and an otherwise identical outcome. The same call
-    // drains anchors this community failed to place earlier, which is the whole
-    // of the retry mechanism.
-    if (decision) {
-      const receipt = await anchorDecision({ communityDid, proposalRkey, decision, settings });
+    return {
+      payload: {
+        recorded: true,
+        status: updatedProposal.status,
+        ...(applied ? { applied: true } : {}),
+        // Decided, not yet effective. Distinct from `resolutionDeferred`, which
+        // means nothing was decided at all.
+        ...(pendingApplication ? { pendingApplication: true, applyAt: pendingApplication } : {}),
+        ...(deferred ? { resolutionDeferred: true } : {}),
+      },
+      decision,
+      settings,
+    };
+    });
+
+    // An early return inside the closure has already answered the request.
+    if (!resolved) return;
+
+    // Notarization, strictly after the fact and outside the lock. Everything
+    // this resolution does to the community's data — the decision record, the
+    // proposal rewrite, the application or the pending window, and their audit
+    // entries — is already committed. Anchoring returns nothing that is read
+    // back and cannot throw: an attestor that is absent, slow, or failing
+    // leaves a retriable audit entry and an otherwise identical outcome.
+    if (resolved.decision) {
+      const receipt = await anchorDecision({
+        communityDid, proposalRkey, decision: resolved.decision, settings: resolved.settings,
+      });
       // Only drain the backlog when the notary has just demonstrated it is
       // answering. Retrying against one that has already failed this request
-      // would spend a timeout per stale entry inside a member's vote.
-      if (receipt) await anchorPendingDecisions({ communityDid, settings });
+      // would spend a timeout per stale entry inside a member's vote. The drain
+      // carries its own wall-clock budget on top of that.
+      if (receipt) await anchorPendingDecisions({ communityDid, settings: resolved.settings });
     }
 
-    res.status(200).json({
-      recorded: true,
-      status: updatedProposal.status,
-      ...(applied ? { applied: true } : {}),
-      // Decided, not yet effective. Distinct from `resolutionDeferred`, which
-      // means nothing was decided at all.
-      ...(pendingApplication ? { pendingApplication: true, applyAt: pendingApplication } : {}),
-      ...(deferred ? { resolutionDeferred: true } : {}),
-    });
-    });
+    res.status(200).json(resolved.payload);
   } catch (error) {
     console.error('Error in voteOnProposal:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to record vote' });

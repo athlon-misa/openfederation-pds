@@ -9,10 +9,10 @@
  *
  *   1. An anchored decision produces a receipt, recorded beside the decision's
  *      own audit evidence, naming the decision CID that was anchored.
- *   2. An attestor that is absent, throwing, or hanging leaves the governance
- *      outcome *structurally identical* to the one produced with no attestor at
- *      all. This is proved by comparing the resulting proposal and decision
- *      records field by field, not by asserting a status code.
+ *   2. Anchoring — succeeding, absent, throwing, or hanging — leaves the
+ *      governance outcome *structurally identical* in all four states. This is
+ *      proved by comparing the resulting proposal and decision records field by
+ *      field, not by asserting a status code.
  *   3. Anchoring is turned off by proposal and quorum, like any other change to
  *      the protected settings record. There is no admin override left: the
  *      direct call is refused with `requiresProposal`.
@@ -27,6 +27,10 @@ import {
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { query } from '../../src/db/client.js';
+import { RepoEngine } from '../../src/repo/repo-engine.js';
+import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
+import { enforceGovernance } from '../../src/governance/enforcement.js';
+import { applyProposedChange } from '../../src/governance/timelock.js';
 import { registerAttestor, clearAttestors, type GovernanceAttestor } from '../../src/governance/attestor.js';
 import { anchoringConfig } from '../../src/governance/anchoring.js';
 
@@ -135,6 +139,9 @@ describe('Governance anchoring (#198)', () => {
   let communityDid: string;
 
   const QUORUM = 3;
+
+  /** Normalized outcome shapes, compared across every anchoring state. */
+  const shapes: Record<string, any> = {};
 
   async function createProposal(targetRkey: string, body?: Record<string, unknown>) {
     const res = await xrpcAuthPost('net.openfederation.community.createProposal', owner.accessJwt, {
@@ -259,6 +266,12 @@ describe('Governance anchoring (#198)', () => {
       expect(decisionRef.cid).toBeTruthy();
       // What is notarized is the decision itself, not a summary of it.
       expect(anchored).toEqual([decisionRef.cid]);
+
+      // Kept for the isolation comparison below: a *successful* anchor has to be
+      // one of the states proved identical, or all that is proved is that three
+      // kinds of failure resemble each other.
+      shapes.anchored = await outcomeShape(rkey);
+      shapes.anchoredResolution = passed.resolution;
     });
 
     it('records the receipt beside the decision evidence in the audit trail', async () => {
@@ -289,8 +302,6 @@ describe('Governance anchoring (#198)', () => {
   });
 
   describe('a failing notary cannot change what governance decided', () => {
-    const shapes: Record<string, any> = {};
-
     it('resolves identically with no attestor registered at all (the control)', async () => {
       if (!plcAvailable) return;
       anchored = [];
@@ -306,8 +317,10 @@ describe('Governance anchoring (#198)', () => {
         repo: communityDid, collection: TARGET_COLLECTION, rkey: 'isolation-control',
       })).status).toBe(200);
 
-      const [meta] = await auditMetas('community.proposal.decision.anchorFailed', communityDid, passed.rkey);
-      expect(meta.reason).toContain('no attestor');
+      // An unregistered attestor is a deployment fact, not a failed notary: it
+      // is reported once to the log and never audited or queued.
+      expect(await auditMetas('community.proposal.decision.anchorFailed', communityDid, passed.rkey)).toEqual([]);
+      expect(await auditMetas('community.proposal.decision.anchored', communityDid, passed.rkey)).toEqual([]);
     });
 
     it('resolves identically when the attestor throws', async () => {
@@ -342,9 +355,10 @@ describe('Governance anchoring (#198)', () => {
       expect(passed.resolution).toEqual(shapes.controlResolution);
       shapes.hung = await outcomeShape(passed.rkey);
 
-      // Bounded, not blocked: the request returned rather than waiting on a
-      // notary that never answers.
-      expect(elapsed).toBeLessThan(30_000);
+      // Bounded, not blocked, and bounded by the configured 250ms rather than by
+      // luck: the default bound is 5s, so an override that never took effect —
+      // or a timeout that applied to neither vote — could not finish this fast.
+      expect(elapsed).toBeLessThan(3_000);
       expect((await xrpcGet('com.atproto.repo.getRecord', {
         repo: communityDid, collection: TARGET_COLLECTION, rkey: 'isolation-hang',
       })).status).toBe(200);
@@ -357,6 +371,10 @@ describe('Governance anchoring (#198)', () => {
       if (!plcAvailable) return;
       expect(shapes.threw).toEqual(shapes.control);
       expect(shapes.hung).toEqual(shapes.control);
+      // …and the state that actually worked, so the claim is "anchoring changes
+      // nothing" rather than "failing changes nothing".
+      expect(shapes.anchored).toEqual(shapes.control);
+      expect(shapes.anchoredResolution).toEqual(shapes.controlResolution);
       // The comparison is only meaningful if the shape has real content in it.
       expect(shapes.control.decision.outcome).toBe('approved');
       expect(shapes.control.decision.tally).toEqual({ votesFor: QUORUM, votesAgainst: 0, total: QUORUM });
@@ -374,7 +392,8 @@ describe('Governance anchoring (#198)', () => {
 
       const failedBefore = await auditMetas('community.proposal.decision.anchorFailed', communityDid);
       const pending = new Set(failedBefore.map(m => m.decisionCid));
-      expect(pending.size).toBeGreaterThanOrEqual(3);
+      // The throwing and hanging runs; the unregistered one queued nothing.
+      expect(pending.size).toBe(2);
 
       const passed = await passProposal('retry-drain');
       // Its own decision, plus the ones it retried.
@@ -489,6 +508,90 @@ describe('Governance anchoring (#198)', () => {
 
       const [meta] = await auditMetas('community.proposal.decision.anchored', communityDid, passed.rkey);
       expect(meta.anchoredCid).toBe(proposal.decision.cid);
+    });
+  });
+
+  describe('what may change a community\'s governance, and what may not', () => {
+    // By this point the community is on-chain, which is the model with a
+    // delegated-authority branch in enforceGovernance.
+    const delegated = (did: string) => ({
+      source: 'test-authority',
+      communityDid: did,
+      credentialId: 'cred-1',
+      name: 'Delegated service',
+    });
+
+    it('lets a delegated service act under the community governance', async () => {
+      if (!plcAvailable) return;
+      const result = await enforceGovernance(
+        communityDid, 'net.openfederation.community.profile', 'write', delegated(communityDid),
+      );
+      expect(result.allowed).toBe(true);
+    });
+
+    it('does not let a delegated service change what that governance is', async () => {
+      if (!plcAvailable) return;
+      // The ratchet is gone; it must not have been replaced by a service-shaped
+      // escape hatch. A credential that could rewrite `governanceModel` to
+      // benevolent-dictator would make every protected collection directly
+      // writable a moment later.
+      const result = await enforceGovernance(
+        communityDid, SETTINGS_COLLECTION, 'write', delegated(communityDid),
+      );
+      expect(result.allowed).toBe(false);
+      expect(result.requiresProposal).toBe(true);
+      expect(result.reason).toContain('proposal');
+    });
+
+    it('refuses a settings proposal naming a model nothing recognizes', async () => {
+      if (!plcAvailable) return;
+      const settings = await communitySettings(communityDid);
+      const res = await xrpcAuthPost('net.openfederation.community.createProposal', owner.accessJwt, {
+        communityDid,
+        targetCollection: SETTINGS_COLLECTION,
+        targetRkey: 'self',
+        action: 'write',
+        proposedRecord: { ...settings, governanceModel: 'simple_majority' },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('governanceModel must be one of');
+    });
+
+    it('refuses to apply such a record even if a proposal carrying it exists', async () => {
+      if (!plcAvailable) return;
+      const settings = await communitySettings(communityDid);
+      const engine = new RepoEngine(communityDid);
+      const keypair = await getKeypairForDid(communityDid);
+      await expect(applyProposedChange(engine, keypair, {
+        action: 'write',
+        targetCollection: SETTINGS_COLLECTION,
+        targetRkey: 'self',
+        proposedRecord: { ...settings, governanceModel: 'plutocracy' },
+      })).rejects.toThrow(/ungoverned/);
+      // Nothing was written: the community still has the model it voted for.
+      expect((await communitySettings(communityDid)).governanceModel).toBe('on-chain');
+    });
+
+    it('denies protected writes outright when the settings record already names an unknown model', async () => {
+      if (!plcAvailable) return;
+      // Simulates a record that predates the validation above (or a downgrade to
+      // an older PDS). Written through the community's own key, deliberately
+      // bypassing every endpoint, because that is the only way such a record
+      // could exist.
+      const settings = await communitySettings(communityDid);
+      const engine = new RepoEngine(communityDid);
+      const keypair = await getKeypairForDid(communityDid);
+      await engine.putRecord(keypair, SETTINGS_COLLECTION, 'self', { ...settings, governanceModel: 'plutocracy' });
+      try {
+        const result = await enforceGovernance(communityDid, SETTINGS_COLLECTION, 'write', null);
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toContain('unrecognized governance model');
+        // Not just the settings record — nothing protected falls open.
+        const profile = await enforceGovernance(communityDid, 'net.openfederation.community.profile', 'write', null);
+        expect(profile.allowed).toBe(false);
+      } finally {
+        await engine.putRecord(keypair, SETTINGS_COLLECTION, 'self', settings);
+      }
     });
   });
 });

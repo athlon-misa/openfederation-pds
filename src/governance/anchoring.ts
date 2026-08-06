@@ -27,7 +27,15 @@
  * re-reads the entries that have no matching success and tries them again
  * (`anchorPendingDecisions`). No scheduler, no new table, and no unbounded
  * backfill — only decisions this PDS actually attempted and failed to anchor
- * are ever retried.
+ * are ever retried. Retry is best-effort by construction: the queue is a bounded
+ * read of recent failure entries, so an entry that falls out of that window is
+ * not retried again. It is a way to recover from a notary that was briefly down,
+ * not a delivery guarantee — and nothing depends on delivery.
+ *
+ * A community that has anchoring enabled with **no attestor registered at all**
+ * is not treated as a failure: that is the state of every resolution on a PDS
+ * without the chain module, so it is reported once per chain per process and
+ * never audited or queued.
  *
  * **The receipt is recorded in the audit log, not on the decision record.**
  * What gets anchored is the decision's CID; writing the receipt back into that
@@ -126,6 +134,9 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+/** Chains this process has already reported as having no registered attestor. */
+const announced = new Set<string>();
+
 interface AnchorTarget {
   communityDid: string;
   proposalRkey: string | null;
@@ -148,10 +159,20 @@ async function attempt(target: AnchorTarget, chainId: string): Promise<AnchorRec
   try {
     const attestor = resolveAttestor(chainId);
     if (!attestor || typeof attestor.anchor !== 'function') {
-      await auditLog('community.proposal.decision.anchorFailed', null, target.communityDid, {
-        ...meta,
-        reason: `no attestor with anchor() is registered for ${chainId}`,
-      });
+      // No attestor registered is a fact about this deployment, not a failure of
+      // an available notary: on a PDS without the chain module it is true of
+      // every resolution, forever. Auditing it per decision would fill the audit
+      // trail of the default (module-disabled) deployment with rows that say
+      // only "anchoring is not installed here", and would queue retries that can
+      // never succeed until it is. Said once per chain per process, and nowhere
+      // else.
+      if (!announced.has(chainId)) {
+        announced.add(chainId);
+        console.warn(
+          `[governance] community ${target.communityDid} has anchoring enabled for ${chainId}, ` +
+          'but no attestor with anchor() is registered; decisions will resolve unanchored.',
+        );
+      }
       return null;
     }
 
@@ -276,12 +297,16 @@ export async function anchorPendingDecisions(input: {
   // Oldest attempt first, so a retry queue drains rather than churns.
   pending.reverse();
 
-  // Stop at the first failure. A notary that has just failed will almost
-  // certainly fail for the rest of the batch too, and each of those attempts
-  // costs a timeout inside somebody's resolution request. The queue keeps its
-  // place; the next resolution picks it up again.
+  // Stop at the first failure, and in any case at the budget. A notary that has
+  // just failed will almost certainly fail for the rest of the batch too, and
+  // each of those attempts costs a timeout inside somebody's resolution request;
+  // one that answers slowly would otherwise multiply its latency by the batch
+  // size. The queue keeps its place either way — the next resolution picks it
+  // up — so the whole drain is bounded by a single attempt's timeout.
+  const deadline = Date.now() + anchorTimeoutMs();
   let anchored = 0;
   for (const target of pending) {
+    if (Date.now() >= deadline) break;
     if (!await attempt(target, config.chainId)) break;
     anchored++;
   }

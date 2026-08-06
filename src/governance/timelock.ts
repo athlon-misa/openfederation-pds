@@ -48,6 +48,7 @@ import {
   timelockHours,
 } from './decision-rules.js';
 import { putProposalRecord } from './proposal-resolution.js';
+import { SETTINGS_COLLECTION, checkGovernanceSettings } from './settings-rules.js';
 
 export { DEFAULT_TIMELOCK_HOURS, timelockHours } from './decision-rules.js';
 
@@ -138,10 +139,28 @@ export function pendingApplicationState(settings: any, resolvedAt: string): { ap
   return { applyAt: applyAtFrom(resolvedAt, hours) };
 }
 
+/** A passed proposal whose `proposedRecord` must not be written as it stands. */
+export class UnapplicableProposalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnapplicableProposalError';
+  }
+}
+
 /**
  * Perform the change a proposal proposed. The single place the effect of an
  * approved proposal is produced, so resolution and lazy application cannot
  * drift apart in what "applied" means.
+ *
+ * A proposal is applied verbatim, which is exactly right for a record whose
+ * contents are the community's business — and exactly wrong for the one record
+ * that decides how the community is governed at all. Since #198 made the
+ * proposal route the *only* way to change `governanceModel` under a voting
+ * model, an unvalidated apply would let a quorum enact `governanceModel:
+ * 'simple_majority'` (a typo) and leave the community with a model nothing
+ * recognizes. Validation happens at proposal creation, where the proposer sees
+ * the error; this is the backstop for anything that reaches here anyway, and it
+ * refuses rather than guesses.
  */
 export async function applyProposedChange(
   engine: RepoEngine,
@@ -149,6 +168,14 @@ export async function applyProposedChange(
   proposal: any,
 ): Promise<void> {
   if (proposal?.action === 'write' && proposal?.proposedRecord) {
+    if (proposal.targetCollection === SETTINGS_COLLECTION) {
+      const invalid = checkGovernanceSettings(proposal.proposedRecord);
+      if (invalid) {
+        throw new UnapplicableProposalError(
+          `refusing to apply a settings proposal that would leave this community ungoverned: ${invalid.message}`,
+        );
+      }
+    }
     await engine.putRecord(keypair, proposal.targetCollection, proposal.targetRkey, proposal.proposedRecord);
   } else if (proposal?.action === 'delete') {
     await engine.deleteRecord(keypair, proposal.targetCollection, proposal.targetRkey);

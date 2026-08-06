@@ -7,6 +7,7 @@ import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
 import { canRecordVote, writeVoteRecord } from '../governance/vote-records.js';
 import { EVIDENCE_MODEL_VOTE_RECORDS } from '../governance/proposal-resolution.js';
+import { SETTINGS_COLLECTION, checkGovernanceSettings } from '../governance/settings-rules.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DEFAULT_TTL_DAYS = 7;
@@ -33,6 +34,18 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     if (action === 'write' && (!proposedRecord || typeof proposedRecord !== 'object')) {
       res.status(400).json({ error: 'InvalidRequest', message: 'proposedRecord is required for write action' });
       return;
+    }
+
+    // A settings proposal is the only route to a community's governance model
+    // under a voting model (#198), so it answers to the same predicate the
+    // direct endpoint applies — here, where the proposer can still fix it,
+    // rather than at apply time where a quorum has already voted for it.
+    if (targetCollection === SETTINGS_COLLECTION && action === 'write') {
+      const invalid = checkGovernanceSettings(proposedRecord, { normalize: true });
+      if (invalid) {
+        res.status(400).json({ error: 'InvalidRequest', message: invalid.message });
+        return;
+      }
     }
 
     const settingsResult = await query<{ record: any }>(
