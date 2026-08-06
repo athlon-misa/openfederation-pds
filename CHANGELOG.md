@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security: time-limited disclosure grants expire when they say they do
+
+Fifteen columns were `timestamp WITHOUT time zone`, and the two things written
+into them disagreed about which clock they meant. Postgres defaults and
+comparisons (`CURRENT_TIMESTAMP`, `NOW()`) produce local wall-clock time; the
+application passes a JS `Date`, which the driver serialises as UTC. Where the
+application wrote and Postgres compared, a credential's real lifetime became
+`TTL − UTC offset` (issue #221).
+
+One column was actually affected: **`viewing_grants.expires_at`**, written from
+a JS `Date` and compared against `NOW()` in four places. West of UTC a
+time-limited attestation disclosure grant stayed redeemable for the offset —
+4–5 hours at US timezones — past the expiry it was issued with, which defeats
+the point of the feature. East of UTC it was born expired, which is why the
+disclosure suites failed on a developer machine and passed in CI.
+
+Railway runs UTC, where the offset is zero, so no deployed grant was ever
+mis-scoped. This is a latent bug being closed, not an incident.
+
+- All 15 naive columns are now `TIMESTAMPTZ` (`migrate-038`), removing the class
+  rather than the instance: no future writer has to know which of the two
+  conventions a column is on, which is what allowed this.
+- The migration states the source zone **per column**. A plain
+  `ALTER ... TYPE timestamptz` reads existing naive values as the *server's*
+  zone — correct for the columns Postgres wrote, and wrong by the offset for the
+  ones the application wrote, which would silently shift every stored instant.
+  The application-written columns use `USING … AT TIME ZONE 'UTC'` explicitly.
+  Verified against pre-existing data: a grant reading −120 minutes of remaining
+  life before the migration reads +60 after it.
+- `disclosure_sessions.expires_at` had the same mismatch but nothing compared it
+  against `NOW()`, so it was latent rather than live. Converted with the rest.
+- The convention is now recorded at the top of `schema.sql`.
+- **Not affected, contrary to the issue as first written**: `sessions`,
+  `password_reset_tokens`, `recovery_attempts`, `wallet_dapp_consents`,
+  `invites` and `oauth_requests` were already `TIMESTAMPTZ`. Nor were the naive
+  columns Postgres both wrote and compared (`wallet_link_challenges.expires_at`,
+  and every `DEFAULT CURRENT_TIMESTAMP` column) — both sides were on the same
+  clock. The correction is recorded on the issue.
+
 ### Governance: resolution is crash-atomic
 
 Resolving a proposal wrote three separate signed commits — the decision record,
