@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listProposals",
-  "revision": 3,
+  "revision": 4,
   "description": "List governance proposals for a community.",
   "defs": {
     "main": {
@@ -14,7 +14,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Filter by status: open, pending-application, objected, approved, rejected, expired."
+            "description": "Filter by status: open, pending-application, objection-override, objected, approved, rejected, expired."
           },
           "limit": {
             "type": "integer",

@@ -80,8 +80,10 @@ export interface ApplicationProblem {
 
 /** Decided and applicable, but waiting out the contest window. */
 const PENDING_STATUS = 'pending-application';
-/** Decided, contested within the window; the change is held. */
+/** Decided, contested within the window; the hold is final. */
 const OBJECTED_STATUS = 'objected';
+/** Held, and under re-review: the electorate is voting on a higher bar (#199). */
+const OVERRIDE_STATUS = 'objection-override';
 
 /**
  * The verdict codes, grouped by what they say about the operator.
@@ -102,6 +104,12 @@ const OBJECTED_STATUS = 'objected';
  *   pending-application  the proposal is awaiting application and no `asOf` was
  *                      supplied, so which of the two above it is was not
  *                      evaluated.
+ *   override-round     the hold opened an override round and it is still
+ *                      running (#199). Nothing has been applied and nothing has
+ *                      been finally withheld.
+ *   override-round-due the round's window has elapsed and the proposal has not
+ *                      been closed yet. Closing is lazy, exactly as application
+ *                      is, so this is a state rather than a defect.
  *
  * Indeterminate — the signed record genuinely does not distinguish:
  *   closed-unapplied   the proposal closed past its window without claiming an
@@ -133,6 +141,8 @@ export type ApplicationCode =
   | 'window-open'
   | 'application-due'
   | 'pending-application'
+  | 'override-round'
+  | 'override-round-due'
   | 'closed-unapplied'
   | 'early-application'
   | 'applied-over-objection'
@@ -238,6 +248,9 @@ export interface ApplicationVerdict {
     cachedObjections: number;
     /** The threshold applied, and where it came from. */
     objectionThreshold: number;
+    /** Set while an override round is running (#199). */
+    overrideQuorum?: number | null;
+    overrideExpiresAt?: string | null;
     thresholdFromSettings: boolean;
     objectors: CountedObjection[];
   };
@@ -382,7 +395,8 @@ export async function verifyApplication(input: VerifyApplicationInput): Promise<
   // An open, expired or rejected proposal never produced a change. Saying
   // "legitimate" about it would overstate; saying "illegitimate" would be
   // false. It is simply not an application.
-  if (status !== 'approved' && status !== PENDING_STATUS && status !== OBJECTED_STATUS) {
+  if (status !== 'approved' && status !== PENDING_STATUS
+    && status !== OBJECTED_STATUS && status !== OVERRIDE_STATUS) {
     return finish('nothing-to-apply', 'legitimate');
   }
   if (status === 'approved' && !applyAt && !appliedAt) {
@@ -450,27 +464,38 @@ export async function verifyApplication(input: VerifyApplicationInput): Promise<
   const held = objections.length >= summary.objectionThreshold;
 
   // ── The verdict ───────────────────────────────────────────────────
+  //
+  // A hold and an override round rest on the same evidence — the objections
+  // that produced them — so both are corroborated the same way. What differs is
+  // only what happens next, and neither is an application.
+  if (status === OVERRIDE_STATUS) {
+    const unevidenced = holdContradiction(cached, repos, objections, held, input.proposal.uri);
+    if (unevidenced) {
+      problems.push(unevidenced);
+      return finish('unevidenced-hold', 'illegitimate');
+    }
+    if (!held) notes.push(holdUnverifiedNote(objections.length, summary.objectionThreshold, input.proposal.uri));
+
+    const expiresAt = str(proposal.overrideExpiresAt);
+    summary.overrideExpiresAt = expiresAt;
+    summary.overrideQuorum = typeof proposal.overrideQuorum === 'number' ? proposal.overrideQuorum : null;
+    if (input.asOf && expiresAt && input.asOf >= expiresAt) {
+      return finish('override-round-due', 'pending');
+    }
+    return finish('override-round', 'pending');
+  }
+
   if (status === OBJECTED_STATUS) {
     if (held) return finish('held', 'legitimate');
     // The proposal claims a hold this could not corroborate. Whether that is a
     // withheld change or merely an export missing the objectors' repos turns on
     // one thing: whether those repos were supplied and contradict it.
-    const contradicted = cachedObjectorsContradicted(cached, repos, objections);
-    if (contradicted.length > 0) {
-      problems.push({
-        code: 'unevidenced-hold',
-        message: `the proposal is held on ${contradicted.length} objection(s) whose objectors' own signed repos contain `
-          + `no countable objection: ${contradicted.join(', ')}`,
-        uri: input.proposal.uri,
-      });
+    const unevidenced = holdContradiction(cached, repos, objections, held, input.proposal.uri);
+    if (unevidenced) {
+      problems.push(unevidenced);
       return finish('unevidenced-hold', 'illegitimate');
     }
-    notes.push({
-      code: 'hold-unverified',
-      message: `the proposal is held but only ${objections.length} countable objection(s) are provable from the supplied `
-        + `exports against a threshold of ${summary.objectionThreshold}; supply the objectors' repos to check the hold`,
-      uri: input.proposal.uri,
-    });
+    notes.push(holdUnverifiedNote(objections.length, summary.objectionThreshold, input.proposal.uri));
     return finish('held', 'legitimate');
   }
 
@@ -551,6 +576,38 @@ async function countObjections(input: {
   }
 
   return [...held.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * The finding for a hold the objectors' own repos contradict, or `null` when
+ * nothing contradicts it. Shared by the terminal hold and the override round,
+ * which rest on identical evidence.
+ */
+function holdContradiction(
+  cached: unknown[],
+  repos: Map<string, LoadedRepo>,
+  objections: CountedObjection[],
+  held: boolean,
+  uri: string,
+): ApplicationProblem | null {
+  if (held) return null;
+  const contradicted = cachedObjectorsContradicted(cached, repos, objections);
+  if (contradicted.length === 0) return null;
+  return {
+    code: 'unevidenced-hold',
+    message: `the proposal is held on ${contradicted.length} objection(s) whose objectors' own signed repos contain `
+      + `no countable objection: ${contradicted.join(', ')}`,
+    uri,
+  };
+}
+
+function holdUnverifiedNote(count: number, threshold: number, uri: string): ApplicationNote {
+  return {
+    code: 'hold-unverified',
+    message: `the proposal is held but only ${count} countable objection(s) are provable from the supplied `
+      + `exports against a threshold of ${threshold}; supply the objectors' repos to check the hold`,
+    uri,
+  };
 }
 
 /**

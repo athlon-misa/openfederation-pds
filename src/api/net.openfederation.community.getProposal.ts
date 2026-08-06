@@ -2,7 +2,9 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { applyIfDueSafely, countableObjections, communitySettingsRecord } from '../governance/timelock.js';
+import {
+  applyIfDueSafely, closeExpiredOverrideSafely, countableObjections, communitySettingsRecord,
+} from '../governance/timelock.js';
 import { objectionThreshold } from '../governance/decision-rules.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
@@ -25,6 +27,10 @@ export default async function getProposal(req: AuthRequest, res: Response): Prom
     // A failure is contained and audited inside, never raised — a stuck
     // application must not break a read of the proposal it is stuck on.
     await applyIfDueSafely({ communityDid, proposalRkey: rkey });
+    // The override round a hold opens is evaluated the same way and for the same
+    // reason: a round whose window has elapsed is closed by the next
+    // interaction, so a reader never sees a round that is over (#199).
+    await closeExpiredOverrideSafely({ communityDid, proposalRkey: rkey });
 
     const result = await query<{ record: any }>(
       `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,

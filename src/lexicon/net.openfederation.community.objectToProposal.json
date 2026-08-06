@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.objectToProposal",
-  "revision": 1,
-  "description": "Object to the application of a passed proposal during its timelock window. Writes an objector-signed net.openfederation.governance.objection record into the objector's own repo. The change is held once governanceConfig.objectionThreshold countable objections exist; that threshold defaults to 1. Eligibility is the same community.governance.write permission that gates voting. WARNING: a hold is permanent and there is no automatic re-review — an 'objected' proposal is never reopened, revoted, or applied. At the default threshold of 1 this means any single member with community.governance.write can veto any decision of the community indefinitely, whatever the vote was. Communities that do not want unanimity-by-any-objector must raise governanceConfig.objectionThreshold, which is itself a governed change to the settings record.",
+  "revision": 2,
+  "description": "Object to the application of a passed proposal during its timelock window. Writes an objector-signed net.openfederation.governance.objection record into the objector's own repo. The change is held once governanceConfig.objectionThreshold countable objections exist; that threshold defaults to 1, so a single member holding community.governance.write can hold a passed proposal. Eligibility is the same community.governance.write permission that gates voting. A hold opens one override round (status 'objection-override'): the electorate votes again against overrideQuorum, by default two-thirds of the electorate and never below quorum + 1, inside governanceConfig.objectionOverrideDays. Reaching it applies the change immediately; the round expiring short of it rejects the proposal, so the objection stands. An objection therefore raises the bar a decision must clear rather than replacing it, and cannot be repeated — a proposal already in its override round is answered by voting in that round. A community that wants a hold to be final sets governanceConfig.objectionReview to 'none', which restores the permanent 'objected' state.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -39,7 +39,7 @@
             },
             "status": {
               "type": "string",
-              "description": "Proposal status after the objection; 'objected' when the application is held, otherwise unchanged ('pending-application') because the objection threshold has not been reached."
+              "description": "Proposal status after the objection: 'objection-override' when the threshold was reached and the hold opened an override round, 'objected' when it was reached in a community with objectionReview 'none', otherwise unchanged ('pending-application') because the threshold has not been reached."
             },
             "objectionCount": {
               "type": "integer",
@@ -53,6 +53,15 @@
               "type": "ref",
               "ref": "#objectionRef",
               "description": "The objector-signed record, readable through com.atproto.repo.getRecord."
+            },
+            "overrideQuorum": {
+              "type": "integer",
+              "description": "Votes FOR the override round this objection opened must reach. Present only when the objection opened a round."
+            },
+            "overrideExpiresAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the override round this objection opened stops accepting votes. Present only when the objection opened a round."
             }
           },
           "required": [
@@ -77,7 +86,7 @@
         },
         {
           "name": "ObjectionWindowClosed",
-          "description": "The timelock window has elapsed, or the application is already held by an objection."
+          "description": "The contest window has closed, or the proposal is already held — including while it is in its override round, which is answered by voting rather than by objecting again."
         },
         {
           "name": "AlreadyObjected",

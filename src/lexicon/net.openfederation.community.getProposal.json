@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.getProposal",
-  "revision": 5,
+  "revision": 6,
   "description": "Get a specific governance proposal.",
   "defs": {
     "main": {
@@ -65,11 +65,11 @@
         },
         "status": {
           "type": "string",
-          "description": "open, pending-application (passed, waiting out the timelock), objected (application held by a signed objection), approved (applied), rejected, or expired."
+          "description": "open, pending-application (passed, waiting out the timelock), objection-override (held by objections and under re-review; the electorate is voting against overrideQuorum), objected (held, and final because the community set objectionReview to none), approved (applied), rejected, or expired."
         },
         "applyAt": {
           "type": "string",
-          "description": "End of the objection window; the earliest instant the approved change is applied. Present while status is pending-application or objected."
+          "description": "End of the objection window; the earliest instant the approved change is applied. Present while status is pending-application, objection-override or objected."
         },
         "appliedAt": {
           "type": "string",
@@ -129,6 +129,28 @@
         "objectionThreshold": {
           "type": "integer",
           "description": "How many countable objections hold the application. Reported alongside objectionCount so a reader can see a hold forming."
+        },
+        "overrideQuorum": {
+          "type": "integer",
+          "description": "Votes FOR the override round must reach for the held change to apply. Frozen when the round opened, so it cannot be moved by later membership or settings changes. Present while status is objection-override."
+        },
+        "overrideExpiresAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the override round stops accepting votes. Expiring short of overrideQuorum rejects the proposal. Present while status is objection-override."
+        },
+        "overrideElectorate": {
+          "type": "integer",
+          "description": "Members holding community.governance.write when the round opened, which the default overrideQuorum is two-thirds of. Present while status is objection-override."
+        },
+        "overrideOpenedAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the override round opened. Also the epoch for its tally: votes cast before it belong to the round that was objected to and do not count towards overrideQuorum."
+        },
+        "overrideOutcome": {
+          "type": "string",
+          "description": "How the override round ended: 'carried' (the bar was reached and the change applied) or 'expired' (the round ran out of time short of it, so the objection stands and the proposal is rejected)."
         }
       },
       "required": [

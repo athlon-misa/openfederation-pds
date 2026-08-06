@@ -10,8 +10,11 @@ import { PROPOSAL_COLLECTION } from '../governance/decision-rules.js';
 import { canRecordObjection, writeObjectionRecord } from '../governance/objection-records.js';
 import {
   OBJECTED_STATUS,
+  OVERRIDE_STATUS,
+  heldProposalState,
   PENDING_STATUS,
   applyDueProposals,
+  closeExpiredOverrides,
   communitySettingsRecord,
   countableObjections,
   objectionThreshold,
@@ -60,6 +63,7 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
     // this handler takes below. A late objection must find the change applied,
     // not race it.
     await applyDueProposals(communityDid);
+    await closeExpiredOverrides(communityDid);
 
     return await withAdvisoryLock(proposalLockKey(communityDid, proposalRkey), async () => {
       const result = await query<{ record: any; cid: string }>(
@@ -76,12 +80,16 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
       const proposal = result.rows[0].record;
       const proposalCid = result.rows[0].cid;
 
-      if (proposal.status === OBJECTED_STATUS) {
+      if (proposal.status === OBJECTED_STATUS || proposal.status === OVERRIDE_STATUS) {
         // Already held. Another objection changes nothing about the hold, and
-        // there is no window left to object into.
+        // there is no window left to object into. A proposal in its override
+        // round is answered by voting in that round, not by objecting again —
+        // one round is the whole point (#199).
         res.status(400).json({
           error: 'ObjectionWindowClosed',
-          message: 'This proposal is already held by an objection',
+          message: proposal.status === OVERRIDE_STATUS
+            ? 'This proposal is held and in its override round; vote in that round rather than objecting again'
+            : 'This proposal is already held by an objection',
         });
         return;
       }
@@ -173,20 +181,34 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
       // so the proposal's `objections` array can only ever name objections that
       // actually exist and actually count.
       const objections = await countableObjections({ communityDid, proposalRkey, proposal });
-      const threshold = objectionThreshold(await communitySettingsRecord(communityDid));
+      const settings = await communitySettingsRecord(communityDid);
+      const threshold = objectionThreshold(settings);
       const held = objections.length >= threshold;
 
       // Only a hold changes the proposal. Rewriting it when the threshold is
       // not reached would mint a signed MST commit for a proposal whose state
       // has not changed.
+      let heldState: Record<string, unknown> | null = null;
       if (held) {
         const engine = new RepoEngine(communityDid);
         const keypair = await getKeypairForDid(communityDid);
-        await putProposalRecord(engine, keypair, communityDid, proposalRkey, {
-          ...proposal,
-          status: OBJECTED_STATUS,
+        heldState = await heldProposalState({
+          communityDid,
+          proposal,
+          settings,
           objections,
+          heldAt: new Date().toISOString(),
         });
+        await putProposalRecord(engine, keypair, communityDid, proposalRkey, heldState);
+        if (heldState.status === OVERRIDE_STATUS) {
+          await auditLog('community.proposal.overrideOpened', req.auth!.userId, communityDid, {
+            rkey: proposalRkey,
+            overrideQuorum: heldState.overrideQuorum,
+            overrideExpiresAt: heldState.overrideExpiresAt,
+            overrideElectorate: heldState.overrideElectorate,
+            objectionCount: objections.length,
+          });
+        }
       }
 
       await auditLog('community.proposal.objection', req.auth!.userId, communityDid, {
@@ -200,14 +222,23 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
         objectionThreshold: threshold,
         objectionCount: objections.length,
         held,
+        ...(heldState ? { status: heldState.status } : {}),
       });
 
       res.status(200).json({
         recorded: true,
-        status: held ? OBJECTED_STATUS : proposal.status,
+        status: heldState ? heldState.status : proposal.status,
         objectionCount: objections.length,
         objectionThreshold: threshold,
         objection: { uri: objection.uri, cid: objection.cid, rkey: objection.rkey },
+        // The round the hold opened, so the objector's own client can say what
+        // happens next rather than reporting a dead end.
+        ...(heldState?.status === OVERRIDE_STATUS
+          ? {
+            overrideQuorum: heldState.overrideQuorum,
+            overrideExpiresAt: heldState.overrideExpiresAt,
+          }
+          : {}),
       });
     });
   } catch (error) {

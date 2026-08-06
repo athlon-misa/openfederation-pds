@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Governance: an objection no longer ends the matter
+
+PRD #189 specified "objection → application held pending **re-review per
+community rules**". The hold shipped; the re-review did not. `objected` was
+terminal — `applyDueProposals` only looked at `pending-application`,
+`objectToProposal` refused an already-held proposal, and `voteOnProposal`
+required `status === 'open'` — so at the default threshold of 1, any single
+member holding `community.governance.write` could permanently veto any decision
+of a majority-governed community. That is not a contest window, it is unanimity
+(issue #199).
+
+A hold now opens **one** override round (`objection-override`): the same
+electorate votes again against a higher bar, inside a time-boxed window.
+Reaching it applies the change; the round expiring short of it rejects the
+proposal, so the objection stands. An objection therefore raises the bar a
+decision must clear rather than replacing the decision.
+
+The asymmetry with the `did:plc` rotation-recovery idiom this mechanism mirrors
+is what forces the round to exist: there the contester is the account owner
+recovering their own identity, and permanence is right because nobody else has a
+claim; here the contester is one of N peers overriding N−1.
+
+- **`overrideQuorum` is votes *for*, and only votes for.** The round asks whether
+  a stronger mandate exists than the one that was objected to; abstention and
+  opposition answer that the same way. Absent an explicit
+  `governanceConfig.objectionOverrideQuorum` it is two-thirds of the electorate,
+  floored at `quorum + 1` and **capped at the electorate itself** — without the
+  cap, a community whose quorum already equals its membership would face a bar no
+  vote could clear, reinstating the permanent veto in exactly the small
+  communities most exposed to it.
+- **The bar and the electorate are frozen onto the proposal when the round
+  opens**, never recomputed. A bar that moved with the membership could be
+  cleared by adding or removing members mid-round rather than by winning the
+  argument.
+- **The round starts from zero votes.** The vote cache is cleared and
+  `overrideOpenedAt` becomes the tally epoch (`tallyEpoch`), because counting the
+  first round's votes towards the higher bar would clear it with the very mandate
+  that was objected to.
+- **A carried override applies immediately** — no second contest window. The
+  change already served one, and that window is what produced the objection;
+  objecting again is refused, so another window would be a delay nobody could
+  use.
+- **Expiry rejects.** A round nobody answered is a mandate nobody has. Closing is
+  lazy, exactly as application is, so the window is a floor on the delay rather
+  than a promise of an instant.
+- **Opt out, not opt in.** `governanceConfig.objectionReview: 'none'` restores
+  the terminal `objected` state for a community that deliberately wants a hold to
+  be final. Anything unrecognized is the default: a typo must not silently hand
+  one member a veto, so `objectionReview` is validated and an unknown value is
+  rejected outright.
+- New config: `objectionReview`, `objectionOverrideQuorum`,
+  `objectionOverrideDays` (default 7). Lexicon revisions:
+  `setGovernanceModel` 5→6, `getProposal` 5→6, `listProposals` 3→4,
+  `objectToProposal` 1→2, `voteOnProposal` 6→7 — the last four had descriptions
+  asserting the permanence that is no longer true.
+- The offline verifier gains `override-round` and `override-round-due`, both
+  pending rather than faults, and corroborates a round's objections exactly as it
+  corroborates a terminal hold.
+
 ### Governance: the application half of the evidence chain is verifiable offline
 
 `verifyDecision` answers whether a decision was soundly *reached*, and

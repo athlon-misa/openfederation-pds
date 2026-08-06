@@ -284,6 +284,8 @@ ofc governance verify-application \
 |--------|---------|---------|
 | `applied` | legitimate | Applied at or after the `applyAt` the community published |
 | `held` | legitimate | Countable objections reached the threshold; the change was withheld |
+| `override-round` | pending | The hold opened an override round and it is still running |
+| `override-round-due` | pending | The round's window has elapsed and the proposal has not been closed yet |
 | `nothing-to-apply` | legitimate | Rejected, expired, or still open — there is no application to judge |
 | `window-open` | pending | `--as-of` precedes `applyAt`; the contest window is running |
 | `application-due` | pending | The window elapsed and the change has not been applied yet |

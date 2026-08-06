@@ -8,8 +8,12 @@
  * records:
  *
  *   pending → (window elapses, nothing objected) → approved, change applied
- *   pending → (eligible objection inside window)  → objected, change held
+ *   pending → (eligible objection inside window)  → held, change withheld
  *   pending → (ineligible or late objection)      → unaffected, change applied
+ *
+ * Since #199 a hold is `objection-override` — the same hold, with one round of
+ * re-review attached — and what happens inside that round belongs to the
+ * override suite rather than here.
  *
  * Time is never waited on. The window is closed by rewriting the proposal's
  * `applyAt` through the community's own key — a real signed commit, exactly the
@@ -296,6 +300,12 @@ describe('Governance timelock and objection window', () => {
     });
   });
 
+  // A hold is `objection-override` rather than `objected` since #199: the same
+  // hold, now with one round of re-review attached. `objected` remains the state
+  // for a community that opts out with `objectionReview: 'none'`; that path and
+  // the round itself are covered in the override suite.
+  const HELD_STATUS = 'objection-override';
+
   describe('a signed objection inside the window holds the change', () => {
     let rkey: string;
     let objection: { uri: string; cid: string; rkey: string };
@@ -310,7 +320,7 @@ describe('Governance timelock and objection window', () => {
       });
       expect(res.status).toBe(200);
       expect(res.body.recorded).toBe(true);
-      expect(res.body.status).toBe('objected');
+      expect(res.body.status).toBe(HELD_STATUS);
       objection = res.body.objection;
       expect(objection.uri.startsWith(`at://${voter1.did}/${OBJECTION_COLLECTION}/`)).toBe(true);
     });
@@ -344,14 +354,14 @@ describe('Governance timelock and objection window', () => {
     it('holds the change past the end of the window', async () => {
       if (!plcAvailable) return;
       const proposal = await proposalRecord(communityDid, rkey);
-      expect(proposal.status).toBe('objected');
+      expect(proposal.status).toBe(HELD_STATUS);
       expect(proposal.objections).toHaveLength(1);
       expect(proposal.objections[0].objector).toBe(voter1.did);
       expect(proposal.objections[0].record.cid).toBe(objection.cid);
 
       await closeWindow(communityDid, rkey);
       const read = await xrpcGet('net.openfederation.community.getProposal', { communityDid, rkey });
-      expect(read.body.status).toBe('objected');
+      expect(read.body.status).toBe(HELD_STATUS);
       expect((await targetRecord(communityDid, 'held-1')).status).toBe(404);
       expect(await auditEntries('community.proposal.apply', communityDid, rkey)).toEqual([]);
     });
@@ -396,7 +406,7 @@ describe('Governance timelock and objection window', () => {
       await closeWindow(communityDid, passed.rkey);
 
       const read = await xrpcGet('net.openfederation.community.getProposal', { communityDid, rkey: passed.rkey });
-      expect(read.body.status).toBe('objected');
+      expect(read.body.status).toBe(HELD_STATUS);
       expect((await targetRecord(communityDid, 'held-2')).status).toBe(404);
     });
   });

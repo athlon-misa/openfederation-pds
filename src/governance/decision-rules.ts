@@ -61,8 +61,15 @@ export function knownProposalCids(proposal: any, currentCid: string): Set<string
 /**
  * Votes cast before an amendment do not carry over: `amendProposal` clears the
  * vote cache, so the record tally has to start from the same point.
+ *
+ * An objection override round (#199) starts a new epoch for the same reason and
+ * more urgently: the round exists to ask a *higher* bar, and counting the first
+ * round's votes towards it would clear that bar with the mandate that was
+ * already objected to. `overrideOpenedAt` is set after any amendment, so it
+ * wins when both are present.
  */
 export function tallyEpoch(proposal: any): string | null {
+  if (typeof proposal?.overrideOpenedAt === 'string') return proposal.overrideOpenedAt;
   const amendments = Array.isArray(proposal?.amendments) ? proposal.amendments : [];
   const last = amendments[amendments.length - 1];
   const epoch = last?.amendedAt ?? proposal?.createdAt;
@@ -164,19 +171,14 @@ export function timelockHours(settings: any): number {
 /**
  * How many countable objections it takes to hold a decided change.
  *
- * The default is **1**, and that is a strong statement: a single member holding
- * `community.governance.write` can stop a change a majority voted for, and
- * nothing in this system reopens it. There is no expiry, no re-vote, no
- * override — a held proposal stays held. A community that does not want
- * unanimity-by-any-objector has to raise `governanceConfig.objectionThreshold`
- * deliberately, which is itself a governed change to the settings record.
- *
- * The default is 1 rather than something higher because a contest window whose
- * threshold nobody has chosen should fail towards "wait and talk", not towards
- * "proceed anyway" — but the cost of that default is stated here, in the
- * lexicon descriptions, and in the settings documentation, because a community
- * that discovers it only when a change is vetoed has been surprised by its own
- * governance.
+ * The default is **1**: a single member holding `community.governance.write`
+ * stops a change a majority voted for. That is deliberate — a contest window
+ * whose threshold nobody has chosen should fail towards "wait and talk", not
+ * towards "proceed anyway" — and it is survivable only because the hold is no
+ * longer the end of the story. Until #199 it was: `objected` was terminal, so
+ * one objector permanently converted majority rule into unanimity. The hold now
+ * opens an override round (see below), so a lone objection forces a stronger
+ * mandate rather than replacing it.
  */
 export const DEFAULT_OBJECTION_THRESHOLD = 1;
 
@@ -248,6 +250,115 @@ export function checkObjectionRecord(record: any, ctx: ObjectionEligibility): Ob
     return { countable: false, reason: 'late-objection' };
   }
   return { countable: true, createdAt };
+}
+
+// ── The override round (#199) ───────────────────────────────────────
+//
+// PRD #189 specified "objection → application held pending re-review per
+// community rules". The hold shipped; the re-review did not, and the gap was
+// not cosmetic: `objected` was terminal, so at the default threshold of 1 any
+// single member holding `community.governance.write` could permanently veto any
+// decision of a majority-governed community. That is not a contest window, it
+// is unanimity.
+//
+// A held proposal now opens one — and only one — override round. The same
+// electorate votes again, against a higher bar than the one that was objected
+// to, and the round is time-boxed. Three outcomes, all of them final:
+//
+//   reaches `overrideQuorum` votes for   the change applies
+//   the round expires short of it        the proposal is rejected
+//   the community disabled review        the hold stands, as it did before
+//
+// The asymmetry with the `did:plc` rotation-recovery idiom this whole mechanism
+// mirrors is what forces the round to exist. In `did:plc` the contester is the
+// account owner recovering their own identity, and a permanent veto is exactly
+// right — nobody else has a claim. Here the contester is one of N peers
+// overriding N−1, and the same permanence would hand any one of them a veto
+// over all the others. The objection still carries real weight: it does not
+// merely delay, it raises the bar the decision must clear.
+//
+// Only votes *for* count towards the override. The round asks "is there a
+// stronger mandate than the one that was objected to?", and abstention and
+// opposition answer that question the same way: no.
+
+/** How a community treats a held proposal. */
+export type ObjectionReview = 'override' | 'none';
+
+/**
+ * Days an override round stays open before the hold becomes final. A round that
+ * nobody answers is a mandate nobody has, so expiry rejects rather than applies.
+ */
+export const DEFAULT_OBJECTION_OVERRIDE_DAYS = 7;
+
+/**
+ * What a community does with a held proposal.
+ *
+ * The default is `override`, so a community that has never thought about this
+ * gets the re-review rather than the veto — which is the right way round,
+ * because a community that has never thought about it is exactly the one that
+ * will be surprised by a permanent hold. `none` restores the terminal `objected`
+ * state for a community that deliberately wants an objection to be the end of
+ * the matter. Anything unrecognized is the default: a typo must not silently
+ * hand someone a veto.
+ */
+export function objectionReviewMode(settings: any): ObjectionReview {
+  return settings?.governanceConfig?.objectionReview === 'none' ? 'none' : 'override';
+}
+
+export function objectionOverrideDays(settings: any): number {
+  const configured = settings?.governanceConfig?.objectionOverrideDays;
+  if (typeof configured !== 'number' || !Number.isFinite(configured) || configured <= 0) {
+    return DEFAULT_OBJECTION_OVERRIDE_DAYS;
+  }
+  return configured;
+}
+
+/**
+ * Votes *for* an override round must reach to carry the change.
+ *
+ * `governanceConfig.objectionOverrideQuorum` states it outright. Absent that it
+ * is two-thirds of the electorate, floored at one more than the ordinary quorum
+ * and capped at the electorate itself. All three parts are load-bearing:
+ *
+ *   two-thirds  the round must show a stronger mandate than a bare majority.
+ *   quorum + 1  two-thirds of a small community can be *lower* than its quorum,
+ *               and a bar below the original one would make an objection make a
+ *               decision easier to pass.
+ *   the cap     a community whose quorum already equals its electorate has
+ *               nothing stronger than unanimity to ask for, and `quorum + 1`
+ *               would be a bar no vote could ever clear — reinstating the
+ *               permanent veto in exactly the small communities most exposed to
+ *               it. Capped, the bar becomes unanimity: the strongest mandate
+ *               that exists, and a reachable one.
+ *
+ * Never below 1, so an empty electorate cannot produce a round that carries on
+ * no votes at all.
+ *
+ * `eligibleVoters` is the electorate counted when the round opens. It is frozen
+ * onto the proposal record at that instant rather than recounted later: the
+ * membership moves, and a bar that moved with it could be cleared by adding or
+ * removing members mid-round rather than by winning the argument.
+ */
+export function overrideQuorumFrom(settings: any, quorum: number, eligibleVoters: number): number {
+  const configured = settings?.governanceConfig?.objectionOverrideQuorum;
+  if (typeof configured === 'number' && Number.isInteger(configured) && configured >= 1) {
+    return configured;
+  }
+  const target = Math.max(quorum + 1, Math.ceil((eligibleVoters * 2) / 3));
+  return Math.max(1, Math.min(target, eligibleVoters));
+}
+
+/** The instant an override round opened at `openedAt` stops accepting votes. */
+export function overrideExpiresAt(openedAt: string, days: number): string {
+  return new Date(new Date(openedAt).getTime() + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * Has an override round carried? `null` means "not yet" — the round stays open
+ * until it does or until it expires.
+ */
+export function decideOverride(votesFor: number, overrideQuorum: number): Outcome | null {
+  return votesFor >= overrideQuorum ? 'approved' : null;
 }
 
 export function quorumRule(model: string, threshold: number): QuorumRule {

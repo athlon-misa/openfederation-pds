@@ -17,14 +17,24 @@
  * This is the `did:plc` rotation-recovery idiom — publish, wait, allow contest —
  * applied to community governance rather than to key rotation, deliberately, so
  * the stack has one story about how a signed act is challenged rather than two.
- * The port is not symmetric with its model and the asymmetry matters: in
- * `did:plc` the contester is the account owner recovering their own identity,
- * whereas here the contester is one of N peers stopping something the other N-1
- * may have voted for. **A hold is permanent.** There is no expiry, no
- * re-review, and no re-vote — `objected` is terminal, and at the default
- * threshold of 1 that means any single eligible member holds any decision
- * indefinitely. `objectionThreshold` exists so a community can choose otherwise;
- * choosing is the community's, never this module's.
+ * The port is not symmetric with its model, and the asymmetry decides what a
+ * hold may do: in `did:plc` the contester is the account owner recovering their
+ * own identity, so a permanent veto is exactly right — nobody else has a claim.
+ * Here the contester is one of N peers stopping something the other N-1 may have
+ * voted for, and the same permanence would hand any one of them a veto over all
+ * the others. It did, until #199: `objected` was terminal, so at the default
+ * threshold of 1 a single eligible member converted majority rule into
+ * unanimity.
+ *
+ * A hold now opens **one** override round (`objection-override`): the same
+ * electorate votes again against a higher bar — `overrideQuorum`, by default
+ * two-thirds of the electorate and never less than quorum+1 — inside a
+ * time-boxed window. Reaching it applies the change; the round expiring short of
+ * it rejects the proposal. The objection therefore still carries real weight —
+ * it raises the bar rather than merely delaying — without being the last word.
+ * A community that genuinely wants an objection to end the matter sets
+ * `governanceConfig.objectionReview: 'none'` and keeps the terminal `objected`
+ * state; choosing that is the community's, never this module's.
  *
  * **`pending-application` is not `resolutionDeferred`.** A deferred resolution
  * is a proposal that is still `open` because the vote records and the vote cache
@@ -49,21 +59,31 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query, withAdvisoryLock } from '../db/client.js';
 import {
+  DEFAULT_QUORUM,
   OBJECTION_COLLECTION,
   PROPOSAL_COLLECTION,
   applyAtFrom,
   checkObjectionRecord,
+  objectionOverrideDays,
+  objectionReviewMode,
   objectionThreshold,
+  overrideExpiresAt,
+  overrideQuorumFrom,
   proposalUri,
   timelockHours,
 } from './decision-rules.js';
+import { countEligibleVoters } from './electorate.js';
 import { putProposalRecord } from './proposal-resolution.js';
 import { SETTINGS_COLLECTION, checkGovernanceSettings } from './settings-rules.js';
 
 export {
+  DEFAULT_OBJECTION_OVERRIDE_DAYS,
   DEFAULT_OBJECTION_THRESHOLD,
   DEFAULT_TIMELOCK_HOURS,
+  objectionOverrideDays,
+  objectionReviewMode,
   objectionThreshold,
+  overrideQuorumFrom,
   timelockHours,
 } from './decision-rules.js';
 
@@ -79,8 +99,164 @@ export async function communitySettingsRecord(communityDid: string): Promise<any
 
 /** Decided and applicable, but waiting out the contest window. */
 export const PENDING_STATUS = 'pending-application';
-/** Decided, contested within the window; the change is held. */
+/**
+ * Decided, contested within the window, and the hold is final. Reached only by
+ * a community that set `governanceConfig.objectionReview: 'none'`; every other
+ * community's hold opens an override round instead (#199).
+ */
 export const OBJECTED_STATUS = 'objected';
+/** Held, and under re-review: the electorate is voting on a higher bar. */
+export const OVERRIDE_STATUS = 'objection-override';
+
+/**
+ * What a held proposal becomes.
+ *
+ * The single place the hold's consequences are decided, because two endpoints
+ * reach it — `objectToProposal` when the threshold is crossed inside the window,
+ * and `applyIfDue` when the window elapses with objections standing — and a
+ * proposal held by one route must be held on the same terms as one held by the
+ * other.
+ *
+ * The vote cache is cleared when a round opens. It has to be: the override round
+ * asks for a *stronger* mandate than the one that was objected to, and carrying
+ * the first round's votes into it would clear the higher bar with the very votes
+ * that were contested. `overrideOpenedAt` does the same for the record tally
+ * (see `tallyEpoch`), so the cache and the records start the round agreeing that
+ * nothing has been voted yet.
+ */
+export async function heldProposalState(input: {
+  communityDid: string;
+  proposal: any;
+  settings: any;
+  objections: CountedObjection[];
+  heldAt: string;
+}): Promise<Record<string, unknown>> {
+  const { proposal, settings, objections, heldAt } = input;
+
+  if (objectionReviewMode(settings) === 'none') {
+    return { ...proposal, status: OBJECTED_STATUS, objections };
+  }
+
+  const quorum = settings?.governanceConfig?.quorum || DEFAULT_QUORUM;
+  const eligibleVoters = await countEligibleVoters(input.communityDid);
+  return {
+    ...proposal,
+    status: OVERRIDE_STATUS,
+    objections,
+    overrideOpenedAt: heldAt,
+    overrideExpiresAt: overrideExpiresAt(heldAt, objectionOverrideDays(settings)),
+    // Frozen, not recomputed: see `overrideQuorumFrom`.
+    overrideQuorum: overrideQuorumFrom(settings, quorum, eligibleVoters),
+    overrideElectorate: eligibleVoters,
+    votesFor: [],
+    votesAgainst: [],
+  };
+}
+
+/**
+ * Close an override round that ran out of time.
+ *
+ * A round nobody answered is a mandate nobody has, so expiry rejects rather than
+ * applies — the objection stands. Evaluated lazily on access, exactly as the
+ * contest window is; the round's length is therefore a floor like every other
+ * interval here.
+ */
+export async function closeExpiredOverride(input: {
+  communityDid: string;
+  proposalRkey: string;
+  now?: Date;
+}): Promise<boolean> {
+  const { communityDid, proposalRkey } = input;
+  const now = input.now ?? new Date();
+
+  const preview = await query<{ status: string | null; expires_at: string | null }>(
+    `SELECT record->>'status' AS status, record->>'overrideExpiresAt' AS expires_at
+     FROM records_index
+     WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
+    [communityDid, PROPOSAL_COLLECTION, proposalRkey],
+  );
+  const row = preview.rows[0];
+  if (!row || row.status !== OVERRIDE_STATUS || !row.expires_at) return false;
+  if (now.toISOString() < row.expires_at) return false;
+
+  return withAdvisoryLock(proposalLockKey(communityDid, proposalRkey), async () => {
+    const result = await query<{ record: any }>(
+      `SELECT record FROM records_index
+       WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
+      [communityDid, PROPOSAL_COLLECTION, proposalRkey],
+    );
+    const proposal = result.rows[0]?.record;
+    if (!proposal || proposal.status !== OVERRIDE_STATUS) return false;
+    const expiresAt = typeof proposal.overrideExpiresAt === 'string' ? proposal.overrideExpiresAt : null;
+    if (!expiresAt || now.toISOString() < expiresAt) return false;
+
+    await putProposalRecord(new RepoEngine(communityDid), await getKeypairForDid(communityDid), communityDid, proposalRkey, {
+      ...proposal,
+      status: 'rejected',
+      resolvedAt: now.toISOString(),
+      overrideOutcome: 'expired',
+    });
+    await auditLog('community.proposal.overrideExpired', null, communityDid, {
+      rkey: proposalRkey,
+      overrideQuorum: proposal.overrideQuorum,
+      overrideExpiresAt: expiresAt,
+      votesFor: Array.isArray(proposal.votesFor) ? proposal.votesFor.length : 0,
+    });
+    return true;
+  });
+}
+
+/**
+ * `closeExpiredOverride`, with the failure contained and recorded — the same
+ * containment `applyIfDueSafely` gives the contest window, so a stuck round
+ * cannot turn a read of the proposal it is stuck on into a 500.
+ */
+export async function closeExpiredOverrideSafely(input: {
+  communityDid: string;
+  proposalRkey: string;
+  now?: Date;
+}): Promise<boolean> {
+  try {
+    return await closeExpiredOverride(input);
+  } catch (error) {
+    console.error(`[governance] could not close override round for ${input.communityDid}/${input.proposalRkey}:`, error);
+    await auditLog('community.proposal.overrideCloseFailed', null, input.communityDid, {
+      rkey: input.proposalRkey,
+      reason: error instanceof Error ? error.message : String(error),
+    }).catch(() => undefined);
+    return false;
+  }
+}
+
+/**
+ * Close every override round in a community that has run out of time.
+ *
+ * The lazy-evaluation hook for the round, alongside `applyDueProposals` for the
+ * contest window, and isolated the same way: one proposal failing skips that
+ * proposal only, so a stuck round cannot block every later one.
+ */
+export async function closeExpiredOverrides(communityDid: string, now: Date = new Date()): Promise<number> {
+  let closed = 0;
+  let due;
+  try {
+    due = await query<{ rkey: string }>(
+      `SELECT rkey FROM records_index
+       WHERE community_did = $1 AND collection = $2
+         AND record->>'status' = $3
+         AND record->>'overrideExpiresAt' <= $4
+       ORDER BY rkey ASC`,
+      [communityDid, PROPOSAL_COLLECTION, OVERRIDE_STATUS, now.toISOString()],
+    );
+  } catch (error) {
+    console.error(`[governance] could not list expired override rounds for ${communityDid}:`, error);
+    return 0;
+  }
+
+  for (const row of due.rows) {
+    if (await closeExpiredOverrideSafely({ communityDid, proposalRkey: row.rkey, now })) closed++;
+  }
+  return closed;
+}
 
 /** The advisory lock every writer of a single proposal's state contends on. */
 export function proposalLockKey(communityDid: string, proposalRkey: string): string {
@@ -339,15 +515,18 @@ export async function applyIfDue(input: {
     const settings = await communitySettingsRecord(communityDid);
     const threshold = objectionThreshold(settings);
     if (objections.length >= threshold) {
-      await putProposalRecord(new RepoEngine(communityDid), await getKeypairForDid(communityDid), communityDid, proposalRkey, {
-        ...proposal,
-        status: OBJECTED_STATUS,
-        objections,
+      const held = await heldProposalState({
+        communityDid, proposal, settings, objections, heldAt: now.toISOString(),
       });
+      await putProposalRecord(new RepoEngine(communityDid), await getKeypairForDid(communityDid), communityDid, proposalRkey, held);
       await auditLog('community.proposal.applicationHeld', null, communityDid, {
         rkey: proposalRkey,
         applyAt,
         objectionThreshold: threshold,
+        status: held.status,
+        ...(held.status === OVERRIDE_STATUS
+          ? { overrideQuorum: held.overrideQuorum, overrideExpiresAt: held.overrideExpiresAt, overrideElectorate: held.overrideElectorate }
+          : {}),
         objections: objections.map(o => ({ objector: o.objector, uri: o.record.uri, cid: o.record.cid })),
       });
       return { state: 'objected', objections };
