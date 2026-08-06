@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Governance: decision records are reproducible
+
+`votes` on a decision record was emitted in Map insertion order, which followed
+an unordered SQL scan. Nothing downstream noticed — the offline verifier compares
+CID sets and the tests normalised the sequence away — but it meant two PDSes
+replaying the same history produced records with different CIDs, and every
+decision comparison had to be lossy (issue #204).
+
+The tally now sorts by `voteOrderKey`: the same earliest-`createdAt`,
+rkey-as-tiebreak ordering the one-vote-per-voter rule already applies, so no new
+notion of order is introduced. `for` and `against` remain grouped, each side
+chronological. The underlying query is ordered too, so the intermediate state is
+reproducible as well.
+
+No lexicon change — the record's shape is unchanged, only the sequence within an
+existing array. Decisions written before this keep whatever order they were
+written with; nothing rewrites them.
+
 ### Security: external-login handoff codes are bound to the initiating browser
 
 The 60-second code that hands an external ATProto login back to the dashboard was
