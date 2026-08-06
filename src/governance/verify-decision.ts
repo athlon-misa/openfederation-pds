@@ -113,9 +113,14 @@ import {
  *                          the decision does not cite it.
  *   miscounted-tally     — the published `tally` does not match the votes the
  *                          decision itself cites.
- *   insufficient-quorum  — fewer counted votes than the quorum required, taking
- *                          the larger of the decision's published threshold and
- *                          the community's signed settings record.
+ *   insufficient-quorum  — fewer counted votes than the threshold the decision
+ *                          itself publishes. Proven short: no alternative
+ *                          history explains it.
+ *   quorum-floor-unmet   — clears its own published threshold but not the one
+ *                          the community's settings record currently requires.
+ *                          Either an understated threshold or a quorum raised
+ *                          after the fact; the settings record keeps no history,
+ *                          so this names the ambiguity rather than accusing.
  *   wrong-outcome        — quorum was met, but the published outcome is not what
  *                          the rule produces from the counted votes.
  */
@@ -131,6 +136,7 @@ export type VerificationCode =
   | 'uncounted-vote'
   | 'miscounted-tally'
   | 'insufficient-quorum'
+  | 'quorum-floor-unmet'
   | 'wrong-outcome';
 
 export type FailureCode = Exclude<VerificationCode, 'valid' | 'superseded'>;
@@ -171,6 +177,7 @@ const SEVERITY: FailureCode[] = [
   'missing-evidence',
   'miscounted-tally',
   'insufficient-quorum',
+  'quorum-floor-unmet',
   'wrong-outcome',
 ];
 
@@ -749,10 +756,7 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
   // not the rule at resolution time. Publishing a smaller threshold must never
   // lower the bar, so the effective threshold is the larger of the two — a
   // decision has to satisfy both what it claimed and what the community
-  // requires. A community that raises its quorum after the fact will therefore
-  // make older decisions read as short; the message says so, because offline
-  // there is no way to tell that apart from an under-resolved decision, and
-  // silently preferring the decision's own number is what the attack relies on.
+  // requires.
   const settingsInRepo = await locateRecord(communityRepo, SETTINGS_COLLECTION, 'self');
   let settingsThreshold: number | null = null;
   if (!settingsInRepo.found) {
@@ -781,13 +785,36 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
     });
   }
 
+  // Both shortfalls are failures, but they are not the same finding and must
+  // not share a string.
+  //
+  //   total < published            — short of a rule the decision itself admits
+  //                                  to. No alternative history explains it.
+  //                                  Proof: `insufficient-quorum`.
+  //   published <= total < settings — clears its own stated rule, short only
+  //                                  under a rule that may postdate it. Could
+  //                                  be a forged threshold, could be a quorum
+  //                                  the community raised afterwards, and the
+  //                                  settings record carries no lineage to tell
+  //                                  them apart. Suspicion, named as such:
+  //                                  `quorum-floor-unmet`.
+  //
+  // Collapsing the second into the first would make an honest historical
+  // decision re-verify under the same code as the forged-threshold attack.
   const total = countedFor + countedAgainst;
-  if (total < effectiveThreshold) {
+  if (total < quorumThreshold) {
     problems.push({
       code: 'insufficient-quorum',
-      message: quorumThreshold === effectiveThreshold
-        ? `${total} counted vote(s) is below the quorum threshold of ${effectiveThreshold}`
-        : `${total} counted vote(s) is below the quorum threshold of ${effectiveThreshold} required by the community's settings record, though the decision publishes ${quorumThreshold}`,
+      message: `${total} counted vote(s) is below the quorum threshold of ${quorumThreshold} that this decision itself publishes`,
+      uri: input.decision.uri,
+    });
+  } else if (total < effectiveThreshold) {
+    problems.push({
+      code: 'quorum-floor-unmet',
+      message:
+        `${total} counted vote(s) clears the threshold of ${quorumThreshold} this decision publishes, but not the ${effectiveThreshold} ` +
+        `the community's settings record currently requires. Either the published threshold was understated, or the community raised its ` +
+        `quorum after this decision resolved — the settings record keeps no history, so the two cannot be told apart offline.`,
       uri: input.decision.uri,
     });
   } else {

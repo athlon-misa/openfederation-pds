@@ -131,33 +131,67 @@ describe('verifyDecision — forged-signature', () => {
 
 describe('verifyDecision — insufficient-quorum', () => {
   it('rejects a decision resolved below its own published threshold', async () => {
+    // Proven short: the decision admits the rule it failed. No alternative
+    // history explains this, so it gets the accusatory code.
     const s = await buildScenario({ quorum: 5 });
     const verdict = await verifyDecision(s.input());
     expect(verdict.code).toBe('insufficient-quorum');
-    expect(verdict.problems[0].message).toMatch(/below the quorum threshold of 5/);
+    expect(verdict.problems[0].message).toMatch(/below the quorum threshold of 5 that this decision itself publishes/);
     // Everything else about the decision is sound.
     expect(verdict.problems).toHaveLength(1);
   });
 
   it('rejects a decision that publishes a threshold its community does not have', async () => {
-    // The attack the published threshold alone cannot catch: a PDS resolves a
+    // The case the published threshold alone cannot catch: a PDS resolves a
     // one-vote decision in a quorum-five community and writes `threshold: 1`.
+    // It clears its own stated rule, so this is `quorum-floor-unmet`, not
+    // `insufficient-quorum` — the same shape as a community that raised its
+    // quorum afterwards, and offline the two are indistinguishable.
     const s = await buildScenario({ choices: ['for'], quorum: 1, settingsQuorum: 5 });
     const verdict = await verifyDecision(s.input());
 
     expect(verdict.status).toBe('invalid');
-    expect(verdict.code).toBe('insufficient-quorum');
-    expect(verdict.problems[0].message).toMatch(/required by the community's settings record, though the decision publishes 1/);
+    expect(verdict.code).toBe('quorum-floor-unmet');
+    expect(verdict.problems[0].message).toMatch(/the community's settings record currently requires/);
     expect(verdict.summary.quorumThreshold).toBe(1);
     expect(verdict.summary.settingsQuorumThreshold).toBe(5);
     expect(verdict.summary.effectiveQuorumThreshold).toBe(5);
+  });
+
+  it('separates the proven shortfall from the unprovable one', async () => {
+    // Same community rule, same evidence — only what the decision published
+    // about itself differs, and that alone decides which code is reported.
+    const proven = await verifyDecision(
+      (await buildScenario({ choices: ['for'], quorum: 4, settingsQuorum: 5 })).input(),
+    );
+    const suspected = await verifyDecision(
+      (await buildScenario({ choices: ['for'], quorum: 1, settingsQuorum: 5 })).input(),
+    );
+
+    expect(proven.code).toBe('insufficient-quorum');
+    expect(suspected.code).toBe('quorum-floor-unmet');
+    expect(proven.status).toBe('invalid');
+    expect(suspected.status).toBe('invalid');
+    // Neither branch reports the other's code.
+    expect(proven.problems.some(p => p.code === 'quorum-floor-unmet')).toBe(false);
+    expect(suspected.problems.some(p => p.code === 'insufficient-quorum')).toBe(false);
+  });
+
+  it('does not accuse an honest decision of fraud when the community later raises quorum', async () => {
+    // Resolved honestly at 3 with 3 votes; the community then moved to 5. The
+    // decision itself is untouched and correctly signed, so the finding names
+    // the ambiguity instead of the attack.
+    const s = await buildScenario({ quorum: 3, settingsQuorum: 5 });
+    const verdict = await verifyDecision(s.input());
+    expect(verdict.code).toBe('quorum-floor-unmet');
+    expect(verdict.problems[0].message).toMatch(/raised its quorum after this decision resolved/);
   });
 
   it('applies the same `|| 3` default the online path uses', async () => {
     const s = await buildScenario({ choices: ['for', 'for'], quorum: 2, settingsQuorum: 0 });
     const verdict = await verifyDecision(s.input());
     expect(verdict.summary.settingsQuorumThreshold).toBe(3);
-    expect(verdict.code).toBe('insufficient-quorum');
+    expect(verdict.code).toBe('quorum-floor-unmet');
   });
 
   it('notes a threshold disagreement that the tally still satisfies', async () => {

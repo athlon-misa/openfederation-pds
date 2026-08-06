@@ -212,15 +212,22 @@ verdict — `status`, a stable machine-readable `code`, every `problem`, and the
 | `uncounted-vote` | An eligible vote in the supplied exports was left out |
 | `missing-evidence` | A CAR or DID document needed for a check was not supplied |
 | `miscounted-tally` | The published tally does not match the votes cited |
-| `insufficient-quorum` | Fewer counted votes than the quorum required — the larger of the decision's published threshold and the one in the community's signed settings record |
+| `insufficient-quorum` | Fewer counted votes than the threshold the decision **itself publishes** — proven short, no alternative history explains it |
+| `quorum-floor-unmet` | Clears its own published threshold but not the one the community's settings record currently requires — either an understated threshold or a quorum raised after the fact, and the two cannot be told apart offline |
 | `wrong-outcome` | Quorum met, but the outcome is not what that rule produces |
 
 The quorum a decision publishes is a claim about itself, so it is never the only
 bar: the threshold in the community's `net.openfederation.community.settings/self`
 record — already in the export and already signature-checked — is applied too,
-and the stricter of the two wins. `notes` carries two codes of its own:
-`disclosed-gap` (the decision honestly declared cache votes with no record) and
-`quorum-rule-drift` (the two thresholds differ but the tally clears both).
+and the stricter of the two wins. The two shortfalls are deliberately separate
+codes: `insufficient-quorum` accuses, `quorum-floor-unmet` only reports an
+ambiguity, because a community that raises its quorum via `governance set-model`
+makes its own untouched historical decisions fall into the second case. Both are
+`invalid` and both exit 1.
+
+`notes` carries two codes of its own: `disclosed-gap` (the decision honestly
+declared cache votes with no record) and `quorum-rule-drift` (the two thresholds
+differ but the tally clears both).
 
 A decision that has been superseded is only reported as such when the
 superseding record is itself found in the community's signed repo at the CID it
