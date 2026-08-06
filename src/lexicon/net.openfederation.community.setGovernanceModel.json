@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.setGovernanceModel",
-  "revision": 2,
+  "revision": 3,
   "description": "Switch a community's governance model.",
   "defs": {
     "main": {
@@ -47,7 +47,7 @@
         },
         "governanceConfig": {
           "type": "unknown",
-          "description": "Config for the target model (quorum, voterRole, proposalTtlDays)."
+          "description": "Config for the target model (quorum, voterRole, proposalTtlDays, timelockHours). timelockHours is the contest window a passed proposal waits out before its change is applied; defaults to 24 when absent, and 0 (immediate application) must be stated explicitly."
         }
       },
       "required": [

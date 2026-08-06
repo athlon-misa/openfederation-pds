@@ -49,6 +49,20 @@ export default async function setGovernanceModel(req: AuthRequest, res: Response
         return;
       }
 
+      // The contest window a passed proposal waits out before its change is
+      // applied. Optional: absent means the default (see `timelockHours` in
+      // decision-rules.ts). Instant application has to be asked for by name.
+      if (governanceConfig.timelockHours !== undefined) {
+        const hours = governanceConfig.timelockHours;
+        if (typeof hours !== 'number' || !Number.isFinite(hours) || hours < 0) {
+          res.status(400).json({
+            error: 'InvalidRequest',
+            message: 'governanceConfig.timelockHours must be a non-negative number of hours (0 applies changes immediately)',
+          });
+          return;
+        }
+      }
+
       // Validate protectedCollections if provided
       if (governanceConfig.protectedCollections) {
         if (!Array.isArray(governanceConfig.protectedCollections)) {

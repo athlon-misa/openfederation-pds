@@ -114,6 +114,7 @@ import listRolesHandler from '../api/net.openfederation.community.listRoles.js';
 import setGovernanceModel from '../api/net.openfederation.community.setGovernanceModel.js';
 import createProposal from '../api/net.openfederation.community.createProposal.js';
 import voteOnProposal from '../api/net.openfederation.community.voteOnProposal.js';
+import objectToProposal from '../api/net.openfederation.community.objectToProposal.js';
 import listProposals from '../api/net.openfederation.community.listProposals.js';
 import getProposalHandler from '../api/net.openfederation.community.getProposal.js';
 import amendProposal from '../api/net.openfederation.community.amendProposal.js';
@@ -286,6 +287,7 @@ const handlers = Object.freeze({
   'net.openfederation.community.setGovernanceModel': { handler: setGovernanceModel },
   'net.openfederation.community.createProposal': { handler: createProposal },
   'net.openfederation.community.voteOnProposal': { handler: voteOnProposal },
+  'net.openfederation.community.objectToProposal': { handler: objectToProposal },
   'net.openfederation.community.listProposals': { handler: listProposals, limiter: discoveryLimiter },
   'net.openfederation.community.getProposal': { handler: getProposalHandler, limiter: discoveryLimiter },
   'net.openfederation.community.amendProposal': { handler: amendProposal },

@@ -136,7 +136,7 @@ describe('Governance decision records and vote-record tallies', () => {
     const modelRes = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
       communityDid,
       governanceModel: 'simple-majority',
-      governanceConfig: { quorum: QUORUM, voterRole: 'moderator', proposalTtlDays: 7 },
+      governanceConfig: { quorum: QUORUM, voterRole: 'moderator', proposalTtlDays: 7, timelockHours: 0 },
     });
     expect(modelRes.status).toBe(200);
   });

@@ -57,6 +57,11 @@ export type AuditAction =
   | 'community.proposal.reject'
   | 'community.proposal.expire'
   | 'community.proposal.resolution.deferred'
+  // Timelock: decided, waiting out the contest window, then applied or held.
+  | 'community.proposal.pendingApplication'
+  | 'community.proposal.objection'
+  | 'community.proposal.applicationHeld'
+  | 'community.proposal.apply'
   | 'community.proposal.decision.superseded'
   | 'admin.export.schedule.create'
   | 'admin.export.schedule.delete'

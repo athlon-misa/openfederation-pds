@@ -95,6 +95,11 @@ const PROTECTED_COLLECTION_POLICIES: Record<string, CollectionMutationPolicy> = 
  */
 const SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS = new Set<string>([
   'net.openfederation.governance.vote',
+  // An objection holds a community's decided change, and it counts because the
+  // objector was eligible to vote and raised it inside the window. Both facts
+  // are established by `objectToProposal`; a hand-written record in one's own
+  // repo would assert them instead.
+  'net.openfederation.governance.objection',
 ]);
 
 const FALLBACK_PERMISSIONS: OperationPermissions = {

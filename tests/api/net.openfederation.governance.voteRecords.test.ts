@@ -79,7 +79,7 @@ describe('Voter-signed governance vote records', () => {
     const modelRes = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
       communityDid,
       governanceModel: 'simple-majority',
-      governanceConfig: { quorum: 10, voterRole: 'moderator', proposalTtlDays: 7 },
+      governanceConfig: { quorum: 10, voterRole: 'moderator', proposalTtlDays: 7, timelockHours: 0 },
     });
     expect(modelRes.status).toBe(200);
 

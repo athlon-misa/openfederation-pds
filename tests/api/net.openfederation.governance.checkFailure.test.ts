@@ -90,7 +90,7 @@ describe('a failed recordability check defers, it never excludes', () => {
     await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
       communityDid,
       governanceModel: 'simple-majority',
-      governanceConfig: { quorum: QUORUM, voterRole: 'moderator', proposalTtlDays: 7 },
+      governanceConfig: { quorum: QUORUM, voterRole: 'moderator', proposalTtlDays: 7, timelockHours: 0 },
     });
 
     const delRes = await xrpcAuthPost('net.openfederation.community.setDelegation', delegator.accessJwt, {

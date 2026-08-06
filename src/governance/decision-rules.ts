@@ -12,6 +12,7 @@
 export const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 export const VOTE_COLLECTION = 'net.openfederation.governance.vote';
 export const DECISION_COLLECTION = 'net.openfederation.governance.decision';
+export const OBJECTION_COLLECTION = 'net.openfederation.governance.objection';
 export const SETTINGS_COLLECTION = 'net.openfederation.community.settings';
 
 /**
@@ -123,6 +124,98 @@ export function voteOrderKey(createdAt: string, rkey: string): string {
 export function decideOutcome(votesFor: number, votesAgainst: number, quorum: number): Outcome | null {
   if (votesFor + votesAgainst < quorum) return null;
   return votesFor > votesAgainst ? 'approved' : 'rejected';
+}
+
+// ── Timelock and objection window ───────────────────────────────────
+//
+// A decision settles what the votes said; it does not settle that the change
+// should take effect immediately. An approved proposal enters
+// `pending-application` for a contest window, during which an eligible member
+// can publish a signed objection in their own repo. This deliberately mirrors
+// the did:plc rotation-recovery idiom — publish, wait, allow contest — so the
+// stack carries one trust vocabulary rather than two.
+//
+// These rules live here, alongside the vote rules, for the same reason those do:
+// whatever checks an objection online and whatever rechecks it offline must
+// apply the same predicate, or "this objection held the change" would mean two
+// different things.
+
+/**
+ * Contest window applied when a community's settings record names none. A
+ * community that genuinely wants instant application has to say `0` explicitly;
+ * absence of the setting is not consent to it.
+ */
+export const DEFAULT_TIMELOCK_HOURS = 24;
+
+/**
+ * The contest window a community's settings record requires, in hours.
+ *
+ * `0` (application is immediate) is only produced when the config states it, so
+ * a malformed or missing value can never silently shorten the window.
+ */
+export function timelockHours(settings: any): number {
+  const configured = settings?.governanceConfig?.timelockHours;
+  if (typeof configured !== 'number' || !Number.isFinite(configured) || configured < 0) {
+    return DEFAULT_TIMELOCK_HOURS;
+  }
+  return configured;
+}
+
+/** The instant a proposal resolved at `resolvedAt` becomes applicable. */
+export function applyAtFrom(resolvedAt: string, hours: number): string {
+  return new Date(new Date(resolvedAt).getTime() + hours * 60 * 60 * 1000).toISOString();
+}
+
+/** What an objection record has to point at to hold a pending application. */
+export interface ObjectionEligibility {
+  /** `at://<community>/<proposal collection>/<rkey>` the objection must cite. */
+  proposalUri: string;
+  /** AT-URI of the decision being contested. */
+  decisionUri: string;
+  /** CID of that decision record. */
+  decisionCid: string;
+  /** When the proposal resolved; an objection cannot predate what it contests. */
+  resolvedAt: string;
+  /** End of the contest window; an objection at or after it is late. */
+  applyAt: string;
+}
+
+export type ObjectionEligibilityResult =
+  | { countable: true; createdAt: string }
+  | { countable: false; reason: string };
+
+/**
+ * Decide whether one `net.openfederation.governance.objection` record holds the
+ * application of the decision it names.
+ *
+ * Structural and temporal only. Whether the objector is *eligible* is a
+ * membership question, decided by the same community permission that gates
+ * voting (`community.governance.write`) at the moment the objection is
+ * submitted; it is not re-derivable from the record alone.
+ *
+ * The rejection reasons are recorded in the audit log and on the proposal, so
+ * they are part of the published evidence and should not be renamed casually.
+ */
+export function checkObjectionRecord(record: any, ctx: ObjectionEligibility): ObjectionEligibilityResult {
+  if (record?.proposal?.uri !== ctx.proposalUri || record?.proposalCollection !== PROPOSAL_COLLECTION) {
+    return { countable: false, reason: 'proposal-uri-mismatch' };
+  }
+  // An objection contests one specific decision. Citing a different one — or an
+  // earlier state of the same one — is not an objection to this application.
+  if (record?.decision?.uri !== ctx.decisionUri || record?.decision?.cid !== ctx.decisionCid) {
+    return { countable: false, reason: 'decision-mismatch' };
+  }
+  const createdAt = typeof record?.createdAt === 'string' ? record.createdAt : '';
+  if (!createdAt || createdAt < ctx.resolvedAt) {
+    return { countable: false, reason: 'objection-predates-decision' };
+  }
+  // The window is half-open: an objection written at or after the applicable
+  // instant is late, whether or not anything has actually applied the change
+  // yet. Lazy application must not turn a late objection into a timely one.
+  if (createdAt >= ctx.applyAt) {
+    return { countable: false, reason: 'late-objection' };
+  }
+  return { countable: true, createdAt };
 }
 
 export function quorumRule(model: string, threshold: number): QuorumRule {

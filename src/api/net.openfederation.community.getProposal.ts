@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireCommunityReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { applyIfDue } from '../governance/timelock.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 
@@ -16,6 +17,16 @@ export default async function getProposal(req: AuthRequest, res: Response): Prom
     }
 
     if (!(await requireCommunityReadable(req, res, communityDid))) return;
+
+    // Time-based transitions are evaluated on access (see `timelock.ts`): if
+    // this proposal's contest window has elapsed unobjected, the change is
+    // applied now, so the caller never reads a stale `pending-application`.
+    // Failures are swallowed inside — a stuck application must not break a read.
+    try {
+      await applyIfDue({ communityDid, proposalRkey: rkey });
+    } catch (error) {
+      console.error(`[governance] timelock evaluation failed for ${communityDid}/${rkey}:`, error);
+    }
 
     const result = await query<{ record: any }>(
       `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,

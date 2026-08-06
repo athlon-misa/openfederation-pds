@@ -48,6 +48,20 @@
  *   - **`evidenceComplete: false`.** Cache votes that produced no countable
  *     record are enumerated in `uncountedVotes`; that is a disclosed gap, not a
  *     failure. It is reported as a note.
+ *
+ * **Objections (#197) do not enter this verdict, deliberately.** A
+ * `net.openfederation.governance.objection` contests the *application* of a
+ * decision inside its timelock window; it says nothing about whether the votes
+ * the decision cites were real, eligible, complete, or correctly counted, which
+ * is the only question asked here. Treating an objection as a defect would make
+ * a sound decision verify as unsound because someone disagreed with it — the
+ * opposite of what a contest window is for. The two questions are separable and
+ * are kept separate: "is this decision sound?" is answered here; "was the
+ * change legitimately applied?" is answered from the community's signed
+ * proposal record (`status`, `applyAt`, `objections`) and the objectors' signed
+ * objection records, under `checkObjectionRecord` — the same predicate the
+ * online path applies, and for the same reason the vote rules are shared.
+ * `verifyDecision` still never reads the proposal's `status`.
  */
 
 import { CID } from 'multiformats/cid';

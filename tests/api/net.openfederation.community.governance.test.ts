@@ -72,7 +72,7 @@ describe('Community Governance', () => {
       const res = await xrpcAuthPost('net.openfederation.community.setGovernanceModel', owner.accessJwt, {
         communityDid,
         governanceModel: 'simple-majority',
-        governanceConfig: { quorum: 2, voterRole: 'moderator', proposalTtlDays: 7 },
+        governanceConfig: { quorum: 2, voterRole: 'moderator', proposalTtlDays: 7, timelockHours: 0 },
       });
       expect(res.status).toBe(200);
       expect(res.body.governanceModel).toBe('simple-majority');

@@ -23,6 +23,13 @@ import {
   type DecisionRef,
   type Outcome,
 } from '../governance/proposal-resolution.js';
+import {
+  PENDING_STATUS,
+  applyDueProposals,
+  applyProposedChange,
+  pendingApplicationState,
+  proposalLockKey,
+} from '../governance/timelock.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
@@ -48,7 +55,13 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     );
     if (!hasPermission) return;
 
-    return await withAdvisoryLock(`community-proposal:${communityDid}:${proposalRkey}`, async () => {
+    // Lazy timelock evaluation, before the per-proposal lock is taken: any
+    // proposal in this community whose contest window has elapsed is applied
+    // now. `applyDueProposals` takes each proposal's lock itself, so it must not
+    // run inside the one below.
+    await applyDueProposals(communityDid);
+
+    return await withAdvisoryLock(proposalLockKey(communityDid, proposalRkey), async () => {
     const proposalResult = await query<{ record: any; cid: string }>(
       `SELECT record, cid FROM records_index
        WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
@@ -254,12 +267,27 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
     }
 
     let applied = false;
+    let pendingApplication: string | undefined;
 
     if (outcome) {
+      const resolvedAt = new Date().toISOString();
       updatedProposal.status = outcome;
-      updatedProposal.resolvedAt = new Date().toISOString();
+      updatedProposal.resolvedAt = resolvedAt;
       if (decision) {
         updatedProposal.decision = { uri: decision.uri, cid: decision.cid, rkey: decision.rkey };
+      }
+
+      // An approved change waits out the community's contest window before it
+      // touches the repo. Only decisions carry something an objection can name,
+      // so proposals predating the evidence model apply as they always did
+      // rather than entering a window nobody could contest.
+      const window = outcome === 'approved' && decision
+        ? pendingApplicationState(settings, resolvedAt)
+        : null;
+      if (window) {
+        updatedProposal.status = PENDING_STATUS;
+        updatedProposal.applyAt = window.applyAt;
+        pendingApplication = window.applyAt;
       }
 
       // Closing the proposal before applying the change keeps the change
@@ -267,12 +295,16 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       // because the proposal is no longer open.
       await putProposalRecord(engine, keypair, communityDid, proposalRkey, updatedProposal);
 
-      if (outcome === 'approved') {
-        if (proposal.action === 'write' && proposal.proposedRecord) {
-          await engine.putRecord(keypair, proposal.targetCollection, proposal.targetRkey, proposal.proposedRecord);
-        } else if (proposal.action === 'delete') {
-          await engine.deleteRecord(keypair, proposal.targetCollection, proposal.targetRkey);
-        }
+      if (window) {
+        await auditLog('community.proposal.pendingApplication', req.auth!.userId, communityDid, {
+          rkey: proposalRkey,
+          targetCollection: proposal.targetCollection,
+          applyAt: window.applyAt,
+          resolvedAt,
+          ...(decision ? { decisionUri: decision.uri, decisionCid: decision.cid, countedVoteCids, evidenceComplete } : {}),
+        });
+      } else if (outcome === 'approved') {
+        await applyProposedChange(engine, keypair, proposal);
         applied = true;
         await auditLog('community.proposal.approve', req.auth!.userId, communityDid, {
           rkey: proposalRkey,
@@ -301,6 +333,9 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       recorded: true,
       status: updatedProposal.status,
       ...(applied ? { applied: true } : {}),
+      // Decided, not yet effective. Distinct from `resolutionDeferred`, which
+      // means nothing was decided at all.
+      ...(pendingApplication ? { pendingApplication: true, applyAt: pendingApplication } : {}),
       ...(deferred ? { resolutionDeferred: true } : {}),
     });
     });
