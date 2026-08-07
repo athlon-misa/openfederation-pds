@@ -11,10 +11,26 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
+import { communityFederationView } from '../federation/privacy.js';
 import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
 import { buildCommunityActor, type ApplicationRecord } from './ap-actors.js';
 
 const router = Router();
+
+// Enabled is re-checked per request rather than at mount time, exactly like
+// the chain module: the router is always mounted, so tests can reach it and
+// an operator can flip ACTIVITYPUB_ENABLED without a rebuild — and a
+// disabled instance answers 404 for every AP route, not just unmounted
+// silence in production and different behaviour under test. That mount-time
+// gating is also how the private-community leak (#85) survived: the routes
+// were unreachable from the test harness, so nothing could pin them.
+router.use((req, res, next) => {
+  if (!config.activitypub.enabled) {
+    next('router');
+    return;
+  }
+  next();
+});
 
 // In-memory cache for RSA key pairs per community DID (performance — avoids repeated DB lookups)
 const rsaKeyCache = new Map<string, { publicKey: string; privateKey: string }>();
@@ -100,14 +116,23 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
       return;
     }
 
+    // A private community's actor exists — its DID and handle are in the
+    // public PLC directory regardless, and the owner deliberately linked AP
+    // applications that need to address and signature-verify it — but it is
+    // served STRIPPED: no display name, no description, no linked-instance
+    // attachments (#85, ADR-001). Existence is not the secret; content is.
+    const federationView = await communityFederationView(did);
+
     // Load profile from repo records (display name, description are stored as records, not DB columns)
-    const profileResult = await query<{
-      record: { displayName?: string; description?: string };
-    }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.profile' LIMIT 1`,
-      [did],
-    );
+    const profileResult = federationView === 'public'
+      ? await query<{
+        record: { displayName?: string; description?: string };
+      }>(
+        `SELECT record FROM records_index
+         WHERE community_did = $1 AND collection = 'net.openfederation.community.profile' LIMIT 1`,
+        [did],
+      )
+      : { rows: [] as Array<{ record: { displayName?: string; description?: string } }> };
     const profile = profileResult.rows[0]?.record || {};
 
     // Load linked applications from records_index
@@ -126,11 +151,15 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
       return;
     }
 
-    const applications: ApplicationRecord[] = appResult.rows.map((row) => ({
-      appType: row.record.appType,
-      instanceUrl: row.record.instanceUrl,
-      displayName: row.record.displayName,
-    }));
+    // Which AP instances back this community is content, not addressing:
+    // stripped from a private community's actor along with the profile.
+    const applications: ApplicationRecord[] = federationView === 'public'
+      ? appResult.rows.map((row) => ({
+        appType: row.record.appType,
+        instanceUrl: row.record.instanceUrl,
+        displayName: row.record.displayName,
+      }))
+      : [];
 
     // Load or create persisted RSA keys for AP compatibility
     // (AP ecosystem uses RSA for HTTP signatures; ATProto uses secp256k1)

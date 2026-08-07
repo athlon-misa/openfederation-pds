@@ -184,6 +184,12 @@ installChainModule(app);
 // Bounce/complaint webhooks — routes exist only when EMAIL_WEBHOOK_TOKEN is set.
 app.use(createEmailWebhookRouter());
 
+// ActivityPub discovery. Mounted unconditionally — the router gates itself on
+// config.activitypub.enabled per request, so tests exercise the same code
+// production runs (#85: mount-time gating inside main() left these routes
+// untestable, which is how the private-community leak went unnoticed).
+app.use(apRouter);
+
 // The landing page for emailed verification links (#83). A browser GET, not
 // XRPC: the person clicking has an email client and possibly no session — so
 // this must work logged-out, and must render something a human can read.
@@ -427,9 +433,7 @@ export async function startServer(): Promise<void> {
       }
     }
 
-    // Mount ActivityPub routes if enabled
     if (config.activitypub.enabled) {
-      app.use(apRouter);
       console.log('ActivityPub discovery endpoints enabled');
     }
 

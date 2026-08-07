@@ -3,6 +3,7 @@ import { Secp256k1Keypair } from '@atproto/crypto';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { discoveryLimiter } from './rate-limits.js';
+import { communityFederationView } from '../federation/privacy.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { decryptKeyBytes } from '../auth/encryption.js';
 
@@ -219,13 +220,20 @@ export function createWellKnownRouter(): Router {
           [did]
         );
         if (parseInt(apAppResult.rows[0]?.count || '0', 10) > 0) {
-          // Community has linked AP apps — point to the real AP actor
+          // Community has linked AP apps — point to the real AP actor. A
+          // private community still resolves (existence is public via PLC,
+          // and its deliberately linked AP instances need the actor for
+          // addressing) but content-bearing links are withheld: the actor it
+          // points to is served stripped, and the profile page is not
+          // advertised (#85, ADR-001).
           apActorUrl = `${config.pds.serviceUrl}/ap/actor/${did}`;
-          links.push({
-            rel: 'http://webfinger.net/rel/profile-page',
-            type: 'text/html',
-            href: `${config.pds.serviceUrl}/communities/${did}`,
-          });
+          if (await communityFederationView(did) === 'public') {
+            links.push({
+              rel: 'http://webfinger.net/rel/profile-page',
+              type: 'text/html',
+              href: `${config.pds.serviceUrl}/communities/${did}`,
+            });
+          }
         }
       }
 
