@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
+import { SERVER_VERSION } from '../server/server-version.js';
 
 /**
  * net.openfederation.server.getPublicConfig
@@ -17,7 +18,7 @@ export default async function getPublicConfig(_req: Request, res: Response): Pro
 
     res.status(200).json({
       service: 'OpenFederation PDS',
-      version: '1.0.0',
+      version: SERVER_VERSION,
       hostname: config.pds.hostname,
       serviceUrl: config.pds.serviceUrl,
       webUrl: config.federation.webUiUrl || null,

@@ -14,6 +14,7 @@ import { query } from '../db/client.js';
 import { communityFederationView } from '../federation/privacy.js';
 import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
 import { buildCommunityActor, type ApplicationRecord } from './ap-actors.js';
+import { SERVER_VERSION } from '../server/server-version.js';
 
 const router = Router();
 
@@ -215,7 +216,7 @@ router.get('/nodeinfo/2.1', async (_req: Request, res: Response) => {
       version: '2.1',
       software: {
         name: 'openfederation-pds',
-        version: '1.0.0',
+        version: SERVER_VERSION,
       },
       protocols: ['atprotocol', 'activitypub'],
       services: { inbound: [], outbound: [] },

@@ -25,6 +25,7 @@ import { createEmailWebhookRouter } from '../email/bounce-webhooks.js';
 import { confirmEmailToken } from '../email/verification.js';
 import { createXrpcRouter } from './xrpc-router.js';
 import { createWellKnownRouter } from './well-known-routes.js';
+import { SERVER_VERSION } from './server-version.js';
 
 export type { XRPCHandler } from './handler-registry.js';
 
@@ -124,7 +125,7 @@ app.use(globalLimiter);
 app.get('/', (_req, res) => {
   res.json({
     service: 'OpenFederation PDS',
-    version: '1.0.0',
+    version: SERVER_VERSION,
     description: 'Personal Data Server for OpenFederation communities',
   });
 });
