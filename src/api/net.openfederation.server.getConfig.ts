@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
+import { SERVER_VERSION } from '../server/server-version.js';
 
 export default async function getServerConfig(req: AuthRequest, res: Response): Promise<void> {
   if (!requireRole(req, res, ['admin', 'auditor'])) {
@@ -39,7 +40,7 @@ export default async function getServerConfig(req: AuthRequest, res: Response): 
 
     res.status(200).json({
       service: 'OpenFederation PDS',
-      version: '1.0.0',
+      version: SERVER_VERSION,
       hostname: config.pds.hostname,
       inviteRequired: config.auth.inviteRequired,
       stats: {

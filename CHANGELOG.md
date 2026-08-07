@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-07
+
+Everything below shipped since the 1.2.0 heading. **Versioning note:** the
+1.x line carries no semver stability guarantee — this project is
+pre-production, and 2.0 is reserved for the first release validated against
+a real downstream use case. Breaking changes in 1.x are called out inline
+(this release: Tier 1 wallet signing now requires a browser `Origin`, so
+server-to-server callers of `wallet.sign`/`signTransaction`/`grantConsent`
+are cut off; production deployments must configure SMTP or set
+`ALLOW_NO_EMAIL=true` to boot).
+
 ### ATProto blob compliance: getBlob and profile avatars (#82)
 
 The blob layer already existed — `com.atproto.repo.uploadBlob`, local/S3
