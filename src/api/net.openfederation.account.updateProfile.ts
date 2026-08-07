@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
+import { query } from '../db/client.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { fanOutDisplayFields } from '../community/display-projection.js';
 
@@ -11,7 +12,7 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
   try {
     if (!requireApprovedUser(req, res)) return;
 
-    const { displayName, description, collection, record } = req.body;
+    const { displayName, description, avatar, banner, collection, record } = req.body;
     const did = req.auth!.did;
     const targetCollection = collection || DEFAULT_COLLECTION;
 
@@ -38,12 +39,25 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
       }
       finalRecord = record;
     } else {
-      if (!displayName && description === undefined) {
+      if (!displayName && description === undefined && avatar === undefined && banner === undefined) {
         res.status(400).json({
           error: 'InvalidRequest',
           message: 'Provide displayName, description, or a custom collection with record',
         });
         return;
+      }
+
+      // Avatar and banner are ATProto blob refs ({$type:'blob', ref:{$link},
+      // mimeType, size} — the exact object uploadBlob returned), validated
+      // against blob_owners so a profile can only reference blobs its own DID
+      // uploaded. `null` removes the image (#82).
+      for (const [field, value] of [['avatar', avatar], ['banner', banner]] as const) {
+        if (value === undefined || value === null) continue;
+        const problem = await validateOwnBlobRef(req.auth!.did, value);
+        if (problem) {
+          res.status(400).json({ error: 'InvalidBlobRef', message: `${field}: ${problem}` });
+          return;
+        }
       }
 
       const existing = await engine.getRecord(DEFAULT_COLLECTION, 'self');
@@ -54,6 +68,11 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
         ...(displayName !== undefined ? { displayName } : {}),
         ...(description !== undefined ? { description } : {}),
       };
+      for (const [field, value] of [['avatar', avatar], ['banner', banner]] as const) {
+        if (value === undefined) continue;
+        if (value === null) delete (finalRecord as Record<string, unknown>)[field];
+        else (finalRecord as Record<string, unknown>)[field] = value;
+      }
     }
 
     const result = await engine.putRecord(keypair, targetCollection, 'self', finalRecord);
@@ -66,4 +85,20 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
     console.error('Error in updateProfile:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to update profile' });
   }
+}
+
+/**
+ * Is this a well-formed ATProto blob ref pointing at a blob the caller's own
+ * DID uploaded? Returns the problem, or null when it is usable.
+ */
+async function validateOwnBlobRef(did: string, value: unknown): Promise<string | null> {
+  const ref = value as { $type?: string; ref?: { $link?: string }; mimeType?: string };
+  const cid = ref?.ref?.$link;
+  if (ref?.$type !== 'blob' || typeof cid !== 'string' || typeof ref?.mimeType !== 'string') {
+    return 'must be the blob object returned by com.atproto.repo.uploadBlob';
+  }
+  const owned = await query<{ cid: string }>(
+    'SELECT cid FROM blob_owners WHERE cid = $1 AND did = $2', [cid, did],
+  );
+  return owned.rows.length === 0 ? 'blob not found for this account — upload it first' : null;
 }

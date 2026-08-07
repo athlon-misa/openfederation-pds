@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ATProto blob compliance: getBlob and profile avatars (#82)
+
+The blob layer already existed — `com.atproto.repo.uploadBlob`, local/S3
+stores, ownership tracking. What #82 still needed was the standard way to
+read the bytes back and a way to put an uploaded blob on a profile.
+
+- **`com.atproto.sync.getBlob`**: raw bytes by (did, cid), with the binding
+  enforced — a blob is fetched from the repo that references it, never from a
+  global content store keyed by hash alone. Unauthenticated like upstream,
+  which is compatible with ADR-001: the CID is the capability, published only
+  inside records, and records are where the membership gate lives. Gating the
+  bytes would break every browser `<img>` tag instead.
+- **`updateProfile` accepts `avatar` and `banner`** as the exact blob object
+  `uploadBlob` returned, validated against `blob_owners` so a profile can
+  only reference blobs its own DID uploaded (`InvalidBlobRef` otherwise, now
+  declared); `null` removes the image. `avatarUrl` strings keep working.
+- Lexicons: `com.atproto.sync.getBlob` new; `account.updateProfile` 1→2.
+
 ### Security: private communities are PDS-local, decided and enforced (#85)
 
 ADR-001 records the decision issue #85 asked for: private communities do not

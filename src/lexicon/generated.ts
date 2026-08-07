@@ -109,6 +109,13 @@ export type ComAtprotoServerRequestEmailConfirmationOutput = {
 };
 export type ComAtprotoServerRequestEmailConfirmationError = "AccountNotFound" | "EmailDeliveryFailed" | "VerificationDisabled";
 
+export type ComAtprotoSyncGetBlobInput = {
+  "did": string;
+  "cid": string;
+};
+export type ComAtprotoSyncGetBlobOutput = undefined;
+export type ComAtprotoSyncGetBlobError = "BlobNotFound";
+
 export type ComAtprotoSyncGetRepoInput = JsonObject;
 export type ComAtprotoSyncGetRepoOutput = unknown;
 export type ComAtprotoSyncGetRepoError = "RepoNotFound";
@@ -307,12 +314,14 @@ export type NetOpenfederationAccountUpdateProfileInput = {
   "description"?: string;
   "collection"?: string;
   "record"?: unknown;
+  "avatar"?: unknown;
+  "banner"?: unknown;
 };
 export type NetOpenfederationAccountUpdateProfileOutput = {
   "uri": string;
   "cid": string;
 };
-export type NetOpenfederationAccountUpdateProfileError = "InvalidRequest";
+export type NetOpenfederationAccountUpdateProfileError = "InvalidBlobRef" | "InvalidRequest";
 
 export type NetOpenfederationAccountUpdateRolesInput = JsonObject;
 export type NetOpenfederationAccountUpdateRolesOutput = JsonObject;
@@ -2034,6 +2043,7 @@ export interface LexiconInputMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionInput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionInput;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationInput;
+  'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobInput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoInput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventInput;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpInput;
@@ -2212,6 +2222,7 @@ export interface LexiconOutputMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionOutput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionOutput;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationOutput;
+  'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobOutput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoOutput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventOutput;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpOutput;
@@ -2390,6 +2401,7 @@ export interface LexiconErrorMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionError;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionError;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationError;
+  'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobError;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoError;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventError;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpError;
@@ -2570,6 +2582,7 @@ export const lexiconContracts = {
   'com.atproto.server.getSession': { revision: 2, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
   'com.atproto.server.requestEmailConfirmation': { revision: 1, errors: ["AccountNotFound", "EmailDeliveryFailed", "VerificationDisabled"] as const },
+  'com.atproto.sync.getBlob': { revision: 1, errors: ["BlobNotFound"] as const },
   'com.atproto.sync.getRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },
   'community.lexicon.calendar.rsvp': { revision: 1, errors: [] as const },
@@ -2589,7 +2602,7 @@ export const lexiconContracts = {
   'net.openfederation.account.requestPasswordReset': { revision: 1, errors: [] as const },
   'net.openfederation.account.resolveExternal': { revision: 2, errors: ["ResolutionFailed", "ServiceUnavailable"] as const },
   'net.openfederation.account.revokeSession': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.account.updateProfile': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.account.updateProfile': { revision: 2, errors: ["InvalidBlobRef", "InvalidRequest"] as const },
   'net.openfederation.account.updateRoles': { revision: 1, errors: ["NotFound"] as const },
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
   'net.openfederation.admin.createVerificationChallenge': { revision: 2, errors: ["EmailDeliveryFailed", "NotFound"] as const },

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.updateProfile",
-  "revision": 1,
+  "revision": 2,
   "description": "Update the authenticated user's profile. Supports both standard ATProto profile fields and custom collection data.",
   "defs": {
     "main": {
@@ -25,6 +25,10 @@
         {
           "name": "InvalidRequest",
           "description": "Validation failed."
+        },
+        {
+          "name": "InvalidBlobRef",
+          "description": "avatar/banner is not the blob object uploadBlob returned, or references a blob this account did not upload."
         }
       ]
     },
@@ -46,6 +50,14 @@
         "record": {
           "type": "unknown",
           "description": "Full record to write when using a custom collection. Ignored for app.bsky.actor.profile."
+        },
+        "avatar": {
+          "type": "unknown",
+          "description": "ATProto blob ref for the profile avatar — the exact object com.atproto.repo.uploadBlob returned, which must belong to the caller's DID. null removes it."
+        },
+        "banner": {
+          "type": "unknown",
+          "description": "ATProto blob ref for the profile banner; same rules as avatar."
         }
       }
     },

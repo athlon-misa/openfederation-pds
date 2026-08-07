@@ -1,0 +1,38 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.sync.getBlob",
+  "revision": 1,
+  "description": "Get a blob's raw bytes by owning DID and CID. Unauthenticated, like upstream ATProto: the CID is the capability — it is published only inside records, which is where membership gating lives.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "did",
+          "cid"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the repo that references the blob."
+          },
+          "cid": {
+            "type": "string",
+            "description": "CID of the blob (CIDv1, raw codec)."
+          }
+        }
+      },
+      "output": {
+        "encoding": "*/*"
+      },
+      "errors": [
+        {
+          "name": "BlobNotFound",
+          "description": "No blob with this CID is owned by this DID."
+        }
+      ]
+    }
+  }
+}
