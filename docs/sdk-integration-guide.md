@@ -1355,6 +1355,14 @@ The "integrate in an afternoon" promise, made concrete. Two paths:
 
 ### React
 
+Published on npm as **`@open-federation/react@0.1.1`** (peer-depends on
+`react >= 18`; validated against React 18 and 19, ESM and CJS entries, by
+installing the published artifact in a standalone consumer — issue #79).
+
+```bash
+npm install @open-federation/sdk @open-federation/react
+```
+
 ```tsx
 import { createClient } from '@open-federation/sdk';
 import { OpenFederationProvider, SignInWithOpenFederation, useOFSession } from '@open-federation/react';
