@@ -1,7 +1,28 @@
 import request from 'supertest';
 import { app } from '../../src/server/index.js';
 
-export const api = request(app);
+/**
+ * One server for the whole file, not one per request (#222).
+ *
+ * `request(app)` makes supertest call `app.listen(0)` for **every request**,
+ * so a full suite churns through thousands of OS-assigned ephemeral ports
+ * (49152–65535 on macOS). That range is shared with every other local daemon,
+ * and the tests were intermittently talking to one of them: a captured failure
+ * shows a request answered by `server: CCLibrary/4.18.2` — Adobe Creative
+ * Cloud — with `405 MethodNotAllowed`, and others arriving as `ECONNRESET`
+ * from ports with nothing listening.
+ *
+ * That is why the failure moved: it belonged to whichever request happened to
+ * draw a contended port, not to any test. Handing supertest a server that is
+ * already listening makes it reuse that one address for every request, so the
+ * churn — and the collision window — stops existing.
+ *
+ * `unref()` so a live listener never keeps the vitest worker alive.
+ */
+const server = app.listen(0);
+server.unref();
+
+export const api = request(server);
 
 // ── Unauthenticated XRPC helpers ─────────────────────────────────
 

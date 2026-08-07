@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Testing: the suite stops failing at random, and runs twice as fast
+
+The full suite failed one or more unrelated tests per run — a different test
+each time, every one passing in isolation (issue #222). Two independent causes,
+found by instrumenting supertest rather than by reading code.
+
+**Requests were sometimes answered by other software on the machine.**
+`request(app)` makes supertest call `app.listen(0)` for *every request*, so a
+full run cycled through thousands of OS-assigned ephemeral ports — the same
+49152–65535 range every other local daemon uses. A captured failure shows an
+XRPC request answered by `server: CCLibrary/4.18.2` (Adobe Creative Cloud) with
+`405 MethodNotAllowed`; others arrived as `ECONNRESET` or `socket hang up` from
+ports with nothing listening. That explains every property of the bug: a
+different test each run, because the failure belonged to whichever request drew
+a contended port; passing in isolation, because one file draws far fewer ports;
+and a `405` no code in this repository can emit, because none did.
+
+The helpers now hand supertest one already-listening server, so the churn — and
+the collision window — stops existing.
+
+**`beforeAll` hooks could exceed their 30s budget under load.** `bcryptjs` is a
+pure-JS implementation, costing ~284ms to hash and ~276ms to verify at 12
+rounds, all of it on the event loop. Every `createTestUser` does a register plus
+a login, so a file creating four accounts spent ~2.2s in bcrypt before touching
+PLC or the repo. Failures tracked wall-clock exactly: runs at ~300s passed,
+runs at 575s and 919s timed out.
+
+The work factor is now test-only configurable and defaults to 4 under
+`NODE_ENV=test`. **The floor is enforced in code, not in configuration**:
+outside `NODE_ENV=test` it is 12 whatever the environment says, so a stray
+`TEST_BCRYPT_ROUNDS` in a deployment cannot weaken password hashing. Hashes
+already written at 12 rounds keep verifying.
+
+- **Verification: 6 consecutive clean full-suite runs**, against 3-of-5 with the
+  port fix alone and roughly half before either. Suite wall-clock fell from
+  ~310s to ~145s.
+- A guard test pins the property the bug violated — every response carries a
+  header only this application sets, and a burst of requests uses one address.
+  Reverting the helper change fails it immediately (60 ports instead of 1).
+  It checks *who answered*, not *what status came back*, because a foreign
+  daemon returning a plausible 200 would corrupt a test silently — the case a
+  retry-on-error workaround could never have covered.
+
 ### Testing: the global rate limit is configurable
 
 Found while investigating #222, which it does **not** close: the suite still
