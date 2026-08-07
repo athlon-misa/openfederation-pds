@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { query } from '../db/client.js';
+import { config } from '../config.js';
 import { verifyPassword } from '../auth/password.js';
 import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
 import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
@@ -188,6 +189,26 @@ export default async function createSession(req: Request, res: Response): Promis
       roles,
       tokenVersion: user.token_version,
     });
+
+    // Under require-for-login, an unverified local account authenticates
+    // correctly and is still refused a session — with an error that names the
+    // way out. confirmEmail deliberately works without a session, so this
+    // cannot deadlock (#83).
+    if (config.emailVerification.policy === 'require-for-login') {
+      const verified = await query<{ v: boolean }>(
+        'SELECT (email_verified_at IS NOT NULL) AS v FROM users WHERE id = $1', [user.id],
+      );
+      if (!verified.rows[0]?.v) {
+        await auditLog('session.loginFailed', null, user.id, {
+          identifier: input.identifier, reason: 'email_not_verified', ip: req.ip,
+        });
+        res.status(403).json({
+          error: 'EmailNotVerified',
+          message: 'Verify your email address before signing in. Use the link you were sent, or com.atproto.server.confirmEmail with a fresh token.',
+        });
+        return;
+      }
+    }
 
     const { token: refreshJwt, hash } = generateRefreshToken();
     const sessionId = crypto.randomUUID();

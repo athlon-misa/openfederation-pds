@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.getSession",
-  "revision": 1,
-  "description": "Generated XRPC contract for com.atproto.server.getSession.",
+  "revision": 2,
+  "description": "Generated XRPC contract for com.atproto.server.getSession. Output additionally carries emailConfirmed (whether the account's email address has been verified).",
   "defs": {
     "main": {
       "type": "procedure",

@@ -1,0 +1,59 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.confirmEmail",
+  "revision": 1,
+  "description": "Redeem an email-verification token. The token is the proof of mailbox ownership, so no session is required — deliberately diverging from upstream ATProto, because under EMAIL_VERIFICATION_POLICY=require-for-login an unverified user cannot create the session upstream assumes. A presented session must belong to the account being verified.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "email",
+            "token"
+          ],
+          "properties": {
+            "email": {
+              "type": "string",
+              "description": "The address the token was issued for."
+            },
+            "token": {
+              "type": "string",
+              "description": "The token from the verification link."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "verified"
+          ],
+          "properties": {
+            "verified": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidToken",
+          "description": "Token is invalid or already used. Tokens burn on any redemption attempt."
+        },
+        {
+          "name": "ExpiredToken",
+          "description": "Token expired (24h TTL); request a new one."
+        },
+        {
+          "name": "InvalidEmail",
+          "description": "The token was not issued for this address, the account's email changed since it was issued, or the presented session belongs to a different account."
+        }
+      ]
+    }
+  }
+}

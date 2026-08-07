@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { config } from '../config.js';
 import type { AuthRequest, AuthContext, UserRole, CommunityRole, CommunityStatus } from './types.js';
 import type { PartnerContext } from './partner-guard.js';
 import { query } from '../db/client.js';
@@ -42,6 +43,19 @@ export function requireRole(req: AuthRequest, res: Response, roles: UserRole[]):
 
 export function requireApprovedUser(req: AuthRequest, res: Response): boolean {
   if (!requireAuth(req, res)) {
+    return false;
+  }
+
+  // Under require-for-write, an unverified account can read and hold a
+  // session but cannot act. This guard fronts every acting endpoint (wallet,
+  // identity, community membership, creation), which is exactly the surface
+  // "write" means here. The flag was loaded by authMiddleware; undefined
+  // means the policy is not gating and nothing changes (#83).
+  if (config.emailVerification.policy === 'require-for-write' && req.auth.emailVerified === false) {
+    res.status(403).json({
+      error: 'EmailNotVerified',
+      message: 'Verify your email address to perform this action. Use com.atproto.server.requestEmailConfirmation to resend the link.',
+    });
     return false;
   }
 

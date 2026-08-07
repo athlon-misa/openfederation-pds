@@ -53,6 +53,7 @@ See `.env.example` for the full list. Critical ones:
 | `EXPRESS_TRUST_PROXY` | No | Default 1; set to 2 for Cloudflare + proxy |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | Production | Required in production unless `ALLOW_NO_EMAIL=true`; unset in dev logs mail to console. See `docs/EMAIL.md` |
 | `EMAIL_WEBHOOK_TOKEN` | No | Enables bounce/complaint webhooks (`/webhooks/email/:provider`); routes absent when unset |
+| `EMAIL_VERIFICATION_POLICY` | No | `off` / `advisory` (default) / `require-for-write` / `require-for-login` — what an unverified email blocks |
 
 ## Security imperatives
 

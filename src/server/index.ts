@@ -22,6 +22,7 @@ import { apRouter } from '../activitypub/ap-routes.js';
 import { globalLimiter } from './rate-limits.js';
 import { verifyEmailTransport } from '../email/email-service.js';
 import { createEmailWebhookRouter } from '../email/bounce-webhooks.js';
+import { confirmEmailToken } from '../email/verification.js';
 import { createXrpcRouter } from './xrpc-router.js';
 import { createWellKnownRouter } from './well-known-routes.js';
 
@@ -182,6 +183,38 @@ installChainModule(app);
 // XRPC Router - supports both GET and POST
 // Bounce/complaint webhooks — routes exist only when EMAIL_WEBHOOK_TOKEN is set.
 app.use(createEmailWebhookRouter());
+
+// The landing page for emailed verification links (#83). A browser GET, not
+// XRPC: the person clicking has an email client and possibly no session — so
+// this must work logged-out, and must render something a human can read.
+// Token semantics are identical to com.atproto.server.confirmEmail; both
+// call the same redeem function.
+app.get('/verify-email', async (req: Request, res: Response) => {
+  const page = (title: string, body: string, ok: boolean) =>
+    `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head>
+     <body style="font-family: sans-serif; max-width: 480px; margin: 4rem auto; padding: 0 1rem; text-align: center;">
+     <h2 style="color: ${ok ? '#188038' : '#c5221f'};">${title}</h2><p>${body}</p></body></html>`;
+  try {
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    const email = typeof req.query.email === 'string' ? req.query.email : '';
+    if (!token || !email) {
+      res.status(400).send(page('Invalid link', 'This verification link is incomplete. Copy the full URL from the email.', false));
+      return;
+    }
+    const result = await confirmEmailToken(email, token);
+    if (!result.ok) {
+      const why = result.error === 'ExpiredToken'
+        ? 'This link has expired. Sign in and request a new one.'
+        : 'This link is invalid or was already used.';
+      res.status(400).send(page('Verification failed', why, false));
+      return;
+    }
+    res.status(200).send(page('Email verified', 'Your email address is confirmed. You can close this page.', true));
+  } catch (error) {
+    console.error('Error in /verify-email:', error);
+    res.status(500).send(page('Something went wrong', 'Verification could not be completed. Try the link again shortly.', false));
+  }
+});
 
 app.use('/xrpc', createXrpcRouter());
 

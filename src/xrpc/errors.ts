@@ -19,6 +19,10 @@ const STANDARD_XRPC_ERROR_CODES = new Set([
   'AccountTakenDown',
   'AccountDeactivated',
   'AccountNotApproved',
+  // Account-state refusal from requireApprovedUser under
+  // EMAIL_VERIFICATION_POLICY=require-for-write — like the three above, it
+  // can surface on any authenticated endpoint, which is what this set is for.
+  'EmailNotVerified',
 ]);
 
 export class XrpcError extends Error {
