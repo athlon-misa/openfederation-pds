@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(36) PRIMARY KEY,
     handle VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
+    email_verified_at TIMESTAMPTZ,
     password_hash TEXT NOT NULL,
     status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'disabled', 'suspended', 'takendown', 'deactivated')),
     did VARCHAR(255) UNIQUE NOT NULL,
@@ -633,3 +634,19 @@ CREATE TABLE IF NOT EXISTS email_suppressions (
     source VARCHAR(40) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Email verification (#83): when the user proved ownership of users.email.
+-- NULL = never verified. Tokens mirror password_reset_tokens exactly — the
+-- raw token exists only in the emailed link, the database holds its hash.
+-- The token records the address it was issued for, so an email change
+-- between issue and confirm cannot verify the wrong address.
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);

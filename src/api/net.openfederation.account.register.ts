@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { config } from '../config.js';
 import { withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
+import { issueEmailVerification } from '../email/verification.js';
 import { createUserIdentity } from '../identity/user-identity.js';
 import {
   RegistrationValidationError,
@@ -137,6 +138,17 @@ export default async function registerAccount(req: Request, res: Response): Prom
     });
 
     await initializeUserRepoAsync(result.identity.did, handle, result.identity.signingKeyBase64);
+
+    // Verification email, off the response path: registration succeeded
+    // whether or not the link could be sent, and the resend endpoint exists
+    // for exactly the case where it could not (#83).
+    if (config.emailVerification.policy !== 'off') {
+      void issueEmailVerification({ id: result.userId, handle, email }).then((delivery) => {
+        if (delivery.outcome !== 'sent' && delivery.outcome !== 'not-configured') {
+          console.error(`[email] verification link for ${handle} was not delivered: ${delivery.outcome}`);
+        }
+      }).catch((err) => console.error('[email] verification send failed:', err));
+    }
 
     res.status(201).json({
       id: result.userId,

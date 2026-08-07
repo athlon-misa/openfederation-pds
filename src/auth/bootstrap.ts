@@ -109,6 +109,13 @@ export async function ensureBootstrapAdmin(
       }
 
       const userId = exactMatch.id;
+      // The operator configured this address themselves — that is the
+      // attestation email verification exists to obtain, so the bootstrap
+      // admin never gets locked out by require-for-login (#83). Idempotent.
+      await client.query(
+        `UPDATE users SET email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP) WHERE id = $1`,
+        [userId],
+      );
       const approval = await client.query<{ id: string; handle: string; email: string }>(
         `UPDATE users
          SET status = 'approved',
@@ -149,8 +156,8 @@ export async function ensureBootstrapAdmin(
     const did = createLocalDid();
 
     await client.query(
-      `INSERT INTO users (id, handle, email, password_hash, status, did, approved_at)
-       VALUES ($1, $2, $3, $4, 'approved', $5, CURRENT_TIMESTAMP)`,
+      `INSERT INTO users (id, handle, email, password_hash, status, did, approved_at, email_verified_at)
+       VALUES ($1, $2, $3, $4, 'approved', $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [userId, normalizedHandle, normalizedEmail, passwordHash, did],
     );
     await insertBootstrapAudit(client, 'account.register', userId, {

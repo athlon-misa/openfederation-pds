@@ -103,6 +103,31 @@ To un-suppress an address (say, a mailbox that was recreated):
 DELETE FROM email_suppressions WHERE recipient = 'user@example.com';
 ```
 
+## Email verification
+
+Registration issues a 24-hour single-use verification token and emails a
+link (`/verify-email?...`). The link works logged out — the token is the
+proof. ATProto-compatible endpoints: `com.atproto.server.confirmEmail`
+(redeem; also works without a session, deliberately, see below) and
+`com.atproto.server.requestEmailConfirmation` (resend, authenticated,
+rate-limited).
+
+What an unverified address blocks is your call:
+
+| `EMAIL_VERIFICATION_POLICY` | Effect |
+|---|---|
+| `off` | No verification emails, nothing gated. |
+| `advisory` (default) | Emails sent, `emailConfirmed` surfaced in `getSession`, nothing gated. |
+| `require-for-write` | Unverified accounts can log in and read, but acting endpoints (community membership, wallets, identity keys, creation) return `EmailNotVerified`. |
+| `require-for-login` | Unverified local accounts cannot create sessions. Cannot deadlock: `confirmEmail` and the emailed link both work logged out, and the bootstrap admin is marked verified at startup (the operator configured that address themselves). |
+
+An unrecognized value falls back to `advisory` with a warning — a typo must
+neither lock users out nor silently disable verification you thought was on.
+
+Note: some corporate mail scanners follow links, which will redeem the
+token. That verifies "mail sent to this address reaches its mailbox
+infrastructure", which is the property verification exists to establish.
+
 ## Dev mode
 
 With `SMTP_HOST` unset, every message is printed to the server console and

@@ -16,6 +16,13 @@ export interface AuthContext {
   /** Incremented whenever previously issued local access JWTs must be revoked. */
   tokenVersion?: number;
   authMethod?: 'local' | 'oauth' | 'service-auth';
+  /**
+   * Whether users.email_verified_at is set. Loaded by authMiddleware ONLY
+   * when EMAIL_VERIFICATION_POLICY needs it (require-for-*), fresh from the
+   * database per request — a JWT claim would go stale the moment the user
+   * verifies mid-session. Undefined under off/advisory.
+   */
+  emailVerified?: boolean;
 }
 
 export interface AuthRequest extends Request {

@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.requestEmailConfirmation",
+  "revision": 1,
+  "description": "Send (or resend) the email-verification link for the authenticated account's address. The address is always the one on the account, never caller-supplied. Idempotent on an already-verified account.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "alreadyVerified"
+          ],
+          "properties": {
+            "alreadyVerified": {
+              "type": "boolean",
+              "description": "True when the account's email was already verified and nothing was sent."
+            },
+            "note": {
+              "type": "string",
+              "description": "Present when the server has no email transport configured and the link was logged to the server console instead."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "AccountNotFound",
+          "description": "The authenticated account no longer exists."
+        },
+        {
+          "name": "VerificationDisabled",
+          "description": "EMAIL_VERIFICATION_POLICY is off on this server."
+        },
+        {
+          "name": "EmailDeliveryFailed",
+          "description": "The verification email could not be sent. Try again later."
+        }
+      ]
+    }
+  }
+}

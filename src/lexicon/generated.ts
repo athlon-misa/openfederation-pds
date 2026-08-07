@@ -63,9 +63,18 @@ export type ComAtprotoServerActivateAccountInput = unknown;
 export type ComAtprotoServerActivateAccountOutput = unknown;
 export type ComAtprotoServerActivateAccountError = "InvalidStatus" | "NotFound";
 
+export type ComAtprotoServerConfirmEmailInput = {
+  "email": string;
+  "token": string;
+};
+export type ComAtprotoServerConfirmEmailOutput = {
+  "verified": boolean;
+};
+export type ComAtprotoServerConfirmEmailError = "ExpiredToken" | "InvalidEmail" | "InvalidToken";
+
 export type ComAtprotoServerCreateSessionInput = unknown;
 export type ComAtprotoServerCreateSessionOutput = unknown;
-export type ComAtprotoServerCreateSessionError = "AccountLocked" | "ExternalAccount";
+export type ComAtprotoServerCreateSessionError = "AccountLocked" | "EmailNotVerified" | "ExternalAccount";
 
 export type ComAtprotoServerDeactivateAccountInput = unknown;
 export type ComAtprotoServerDeactivateAccountOutput = unknown;
@@ -92,6 +101,13 @@ export type ComAtprotoServerGetSessionError = never;
 export type ComAtprotoServerRefreshSessionInput = unknown;
 export type ComAtprotoServerRefreshSessionOutput = unknown;
 export type ComAtprotoServerRefreshSessionError = never;
+
+export type ComAtprotoServerRequestEmailConfirmationInput = JsonObject;
+export type ComAtprotoServerRequestEmailConfirmationOutput = {
+  "alreadyVerified": boolean;
+  "note"?: string;
+};
+export type ComAtprotoServerRequestEmailConfirmationError = "AccountNotFound" | "EmailDeliveryFailed" | "VerificationDisabled";
 
 export type ComAtprotoSyncGetRepoInput = JsonObject;
 export type ComAtprotoSyncGetRepoOutput = unknown;
@@ -2010,12 +2026,14 @@ export interface LexiconInputMap {
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordInput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobInput;
   'com.atproto.server.activateAccount': ComAtprotoServerActivateAccountInput;
+  'com.atproto.server.confirmEmail': ComAtprotoServerConfirmEmailInput;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionInput;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountInput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionInput;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthInput;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionInput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionInput;
+  'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationInput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoInput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventInput;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpInput;
@@ -2186,12 +2204,14 @@ export interface LexiconOutputMap {
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordOutput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobOutput;
   'com.atproto.server.activateAccount': ComAtprotoServerActivateAccountOutput;
+  'com.atproto.server.confirmEmail': ComAtprotoServerConfirmEmailOutput;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionOutput;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountOutput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionOutput;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthOutput;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionOutput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionOutput;
+  'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationOutput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoOutput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventOutput;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpOutput;
@@ -2362,12 +2382,14 @@ export interface LexiconErrorMap {
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordError;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobError;
   'com.atproto.server.activateAccount': ComAtprotoServerActivateAccountError;
+  'com.atproto.server.confirmEmail': ComAtprotoServerConfirmEmailError;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionError;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountError;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionError;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthError;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionError;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionError;
+  'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationError;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoError;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventError;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpError;
@@ -2540,12 +2562,14 @@ export const lexiconContracts = {
   'com.atproto.repo.putRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 1, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
-  'com.atproto.server.createSession': { revision: 1, errors: ["AccountLocked", "ExternalAccount"] as const },
+  'com.atproto.server.confirmEmail': { revision: 1, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken"] as const },
+  'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteSession': { revision: 1, errors: [] as const },
   'com.atproto.server.getServiceAuth': { revision: 1, errors: ["BadExpiration", "InvalidRequest", "NoSigningKey"] as const },
-  'com.atproto.server.getSession': { revision: 1, errors: [] as const },
+  'com.atproto.server.getSession': { revision: 2, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
+  'com.atproto.server.requestEmailConfirmation': { revision: 1, errors: ["AccountNotFound", "EmailDeliveryFailed", "VerificationDisabled"] as const },
   'com.atproto.sync.getRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },
   'community.lexicon.calendar.rsvp': { revision: 1, errors: [] as const },

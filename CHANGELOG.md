@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Email verification on registration (#83)
+
+Registration now issues a 24-hour, single-use verification token and emails a
+link; redeeming it sets `users.email_verified_at`. Token mechanics mirror
+`password_reset_tokens` — hashed at rest, burned on any redemption attempt —
+and the token records the address it was issued for, so an email change
+between issue and confirm invalidates the link rather than verifying an
+address the user no longer claims.
+
+- **ATProto-compatible endpoints**: `com.atproto.server.confirmEmail` and
+  `com.atproto.server.requestEmailConfirmation` (resend; rate-limited;
+  idempotent once verified; surfaces delivery failure — the caller is asking
+  precisely because the last email did not arrive). `confirmEmail`
+  deliberately works without a session, diverging from upstream: the token is
+  the proof of mailbox ownership, and under `require-for-login` an unverified
+  user cannot create the session upstream assumes. A presented session must
+  belong to the account being verified.
+- **A human-readable landing page** at `/verify-email` — the emailed link
+  works in a browser, logged out, with no web-UI dependency.
+- **Enforcement is the operator's decision** (`EMAIL_VERIFICATION_POLICY`):
+  `off`, `advisory` (default — surfaced in `getSession.emailConfirmed`,
+  gates nothing), `require-for-write` (acting endpoints refuse with
+  `EmailNotVerified`, enforced in `requireApprovedUser`), or
+  `require-for-login` (`createSession` refuses unverified local accounts).
+  An unrecognized value warns and falls back to advisory: a typo must
+  neither lock users out nor silently disable verification.
+- **The gating policies cannot deadlock or lock out the operator**: the
+  confirm path needs no session, and the bootstrap admin is marked verified
+  at startup — the operator configured that address themselves, which is the
+  attestation verification exists to obtain.
+- Verified state is read fresh from the database when a gating policy needs
+  it (and surfaced fresh in `getSession`), never from a JWT claim — a claim
+  would keep reading "unverified" after the user verifies mid-session. Under
+  `off`/`advisory` the lookup does not run at all.
+- `EmailNotVerified` joins the standard XRPC error set alongside
+  `AccountSuspended`/`AccountNotApproved` — the account-state family that can
+  surface on any authenticated endpoint. Lexicons: `createSession` 1→2
+  (declares `EmailNotVerified`), `getSession` 1→2 (`emailConfirmed` in
+  output), plus the two new endpoint schemas.
+
 ### Email: delivery tells the truth (#83, part A)
 
 Groundwork for email verification, and a fix for a live hazard: `sendEmail`

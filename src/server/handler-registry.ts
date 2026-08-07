@@ -15,6 +15,8 @@ import syncGetRepo from '../api/com.atproto.sync.getRepo.js';
 import createSession from '../api/com.atproto.server.createSession.js';
 import refreshSession from '../api/com.atproto.server.refreshSession.js';
 import getSession from '../api/com.atproto.server.getSession.js';
+import requestEmailConfirmation from '../api/com.atproto.server.requestEmailConfirmation.js';
+import confirmEmail from '../api/com.atproto.server.confirmEmail.js';
 import deleteSession from '../api/com.atproto.server.deleteSession.js';
 import getServiceAuthEndpoint from '../api/com.atproto.server.getServiceAuth.js';
 import registerAccount from '../api/net.openfederation.account.register.js';
@@ -341,6 +343,10 @@ const handlers = Object.freeze({
   'com.atproto.server.createSession': { handler: createSession, limiter: authLimiter },
   'com.atproto.server.refreshSession': { handler: refreshSession, limiter: authLimiter },
   'com.atproto.server.getSession': { handler: getSession },
+  // Resends are rate-limited like other creation-ish actions; confirm is
+  // token-authenticated by design and needs no session (#83).
+  'com.atproto.server.requestEmailConfirmation': { handler: requestEmailConfirmation, limiter: createLimiter },
+  'com.atproto.server.confirmEmail': { handler: confirmEmail },
   'com.atproto.server.deleteSession': { handler: deleteSession },
   'com.atproto.server.getServiceAuth': { handler: getServiceAuthEndpoint },
   'com.atproto.identity.resolveHandle': { handler: resolveHandle, limiter: discoveryLimiter },

@@ -132,6 +132,26 @@ export const config = {
   },
 
   // Email configuration
+  /**
+   * What an unverified email blocks (#83). The operator's decision, because an
+   * open-source PDS serves closed single-user instances and open registration
+   * alike:
+   *   off                nothing sent, nothing gated
+   *   advisory (default) verification emails sent, state surfaced, nothing gated
+   *   require-for-write  unverified accounts read and log in, but cannot act
+   *   require-for-login  unverified local accounts cannot create sessions
+   * An unrecognized value falls back to advisory with a loud warning: a typo
+   * must not silently lock users out, and equally must not silently disable
+   * verification the operator thought was on.
+   */
+  emailVerification: {
+    policy: (() => {
+      const v = process.env.EMAIL_VERIFICATION_POLICY || 'advisory';
+      if (v === 'off' || v === 'advisory' || v === 'require-for-write' || v === 'require-for-login') return v;
+      console.warn(`WARNING: EMAIL_VERIFICATION_POLICY "${v}" is not recognized; using "advisory".`);
+      return 'advisory';
+    })() as 'off' | 'advisory' | 'require-for-write' | 'require-for-login',
+  },
   email: {
     enabled: process.env.SMTP_HOST ? true : false,
     host: process.env.SMTP_HOST || '',
