@@ -78,6 +78,13 @@ await (async () => {
 // Raise rate limits in tests so accumulated in-memory state across many
 // test cases (the app is a long-lived singleton inside vitest) doesn't
 // cause spurious 429s. Only applied when not already explicitly set.
+// The global limiter applies to every request and was the one limiter with no
+// override, so it was the one this block could not raise: 120 requests/minute
+// from 127.0.0.1, shared by every test file in a single long-lived app. The
+// suite exceeds that within the first minute, and whichever test is running
+// when the budget runs out fails — a different one on every run, each passing
+// in isolation (#222).
+process.env.GLOBAL_RATE_LIMIT = process.env.GLOBAL_RATE_LIMIT || '100000';
 process.env.AUTH_RATE_LIMIT = process.env.AUTH_RATE_LIMIT || '10000';
 process.env.REGISTRATION_RATE_LIMIT = process.env.REGISTRATION_RATE_LIMIT || '10000';
 process.env.CREATE_RATE_LIMIT = process.env.CREATE_RATE_LIMIT || '10000';

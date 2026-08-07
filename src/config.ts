@@ -166,6 +166,11 @@ export const config = {
 
   // Per-endpoint rate limits (see src/server/index.ts limiters)
   rateLimits: {
+    // Every request, per IP, per minute. Configurable for the same reason the
+    // others are: it is the only limiter that applies to *all* traffic, so a
+    // deployment behind a shared egress IP — or a test suite driving thousands
+    // of requests from 127.0.0.1 — needs to raise it without patching code.
+    globalPerMin: parseInt(process.env.GLOBAL_RATE_LIMIT || '120', 10),
     authPer15Min: parseInt(process.env.AUTH_RATE_LIMIT || '20', 10),
     registrationPerHour: parseInt(process.env.REGISTRATION_RATE_LIMIT || '5', 10),
     createPerHour: parseInt(process.env.CREATE_RATE_LIMIT || '10', 10),

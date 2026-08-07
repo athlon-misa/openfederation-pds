@@ -46,6 +46,7 @@ See `.env.example` for the full list. Critical ones:
 | `PLC_DIRECTORY_URL` | No | Default `http://localhost:2582` (dev). Production: `https://plc.openfederation.net` |
 | `PDS_SERVICE_DID` | No | Inbound service-auth `aud` claim; default `did:web:{PDS_HOSTNAME}` |
 | `CHAIN_ADAPTERS` | No | Treat as secret — contains RPC API keys. Format: `eip155:137=https://rpc.example.com` |
+| `GLOBAL_RATE_LIMIT` | No | Default 120/min/IP across every endpoint; raise it when clients share an egress IP |
 | `SERVICE_AUTH_RATE_LIMIT` | No | Default 60/min/DID |
 | `WALLET_SIGN_RATE_LIMIT` | No | Default 60/min/IP |
 | `CREATE_RATE_LIMIT` | No | Default 10/hr/IP for invites/communities/wallets/consents |
