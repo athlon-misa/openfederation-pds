@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security: private communities are PDS-local, decided and enforced (#85)
+
+ADR-001 records the decision issue #85 asked for: private communities do not
+federate (option 1), with a trusted-peer allowlist (option 2) named as the
+upgrade path and encrypted repos (option 3) deferred to its own ADR if ever
+needed. Discovery is existence-visible, content-stripped — a `did:plc`
+community's existence and handle are in the public PLC directory by design,
+so hiding them here would be theater; everything past existence is protected.
+
+The audit behind the ADR found the posture already implemented on every repo
+and read surface, and **two live leaks on the ActivityPub side**, both closed:
+
+- **`/ap/actor/:did` served a private community's display name, description
+  and linked application instances to anyone holding the DID** — which PLC
+  hands out. The actor still exists (the owner deliberately linked AP
+  instances that need it for addressing and signature verification) but is
+  now stripped: identity and public key only.
+- **`/.well-known/webfinger` advertised a private community's profile page.**
+  It still resolves the handle — existence is public regardless — but carries
+  no content links.
+
+Both leaks survived because the AP router was mounted inside `main()`, which
+never runs under the test harness — the routes were untestable, so nothing
+could pin them. The router is now always mounted and gates itself on
+`ACTIVITYPUB_ENABLED` per request, like the chain module, so tests exercise
+what production runs.
+
+- `src/federation/privacy.ts` is the single predicate, and ADR-001 carries
+  the standing rule: **any future firehose, `subscribeRepos`, `listRepos` or
+  relay surface MUST exclude private DIDs**. That sentence is the issue's
+  actual payload — the moment a relay surface ships without it, "private"
+  silently regresses to "public".
+- `tests/api/federation-privacy.test.ts` walks one real private community
+  across every row of the ADR's enforcement map: sync/repo endpoints,
+  listAll, listMembers, the stripped actor, webfinger — plus the inverse
+  (a public community keeps everything) and the member view.
+
 ### Email verification on registration (#83)
 
 Registration now issues a 24-hour, single-use verification token and emails a
