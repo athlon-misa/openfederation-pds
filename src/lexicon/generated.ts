@@ -652,6 +652,11 @@ export type NetOpenfederationCommunityGetProposalOutput = {
 };
   "objectionCount"?: number;
   "objectionThreshold"?: number;
+  "overrideQuorum"?: number;
+  "overrideExpiresAt"?: string;
+  "overrideElectorate"?: number;
+  "overrideOpenedAt"?: string;
+  "overrideOutcome"?: string;
 };
 export type NetOpenfederationCommunityGetProposalError = "NotFound" | "ProposalNotFound";
 
@@ -892,6 +897,8 @@ export type NetOpenfederationCommunityObjectToProposalOutput = {
   "cid": string;
   "rkey": string;
 };
+  "overrideQuorum"?: number;
+  "overrideExpiresAt"?: string;
 };
 export type NetOpenfederationCommunityObjectToProposalError = "AlreadyObjected" | "InvalidRequest" | "NotMember" | "ObjectionNotRecordable" | "ObjectionWindowClosed" | "ProposalNotFound" | "ProposalNotPending";
 
@@ -2585,7 +2592,7 @@ export const lexiconContracts = {
   'net.openfederation.community.export': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.get': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.getDelegation': { revision: 1, errors: [] as const },
-  'net.openfederation.community.getProposal': { revision: 5, errors: ["NotFound", "ProposalNotFound"] as const },
+  'net.openfederation.community.getProposal': { revision: 6, errors: ["NotFound", "ProposalNotFound"] as const },
   'net.openfederation.community.issueAttestation': { revision: 3, errors: ["InvalidRequest", "NotMember", "PayloadTooLarge"] as const },
   'net.openfederation.community.join': { revision: 3, errors: ["AlreadyMember", "AlreadyRequested", "InvalidRequest", "NotFound", "PayloadTooLarge"] as const },
   'net.openfederation.community.leave': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
@@ -2596,15 +2603,15 @@ export const lexiconContracts = {
   'net.openfederation.community.listJoinRequests': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listMembers': { revision: 3, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listMine': { revision: 2, errors: ["BadAudience", "BadLexiconMethod", "ExpiredToken", "InvalidSignature", "ReplayedToken"] as const },
-  'net.openfederation.community.listProposals': { revision: 3, errors: ["NotFound"] as const },
+  'net.openfederation.community.listProposals': { revision: 4, errors: ["NotFound"] as const },
   'net.openfederation.community.listRoles': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.objectToProposal': { revision: 1, errors: ["AlreadyObjected", "InvalidRequest", "NotMember", "ObjectionNotRecordable", "ObjectionWindowClosed", "ProposalNotFound", "ProposalNotPending"] as const },
+  'net.openfederation.community.objectToProposal': { revision: 2, errors: ["AlreadyObjected", "InvalidRequest", "NotMember", "ObjectionNotRecordable", "ObjectionWindowClosed", "ProposalNotFound", "ProposalNotPending"] as const },
   'net.openfederation.community.removeMember': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.resolveJoinRequest': { revision: 1, errors: ["AlreadyResolved", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.revokeDelegation': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.community.setDelegation': { revision: 2, errors: ["NotMember"] as const },
-  'net.openfederation.community.setGovernanceModel': { revision: 5, errors: ["GovernanceDenied", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.setGovernanceModel': { revision: 6, errors: ["GovernanceDenied", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.suspend': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.takedown': { revision: 1, errors: ["AlreadyTakenDown", "ExportRequired", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.transfer': { revision: 1, errors: ["CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound"] as const },
@@ -2615,7 +2622,7 @@ export const lexiconContracts = {
   'net.openfederation.community.updateRole': { revision: 2, errors: ["InvalidRequest", "OwnerLockout", "RoleNameTaken", "RoleNotFound"] as const },
   'net.openfederation.community.verifyAttestation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.verifyMembership': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.voteOnProposal': { revision: 6, errors: ["AlreadyVoted", "InvalidRequest", "NotMember", "ProposalClosed", "ProposalNotFound", "VoteNotRecordable"] as const },
+  'net.openfederation.community.voteOnProposal': { revision: 7, errors: ["AlreadyVoted", "InvalidRequest", "NotMember", "ProposalClosed", "ProposalNotFound", "VoteNotRecordable"] as const },
   'net.openfederation.contact.block': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.contact.contact': { revision: 1, errors: [] as const },
   'net.openfederation.contact.list': { revision: 1, errors: [] as const },
