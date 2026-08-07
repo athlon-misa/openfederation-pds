@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.createVerificationChallenge",
-  "revision": 1,
+  "revision": 2,
   "description": "Generated XRPC contract for net.openfederation.admin.createVerificationChallenge.",
   "defs": {
     "main": {
@@ -25,6 +25,10 @@
         {
           "name": "NotFound",
           "description": "Referenced resource was not found."
+        },
+        {
+          "name": "EmailDeliveryFailed",
+          "description": "The challenge was created but the code could not be emailed to the user. Retry once email delivery is restored; the previous challenge expires on its own."
         }
       ]
     }

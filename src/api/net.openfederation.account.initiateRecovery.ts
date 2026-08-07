@@ -111,12 +111,19 @@ export default async function initiateRecovery(req: Request, res: Response): Pro
     const baseUrl = config.pds.serviceUrl || `http://localhost:${config.port}`;
     const recoveryUrl = `${baseUrl}/recover?token=${encodeURIComponent(token)}`;
 
-    // Send recovery email
-    await sendEmail(
+    // The recovery link is the whole mechanism, so a failed delivery is
+    // recorded loudly — but never surfaced to the caller: this endpoint's
+    // uniform "if the account exists..." response is enumeration resistance,
+    // and a distinguishable failure would give the game away.
+    const delivery = await sendEmail(
       user.email,
       'Account Recovery — OpenFederation',
-      recoveryEmail(user.handle, recoveryUrl, 60)
+      recoveryEmail(user.handle, recoveryUrl, 60),
+      'account-recovery',
     );
+    if (delivery.outcome !== 'sent' && delivery.outcome !== 'not-configured') {
+      console.error(`[email] recovery link for ${user.handle} was not delivered: ${delivery.outcome}`);
+    }
 
     await auditLog('account.recovery.initiate', null, user.id, {
       tier: user.recovery_tier ?? 1,

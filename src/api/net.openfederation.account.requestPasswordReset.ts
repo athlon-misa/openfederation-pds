@@ -16,11 +16,23 @@ function deliverResetEmail(user: { id: string; handle: string; email: string }, 
   const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
   // Email delivery is deliberately outside the request timing path. SMTP
-  // latency must not reveal whether an identifier belongs to a local account.
+  // latency must not reveal whether an identifier belongs to a local account —
+  // and for the same reason the delivery outcome must NOT surface in the
+  // response: "delivery failed" implies the account exists. The outcome goes
+  // to the audit log and `email_deliveries`, where the operator can see it
+  // and the caller cannot.
   void (async () => {
     try {
-      await sendEmail(user.email, 'Password Reset — OpenFederation', passwordResetEmail(user.handle, resetUrl, 60));
-      await auditLog('account.password.reset.request', null, user.id, { email: user.email, ip });
+      const delivery = await sendEmail(
+        user.email, 'Password Reset — OpenFederation',
+        passwordResetEmail(user.handle, resetUrl, 60), 'password-reset',
+      );
+      await auditLog('account.password.reset.request', null, user.id, {
+        email: user.email, ip, delivery: delivery.outcome,
+      });
+      if (delivery.outcome !== 'sent' && delivery.outcome !== 'not-configured') {
+        console.error(`[email] password reset for ${user.handle} was not delivered: ${delivery.outcome}`);
+      }
     } catch (error) {
       console.error('Error delivering password reset email:', error);
     }

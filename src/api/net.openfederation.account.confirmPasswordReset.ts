@@ -60,7 +60,7 @@ export default async function confirmPasswordReset(req: Request, res: Response):
 
     if (userResult.rows.length > 0) {
       const user = userResult.rows[0];
-      await sendEmail(user.email, 'Password Changed — OpenFederation', passwordChangedEmail(user.handle));
+      await sendEmail(user.email, 'Password Changed — OpenFederation', passwordChangedEmail(user.handle), 'password-changed');
 
       await auditLog('account.password.reset.confirm', null, resetToken.user_id, {
         sessionsRevoked: sessionResult.rowCount || 0,

@@ -317,7 +317,7 @@ export type NetOpenfederationAdminCreateExportScheduleError = never;
 
 export type NetOpenfederationAdminCreateVerificationChallengeInput = JsonObject;
 export type NetOpenfederationAdminCreateVerificationChallengeOutput = JsonObject;
-export type NetOpenfederationAdminCreateVerificationChallengeError = "NotFound";
+export type NetOpenfederationAdminCreateVerificationChallengeError = "EmailDeliveryFailed" | "NotFound";
 
 export type NetOpenfederationAdminDeleteExportScheduleInput = {
   "communityDid": string;
@@ -2568,7 +2568,7 @@ export const lexiconContracts = {
   'net.openfederation.account.updateProfile': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.updateRoles': { revision: 1, errors: ["NotFound"] as const },
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
-  'net.openfederation.admin.createVerificationChallenge': { revision: 1, errors: ["NotFound"] as const },
+  'net.openfederation.admin.createVerificationChallenge': { revision: 2, errors: ["EmailDeliveryFailed", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.admin.importRepo': { revision: 2, errors: ["InvalidCar", "InvalidRequest", "PayloadTooLarge", "RepoAlreadyExists"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },

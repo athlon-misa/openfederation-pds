@@ -48,15 +48,29 @@ export default async function createVerificationChallenge(req: Request, res: Res
     <p>Share this code with the administrator only if you initiated this request. If you did not, ignore this email.</p>
   </body></html>`;
 
-  await sendEmail(user.email, 'Identity Verification — OpenFederation', html);
+  // The caller is an admin looking at a specific account, so there is no
+  // enumeration concern here — and the admin is about to ask the user for a
+  // code that never arrived. Telling them the truth is the whole point.
+  const delivery = await sendEmail(user.email, 'Identity Verification — OpenFederation', html, 'admin-verification');
 
   await auditLog('admin.verification.create', (req as AuthRequest).auth!.userId, user.id, {
     targetDid: did,
+    delivery: delivery.outcome,
   });
+
+  if (delivery.outcome === 'failed-transient' || delivery.outcome === 'failed-permanent' || delivery.outcome === 'suppressed') {
+    res.status(502).json({
+      error: 'EmailDeliveryFailed',
+      message: `The verification code could not be emailed to ${user.email} (${delivery.outcome}). The challenge was created; retry once email delivery is restored.`,
+    });
+    return;
+  }
 
   res.status(200).json({
     success: true,
-    message: `Verification code sent to ${user.email}. Ask the user for the code.`,
+    message: delivery.outcome === 'not-configured'
+      ? `Email is not configured on this server; the code was logged to the server console.`
+      : `Verification code sent to ${user.email}. Ask the user for the code.`,
     expiresAt: expiresAt.toISOString(),
   });
 }
