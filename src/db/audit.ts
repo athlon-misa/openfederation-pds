@@ -61,6 +61,8 @@ export type AuditAction =
   | 'community.proposal.pendingApplication'
   | 'community.proposal.objection'
   | 'community.proposal.applicationHeld'
+  // Email: an address added to the suppression list by a provider webhook (#83).
+  | 'email.suppression.add'
   // The override round a hold opens (#199): its outcome either way.
   | 'community.proposal.overrideOpened'
   | 'community.proposal.overrideCarried'

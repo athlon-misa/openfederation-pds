@@ -80,7 +80,8 @@ export default async function revokeSession(req: AuthRequest, res: Response): Pr
     await sendEmail(
       targetEmail,
       'Sessions Revoked — OpenFederation',
-      sessionsRevokedEmail(targetHandle, revokedCount)
+      sessionsRevokedEmail(targetHandle, revokedCount),
+      'session-revoked',
     );
   }
 

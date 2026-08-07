@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Email: delivery tells the truth (#83, part A)
+
+Groundwork for email verification, and a fix for a live hazard: `sendEmail`
+could not fail. With no SMTP configured it logged to the console and returned;
+a rejected send was caught and swallowed. Password reset reported success
+while delivering nothing — and since no SMTP has ever been configured on this
+deployment, no email has ever actually been sent, and nothing said so.
+
+- **`sendEmail` returns a discriminated outcome** (`sent`, `not-configured`,
+  `suppressed`, `failed-transient`, `failed-permanent`) and still never
+  throws. Callers judge for themselves: an unsendable password-changed
+  *notification* is a log line; an unsendable admin verification challenge is
+  now a 502 telling the admin the code never went out. The
+  enumeration-resistant endpoints (`requestPasswordReset`, `initiateRecovery`)
+  deliberately do NOT surface delivery failure to the caller — "delivery
+  failed" implies the account exists — it goes to the audit log and the
+  deliveries table instead.
+- **Every send lands in `email_deliveries`** (recipient, purpose, outcome,
+  error, provider message id) — the operator's ground truth for "did my mail
+  go out". Bodies are never stored: reset/recovery emails carry live secret
+  URLs, the same tokens the database deliberately holds only as hashes.
+  For that reason retry is bounded and in-process (SMTP 4xx and connection
+  errors, two backoff attempts), not a durable outbox.
+- **The transport is verified at boot.** Production without SMTP refuses to
+  start — matching `AUTH_JWT_SECRET` — unless `ALLOW_NO_EMAIL=true` states
+  the choice. A configured-but-unreachable transport logs loudly and shows in
+  `/health` (`email: ok | unreachable | not-configured`) but does not kill
+  the server: the mail host being down must not take the PDS with it.
+- **Bounce and complaint webhooks** (`/webhooks/email/{postmark,resend,ses}`,
+  enabled by `EMAIL_WEBHOOK_TOKEN`, routes absent otherwise). Hard bounces and
+  complaints suppress the address — `sendEmail` refuses it before contacting
+  the server — soft bounces are recorded but never suppress. SES/SNS
+  subscription handshakes are logged for manual confirmation rather than
+  auto-fetched (fetching a URL from an inbound body is SSRF).
+- `docs/EMAIL.md`: operator guide for all three supported paths —
+  transactional provider, Google Workspace, self-hosted MTA — with the
+  operational costs of each stated rather than implied.
+- `admin.createVerificationChallenge` lexicon revision 1→2 for the declared
+  `EmailDeliveryFailed` error.
+
 ### Testing: the suite stops failing at random, and runs twice as fast
 
 The full suite failed one or more unrelated tests per run — a different test

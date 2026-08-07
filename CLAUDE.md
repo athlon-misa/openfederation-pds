@@ -51,7 +51,8 @@ See `.env.example` for the full list. Critical ones:
 | `WALLET_SIGN_RATE_LIMIT` | No | Default 60/min/IP |
 | `CREATE_RATE_LIMIT` | No | Default 10/hr/IP for invites/communities/wallets/consents |
 | `EXPRESS_TRUST_PROXY` | No | Default 1; set to 2 for Cloudflare + proxy |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | No | Email logged to console when unset |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | Production | Required in production unless `ALLOW_NO_EMAIL=true`; unset in dev logs mail to console. See `docs/EMAIL.md` |
+| `EMAIL_WEBHOOK_TOKEN` | No | Enables bounce/complaint webhooks (`/webhooks/email/:provider`); routes absent when unset |
 
 ## Security imperatives
 

@@ -63,7 +63,8 @@ export default async function completeRecovery(req: Request, res: Response): Pro
     await sendEmail(
       completed.user.email,
       'Password Changed — OpenFederation',
-      passwordChangedEmail(completed.user.handle)
+      passwordChangedEmail(completed.user.handle),
+      'recovery-complete',
     );
 
     await auditLog('account.recovery.complete', null, completed.user.id, {

@@ -607,3 +607,29 @@ CREATE TABLE IF NOT EXISTS event_rsvps (
     UNIQUE(event_uri, attendee_did)
 );
 CREATE INDEX IF NOT EXISTS idx_event_rsvps_event ON event_rsvps(event_uri, status);
+
+-- Email delivery outcomes: the operator's ground truth for "did my mail go
+-- out" (#83). One row per send attempt-set; bodies are never stored, because
+-- reset/recovery emails carry live secret URLs the database deliberately
+-- holds only as hashes.
+CREATE TABLE IF NOT EXISTS email_deliveries (
+    id VARCHAR(36) PRIMARY KEY,
+    recipient VARCHAR(255) NOT NULL,
+    purpose VARCHAR(40) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    provider_message_id VARCHAR(255),
+    error TEXT,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_recipient ON email_deliveries(recipient, created_at);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_status ON email_deliveries(status, created_at);
+
+-- Addresses mail must no longer be sent to: hard bounces and complaints,
+-- written by provider webhooks (#83 part A4). Checked before every send.
+CREATE TABLE IF NOT EXISTS email_suppressions (
+    recipient VARCHAR(255) PRIMARY KEY,
+    reason VARCHAR(40) NOT NULL,
+    source VARCHAR(40) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

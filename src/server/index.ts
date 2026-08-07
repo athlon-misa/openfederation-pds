@@ -20,6 +20,8 @@ import { getBlobStore } from '../blob/blob-store.js';
 import { CID } from 'multiformats/cid';
 import { apRouter } from '../activitypub/ap-routes.js';
 import { globalLimiter } from './rate-limits.js';
+import { verifyEmailTransport } from '../email/email-service.js';
+import { createEmailWebhookRouter } from '../email/bounce-webhooks.js';
 import { createXrpcRouter } from './xrpc-router.js';
 import { createWellKnownRouter } from './well-known-routes.js';
 
@@ -33,12 +35,25 @@ app.set('trust proxy', config.trustProxy);
 
 // Health check — exempt from rate limiting/auth/body parsing. Hot path
 // for Railway/uptime checks, so security headers are applied inline.
+/**
+ * Boot-time email transport state, surfaced in /health. `null` means healthy
+ * or deliberately unconfigured; a string is the verify() failure an operator
+ * needs to see. Set during main(); requests before that report "unknown".
+ */
+let emailTransportError: string | null | undefined;
+
 app.get('/health', async (_req, res) => {
   setSecurityHeaders(res);
   const dbStatus = await testConnection();
+  const email = !config.email.enabled
+    ? 'not-configured'
+    : emailTransportError === undefined ? 'unknown'
+    : emailTransportError === null ? 'ok'
+    : 'unreachable';
   res.json({
-    status: dbStatus ? 'ok' : 'degraded',
+    status: dbStatus && email !== 'unreachable' ? 'ok' : 'degraded',
     database: dbStatus ? 'connected' : 'disconnected',
+    email,
     timestamp: new Date().toISOString()
   });
 });
@@ -165,6 +180,9 @@ app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
 installChainModule(app);
 
 // XRPC Router - supports both GET and POST
+// Bounce/complaint webhooks — routes exist only when EMAIL_WEBHOOK_TOKEN is set.
+app.use(createEmailWebhookRouter());
+
 app.use('/xrpc', createXrpcRouter());
 
 // /.well-known/did.json and /.well-known/webfinger — DID documents + AT
@@ -295,6 +313,39 @@ export async function startServer(): Promise<void> {
     } else {
       console.warn('WARNING: AUTH_JWT_SECRET is not set or is insecure. This is only acceptable for local development.');
       console.warn('Set AUTH_JWT_SECRET to a random string of at least 32 characters before deploying.');
+    }
+  }
+
+  // Email is load-bearing in production: password reset, account recovery and
+  // session-revocation notices all depend on it, and until #83 a missing or
+  // broken SMTP configuration was silent — reset reported success while
+  // delivering nothing. So production without SMTP refuses to start, exactly
+  // as it does for AUTH_JWT_SECRET, unless the operator states the choice
+  // explicitly with ALLOW_NO_EMAIL=true (a closed instance genuinely may not
+  // want mail; that is a decision, not an accident).
+  //
+  // A *configured but unreachable* transport is different: killing the server
+  // over what may be a transient SMTP blip at boot would make the mail host a
+  // hard dependency of everything else. It is verified, shouted about, and
+  // surfaced in /health instead.
+  if (!config.email.enabled) {
+    if (config.env.isProduction && process.env.ALLOW_NO_EMAIL !== 'true') {
+      console.error('FATAL: No SMTP configuration (SMTP_HOST) in production. Password reset and');
+      console.error('account recovery would silently deliver nothing. Configure SMTP_HOST etc.,');
+      console.error('or set ALLOW_NO_EMAIL=true to state explicitly that this instance sends no mail.');
+      process.exit(1);
+    } else if (!config.env.isProduction) {
+      console.warn('WARNING: No SMTP configured — emails will be logged to the console.');
+    }
+  } else {
+    const transport = await verifyEmailTransport();
+    if (transport.state === 'unreachable') {
+      console.error(`ERROR: SMTP is configured but unreachable: ${transport.error}`);
+      console.error('Password reset and recovery emails will fail until this is fixed. See /health.');
+      emailTransportError = transport.error;
+    } else {
+      console.log(`Email transport verified: ${config.email.host}:${config.email.port}`);
+      emailTransportError = null;
     }
   }
 
