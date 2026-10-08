@@ -332,7 +332,7 @@ function filterGrantedFields(
   return disclosedData;
 }
 
-async function insertDisclosureAuditLog(input: {
+export async function insertDisclosureAuditLog(input: {
   grantId: string;
   communityDid: string;
   rkey: string;

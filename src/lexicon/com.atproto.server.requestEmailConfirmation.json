@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.requestEmailConfirmation",
-  "revision": 1,
+  "revision": 2,
   "description": "Send (or resend) the email-verification link for the authenticated account's address. The address is always the one on the account, never caller-supplied. Idempotent on an already-verified account.",
   "defs": {
     "main": {
@@ -33,6 +33,10 @@
         }
       },
       "errors": [
+        {
+          "name": "NoEmail",
+          "description": "The account has no email address (pseudonymous accounts), so there is nothing to verify."
+        },
         {
           "name": "AccountNotFound",
           "description": "The authenticated account no longer exists."

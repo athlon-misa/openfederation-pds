@@ -107,7 +107,7 @@ export type ComAtprotoServerRequestEmailConfirmationOutput = {
   "alreadyVerified": boolean;
   "note"?: string;
 };
-export type ComAtprotoServerRequestEmailConfirmationError = "AccountNotFound" | "EmailDeliveryFailed" | "VerificationDisabled";
+export type ComAtprotoServerRequestEmailConfirmationError = "AccountNotFound" | "EmailDeliveryFailed" | "NoEmail" | "VerificationDisabled";
 
 export type ComAtprotoSyncGetBlobInput = {
   "did": string;
@@ -2581,7 +2581,7 @@ export const lexiconContracts = {
   'com.atproto.server.getServiceAuth': { revision: 1, errors: ["BadExpiration", "InvalidRequest", "NoSigningKey"] as const },
   'com.atproto.server.getSession': { revision: 2, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
-  'com.atproto.server.requestEmailConfirmation': { revision: 1, errors: ["AccountNotFound", "EmailDeliveryFailed", "VerificationDisabled"] as const },
+  'com.atproto.server.requestEmailConfirmation': { revision: 2, errors: ["AccountNotFound", "EmailDeliveryFailed", "NoEmail", "VerificationDisabled"] as const },
   'com.atproto.sync.getBlob': { revision: 1, errors: ["BlobNotFound"] as const },
   'com.atproto.sync.getRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },

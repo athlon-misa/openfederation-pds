@@ -26,12 +26,16 @@ export default async function requestEmailConfirmation(req: AuthRequest, res: Re
       return;
     }
 
-    const user = await query<{ id: string; handle: string; email: string; verified: boolean }>(
+    const user = await query<{ id: string; handle: string; email: string | null; verified: boolean }>(
       'SELECT id, handle, email, (email_verified_at IS NOT NULL) AS verified FROM users WHERE id = $1',
       [req.auth!.userId],
     );
     if (user.rows.length === 0) {
       res.status(404).json({ error: 'AccountNotFound', message: 'Account not found' });
+      return;
+    }
+    if (!user.rows[0].email) {
+      res.status(400).json({ error: 'NoEmail', message: 'This account has no email address.' });
       return;
     }
     if (user.rows[0].verified) {
@@ -43,7 +47,7 @@ export default async function requestEmailConfirmation(req: AuthRequest, res: Re
     // there is no enumeration concern — delivery failure is surfaced, since
     // the whole point of this endpoint is that the previous email did not
     // arrive.
-    const delivery = await issueEmailVerification(user.rows[0]);
+    const delivery = await issueEmailVerification({ ...user.rows[0], email: user.rows[0].email });
     if (delivery.outcome === 'failed-transient' || delivery.outcome === 'failed-permanent' || delivery.outcome === 'suppressed') {
       res.status(502).json({
         error: 'EmailDeliveryFailed',
