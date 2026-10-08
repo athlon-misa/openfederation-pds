@@ -32,13 +32,20 @@ const { phrase, did, handle } = await createPseudonym({
 });
 ```
 
+`createPseudonym` throws if the PDS reports a different DID from the one the genesis operation produced.
+
 ## Phrase login
 
 ```ts
 import { loginWithPhrase } from '@open-federation/pseudonym';
 
-const session = await loginWithPhrase({ pdsUrl, phrase }); // { did, handle, accessJwt, refreshJwt }
+const session = await loginWithPhrase({
+  pdsUrl, phrase,
+  expectedServiceDid: 'did:web:pds.example.net', // the DID of the PDS you mean to log in to
+}); // { did, handle, accessJwt, refreshJwt }
 ```
+
+`expectedServiceDid` is required. The login message is signed over the service DID that the server's challenge names, so the client refuses to sign (and throws) when the challenge names any other service. Without this check a malicious server could relay another PDS's challenge and log in there as you. Pin the value in your app's configuration; do not take it from the server you are logging in to.
 
 ## Reveal
 
@@ -56,6 +63,8 @@ await publishReveal({ pdsUrl, bundle, pseudonymAccessJwt, ownerAccessJwt });  //
 ```
 
 An offline check cannot tie the bundle's owner key to the owner's DID, so `ofc pseudonym verify` exits with code 2 until it is run with `--online`.
+
+**What a reveal proves.** On OpenFederation PDSes the owner's root signing key is custodial: the PDS holds it and `signLink` signs with it. So a valid bundle, even one that passes the online check, proves that the owner's PDS signed the link and that the pseudonym's genesis commits to the owner's DID. It does not prove the person consented. The PDS operator, or anyone holding the database and `KEY_ENCRYPTION_SECRET`, can create a pseudonym whose genesis commits to any local account and have that account's key sign a link to it. Treat a reveal as "this PDS vouches for the link", and weigh it by how much you trust the PDS. A presence proof (`signPresence`) shows control of the pseudonym's phrase, not consent of the named owner either.
 
 Lower-level helpers (formats, key derivation, token blinding, PLC genesis operations) are exported from the package root.
 

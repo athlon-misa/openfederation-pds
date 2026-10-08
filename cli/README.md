@@ -351,7 +351,7 @@ Pass `--proposal <rkey>` when an export holds more than one proposal.
 
 | Command | Auth | Description |
 |---------|:---:|-------------|
-| `pseudonym verify <file> [--online] [--plc <url>]` | No | Verify a reveal bundle (JSON). Exit `0`: fully valid (owner key confirmed online); `2`: signatures and commitment valid but the owner key was not confirmed (offline); `1`: invalid |
+| `pseudonym verify <file> [--online] [--plc <url>]` | No | Verify a reveal bundle (JSON). Exit `0`: fully valid (owner key confirmed online); `2`: signatures and commitment valid but the owner key was not confirmed (offline); `1`: invalid. VALID means the owner's PDS-held key signed the link and the genesis commits to the owner; owner keys are custodial, so it does not prove the person consented |
 | `pseudonym presence-challenge` | No | Print a fresh random challenge for an in-person proof |
 | `pseudonym verify-presence <did> <challenge> <signature> [--genesis <file>] [--plc <url>]` | No | Check a presence signature against the pseudonym's genesis key (from a file, or fetched from PLC) |
 

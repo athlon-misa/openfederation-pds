@@ -2007,7 +2007,8 @@ pseudonymCmd
         console.log(`SIGNATURES AND COMMITMENT VALID - but the owner key was NOT confirmed to belong to ${bundle.owner.did}. Re-run with --online before trusting this.`);
         process.exitCode = 2;
       } else {
-        console.log(`VALID: ${bundle.owner.did} controls ${bundle.pseudonym.did}.`);
+        console.log(`VALID: ${bundle.owner.did}'s PDS-held key signed this link to ${bundle.pseudonym.did}, and the pseudonym's genesis commits to ${bundle.owner.did}. ` +
+          'Owner keys on OpenFederation PDSes are held by the PDS, so this proves the PDS signed - not that the person consented.');
         process.exitCode = 0;
       }
     } catch (err) {
