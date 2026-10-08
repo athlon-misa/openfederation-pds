@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - New error `NoEmail` on `com.atproto.server.confirmEmail`, `requestEmailConfirmation` and `net.openfederation.admin.createVerificationChallenge` (accounts without an email).
+- `net.openfederation.account.list` (revision 2): `email` is optional and omitted for accounts without one (pseudonyms); previously such an account made the endpoint return 500.
 - New error `ProbationLimit` (429) on `com.atproto.repo.createRecord`, `putRecord`, `uploadBlob`, `net.openfederation.forum.createThread`, `forum.createPost` and `calendar.createEvent` for pseudonyms in their probation period.
 - `auditLog()` drops entries whose actor or target is a pseudonym; disclosure audit stores no IP for pseudonym requesters.
 - Requirements note: `@cloudflare/blindrsa-ts` (used by the pseudonym package) declares `engines.node >= 24`, while this repo's root declares `>=22 <25`.
