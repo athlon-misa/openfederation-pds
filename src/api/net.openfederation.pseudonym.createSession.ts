@@ -31,7 +31,7 @@ export default async function createPseudonymSession(req: Request, res: Response
     if (!user) { res.status(401).json(UNAUTHORIZED); return; }
     if (user.status !== 'approved') { res.status(403).json({ error: 'AccountNotActive', message: 'This account is not active.' }); return; }
 
-    const { accessJwt, refreshJwt } = await issueSession({ ...user, email: null });
+    const { accessJwt, refreshJwt } = await issueSession({ ...user, email: null }, { pseudonym: true });
     res.status(200).json({ did: user.did, handle: user.handle, accessJwt, refreshJwt, active: true });
   } catch (error) {
     console.error('Error in pseudonym.createSession');

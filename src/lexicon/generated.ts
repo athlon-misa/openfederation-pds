@@ -257,7 +257,7 @@ export type NetOpenfederationAccountListSessionsInput = {
 export type NetOpenfederationAccountListSessionsOutput = {
   "sessions": Array<{
   "id": string;
-  "createdAt": string;
+  "createdAt"?: string;
   "lastUsedAt"?: string;
   "expiresAt": string;
   "isCurrent"?: boolean;
@@ -2707,7 +2707,7 @@ export const lexiconContracts = {
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
   'net.openfederation.account.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
-  'net.openfederation.account.listSessions': { revision: 2, errors: ["NotFound"] as const },
+  'net.openfederation.account.listSessions': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.account.register': { revision: 3, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
   'net.openfederation.account.reject': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.requestPasswordReset': { revision: 1, errors: [] as const },

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { query } from '../db/client.js';
 import { generateRefreshToken, hashToken, refreshTtlMs, signAccessToken } from '../auth/tokens.js';
 import { auditLog } from '../db/audit.js';
+import { pseudonymSessionExpiry } from '../auth/session-issue.js';
 import type { UserRole, UserStatus } from '../auth/types.js';
 
 interface RefreshSessionInput {
@@ -80,9 +81,10 @@ export default async function refreshSession(req: Request, res: Response): Promi
       status: string;
       did: string;
       token_version: number;
+      auth_type: string;
       roles: string[];
     }>(
-      `SELECT u.id, u.handle, u.email, u.status, u.did, u.token_version,
+      `SELECT u.id, u.handle, u.email, u.status, u.did, u.token_version, u.auth_type,
               COALESCE(array_agg(r.role) FILTER (WHERE r.role IS NOT NULL), '{}') as roles
        FROM users u
        LEFT JOIN user_roles r ON r.user_id = u.id
@@ -145,7 +147,10 @@ export default async function refreshSession(req: Request, res: Response): Promi
     });
 
     const { token: newRefreshJwt, hash: newHash } = generateRefreshToken();
-    const newExpiresAt = new Date(Date.now() + refreshTtlMs());
+    // Pseudonym sessions never record when they were used and only carry a
+    // day-rounded expiry, so session timing cannot link a pseudonym to its owner.
+    const isPseudonym = user.auth_type === 'pseudonym';
+    const newExpiresAt = isPseudonym ? pseudonymSessionExpiry() : new Date(Date.now() + refreshTtlMs());
 
     // Rotate token: store old hash for reuse detection, update to new hash
     const rotation = await query(
@@ -153,7 +158,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
        SET refresh_token_hash = $1,
            previous_token_hash = $4,
            expires_at = $2,
-           last_used_at = CURRENT_TIMESTAMP
+           last_used_at = ${isPseudonym ? 'NULL' : 'CURRENT_TIMESTAMP'}
        WHERE id = $3
          AND refresh_token_hash = $4
          AND revoked_at IS NULL`,

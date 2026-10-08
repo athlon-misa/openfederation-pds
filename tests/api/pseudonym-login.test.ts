@@ -1,6 +1,7 @@
 // tests/api/pseudonym-login.test.ts
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { xrpcPost, xrpcAuthPost, isPLCAvailable } from './helpers.js';
+import { xrpcPost, xrpcAuthPost, xrpcAuthGet, isPLCAvailable, createTestUser, uniqueHandle } from './helpers.js';
+import { hashToken, refreshTtlMs } from '../../src/auth/tokens.js';
 import { query } from '../../src/db/client.js';
 import { config } from '../../src/config.js';
 import { setPlcClientForTests } from '../../src/identity/plc-client.js';
@@ -96,5 +97,49 @@ describe('pseudonym phrase login', () => {
     } finally {
       (config.emailVerification as any).policy = original;
     }
+  });
+
+  it('pseudonym sessions carry no creation or use time and a day-rounded expiry', async () => {
+    if (!plc) return;
+    const before = Date.now();
+    const { res } = await login(phrase);
+    expect(res.status).toBe(200);
+    const row = async (rt: string) => (await query<{ created_at: Date | null; last_used_at: Date | null; expires_at: Date }>(
+      'SELECT created_at, last_used_at, expires_at FROM sessions WHERE refresh_token_hash = $1', [hashToken(rt)])).rows[0];
+    const DAY = 24 * 60 * 60 * 1000;
+    const check = (r: { created_at: Date | null; last_used_at: Date | null; expires_at: Date }) => {
+      expect(r.created_at).toBeNull();
+      expect(r.last_used_at).toBeNull();
+      expect(r.expires_at.getTime() % DAY).toBe(0);
+      expect(r.expires_at.getTime()).toBeGreaterThanOrEqual(before + refreshTtlMs());
+    };
+    check(await row(res.body.refreshJwt));
+    const refreshed = await xrpcAuthPost('com.atproto.server.refreshSession', res.body.refreshJwt, {});
+    expect(refreshed.status).toBe(200);
+    check(await row(refreshed.body.refreshJwt));
+
+    const listed = await xrpcAuthGet('net.openfederation.account.listSessions', refreshed.body.accessJwt);
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200);
+    expect(listed.body.sessions.length).toBeGreaterThan(0);
+    for (const s of listed.body.sessions) expect(s.createdAt).toBeUndefined();
+  });
+
+  it('regular user sessions keep their timestamps', async () => {
+    if (!plc) return;
+    setPlcClientForTests(null);
+    const u = await createTestUser(uniqueHandle('sesst'));
+    const row = async (rt: string) => (await query<{ created_at: Date | null; last_used_at: Date | null; expires_at: Date }>(
+      'SELECT created_at, last_used_at, expires_at FROM sessions WHERE refresh_token_hash = $1', [hashToken(rt)])).rows[0];
+    const r1 = await row(u.refreshJwt);
+    expect(r1.created_at).toBeInstanceOf(Date);
+    expect(r1.last_used_at).toBeNull();
+    const refreshed = await xrpcAuthPost('com.atproto.server.refreshSession', u.refreshJwt, {});
+    expect(refreshed.status).toBe(200);
+    const r2 = await row(refreshed.body.refreshJwt);
+    expect(r2.created_at).toBeInstanceOf(Date);
+    expect(r2.last_used_at).toBeInstanceOf(Date);
+    expect(Math.abs(r2.expires_at.getTime() - (Date.now() + refreshTtlMs()))).toBeLessThan(60_000);
+    const listed = await xrpcAuthGet('net.openfederation.account.listSessions', refreshed.body.accessJwt);
+    expect(listed.body.sessions[0].createdAt).toBeTruthy();
   });
 });

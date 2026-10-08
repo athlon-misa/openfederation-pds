@@ -24,22 +24,24 @@ export default async function listSessions(req: AuthRequest, res: Response): Pro
 
   const result = await query<{
     id: string;
-    created_at: string;
-    last_used_at: string | null;
-    expires_at: string;
+    created_at: Date | null;
+    last_used_at: Date | null;
+    expires_at: Date;
   }>(
     `SELECT id, created_at, last_used_at, expires_at
      FROM sessions
      WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
-     ORDER BY created_at DESC`,
+     ORDER BY created_at DESC NULLS LAST, expires_at DESC`,
     [targetUserId]
   );
 
+  // Pseudonym sessions have no creation time (it could link them to their
+  // owner's session by timing), so createdAt is omitted for them.
   const sessions = result.rows.map(row => ({
     id: row.id.substring(0, 8),
-    createdAt: row.created_at,
-    lastUsedAt: row.last_used_at || null,
-    expiresAt: row.expires_at,
+    ...(row.created_at ? { createdAt: new Date(row.created_at).toISOString() } : {}),
+    ...(row.last_used_at ? { lastUsedAt: new Date(row.last_used_at).toISOString() } : {}),
+    expiresAt: new Date(row.expires_at).toISOString(),
   }));
 
   res.status(200).json({ sessions });
