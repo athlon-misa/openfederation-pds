@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.pseudonym.signLink",
+  "revision": 1,
+  "description": "Sign a canonical pseudonym link statement naming the caller as owner.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "A regular (non-pseudonym) local account signs the owner half of a pseudonym link with its repo signing key. Nothing is stored, logged or audited.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "statement": { "type": "string", "description": "Canonical link statement; must name the caller as owner." }
+          },
+          "required": ["statement"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ownerDid": { "type": "string" },
+            "sig": { "type": "string", "description": "base64url signature over the statement." },
+            "signingKey": { "type": "string", "description": "did:key of the signing key." }
+          },
+          "required": ["ownerDid", "sig", "signingKey"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidStatement", "description": "Not a canonical pseudonym link statement." },
+        { "name": "Forbidden", "description": "The statement does not name the caller, or the caller is a pseudonym or external account." },
+        { "name": "Unauthorized", "description": "Missing or invalid access token." }
+      ]
+    }
+  }
+}

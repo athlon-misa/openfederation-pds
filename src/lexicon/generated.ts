@@ -451,6 +451,10 @@ export type NetOpenfederationAuditListOutput = {
 };
 export type NetOpenfederationAuditListError = never;
 
+export type NetOpenfederationAuthorshipClaimInput = undefined;
+export type NetOpenfederationAuthorshipClaimOutput = undefined;
+export type NetOpenfederationAuthorshipClaimError = never;
+
 export type NetOpenfederationCalendarCreateEventInput = {
   "community": string;
   "name": string;
@@ -1881,6 +1885,20 @@ export type NetOpenfederationPseudonymGetTokenKeysOutput = {
 };
 export type NetOpenfederationPseudonymGetTokenKeysError = never;
 
+export type NetOpenfederationPseudonymLinkInput = undefined;
+export type NetOpenfederationPseudonymLinkOutput = undefined;
+export type NetOpenfederationPseudonymLinkError = never;
+
+export type NetOpenfederationPseudonymSignLinkInput = {
+  "statement": string;
+};
+export type NetOpenfederationPseudonymSignLinkOutput = {
+  "ownerDid": string;
+  "sig": string;
+  "signingKey": string;
+};
+export type NetOpenfederationPseudonymSignLinkError = "Forbidden" | "InvalidStatement" | "Unauthorized";
+
 export type NetOpenfederationServerGetConfigInput = undefined;
 export type NetOpenfederationServerGetConfigOutput = {
   "service": string;
@@ -2142,6 +2160,7 @@ export interface LexiconInputMap {
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureInput;
   'net.openfederation.attestation.verifyCommitment': NetOpenfederationAttestationVerifyCommitmentInput;
   'net.openfederation.audit.list': NetOpenfederationAuditListInput;
+  'net.openfederation.authorship.claim': NetOpenfederationAuthorshipClaimInput;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventInput;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsInput;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsInput;
@@ -2254,6 +2273,8 @@ export interface LexiconInputMap {
   'net.openfederation.pseudonym.createSession': NetOpenfederationPseudonymCreateSessionInput;
   'net.openfederation.pseudonym.getLoginChallenge': NetOpenfederationPseudonymGetLoginChallengeInput;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysInput;
+  'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkInput;
+  'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkInput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigInput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigInput;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogInput;
@@ -2327,6 +2348,7 @@ export interface LexiconOutputMap {
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureOutput;
   'net.openfederation.attestation.verifyCommitment': NetOpenfederationAttestationVerifyCommitmentOutput;
   'net.openfederation.audit.list': NetOpenfederationAuditListOutput;
+  'net.openfederation.authorship.claim': NetOpenfederationAuthorshipClaimOutput;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventOutput;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsOutput;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsOutput;
@@ -2439,6 +2461,8 @@ export interface LexiconOutputMap {
   'net.openfederation.pseudonym.createSession': NetOpenfederationPseudonymCreateSessionOutput;
   'net.openfederation.pseudonym.getLoginChallenge': NetOpenfederationPseudonymGetLoginChallengeOutput;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysOutput;
+  'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkOutput;
+  'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkOutput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigOutput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigOutput;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogOutput;
@@ -2512,6 +2536,7 @@ export interface LexiconErrorMap {
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureError;
   'net.openfederation.attestation.verifyCommitment': NetOpenfederationAttestationVerifyCommitmentError;
   'net.openfederation.audit.list': NetOpenfederationAuditListError;
+  'net.openfederation.authorship.claim': NetOpenfederationAuthorshipClaimError;
   'net.openfederation.calendar.createEvent': NetOpenfederationCalendarCreateEventError;
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsError;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsError;
@@ -2624,6 +2649,8 @@ export interface LexiconErrorMap {
   'net.openfederation.pseudonym.createSession': NetOpenfederationPseudonymCreateSessionError;
   'net.openfederation.pseudonym.getLoginChallenge': NetOpenfederationPseudonymGetLoginChallengeError;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysError;
+  'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkError;
+  'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkError;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigError;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigError;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogError;
@@ -2699,6 +2726,7 @@ export const lexiconContracts = {
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.verifyCommitment': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
+  'net.openfederation.authorship.claim': { revision: 1, errors: [] as const },
   'net.openfederation.calendar.createEvent': { revision: 3, errors: ["Forbidden", "NotMember", "ProbationLimit"] as const },
   'net.openfederation.calendar.listEvents': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.calendar.listRsvps': { revision: 3, errors: ["NotFound"] as const },
@@ -2811,6 +2839,8 @@ export const lexiconContracts = {
   'net.openfederation.pseudonym.createSession': { revision: 1, errors: ["AccountNotActive", "Unauthorized"] as const },
   'net.openfederation.pseudonym.getLoginChallenge': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.pseudonym.getTokenKeys': { revision: 1, errors: [] as const },
+  'net.openfederation.pseudonym.link': { revision: 1, errors: [] as const },
+  'net.openfederation.pseudonym.signLink': { revision: 1, errors: ["Forbidden", "InvalidStatement", "Unauthorized"] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 1, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },

@@ -1,0 +1,29 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.authorship.claim",
+  "revision": 1,
+  "description": "A claim of authorship over content, identified by its hash.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Authorship claim record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["contentHash", "createdAt"],
+        "properties": {
+          "contentHash": {
+            "type": "string",
+            "description": "SHA-256 of the content as 64 lowercase hex characters.",
+            "minLength": 64,
+            "maxLength": 64
+          },
+          "url": { "type": "string", "format": "uri", "maxLength": 2000 },
+          "title": { "type": "string", "maxLength": 500, "maxGraphemes": 500 },
+          "publishedAt": { "type": "string", "format": "datetime" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.pseudonym.link",
+  "revision": 1,
+  "description": "A voluntary, dual-signed link between a pseudonym and its owner. Lives in a repo only if the owner chooses to publish it.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Pseudonym link record.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["statement", "pseudonymSig", "ownerSig", "ownerSigningKey", "commitmentSalt", "genesisOp", "createdAt"],
+        "properties": {
+          "statement": { "type": "string", "maxLength": 2000 },
+          "pseudonymSig": { "type": "string", "maxLength": 200 },
+          "ownerSig": { "type": "string", "maxLength": 200 },
+          "ownerSigningKey": { "type": "string", "maxLength": 200 },
+          "commitmentSalt": { "type": "string", "maxLength": 200 },
+          "genesisOp": { "type": "unknown" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

@@ -76,6 +76,7 @@ import reserveSigningKey from '../api/com.atproto.server.reserveSigningKey.js';
 import getLoginChallenge from '../api/net.openfederation.pseudonym.getLoginChallenge.js';
 import createPseudonymSession from '../api/net.openfederation.pseudonym.createSession.js';
 import createPseudonymAccount from '../api/net.openfederation.pseudonym.createAccount.js';
+import signLink from '../api/net.openfederation.pseudonym.signLink.js';
 import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js';
 import listPeers from '../api/net.openfederation.federation.listPeers.js';
 import listPeerCommunities from '../api/net.openfederation.federation.listPeerCommunities.js';
@@ -419,6 +420,7 @@ const handlers = Object.freeze({
   'net.openfederation.pseudonym.createAccount': { handler: createPseudonymAccount, limiter: createLimiter },
   'net.openfederation.pseudonym.getLoginChallenge': { handler: getLoginChallenge, limiter: authLimiter },
   'net.openfederation.pseudonym.createSession': { handler: createPseudonymSession, limiter: authLimiter },
+  'net.openfederation.pseudonym.signLink': { handler: signLink, limiter: createLimiter },
   'com.atproto.server.reserveSigningKey': { handler: reserveSigningKey, limiter: createLimiter },
 
   // Forum
