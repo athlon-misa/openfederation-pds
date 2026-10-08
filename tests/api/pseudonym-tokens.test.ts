@@ -6,7 +6,8 @@ import { config } from '../../src/config.js';
 import { query, withTransaction } from '../../src/db/client.js';
 import { redeemToken } from '../../src/identity/pseudonym/tokens.js';
 import { importTokenPublicKey, blindTokens, finalizeTokens } from '../../packages/openfederation-pseudonym/src/tokens.js';
-import { currentEpoch } from '../../packages/openfederation-pseudonym/src/formats.js';
+import { currentEpoch, base64UrlEncode } from '../../packages/openfederation-pseudonym/src/formats.js';
+import { blindSignBatch } from '../../src/identity/pseudonym/tokens.js';
 
 async function collect(accessJwt: string) {
   const keys = (await xrpcGet('net.openfederation.pseudonym.getTokenKeys')).body.keys;
@@ -56,5 +57,36 @@ describe('pseudonym creation tokens', () => {
     expect(await withTransaction((tx) => redeemToken(tx, token))).toBe('spent');
     expect(await withTransaction((tx) => redeemToken(tx, { ...token, signature: token.signature.slice(0, -4) + 'AAAA' }))).toBe('invalid');
     expect(await withTransaction((tx) => redeemToken(tx, { ...token, epoch: '1999-01' }))).toBe('invalid');
+  });
+
+  it('a malformed blinded message is a 400 and does not burn the epoch', async () => {
+    if (!(await isPLCAvailable())) return;
+    const ana = await createTestUser(uniqueHandle('tok'));
+    const keys = (await xrpcGet('net.openfederation.pseudonym.getTokenKeys')).body.keys;
+    const pub = await importTokenPublicKey(keys.find((k: any) => k.epoch === currentEpoch()).publicKey);
+    const pending = await blindTokens(pub, currentEpoch(), config.pseudonym.tokensPerEpoch);
+    const tooBig = base64UrlEncode(new Uint8Array(256).fill(255));
+    const bad = await xrpcAuthPost('net.openfederation.pseudonym.collectTokens', ana.accessJwt,
+      { epoch: currentEpoch(), blindedMessages: [tooBig, ...pending.blinded.slice(1)] });
+    expect(bad.status).toBe(400);
+    expect((await collect(ana.accessJwt)).res.status).toBe(200);
+  });
+
+  it('only local accounts collect: a non-local account gets 403', async () => {
+    if (!(await isPLCAvailable())) return;
+    const ana = await createTestUser(uniqueHandle('tok'));
+    await query("UPDATE users SET auth_type = 'external' WHERE handle = $1", [ana.handle]);
+    expect((await collect(ana.accessJwt)).res.status).toBe(403);
+  });
+
+  it('signs a full batch quickly and the signatures verify through the client path', async () => {
+    const keys = await (await import('../../src/identity/pseudonym/tokens.js')).publishedEpochs();
+    const k = keys.find((x) => x.epoch === currentEpoch())!;
+    const pub = await importTokenPublicKey(k.publicKey);
+    const pending = await blindTokens(pub, currentEpoch(), 20);
+    const t0 = Date.now();
+    const sigs = await blindSignBatch(currentEpoch(), pending.blinded);
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(await finalizeTokens(pub, pending, sigs)).toHaveLength(20);
   });
 });
