@@ -21,6 +21,7 @@ import { app } from '../../src/server/index.js';
  */
 const server = app.listen(0);
 server.unref();
+export const testServer = server;
 
 export const api = request(server);
 

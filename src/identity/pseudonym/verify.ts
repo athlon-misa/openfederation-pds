@@ -3,7 +3,9 @@
  * evidence travels inside the bundle; online mode additionally confirms the
  * owner's signing key against PLC.
  */
-import { verifySignature } from '@atproto/crypto';
+import { verifySignature, formatDidKey, SECP256K1_JWT_ALG } from '@atproto/crypto';
+import { secp256k1 } from '@noble/curves/secp256k1';
+import { base58btc } from 'multiformats/bases/base58';
 import { didForSignedOperation, encodeDagCbor, resolveFromPlc, getPlcLog } from '../plc-client.js';
 import {
   parseLinkStatement, computeCommitment, commitmentsIn, buildPresenceMessage, base64UrlDecode,
@@ -67,6 +69,23 @@ const FAIL_DETAIL: Record<string, string> = {
   ownerSignature: 'owner key did not sign this statement',
 };
 
+/**
+ * Normalise a DID document publicKeyMultibase to a did:key. Current PLC
+ * directories emit Multikey (multibase of the multicodec-prefixed key, i.e. the
+ * did:key suffix); older ones emit the legacy secp256k1-2019 form (multibase of
+ * the raw, usually uncompressed, SEC1 point with no multicodec prefix).
+ */
+function didKeyFromMultibase(mb: string): string | null {
+  try {
+    const bytes = base58btc.decode(mb);
+    if (bytes.length === 35 && bytes[0] === 0xe7 && bytes[1] === 0x01) return `did:key:${mb}`;
+    if (bytes.length === 33 || bytes.length === 65) {
+      return formatDidKey(SECP256K1_JWT_ALG, secp256k1.ProjectivePoint.fromHex(bytes).toRawBytes(true));
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
 const utf8 = (s: string) => new TextEncoder().encode(s);
 
 async function sigOk(didKey: unknown, data: Uint8Array, sig: unknown): Promise<boolean> {
@@ -126,7 +145,7 @@ async function verifyInner(bundle: unknown, opts: VerifyOptions): Promise<Verify
     try {
       const doc = await resolveDoc(bundle.owner.did, opts) as { verificationMethod?: { id: string; publicKeyMultibase?: string }[] } | null;
       const vm = doc?.verificationMethod?.find((v) => v.id.endsWith('#atproto'));
-      current = !!vm?.publicKeyMultibase && `did:key:${vm.publicKeyMultibase}` === bundle.owner.signingKey;
+      current = !!vm?.publicKeyMultibase && didKeyFromMultibase(vm.publicKeyMultibase) === bundle.owner.signingKey;
     } catch { current = false; }
     checks.push({ name: 'ownerKeyCurrent', ok: current, detail: current ? undefined : 'owner signing key is not the DID\'s current #atproto key (or lookup failed)' });
     ownerKeyBound = current ? 'confirmed' : 'failed';

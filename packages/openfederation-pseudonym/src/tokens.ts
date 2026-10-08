@@ -13,7 +13,7 @@ export interface CreationToken { epoch: string; prepared: string; signature: str
 export interface PendingTokens { epoch: string; prepared: Uint8Array[]; inv: Uint8Array[]; blinded: string[] }
 
 export async function importTokenPublicKey(spkiB64: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey('spki', base64UrlDecode(spkiB64), { name: 'RSA-PSS', hash: 'SHA-384' }, true, ['verify']);
+  return crypto.subtle.importKey('spki', base64UrlDecode(spkiB64) as BufferSource, { name: 'RSA-PSS', hash: 'SHA-384' }, true, ['verify']);
 }
 
 export async function blindTokens(publicKey: CryptoKey, epoch: string, count: number): Promise<PendingTokens> {

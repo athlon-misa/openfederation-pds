@@ -1,7 +1,7 @@
 // Re-export everything from api helpers
 export {
   xrpcPost, xrpcGet, xrpcAuthPost, xrpcAuthGet,
-  getAdminToken, createTestUser, isPLCAvailable, uniqueHandle,
+  getAdminToken, createTestUser, isPLCAvailable, uniqueHandle, testServer,
 } from '../api/helpers.js';
 
 import { xrpcAuthPost, createTestUser, uniqueHandle } from '../api/helpers.js';
