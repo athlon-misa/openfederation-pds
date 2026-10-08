@@ -53,13 +53,69 @@ describe('verifyRevealBundle (offline)', () => {
   });
 });
 
+describe('hostile input never throws', () => {
+  it('Infinity or undefined in genesisOp fails a check', async () => {
+    const { bundle } = makeBundle();
+    for (const bad of [Infinity, undefined]) {
+      const op = { ...bundle.pseudonym.genesisOp, services: { x: { n: bad } } };
+      const r = await verifyRevealBundle({ ...bundle, pseudonym: { ...bundle.pseudonym, genesisOp: op } });
+      expect(r.valid).toBe(false);
+    }
+    const nested = { ...bundle.pseudonym.genesisOp, rotationKeys: [1e400 as any] };
+    expect((await verifyRevealBundle({ ...bundle, pseudonym: { ...bundle.pseudonym, genesisOp: nested } })).valid).toBe(false);
+  });
+});
+
+describe('owner key binding', () => {
+  it('framing bundle passes offline signatures but ownerKeyBound is unchecked; online rejects it', async () => {
+    const victim = 'did:plc:victimvictimvictimvictim';
+    const pseudo = derivePseudonymKeys(generatePseudonymPhrase());
+    const attacker = derivePseudonymKeys(generatePseudonymPhrase());
+    const genesisOp = signGenesisOp(buildPseudonymGenesisOp({
+      ownerDidKey: pseudo.ownerDidKey, signingDidKey: pseudo.ownerDidKey, handle: 'frame.pds.test',
+      pdsEndpoint: 'https://pds.test', ownerDid: victim, commitmentSaltHex: pseudo.commitmentSaltHex,
+    }), pseudo.ownerPrivateKey);
+    const pseudonymDid = didForSignedOp(genesisOp);
+    const statement = buildLinkStatement({ pseudonymDid, ownerDid: victim, issuedAt: '2026-10-08T10:00:00.000Z' });
+    const bundle = {
+      version: 1 as const, statement, commitmentSalt: pseudo.commitmentSaltHex,
+      pseudonym: { did: pseudonymDid, sig: signText(pseudo.ownerPrivateKey, statement), genesisOp: genesisOp as any },
+      owner: { did: victim, sig: signText(attacker.ownerPrivateKey, statement), signingKey: attacker.ownerDidKey },
+    };
+    const off = await verifyRevealBundle(bundle);
+    expect(off.valid).toBe(true);
+    expect(off.ownerKeyBound).toBe('unchecked');
+    const victimKey = derivePseudonymKeys(generatePseudonymPhrase()).ownerDidKey;
+    const docFor = (k: string) => async () => ({ verificationMethod: [{ id: 'x#atproto', publicKeyMultibase: k.replace('did:key:', '') }] });
+    const on = await verifyRevealBundle(bundle, { online: true, resolveDoc: docFor(victimKey) });
+    expect(on.valid).toBe(false);
+    expect(on.ownerKeyBound).toBe('failed');
+  });
+
+  it('online confirms when the DID document key matches', async () => {
+    const { bundle } = makeBundle();
+    const doc = async () => ({ verificationMethod: [{ id: 'did:plc:x#atproto', publicKeyMultibase: bundle.owner.signingKey.replace('did:key:', '') }] });
+    const r = await verifyRevealBundle(bundle, { online: true, resolveDoc: doc });
+    expect(r.valid).toBe(true);
+    expect(r.ownerKeyBound).toBe('confirmed');
+    const down = await verifyRevealBundle(bundle, { online: true, resolveDoc: async () => { throw new Error('down'); } });
+    expect(down.ownerKeyBound).toBe('failed');
+  });
+});
+
 describe('verifyPresence', () => {
-  it('accepts the pseudonym key over the exact challenge only', async () => {
+  it('binds the signature to the pseudonym genesis key', async () => {
     const { bundle, pseudo } = makeBundle();
     const challenge = 'ef'.repeat(32);
-    const signature = signText(pseudo.ownerPrivateKey, buildPresenceMessage({ pseudonymDid: bundle.pseudonym.did, challenge }));
-    const base = { pseudonymDid: bundle.pseudonym.did, ownerKey: pseudo.ownerDidKey, challenge, signature };
+    const genesisOp = bundle.pseudonym.genesisOp;
+    const mk = (key: typeof pseudo) => signText(key.ownerPrivateKey, buildPresenceMessage({ pseudonymDid: bundle.pseudonym.did, challenge }));
+    const base = { pseudonymDid: bundle.pseudonym.did, genesisOp, challenge, signature: mk(pseudo) };
     expect(await verifyPresence(base)).toBe(true);
     expect(await verifyPresence({ ...base, challenge: '01'.repeat(32) })).toBe(false);
+    // a fresh key signing the right message is not the genesis key
+    expect(await verifyPresence({ ...base, signature: mk(derivePseudonymKeys(generatePseudonymPhrase())) })).toBe(false);
+    // genesis op belonging to a different DID
+    expect(await verifyPresence({ ...base, genesisOp: makeBundle().bundle.pseudonym.genesisOp })).toBe(false);
+    expect(await verifyPresence({ ...base, genesisOp: null as any })).toBe(false);
   });
 });

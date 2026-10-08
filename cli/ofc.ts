@@ -13,7 +13,7 @@
 import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import { randomBytes } from 'node:crypto';
-import { verifyRevealBundle, verifyPresence } from '../src/identity/pseudonym/verify.js';
+import { verifyRevealBundle, verifyPresence, fetchGenesisOp } from '../src/identity/pseudonym/verify.js';
 import { OFCClient, loadSession, promptPassword, readPasswordStdin } from './ofc-client.js';
 import {
   info, success, error, warn, hint,
@@ -1978,12 +1978,16 @@ function parseDataArg(data: string): any {
 
 const pseudonymCmd = program.command('pseudonym').description('Pseudonym proofs (work offline)');
 
+const DEFAULT_PLC_URL = 'https://plc.openfederation.net';
+const plcDefault = () => process.env.PLC_DIRECTORY_URL || DEFAULT_PLC_URL;
+
 pseudonymCmd
   .command('verify <file>')
   .description('Verify a pseudonym reveal bundle (JSON). Offline unless --online.')
   .option('--online', 'also confirm the owner key against the PLC directory')
-  .action(async (file: string, opts: { online?: boolean }) => {
-    let bundle: unknown;
+  .option('--plc <url>', 'PLC directory for --online (default: $PLC_DIRECTORY_URL or https://plc.openfederation.net)')
+  .action(async (file: string, opts: { online?: boolean; plc?: string }) => {
+    let bundle: any;
     try {
       bundle = JSON.parse(readFileSync(file, 'utf8'));
     } catch (err) {
@@ -1991,10 +1995,24 @@ pseudonymCmd
       process.exitCode = 1;
       return;
     }
-    const result = await verifyRevealBundle(bundle, { online: !!opts.online });
-    for (const c of result.checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? `  (${c.detail})` : ''}`);
-    console.log(result.valid ? 'VALID: the owner DID controls this pseudonym.' : 'INVALID');
-    process.exitCode = result.valid ? 0 : 1;
+    try {
+      const result = await verifyRevealBundle(bundle, { online: !!opts.online, plcUrl: opts.plc || plcDefault() });
+      for (const c of result.checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? `  (${c.detail})` : ''}`);
+      if (!result.valid) {
+        console.log('INVALID');
+        process.exitCode = 1;
+      } else if (result.ownerKeyBound !== 'confirmed') {
+        console.log(`SIGNATURES AND COMMITMENT VALID - but the owner key was NOT confirmed to belong to ${bundle.owner.did}. Re-run with --online before trusting this.`);
+        process.exitCode = 2;
+      } else {
+        console.log(`VALID: ${bundle.owner.did} controls ${bundle.pseudonym.did}.`);
+        process.exitCode = 0;
+      }
+    } catch (err) {
+      console.log(`FAIL  verifier error  (${err instanceof Error ? err.message : String(err)})`);
+      console.log('INVALID');
+      process.exitCode = 1;
+    }
   });
 
 pseudonymCmd
@@ -2003,12 +2021,29 @@ pseudonymCmd
   .action(() => console.log(randomBytes(32).toString('hex')));
 
 pseudonymCmd
-  .command('verify-presence <pseudonymDid> <ownerKey> <challenge> <signature>')
-  .description('Check an in-person presence signature')
-  .action(async (pseudonymDid: string, ownerKey: string, challenge: string, signature: string) => {
-    const ok = await verifyPresence({ pseudonymDid, ownerKey, challenge, signature });
-    console.log(ok ? 'VALID: the person controls this pseudonym.' : 'INVALID');
-    process.exitCode = ok ? 0 : 1;
+  .command('verify-presence <pseudonymDid> <challenge> <signature>')
+  .description('Check an in-person presence signature against the pseudonym\'s genesis key')
+  .option('--genesis <file>', 'genesis operation JSON (fully offline); otherwise fetched from the PLC log')
+  .option('--plc <url>', 'PLC directory (default: $PLC_DIRECTORY_URL or https://plc.openfederation.net)')
+  .action(async (pseudonymDid: string, challenge: string, signature: string, opts: { genesis?: string; plc?: string }) => {
+    try {
+      let genesisOp: Record<string, unknown> | null;
+      if (opts.genesis) genesisOp = JSON.parse(readFileSync(opts.genesis, 'utf8'));
+      else genesisOp = await fetchGenesisOp(pseudonymDid, { plcUrl: opts.plc || plcDefault() });
+      if (!genesisOp) {
+        console.error('Genesis operation not found.');
+        console.log('INVALID');
+        process.exitCode = 1;
+        return;
+      }
+      const ok = await verifyPresence({ pseudonymDid, genesisOp, challenge, signature });
+      console.log(ok ? 'VALID: the person controls this pseudonym.' : 'INVALID');
+      process.exitCode = ok ? 0 : 1;
+    } catch (err) {
+      console.error(`Cannot check presence: ${err instanceof Error ? err.message : String(err)}`);
+      console.log('INVALID');
+      process.exitCode = 1;
+    }
   });
 
 // ── Parse & execute ─────────────────────────────────────────────────
