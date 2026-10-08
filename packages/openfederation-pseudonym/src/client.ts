@@ -51,13 +51,25 @@ export async function createPseudonym(p: { pdsUrl: string; plcUrl: string; pdsSe
   const plcRes = await fetch(`${p.plcUrl}/${did}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signed) });
   if (!plcRes.ok) throw new Error(`PLC rejected genesis (${plcRes.status}): ${await plcRes.text()}`);
   const created = await xrpc<{ did: string; handle: string }>(p.pdsUrl, 'net.openfederation.pseudonym.createAccount', { did, token: p.token });
+  if (created.did !== did) throw new Error(`PDS created ${created.did}, expected ${did}`);
   return { phrase, did: created.did, handle: created.handle };
 }
 
-export async function loginWithPhrase(p: { pdsUrl: string; phrase: string }): Promise<{ did: string; handle: string; accessJwt: string; refreshJwt: string }> {
+/**
+ * Phrase login. `expectedServiceDid` is the DID of the PDS you mean to log in
+ * to (e.g. `did:web:pds.example.com`). The login message is signed over the
+ * service DID, so the client refuses to sign one naming any other service:
+ * otherwise a malicious server could relay another PDS's challenge and log in
+ * there as you.
+ */
+export async function loginWithPhrase(p: { pdsUrl: string; phrase: string; expectedServiceDid: string }): Promise<{ did: string; handle: string; accessJwt: string; refreshJwt: string }> {
+  if (!p.expectedServiceDid) throw new Error('expectedServiceDid is required');
   const keys = derivePseudonymKeys(p.phrase);
   const ch = await xrpc<{ challengeId: string; challenge: string; serviceDid: string }>(
     p.pdsUrl, 'net.openfederation.pseudonym.getLoginChallenge', { ownerKey: keys.ownerDidKey });
+  if (ch.serviceDid !== p.expectedServiceDid) {
+    throw new Error(`Login challenge is for ${ch.serviceDid}, expected ${p.expectedServiceDid}; refusing to sign`);
+  }
   const signature = signText(keys.ownerPrivateKey, buildLoginMessage({ serviceDid: ch.serviceDid, challenge: ch.challenge }));
   return xrpc(p.pdsUrl, 'net.openfederation.pseudonym.createSession', { challengeId: ch.challengeId, signature });
 }

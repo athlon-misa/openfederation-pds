@@ -3,6 +3,7 @@
  * Also confirms that PLC accepts the commitment URN in alsoKnownAs.
  */
 import type { AddressInfo } from 'node:net';
+import { vi } from 'vitest';
 import { isPLCAvailable, createTestUser, uniqueHandle, xrpcAuthPost, testServer } from './helpers.js';
 import { config } from '../../src/config.js';
 import {
@@ -18,8 +19,8 @@ beforeAll(async () => {
 });
 
 describe('pseudonym lifecycle', () => {
-  it('collect tokens → create → phrase login → claim → reveal → verify → presence', async () => {
-    if (!plc) return;
+  it('collect tokens → create → phrase login → claim → reveal → verify → presence', async (ctx) => {
+    if (!plc) ctx.skip('PLC directory not available');
     const ana = await createTestUser(uniqueHandle('ana'));
     const keys = await fetchTokenKeys(pdsUrl);
     const tokens = await collectTokens({ pdsUrl, accessJwt: ana.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
@@ -31,7 +32,19 @@ describe('pseudonym lifecycle', () => {
     });
     expect(created.phrase.split(' ')).toHaveLength(12);
 
-    const session = await loginWithPhrase({ pdsUrl, phrase: created.phrase });
+    // A challenge naming any other service is refused before anything is signed.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    try {
+      await expect(loginWithPhrase({ pdsUrl, phrase: created.phrase, expectedServiceDid: 'did:web:other-pds.example' }))
+        .rejects.toThrow(/refusing to sign/);
+      const urls = fetchSpy.mock.calls.map(([u]) => String(u));
+      expect(urls.some((u) => u.includes('pseudonym.getLoginChallenge'))).toBe(true);
+      expect(urls.some((u) => u.includes('pseudonym.createSession'))).toBe(false);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    const session = await loginWithPhrase({ pdsUrl, phrase: created.phrase, expectedServiceDid: config.pds.serviceDid });
     expect(session.did).toBe(created.did);
 
     const claim = await xrpcAuthPost('com.atproto.repo.createRecord', session.accessJwt, {
