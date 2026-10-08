@@ -63,9 +63,9 @@ export async function fetchGenesisOp(
 
 const FAIL_DETAIL: Record<string, string> = {
   genesisHash: 'genesis operation does not hash to the pseudonym DID',
-  genesisSignature: 'genesis operation is not signed by its own rotation key',
+  genesisSignature: 'genesis operation does not have exactly one rotation key, or is not signed by it',
   pseudonymSignature: 'pseudonym key did not sign this statement',
-  commitment: 'genesis does not commit to this owner DID with this salt',
+  commitment: 'genesis does not carry exactly one commitment, committing to this owner DID with this salt',
   ownerSignature: 'owner key did not sign this statement',
 };
 
@@ -87,6 +87,24 @@ function didKeyFromMultibase(mb: string): string | null {
 }
 
 const utf8 = (s: string) => new TextEncoder().encode(s);
+
+/**
+ * The genesis rotation key, under the same rule the server applies when it
+ * accepts a pseudonym (genesis.ts): exactly one secp256k1 did:key.
+ */
+function genesisRotationKey(op: Record<string, unknown>): string | undefined {
+  const keys = op.rotationKeys;
+  if (!Array.isArray(keys) || keys.length !== 1 || typeof keys[0] !== 'string' || !keys[0].startsWith('did:key:zQ3s')) return undefined;
+  return keys[0];
+}
+
+/** The single commitment in the genesis op (genesis.ts rule: exactly one well-formed URN), else undefined. */
+function genesisCommitment(op: Record<string, unknown>): string | undefined {
+  const aka = Array.isArray(op.alsoKnownAs) ? (op.alsoKnownAs as unknown[]).filter((a): a is string => typeof a === 'string') : [];
+  const urns = aka.filter((a) => a.startsWith('urn:openfederation:pseudonym-commitment:'));
+  const valid = commitmentsIn(urns);
+  return urns.length === 1 && valid.length === 1 ? valid[0] : undefined;
+}
 
 async function sigOk(didKey: unknown, data: Uint8Array, sig: unknown): Promise<boolean> {
   if (typeof didKey !== 'string' || typeof sig !== 'string') return false;
@@ -112,7 +130,7 @@ async function verifyInner(bundle: unknown, opts: VerifyOptions): Promise<Verify
   if (!isBundle(bundle)) return { valid: false, ownerKeyBound: 'unchecked', checks: [{ name: 'format', ok: false, detail: 'Not a version 1 reveal bundle' }] };
   const checks: VerifyResult['checks'] = [];
   const op = bundle.pseudonym.genesisOp;
-  const rotationKey = Array.isArray(op.rotationKeys) ? op.rotationKeys[0] : undefined;
+  const rotationKey = genesisRotationKey(op);
 
   const parsed = parseLinkStatement(bundle.statement);
   checks.push({ name: 'statement', ok: !!parsed && parsed.pseudonymDid === bundle.pseudonym.did && parsed.ownerDid === bundle.owner.did,
@@ -132,8 +150,8 @@ async function verifyInner(bundle: unknown, opts: VerifyOptions): Promise<Verify
 
   let commitOk = false;
   try {
-    const aka = Array.isArray(op.alsoKnownAs) ? (op.alsoKnownAs as string[]) : [];
-    commitOk = commitmentsIn(aka).includes(computeCommitment(bundle.owner.did, bundle.commitmentSalt));
+    const commitment = genesisCommitment(op);
+    commitOk = !!commitment && commitment === computeCommitment(bundle.owner.did, bundle.commitmentSalt);
   } catch { commitOk = false; }
   checks.push({ name: 'commitment', ok: commitOk });
 
@@ -156,7 +174,8 @@ async function verifyInner(bundle: unknown, opts: VerifyOptions): Promise<Verify
 
 /**
  * Presence proof: the signature must verify under the rotation key in the
- * pseudonym's own genesis operation, which in turn must hash to the DID.
+ * pseudonym's own genesis operation, which in turn must hash to the DID and
+ * be pseudonym-shaped (one rotation key, one commitment).
  * Never throws.
  */
 export async function verifyPresence(p: {
@@ -166,7 +185,8 @@ export async function verifyPresence(p: {
     const op = p.genesisOp;
     if (!op || typeof op !== 'object' || op.prev !== null) return false;
     if (didForSignedOperation(op) !== p.pseudonymDid) return false;
-    const key = Array.isArray(op.rotationKeys) ? op.rotationKeys[0] : undefined;
+    const key = genesisRotationKey(op);
+    if (!key || !genesisCommitment(op)) return false;
     return await sigOk(key, utf8(buildPresenceMessage({ pseudonymDid: p.pseudonymDid, challenge: p.challenge })), p.signature);
   } catch {
     return false;

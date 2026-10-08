@@ -119,3 +119,57 @@ describe('verifyPresence', () => {
     expect(await verifyPresence({ ...base, genesisOp: null as any })).toBe(false);
   });
 });
+
+describe('genesis shape matches the server rules (genesis.ts)', () => {
+  // Build a correctly hashed and signed bundle from a mutated genesis op.
+  function variant(mutate: (op: any, extra: ReturnType<typeof derivePseudonymKeys>) => void) {
+    const pseudo = derivePseudonymKeys(generatePseudonymPhrase());
+    const root = derivePseudonymKeys(generatePseudonymPhrase());
+    const extra = derivePseudonymKeys(generatePseudonymPhrase());
+    const ownerDid = 'did:plc:anaanaanaanaanaanaanaana';
+    const op: any = buildPseudonymGenesisOp({
+      ownerDidKey: pseudo.ownerDidKey, signingDidKey: pseudo.ownerDidKey, handle: 'nightdesk.pds.test',
+      pdsEndpoint: 'https://pds.test', ownerDid, commitmentSaltHex: pseudo.commitmentSaltHex,
+    });
+    mutate(op, extra);
+    const genesisOp = signGenesisOp(op, pseudo.ownerPrivateKey);
+    const pseudonymDid = didForSignedOp(genesisOp);
+    const statement = buildLinkStatement({ pseudonymDid, ownerDid, issuedAt: '2026-10-08T10:00:00.000Z' });
+    const challenge = 'ef'.repeat(32);
+    return {
+      bundle: {
+        version: 1 as const, statement, commitmentSalt: pseudo.commitmentSaltHex,
+        pseudonym: { did: pseudonymDid, sig: signText(pseudo.ownerPrivateKey, statement), genesisOp: genesisOp as any },
+        owner: { did: ownerDid, sig: signText(root.ownerPrivateKey, statement), signingKey: root.ownerDidKey },
+      },
+      presence: {
+        pseudonymDid, genesisOp: genesisOp as any, challenge,
+        signature: signText(pseudo.ownerPrivateKey, buildPresenceMessage({ pseudonymDid, challenge })),
+      },
+    };
+  }
+
+  it('an unmodified variant passes (control)', async () => {
+    const v = variant(() => {});
+    expect((await verifyRevealBundle(v.bundle)).valid).toBe(true);
+    expect(await verifyPresence(v.presence)).toBe(true);
+  });
+
+  it('two commitment URNs fail the commitment check, even when one is correct', async () => {
+    const v = variant((op) => { op.alsoKnownAs.push(`urn:openfederation:pseudonym-commitment:v1:${'ab'.repeat(32)}`); });
+    expect(failed(await verifyRevealBundle(v.bundle))).toEqual(['commitment']);
+    expect(await verifyPresence(v.presence)).toBe(false);
+  });
+
+  it('a malformed extra commitment URN also fails', async () => {
+    const v = variant((op) => { op.alsoKnownAs.push('urn:openfederation:pseudonym-commitment:v1:not-hex'); });
+    expect(failed(await verifyRevealBundle(v.bundle))).toEqual(['commitment']);
+    expect(await verifyPresence(v.presence)).toBe(false);
+  });
+
+  it('two rotation keys fail the genesis check', async () => {
+    const v = variant((op, extra) => { op.rotationKeys.push(extra.ownerDidKey); });
+    expect(failed(await verifyRevealBundle(v.bundle))).toContain('genesisSignature');
+    expect(await verifyPresence(v.presence)).toBe(false);
+  });
+});
