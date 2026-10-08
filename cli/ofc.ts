@@ -13,7 +13,6 @@
 import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import { randomBytes } from 'node:crypto';
-import { verifyRevealBundle, verifyPresence, fetchGenesisOp } from '../src/identity/pseudonym/verify.js';
 import { OFCClient, loadSession, promptPassword, readPasswordStdin } from './ofc-client.js';
 import {
   info, success, error, warn, hint,
@@ -1996,6 +1995,9 @@ pseudonymCmd
       return;
     }
     try {
+      // Lazy: the verifier pulls in the PLC client and server config, which
+      // other ofc commands must not load.
+      const { verifyRevealBundle } = await import('../src/identity/pseudonym/verify.js');
       const result = await verifyRevealBundle(bundle, { online: !!opts.online, plcUrl: opts.plc || plcDefault() });
       for (const c of result.checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? `  (${c.detail})` : ''}`);
       if (!result.valid) {
@@ -2027,6 +2029,7 @@ pseudonymCmd
   .option('--plc <url>', 'PLC directory (default: $PLC_DIRECTORY_URL or https://plc.openfederation.net)')
   .action(async (pseudonymDid: string, challenge: string, signature: string, opts: { genesis?: string; plc?: string }) => {
     try {
+      const { verifyPresence, fetchGenesisOp } = await import('../src/identity/pseudonym/verify.js');
       let genesisOp: Record<string, unknown> | null;
       if (opts.genesis) genesisOp = JSON.parse(readFileSync(opts.genesis, 'utf8'));
       else genesisOp = await fetchGenesisOp(pseudonymDid, { plcUrl: opts.plc || plcDefault() });

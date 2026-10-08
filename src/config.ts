@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+// quiet: dotenv 17 prints an informational banner to stdout on every load,
+// which corrupts machine-readable output from the ofc CLI. Loading is unchanged.
+dotenv.config({ quiet: true });
 
 const INSECURE_JWT_DEFAULTS = ['dev-secret-change-me', 'change_me', ''];
 
