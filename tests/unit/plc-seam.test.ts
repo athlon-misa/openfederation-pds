@@ -16,6 +16,7 @@ describe('PLC client seam', () => {
         calls.push(opts.handle);
         return 'did:plc:faked123';
       },
+      async getPlcLog() { return null; },
       async resolveFromPlc() {
         return null;
       },
@@ -34,6 +35,7 @@ describe('PLC client seam', () => {
   it('routes resolveFromPlc through the injected client', async () => {
     setPlcClientForTests({
       async registerDidPlc() { return 'did:plc:x'; },
+      async getPlcLog() { return null; },
       async resolveFromPlc(did) { return { id: did }; },
     });
     expect(await resolveFromPlc('did:plc:abc')).toEqual({ id: 'did:plc:abc' });

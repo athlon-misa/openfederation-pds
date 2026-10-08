@@ -82,9 +82,7 @@ async function registerDidPlcReal(opts: {
 
   // Derive DID from the signed genesis operation
   // did:plc uses SHA-256 of the DAG-CBOR-encoded signed operation, base32-lower, truncated to 24 chars
-  const signedBytes = dagCbor.encode(signedOp);
-  const hash = crypto.createHash('sha256').update(signedBytes).digest();
-  const did = `did:plc:${base32Lower(hash).substring(0, 24)}`;
+  const did = didForSignedOperation(signedOp as unknown as Record<string, unknown>);
 
   // Submit to PLC directory
   const directoryUrl = config.plc.directoryUrl;
@@ -170,6 +168,25 @@ function base64UrlEncode(bytes: Uint8Array): string {
     .replace(/=+$/, '');
 }
 
+/** DAG-CBOR encode (PLC operations). */
+export function encodeDagCbor(obj: unknown): Uint8Array {
+  return dagCbor.encode(obj);
+}
+
+/** did:plc = base32-lower(sha256(dag-cbor(signed genesis op)))[0..24]. */
+export function didForSignedOperation(signedOp: Record<string, unknown>): string {
+  const hash = crypto.createHash('sha256').update(dagCbor.encode(signedOp)).digest();
+  return `did:plc:${base32Lower(hash).substring(0, 24)}`;
+}
+
+/** Signed operation log for a DID (GET /{did}/log). Genesis is element 0. */
+async function getPlcLogReal(did: string): Promise<Record<string, unknown>[] | null> {
+  const response = await fetch(`${config.plc.directoryUrl}/${did}/log`, { headers: { Accept: 'application/json' } });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`PLC log lookup failed (${response.status}): ${await response.text()}`);
+  return await response.json() as Record<string, unknown>[];
+}
+
 // ── Test seam ────────────────────────────────────────────────────
 // The real adapter talks to the configured PLC directory; tests inject a
 // double via setPlcClientForTests so registration flows run without a live
@@ -183,11 +200,13 @@ export interface PlcDirectoryClient {
     pdsEndpoint: string;
   }): Promise<string>;
   resolveFromPlc(did: string): Promise<Record<string, unknown> | null>;
+  getPlcLog(did: string): Promise<Record<string, unknown>[] | null>;
 }
 
 const realPlcClient: PlcDirectoryClient = {
   registerDidPlc: registerDidPlcReal,
   resolveFromPlc: resolveFromPlcReal,
+  getPlcLog: getPlcLogReal,
 };
 
 let activePlcClient: PlcDirectoryClient = realPlcClient;
@@ -205,4 +224,8 @@ export async function registerDidPlc(
 
 export async function resolveFromPlc(did: string): Promise<Record<string, unknown> | null> {
   return activePlcClient.resolveFromPlc(did);
+}
+
+export async function getPlcLog(did: string): Promise<Record<string, unknown>[] | null> {
+  return activePlcClient.getPlcLog(did);
 }
