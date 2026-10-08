@@ -12,6 +12,8 @@
 
 import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
+import { randomBytes } from 'node:crypto';
+import { verifyRevealBundle, verifyPresence } from '../src/identity/pseudonym/verify.js';
 import { OFCClient, loadSession, promptPassword, readPasswordStdin } from './ofc-client.js';
 import {
   info, success, error, warn, hint,
@@ -1971,6 +1973,43 @@ function parseDataArg(data: string): any {
     throw new Error('Invalid JSON in --data. Use a JSON string or @filename to read from a file.');
   }
 }
+
+// ── Pseudonym proofs (offline) ──────────────────────────────────────
+
+const pseudonymCmd = program.command('pseudonym').description('Pseudonym proofs (work offline)');
+
+pseudonymCmd
+  .command('verify <file>')
+  .description('Verify a pseudonym reveal bundle (JSON). Offline unless --online.')
+  .option('--online', 'also confirm the owner key against the PLC directory')
+  .action(async (file: string, opts: { online?: boolean }) => {
+    let bundle: unknown;
+    try {
+      bundle = JSON.parse(readFileSync(file, 'utf8'));
+    } catch (err) {
+      console.error(`Cannot read bundle "${file}": ${err instanceof Error ? err.message : String(err)}`);
+      process.exitCode = 1;
+      return;
+    }
+    const result = await verifyRevealBundle(bundle, { online: !!opts.online });
+    for (const c of result.checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? `  (${c.detail})` : ''}`);
+    console.log(result.valid ? 'VALID: the owner DID controls this pseudonym.' : 'INVALID');
+    process.exitCode = result.valid ? 0 : 1;
+  });
+
+pseudonymCmd
+  .command('presence-challenge')
+  .description('Print a fresh challenge for an in-person proof')
+  .action(() => console.log(randomBytes(32).toString('hex')));
+
+pseudonymCmd
+  .command('verify-presence <pseudonymDid> <ownerKey> <challenge> <signature>')
+  .description('Check an in-person presence signature')
+  .action(async (pseudonymDid: string, ownerKey: string, challenge: string, signature: string) => {
+    const ok = await verifyPresence({ pseudonymDid, ownerKey, challenge, signature });
+    console.log(ok ? 'VALID: the person controls this pseudonym.' : 'INVALID');
+    process.exitCode = ok ? 0 : 1;
+  });
 
 // ── Parse & execute ─────────────────────────────────────────────────
 
