@@ -7,6 +7,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | Method | NSID | Auth | Description |
 |:---|:---|:---|:---|
 | POST | `com.atproto.server.createSession` | No | Login (returns access + refresh tokens) |
+| POST | `com.atproto.server.reserveSigningKey` | No | Reserve a repo signing key to name in a PLC genesis op before creating an account (rate limit: create) |
 | POST | `com.atproto.server.refreshSession` | Yes | Rotate refresh token (reuse detection) |
 | GET  | `com.atproto.server.getSession` | Yes | Get current session info |
 | POST | `com.atproto.server.deleteSession` | Yes | Logout / invalidate session |
@@ -199,3 +200,37 @@ Moderation (`hidePost`/`hideThread`) requires the dedicated `community.forum.mod
 | GET  | `net.openfederation.calendar.listRsvps` | No* | List RSVPs for an event with per-status counts |
 
 \* Gated by community visibility — see note above.
+
+## OpenFederation Pseudonyms
+
+Anonymous accounts that the owner can later reveal. The PDS never stores or logs which account owns a pseudonym. Design: `docs/superpowers/specs/2026-10-08-pseudonyms-design.md`; client library: `packages/openfederation-pseudonym`. Pseudonym endpoints write no `audit_log` entries, and pseudonym accounts are refused (indistinguishably) by email, password and recovery flows. Pseudonyms are ordinary `did:plc` accounts with `auth_type='pseudonym'`.
+
+| Method | NSID | Auth | Rate limit | Description |
+|:---|:---|:---|:---|:---|
+| GET  | `net.openfederation.pseudonym.getTokenKeys` | No | discovery | Public blind-signature keys: `{ keys: [{ epoch, publicKey }] }` for the current and previous epoch (`YYYY-MM`, UTC). Fetch without credentials. |
+| POST | `net.openfederation.pseudonym.collectTokens` | Approved local account | create | Input `{ epoch, blindedMessages[] }` (epoch = current UTC month; exactly `PSEUDONYM_TOKENS_PER_EPOCH` base64url strings). Output `{ epoch, blindSignatures[] }`. Errors: `WrongEpoch`, `AlreadyCollected` (409, one batch per epoch), `Forbidden` (pseudonym, external or service-auth callers), `InvalidRequest`. |
+| POST | `com.atproto.server.reserveSigningKey` | No | create | Output `{ signingKey }` (a secp256k1 `did:key`). The caller names it as `verificationMethods.atproto` in its own genesis op; the key is consumed by `createAccount`. |
+| POST | `net.openfederation.pseudonym.createAccount` | Anonymous (creation token) | create | Input `{ did, token }`. The PDS reads the DID's PLC log, checks the genesis op (exactly one op, this PDS as endpoint, handle under the handle suffix, reserved signing key, pseudonym commitment) and spends the token. Output (201) `{ did, handle, status: 'approved' }`. Errors: `InvalidRequest`, `InvalidToken`, `TokenSpent`, `InvalidGenesis`, `SigningKeyNotReserved`, `AlreadyExists` (409). |
+| POST | `net.openfederation.pseudonym.getLoginChallenge` | No | auth | Input `{ ownerKey }` (secp256k1 `did:key`). Output `{ challengeId, challenge, serviceDid }`. Always issues a challenge, so it does not reveal which keys have accounts. Challenges expire after 5 minutes and are deleted when used. |
+| POST | `net.openfederation.pseudonym.createSession` | No | auth | Input `{ challengeId, signature }` (owner-key signature over the login message). Output `{ did, handle, accessJwt, refreshJwt, active }`. Errors: `Unauthorized` (every bad credential, indistinguishably), `AccountNotActive` (403). |
+| POST | `net.openfederation.pseudonym.signLink` | Yes (local account) | create | Input `{ statement }` (canonical link statement). Output `{ ownerDid, sig, signingKey }`: the owner's signature made with the caller's repo key. Errors: `InvalidStatement`, `Forbidden` (statement names another owner; pseudonym, external or service-auth callers). The PDS sees the link while signing and keeps nothing. |
+
+Record types (stored in repos only when the owner chooses to publish):
+
+| Collection | Description |
+|:---|:---|
+| `net.openfederation.pseudonym.link` | Dual-signed link between a pseudonym and its owner: `statement`, `pseudonymSig`, `ownerSig`, `ownerSigningKey`, `commitmentSalt`, `genesisOp`, `createdAt`. Published to both repos on a public reveal. |
+| `net.openfederation.authorship.claim` | Claim of authorship over content: `contentHash` (SHA-256, 64 lowercase hex), optional `url`, `title`, `publishedAt`, `createdAt`. |
+
+Changed behavior on existing endpoints:
+
+- `NoEmail` (400): `com.atproto.server.confirmEmail`, `com.atproto.server.requestEmailConfirmation` and `net.openfederation.admin.createVerificationChallenge` return it for accounts without an email address (pseudonyms).
+- `ProbationLimit` (429): `com.atproto.repo.createRecord`, `putRecord`, `uploadBlob`, `net.openfederation.forum.createThread`, `forum.createPost` and `calendar.createEvent` return it when a pseudonym still in probation exceeds its daily write cap.
+
+Environment variables:
+
+| Variable | Default | Notes |
+|:---|:---|:---|
+| `PSEUDONYM_TOKENS_PER_EPOCH` | 20 | Creation tokens each approved account can collect per month; also the exact batch size `collectTokens` accepts |
+| `PSEUDONYM_PROBATION_DAYS` | 7 | Days a new pseudonym is write-limited; `0` disables probation |
+| `PSEUDONYM_PROBATION_DAILY_WRITES` | 20 | Writes per day while on probation. Counters live in memory only and reset on restart |

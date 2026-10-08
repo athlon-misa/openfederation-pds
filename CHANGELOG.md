@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Pseudonyms**: anonymous accounts the owner can reveal later (public link record, private file, or in person). Creation uses blind tokens collected monthly (`net.openfederation.pseudonym.getTokenKeys`, `collectTokens`, `createAccount`, plus `com.atproto.server.reserveSigningKey`), so the PDS cannot link a pseudonym to its owner. Phrase login via `getLoginChallenge` + `createSession`; owner-side `signLink`. New record lexicons `net.openfederation.pseudonym.link` and `net.openfederation.authorship.claim`.
+- `@open-federation/pseudonym` package (`packages/openfederation-pseudonym`) and `ofc pseudonym verify | presence-challenge | verify-presence` (offline verification; exit code 2 means signatures are valid but the owner key was not confirmed).
+- Env vars `PSEUDONYM_TOKENS_PER_EPOCH` (20), `PSEUDONYM_PROBATION_DAYS` (7, `0` disables), `PSEUDONYM_PROBATION_DAILY_WRITES` (20).
+- Migration `scripts/migrate-041-pseudonyms.sql`.
+
+### Changed
+
+- New error `NoEmail` on `com.atproto.server.confirmEmail`, `requestEmailConfirmation` and `net.openfederation.admin.createVerificationChallenge` (accounts without an email).
+- New error `ProbationLimit` (429) on `com.atproto.repo.createRecord`, `putRecord`, `uploadBlob`, `net.openfederation.forum.createThread`, `forum.createPost` and `calendar.createEvent` for pseudonyms in their probation period.
+- `auditLog()` drops entries whose actor or target is a pseudonym; disclosure audit stores no IP for pseudonym requesters.
+- Requirements note: `@cloudflare/blindrsa-ts` (used by the pseudonym package) declares `engines.node >= 24`, while this repo's root declares `>=22 <25`.
+
 ## [1.3.0] - 2026-08-07
 
 Everything below shipped since the 1.2.0 heading. **Versioning note:** the

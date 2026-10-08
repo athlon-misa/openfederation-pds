@@ -53,6 +53,9 @@ See `.env.example` for the full list. Critical ones:
 | `EXPRESS_TRUST_PROXY` | No | Default 1; set to 2 for Cloudflare + proxy |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | Production | Required in production unless `ALLOW_NO_EMAIL=true`; unset in dev logs mail to console. See `docs/EMAIL.md` |
 | `EMAIL_WEBHOOK_TOKEN` | No | Enables bounce/complaint webhooks (`/webhooks/email/:provider`); routes absent when unset |
+| `PSEUDONYM_TOKENS_PER_EPOCH` | No | Default 20; creation tokens per account per month |
+| `PSEUDONYM_PROBATION_DAYS` | No | Default 7; `0` disables pseudonym write probation |
+| `PSEUDONYM_PROBATION_DAILY_WRITES` | No | Default 20; daily writes while on probation (in-memory counters) |
 | `EMAIL_VERIFICATION_POLICY` | No | `off` / `advisory` (default) / `require-for-write` / `require-for-login` — what an unverified email blocks |
 
 ## Security imperatives
@@ -62,7 +65,7 @@ See `.env.example` for the full list. Critical ones:
 - Refresh token rotation has reuse detection — replaying a rotated token revokes ALL sessions for that user.
 - Rate limiting is applied globally and per-endpoint; never weaken the auth/registration limits.
 - Failed logins use exponential lockout: 5/10/15/20 failures → 1m/5m/30m/2h.
-- All admin and security-relevant actions log to `audit_log` (actor, target, action, metadata).
+- All admin and security-relevant actions log to `audit_log` (actor, target, action, metadata). **Deliberate exception: no audit for pseudonyms** — `auditLog()` drops entries whose actor or target is a pseudonym, and pseudonym endpoints never audit.
 - Cross-PDS service-auth: ES256K/ES256 verified against issuer DID's atproto signing key (`@atproto/identity` resolver, 5-min cache, signature replay cache, per-DID rate limit). External callers get `authMethod: 'service-auth'` with empty roles.
 
 ## Library quirks worth remembering

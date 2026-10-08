@@ -169,6 +169,29 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Private-community gating: as of 2026-07-10 (`831285b`), all four forum/calendar read endpoints 404 for outside callers — those who are neither the owner, a PDS admin, nor a member — matching the same guard used on the generic ATProto repo read endpoints (see Federation & ATProto compliance, below)
 - No ActivityPub content federation — identity layer only; forum content stays on-PDS
 
+## Pseudonyms — **shipped**
+
+Anonymous accounts the owner can reveal later, offline-verifiable. Design: `docs/superpowers/specs/2026-10-08-pseudonyms-design.md` (local, not committed).
+
+- Anonymous creation with blind tokens (RSABSSA-SHA384-PSS-Randomized, one 2048-bit key per UTC month, current and previous epoch accepted): `getTokenKeys`, `collectTokens`, `createAccount`, plus `com.atproto.server.reserveSigningKey`. A pseudonym is an ordinary `did:plc` account and repo (`auth_type='pseudonym'`); the PDS cannot link it to its owner
+- Phrase login (12-word BIP-39, owner key `m/1984'/0'`): `getLoginChallenge` + `createSession`; refused for all email/password/recovery flows
+- Reveal: `signLink` (owner half of a dual-signed link) and record lexicons `net.openfederation.pseudonym.link`, `net.openfederation.authorship.claim`; modes are public (link record in both repos), private file (reveal bundle) and in person (presence signature)
+- Offline verifier + `ofc pseudonym verify | presence-challenge | verify-presence`; client library `@open-federation/pseudonym` (`packages/openfederation-pseudonym`)
+- Privacy: no audit entries for pseudonyms (`auditLog()` drops them); no timestamps on token issuance, redemption, reserved keys or challenges; no IP stored in disclosure audit for pseudonym requesters
+- Abuse control: per-person limit only via tokens (`PSEUDONYM_TOKENS_PER_EPOCH`); per-pseudonym write probation (`PSEUDONYM_PROBATION_DAYS`, `PSEUDONYM_PROBATION_DAILY_WRITES`, in memory)
+- Migration: `scripts/migrate-041-pseudonyms.sql`
+
+Known limits (accepted for v1):
+
+- **The owner's root signature is produced by the PDS** (root keys are custodial), so the PDS sees each link at signing time. It stores and logs nothing about it.
+- **An offline check cannot rule out framing.** Offline, the bundle's owner signing key is not tied to the owner's DID. Someone could commit a new pseudonym to a victim's DID using their own key. Only the online check (resolving the owner's DID) gives a full verdict. Offline, the verifier reports the owner key as unchecked, and the CLI says so and exits with code 2. Presence checks take the pseudonym's key from its genesis operation (a file, or fetched from PLC), never from the person being checked.
+- **The verifier trusts only the genesis rotation key.** Key rotation needs audit-log verification, which comes later.
+- **The commitment entry marks a DID as an OpenFederation pseudonym.** Follow-up: give all new accounts a decoy commitment.
+- **Request-level logs outside this codebase** (hosting provider, reverse proxy, CDN) are the operator's responsibility. Self-hosting documentation must say so.
+- **Per-person limits come only from tokens.** One approved account can create at most 20 pseudonyms a month. Abuse is then handled per pseudonym (probation, moderation).
+- **Lost tokens** (for example after reinstalling the app) are replaced only at the next epoch.
+- **PLC acceptance of the URN must be confirmed.** The `@did-plc/lib` schema accepts any strings in `alsoKnownAs`. The E2E test confirms this against the local directory.
+
 ## Community & account migration/portability — **export primitives available; transfer/import registered but incomplete**
 
 - Available export primitives: `net.openfederation.community.export` (owner/admin) and `net.openfederation.account.export` (self/admin/mod) produce JSON archives; `com.atproto.sync.getRepo` produces a CAR stream. The current account-export moderator authority is tracked as a security issue and must not be treated as the intended final authorization model.
