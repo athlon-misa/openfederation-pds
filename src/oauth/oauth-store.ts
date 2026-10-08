@@ -182,7 +182,7 @@ export class PgAccountStore implements AccountStore {
     return {
       sub: user.did,
       aud: config.pds.serviceUrl,
-      email: user.email,
+      email: user.email ?? '',
       name: user.handle,
       preferred_username: user.handle,
     };
@@ -201,7 +201,7 @@ export class PgAccountStore implements AccountStore {
   async getAccount(sub: Sub): Promise<{ account: Account; authorizedClients: AuthorizedClients }> {
     const userResult = await query<{
       handle: string;
-      email: string;
+      email: string | null;
       did: string;
       status: string;
     }>(
@@ -217,7 +217,7 @@ export class PgAccountStore implements AccountStore {
     const account: Account = {
       sub: user.did,
       aud: config.pds.serviceUrl,
-      email: user.email,
+      email: user.email ?? '',
       name: user.handle,
       preferred_username: user.handle,
     };
@@ -618,7 +618,7 @@ export class PgTokenStore implements TokenStore {
     // Look up account
     const userResult = await query<{
       handle: string;
-      email: string;
+      email: string | null;
       did: string;
     }>(
       'SELECT handle, email, did FROM users WHERE did = $1',
@@ -633,7 +633,7 @@ export class PgTokenStore implements TokenStore {
     const account: Account = {
       sub: user.did,
       aud: config.pds.serviceUrl,
-      email: user.email,
+      email: user.email ?? '',
       name: user.handle,
       preferred_username: user.handle,
     };

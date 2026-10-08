@@ -133,9 +133,15 @@ export async function auditLog(
   meta?: Record<string, unknown>
 ): Promise<void> {
   try {
+    // Pseudonym rule: no audit trail for pseudonyms, ever. Enforced here so
+    // no call site can forget. One statement, no extra round trip.
     await query(
       `INSERT INTO audit_log (action, actor_id, target_id, meta)
-       VALUES ($1, $2, $3, $4)`,
+       SELECT $1, $2::varchar, $3::varchar, $4
+       WHERE NOT EXISTS (
+         SELECT 1 FROM users u WHERE u.auth_type = 'pseudonym'
+           AND (u.id = $2::varchar OR u.id = $3::varchar OR u.did = $3::varchar)
+       )`,
       [action, actorId, targetId, meta ? JSON.stringify(meta) : null],
     );
   } catch (err) {

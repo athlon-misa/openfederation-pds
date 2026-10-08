@@ -54,7 +54,7 @@ export default async function initiateRecovery(req: Request, res: Response): Pro
       `SELECT id, did, handle, email, recovery_tier,
               COALESCE(auth_type, 'local') as auth_type
        FROM users
-       WHERE handle = $1 AND email = $2`,
+       WHERE handle = $1 AND email = $2 AND COALESCE(auth_type, 'local') = 'local'`,
       [normalizedHandle, normalizedEmail]
     );
 

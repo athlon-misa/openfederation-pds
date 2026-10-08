@@ -70,7 +70,7 @@ export type ComAtprotoServerConfirmEmailInput = {
 export type ComAtprotoServerConfirmEmailOutput = {
   "verified": boolean;
 };
-export type ComAtprotoServerConfirmEmailError = "ExpiredToken" | "InvalidEmail" | "InvalidToken";
+export type ComAtprotoServerConfirmEmailError = "ExpiredToken" | "InvalidEmail" | "InvalidToken" | "NoEmail";
 
 export type ComAtprotoServerCreateSessionInput = unknown;
 export type ComAtprotoServerCreateSessionOutput = unknown;
@@ -342,7 +342,7 @@ export type NetOpenfederationAdminCreateExportScheduleError = never;
 
 export type NetOpenfederationAdminCreateVerificationChallengeInput = JsonObject;
 export type NetOpenfederationAdminCreateVerificationChallengeOutput = JsonObject;
-export type NetOpenfederationAdminCreateVerificationChallengeError = "EmailDeliveryFailed" | "NotFound";
+export type NetOpenfederationAdminCreateVerificationChallengeError = "EmailDeliveryFailed" | "NoEmail" | "NotFound";
 
 export type NetOpenfederationAdminDeleteExportScheduleInput = {
   "communityDid": string;
@@ -2574,7 +2574,7 @@ export const lexiconContracts = {
   'com.atproto.repo.putRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 1, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
-  'com.atproto.server.confirmEmail': { revision: 1, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken"] as const },
+  'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteSession': { revision: 1, errors: [] as const },
@@ -2605,7 +2605,7 @@ export const lexiconContracts = {
   'net.openfederation.account.updateProfile': { revision: 2, errors: ["InvalidBlobRef", "InvalidRequest"] as const },
   'net.openfederation.account.updateRoles': { revision: 1, errors: ["NotFound"] as const },
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
-  'net.openfederation.admin.createVerificationChallenge': { revision: 2, errors: ["EmailDeliveryFailed", "NotFound"] as const },
+  'net.openfederation.admin.createVerificationChallenge': { revision: 3, errors: ["EmailDeliveryFailed", "NoEmail", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.admin.importRepo': { revision: 2, errors: ["InvalidCar", "InvalidRequest", "PayloadTooLarge", "RepoAlreadyExists"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },

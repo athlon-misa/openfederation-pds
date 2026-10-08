@@ -342,6 +342,12 @@ async function insertDisclosureAuditLog(input: {
   ipAddress: string;
   metadata: Record<string, unknown>;
 }): Promise<void> {
+  // Pseudonym rule: no network identifier is recorded for a pseudonym.
+  const pseudonym = await query(
+    `SELECT 1 FROM users WHERE did = $1 AND auth_type = 'pseudonym'`,
+    [input.requesterDid],
+  );
+  const ipAddress = pseudonym.rows.length > 0 ? '' : input.ipAddress;
   await query(
     `INSERT INTO disclosure_audit_log
      (id, grant_id, attestation_community_did, attestation_rkey, requester_did, action, watermark_id, ip_address, metadata)
@@ -354,7 +360,7 @@ async function insertDisclosureAuditLog(input: {
       input.requesterDid,
       input.action,
       input.watermarkId || null,
-      input.ipAddress,
+      ipAddress,
       JSON.stringify(input.metadata),
     ],
   );

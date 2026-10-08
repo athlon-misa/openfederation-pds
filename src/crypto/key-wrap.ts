@@ -16,6 +16,7 @@ export type KeyWrapPurpose =
   | 'identity.pds-service-key'
   | 'identity.recovery-key'
   | 'identity.signing-key'
+  | 'pseudonym.token-key'
   | 'vault.share'
   | 'wallet.custodial-key';
 

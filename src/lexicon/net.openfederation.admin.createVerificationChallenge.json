@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.createVerificationChallenge",
-  "revision": 2,
+  "revision": 3,
   "description": "Generated XRPC contract for net.openfederation.admin.createVerificationChallenge.",
   "defs": {
     "main": {
@@ -22,6 +22,10 @@
         }
       },
       "errors": [
+        {
+          "name": "NoEmail",
+          "description": "The account has no email address (pseudonymous accounts), so there is nothing to verify."
+        },
         {
           "name": "NotFound",
           "description": "Referenced resource was not found."

@@ -152,6 +152,11 @@ export const config = {
       return 'advisory';
     })() as 'off' | 'advisory' | 'require-for-write' | 'require-for-login',
   },
+  pseudonym: {
+    tokensPerEpoch: (v => Number.isFinite(v) && v >= 1 ? v : 20)(parseInt(process.env.PSEUDONYM_TOKENS_PER_EPOCH ?? '20', 10)),
+    probationDays: (v => Number.isFinite(v) && v >= 0 ? v : 7)(parseInt(process.env.PSEUDONYM_PROBATION_DAYS ?? '7', 10)),
+    probationDailyWrites: (v => Number.isFinite(v) && v >= 1 ? v : 20)(parseInt(process.env.PSEUDONYM_PROBATION_DAILY_WRITES ?? '20', 10)),
+  },
   email: {
     enabled: process.env.SMTP_HOST ? true : false,
     host: process.env.SMTP_HOST || '',

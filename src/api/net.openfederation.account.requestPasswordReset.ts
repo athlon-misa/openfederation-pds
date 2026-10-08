@@ -63,7 +63,7 @@ export default async function requestPasswordReset(req: Request, res: Response):
     await hashPassword(TIMING_PAD_PASSWORD);
 
     // Always return success — don't leak whether user exists.
-    if (userResult.rows.length === 0 || userResult.rows[0].auth_type === 'external') {
+    if (userResult.rows.length === 0 || userResult.rows[0].auth_type !== 'local') {
       res.status(200).json({ success: true });
       return;
     }

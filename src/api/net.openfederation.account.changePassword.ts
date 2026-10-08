@@ -44,10 +44,10 @@ export default async function changePassword(req: AuthRequest, res: Response): P
 
   const user = userResult.rows[0];
 
-  if (user.auth_type === 'external') {
+  if (user.auth_type !== 'local') {
     res.status(400).json({
       error: 'InvalidRequest',
-      message: 'External accounts cannot change password',
+      message: 'This account type cannot change password',
     });
     return;
   }

@@ -76,7 +76,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
     const userResult = await query<{
       id: string;
       handle: string;
-      email: string;
+      email: string | null;
       status: string;
       did: string;
       token_version: number;
@@ -137,7 +137,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
     const accessJwt = await signAccessToken({
       userId: user.id,
       handle: user.handle,
-      email: user.email,
+      email: user.email ?? '',
       did: user.did,
       status: user.status as UserStatus,
       roles,
@@ -185,7 +185,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
     res.status(200).json({
       did: user.did,
       handle: user.handle,
-      email: user.email,
+      email: user.email ?? '',
       accessJwt,
       refreshJwt: newRefreshJwt,
       active: true,

@@ -25,10 +25,14 @@ export default async function confirmEmail(req: AuthRequest, res: Response): Pro
     }
 
     if (req.auth && req.auth.authMethod !== 'service-auth') {
-      const own = await query<{ email: string }>(
+      const own = await query<{ email: string | null }>(
         'SELECT email FROM users WHERE id = $1', [req.auth.userId],
       );
-      if (own.rows[0] && own.rows[0].email.toLowerCase() !== email.toLowerCase().trim()) {
+      if (own.rows[0] && !own.rows[0].email) {
+        res.status(400).json({ error: 'NoEmail', message: 'This account has no email address.' });
+        return;
+      }
+      if (own.rows[0]?.email && own.rows[0].email.toLowerCase() !== email.toLowerCase().trim()) {
         res.status(400).json({ error: 'InvalidEmail', message: 'This session does not belong to that email address' });
         return;
       }

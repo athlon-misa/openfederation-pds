@@ -15,9 +15,9 @@
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(36) PRIMARY KEY,
     handle VARCHAR(255) UNIQUE NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE,
     email_verified_at TIMESTAMPTZ,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
     status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'disabled', 'suspended', 'takendown', 'deactivated')),
     did VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS users (
     locked_until TIMESTAMP WITH TIME ZONE,
     recovery_tier INTEGER DEFAULT 1,
     token_version INTEGER NOT NULL DEFAULT 0,
-    recovery_email_verified BOOLEAN DEFAULT false
+    recovery_email_verified BOOLEAN DEFAULT false,
+    pseudonym_owner_key TEXT
     -- FK to partner_keys(id) added after partner_keys table creation
 );
 
@@ -650,3 +651,41 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);
+
+-- Pseudonyms (migrate-041). users.auth_type's CHECK is applied by migrate-003/041
+-- (the column itself is added by migrate-003).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_pseudonym_owner_key
+  ON users(pseudonym_owner_key) WHERE pseudonym_owner_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS reserved_signing_keys (
+  signing_key TEXT PRIMARY KEY,
+  key_bytes BYTEA NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pseudonym_login_challenges (
+  id UUID PRIMARY KEY,
+  owner_key TEXT NOT NULL,
+  challenge TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+-- One blind-signing key per monthly epoch (YYYY-MM, UTC).
+CREATE TABLE IF NOT EXISTS pseudonym_token_keys (
+  epoch CHAR(7) PRIMARY KEY,
+  public_spki BYTEA NOT NULL,
+  private_pkcs8 BYTEA NOT NULL
+);
+
+-- "This account collected its batch for this epoch". No count, no time.
+CREATE TABLE IF NOT EXISTS pseudonym_token_batches (
+  user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  epoch CHAR(7) NOT NULL,
+  PRIMARY KEY (user_id, epoch)
+);
+
+-- Spent tokens, by hash. No time, no account.
+CREATE TABLE IF NOT EXISTS pseudonym_tokens_spent (
+  epoch CHAR(7) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  PRIMARY KEY (epoch, token_hash)
+);

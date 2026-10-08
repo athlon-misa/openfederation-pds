@@ -16,7 +16,7 @@ export default async function createVerificationChallenge(req: Request, res: Res
     return;
   }
 
-  const userResult = await query<{ id: string; handle: string; email: string }>(
+  const userResult = await query<{ id: string; handle: string; email: string | null }>(
     'SELECT id, handle, email FROM users WHERE did = $1',
     [did]
   );
@@ -26,6 +26,10 @@ export default async function createVerificationChallenge(req: Request, res: Res
   }
 
   const user = userResult.rows[0];
+  if (!user.email) {
+    res.status(400).json({ error: 'NoEmail', message: 'This account has no email address.' });
+    return;
+  }
   const nonce = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
