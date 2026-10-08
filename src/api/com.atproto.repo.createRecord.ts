@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
+import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { authorizeCollectionMutation } from '../repo/collection-policy.js';
@@ -22,6 +23,7 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
     if (!requireAuth(req, res)) {
       return;
     }
+    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const { repo, collection, record, rkey } = req.body;
 

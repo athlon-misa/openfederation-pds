@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.repo.uploadBlob",
-  "revision": 1,
+  "revision": 2,
   "description": "Upload a binary blob (image) and receive a blob reference for use in records.",
   "defs": {
     "main": {
@@ -50,6 +50,10 @@
         }
       },
       "errors": [
+        {
+          "name": "ProbationLimit",
+          "description": "A new pseudonym account has reached its daily write limit."
+        },
         {
           "name": "InvalidRequest",
           "description": "Missing or invalid Content-Type."

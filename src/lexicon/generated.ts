@@ -24,7 +24,7 @@ export type ComAtprotoIdentityResolveHandleError = "HandleNotFound";
 
 export type ComAtprotoRepoCreateRecordInput = unknown;
 export type ComAtprotoRepoCreateRecordOutput = unknown;
-export type ComAtprotoRepoCreateRecordError = "GovernanceDenied" | "UseDedicatedEndpoint";
+export type ComAtprotoRepoCreateRecordError = "GovernanceDenied" | "ProbationLimit" | "UseDedicatedEndpoint";
 
 export type ComAtprotoRepoDeleteRecordInput = unknown;
 export type ComAtprotoRepoDeleteRecordOutput = unknown;
@@ -44,7 +44,7 @@ export type ComAtprotoRepoListRecordsError = "RepoNotFound";
 
 export type ComAtprotoRepoPutRecordInput = unknown;
 export type ComAtprotoRepoPutRecordOutput = unknown;
-export type ComAtprotoRepoPutRecordError = "GovernanceDenied" | "UseDedicatedEndpoint";
+export type ComAtprotoRepoPutRecordError = "GovernanceDenied" | "ProbationLimit" | "UseDedicatedEndpoint";
 
 export type ComAtprotoRepoUploadBlobInput = undefined;
 export type ComAtprotoRepoUploadBlobOutput = {
@@ -57,7 +57,7 @@ export type ComAtprotoRepoUploadBlobOutput = {
   "size": number;
 };
 };
-export type ComAtprotoRepoUploadBlobError = "BlobTooLarge" | "InvalidMimeType" | "InvalidRequest";
+export type ComAtprotoRepoUploadBlobError = "BlobTooLarge" | "InvalidMimeType" | "InvalidRequest" | "ProbationLimit";
 
 export type ComAtprotoServerActivateAccountInput = unknown;
 export type ComAtprotoServerActivateAccountOutput = unknown;
@@ -2649,13 +2649,13 @@ export const lexiconContracts = {
   'com.atproto.admin.getSubjectStatus': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.updateSubjectStatus': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "ExportRequired", "NotFound", "NotSuspended", "NotTakenDown"] as const },
   'com.atproto.identity.resolveHandle': { revision: 1, errors: ["HandleNotFound"] as const },
-  'com.atproto.repo.createRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
+  'com.atproto.repo.createRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.deleteRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.getRecord': { revision: 1, errors: ["RecordNotFound"] as const },
   'com.atproto.repo.listRecords': { revision: 2, errors: ["RepoNotFound"] as const },
-  'com.atproto.repo.putRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
-  'com.atproto.repo.uploadBlob': { revision: 1, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest"] as const },
+  'com.atproto.repo.putRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
+  'com.atproto.repo.uploadBlob': { revision: 2, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest", "ProbationLimit"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
   'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },

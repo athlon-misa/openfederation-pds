@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
+import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { getBlobStore } from '../blob/blob-store.js';
@@ -13,6 +14,7 @@ const RAW_CODEC = 0x55;
 export default async function uploadBlob(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireApprovedUser(req, res)) return;
+    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const contentType = req.headers['content-type'];
 
