@@ -8,6 +8,7 @@ import { setPlcClientForTests } from '../../src/identity/plc-client.js';
 import { derivePseudonymKeys, generatePseudonymPhrase, signText } from '../../packages/openfederation-pseudonym/src/keys.js';
 import { buildLoginMessage } from '../../packages/openfederation-pseudonym/src/formats.js';
 import { preparePseudonym } from './pseudonym-test-kit.js';
+import { cleanupExpiredSessions } from '../../src/server/index.js';
 
 afterEach(() => setPlcClientForTests(null));
 
@@ -141,5 +142,19 @@ describe('pseudonym phrase login', () => {
     expect(Math.abs(r2.expires_at.getTime() - (Date.now() + refreshTtlMs()))).toBeLessThan(60_000);
     const listed = await xrpcAuthGet('net.openfederation.account.listSessions', refreshed.body.accessJwt);
     expect(listed.body.sessions[0].createdAt).toBeTruthy();
+  });
+
+  it('challenges expire on the DB clock and the periodic cleanup removes unused expired ones', async () => {
+    const k = derivePseudonymKeys(generatePseudonymPhrase());
+    const ch = await xrpcPost('net.openfederation.pseudonym.getLoginChallenge', { ownerKey: k.ownerDidKey });
+    expect(ch.status).toBe(200);
+    const ttl = (await query<{ s: number }>(
+      `SELECT EXTRACT(EPOCH FROM (expires_at - NOW()))::float AS s FROM pseudonym_login_challenges WHERE id = $1`, [ch.body.challengeId])).rows[0].s;
+    expect(ttl).toBeGreaterThan(290);
+    expect(ttl).toBeLessThanOrEqual(300);
+
+    await query(`UPDATE pseudonym_login_challenges SET expires_at = NOW() - INTERVAL '1 second' WHERE id = $1`, [ch.body.challengeId]);
+    await cleanupExpiredSessions();
+    expect((await query('SELECT 1 FROM pseudonym_login_challenges WHERE id = $1', [ch.body.challengeId])).rows).toHaveLength(0);
   });
 });

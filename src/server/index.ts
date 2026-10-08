@@ -318,7 +318,7 @@ async function ensureSchema(): Promise<void> {
 const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 let sessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
 
-async function cleanupExpiredSessions(): Promise<void> {
+export async function cleanupExpiredSessions(): Promise<void> {
   try {
     const result = await query(
       `DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP OR revoked_at IS NOT NULL`
@@ -333,6 +333,9 @@ async function cleanupExpiredSessions(): Promise<void> {
     if (challengeResult.rowCount && challengeResult.rowCount > 0) {
       console.log(`Challenge cleanup: removed ${challengeResult.rowCount} expired wallet link challenges`);
     }
+    // Unused pseudonym login challenges pair an owner key with an expiry, so
+    // do not let them linger on an idle server. No count is logged.
+    await query(`DELETE FROM pseudonym_login_challenges WHERE expires_at < CURRENT_TIMESTAMP`);
   } catch (err) {
     console.error('Session cleanup failed:', err);
   }
