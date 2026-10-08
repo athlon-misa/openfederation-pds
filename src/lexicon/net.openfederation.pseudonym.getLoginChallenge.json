@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.pseudonym.getLoginChallenge",
+  "revision": 1,
+  "description": "First half of pseudonym phrase login: issue a single-use challenge for an owner key.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Always issues a challenge, whether or not the owner key has an account here, so it cannot be used to probe for accounts.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ownerKey": { "type": "string", "description": "The owner secp256k1 did:key derived from the phrase." }
+          },
+          "required": ["ownerKey"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "challengeId": { "type": "string" },
+            "challenge": { "type": "string" },
+            "serviceDid": { "type": "string" }
+          },
+          "required": ["challengeId", "challenge", "serviceDid"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "ownerKey is not a secp256k1 did:key." }
+      ]
+    }
+  }
+}

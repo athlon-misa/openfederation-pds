@@ -2,10 +2,8 @@ import { Request, Response } from 'express';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { verifyPassword } from '../auth/password.js';
-import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
+import { issueSession } from '../auth/session-issue.js';
 import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
-import type { UserRole, UserStatus } from '../auth/types.js';
-import crypto from 'crypto';
 import { auditLog } from '../db/audit.js';
 
 interface CreateSessionInput {
@@ -56,6 +54,12 @@ export default async function createSession(req: Request, res: Response): Promis
     }
 
     const user = userResult.rows[0];
+
+    // Pseudonyms have no password. Same answer as a wrong password, and no audit.
+    if (user.auth_type === 'pseudonym') {
+      res.status(401).json({ error: 'Unauthorized', message: 'Invalid credentials' });
+      return;
+    }
 
     // Check if account is locked
     if (user.locked_until) {
@@ -127,14 +131,10 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    // Reset failed login counter and fetch roles in parallel (independent operations)
-    const [, rolesResult] = await Promise.all([
-      user.failed_login_attempts > 0
-        ? query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id])
-        : Promise.resolve(undefined),
-      query<{ role: UserRole }>('SELECT role FROM user_roles WHERE user_id = $1', [user.id]),
-    ]);
-    const roles = rolesResult.rows.map((row) => row.role);
+    // Reset failed login counter
+    if (user.failed_login_attempts > 0) {
+      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    }
 
     if (user.status === 'suspended') {
       await auditLog('session.loginFailed', null, user.id, {
@@ -180,16 +180,6 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    const accessJwt = await signAccessToken({
-      userId: user.id,
-      handle: user.handle,
-      email: user.email,
-      did: user.did,
-      status: user.status as UserStatus,
-      roles,
-      tokenVersion: user.token_version,
-    });
-
     // Under require-for-login, an unverified local account authenticates
     // correctly and is still refused a session — with an error that names the
     // way out. confirmEmail deliberately works without a session, so this
@@ -210,15 +200,7 @@ export default async function createSession(req: Request, res: Response): Promis
       }
     }
 
-    const { token: refreshJwt, hash } = generateRefreshToken();
-    const sessionId = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + refreshTtlMs());
-
-    await query(
-      `INSERT INTO sessions (id, user_id, refresh_token_hash, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [sessionId, user.id, hash, expiresAt.toISOString()]
-    );
+    const { accessJwt, refreshJwt, roles } = await issueSession(user);
 
     res.status(200).json({
       did: user.did,

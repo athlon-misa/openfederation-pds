@@ -73,6 +73,8 @@ import completeRecovery from '../api/net.openfederation.account.completeRecovery
 import getTokenKeys from '../api/net.openfederation.pseudonym.getTokenKeys.js';
 import collectTokens from '../api/net.openfederation.pseudonym.collectTokens.js';
 import reserveSigningKey from '../api/com.atproto.server.reserveSigningKey.js';
+import getLoginChallenge from '../api/net.openfederation.pseudonym.getLoginChallenge.js';
+import createPseudonymSession from '../api/net.openfederation.pseudonym.createSession.js';
 import createPseudonymAccount from '../api/net.openfederation.pseudonym.createAccount.js';
 import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js';
 import listPeers from '../api/net.openfederation.federation.listPeers.js';
@@ -415,6 +417,8 @@ const handlers = Object.freeze({
   'net.openfederation.pseudonym.getTokenKeys': { handler: getTokenKeys, limiter: discoveryLimiter },
   'net.openfederation.pseudonym.collectTokens': { handler: collectTokens, limiter: createLimiter },
   'net.openfederation.pseudonym.createAccount': { handler: createPseudonymAccount, limiter: createLimiter },
+  'net.openfederation.pseudonym.getLoginChallenge': { handler: getLoginChallenge, limiter: authLimiter },
+  'net.openfederation.pseudonym.createSession': { handler: createPseudonymSession, limiter: authLimiter },
   'com.atproto.server.reserveSigningKey': { handler: reserveSigningKey, limiter: createLimiter },
 
   // Forum

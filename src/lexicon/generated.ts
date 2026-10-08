@@ -1849,6 +1849,29 @@ export type NetOpenfederationPseudonymCreateAccountOutput = {
 };
 export type NetOpenfederationPseudonymCreateAccountError = "AlreadyExists" | "InvalidGenesis" | "InvalidRequest" | "InvalidToken" | "SigningKeyNotReserved" | "TokenSpent";
 
+export type NetOpenfederationPseudonymCreateSessionInput = {
+  "challengeId": string;
+  "signature": string;
+};
+export type NetOpenfederationPseudonymCreateSessionOutput = {
+  "did": string;
+  "handle": string;
+  "accessJwt": string;
+  "refreshJwt": string;
+  "active": boolean;
+};
+export type NetOpenfederationPseudonymCreateSessionError = "AccountNotActive" | "Unauthorized";
+
+export type NetOpenfederationPseudonymGetLoginChallengeInput = {
+  "ownerKey": string;
+};
+export type NetOpenfederationPseudonymGetLoginChallengeOutput = {
+  "challengeId": string;
+  "challenge": string;
+  "serviceDid": string;
+};
+export type NetOpenfederationPseudonymGetLoginChallengeError = "InvalidRequest";
+
 export type NetOpenfederationPseudonymGetTokenKeysInput = undefined;
 export type NetOpenfederationPseudonymGetTokenKeysOutput = {
   "keys": Array<{
@@ -2228,6 +2251,8 @@ export interface LexiconInputMap {
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyInput;
   'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensInput;
   'net.openfederation.pseudonym.createAccount': NetOpenfederationPseudonymCreateAccountInput;
+  'net.openfederation.pseudonym.createSession': NetOpenfederationPseudonymCreateSessionInput;
+  'net.openfederation.pseudonym.getLoginChallenge': NetOpenfederationPseudonymGetLoginChallengeInput;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysInput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigInput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigInput;
@@ -2411,6 +2436,8 @@ export interface LexiconOutputMap {
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyOutput;
   'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensOutput;
   'net.openfederation.pseudonym.createAccount': NetOpenfederationPseudonymCreateAccountOutput;
+  'net.openfederation.pseudonym.createSession': NetOpenfederationPseudonymCreateSessionOutput;
+  'net.openfederation.pseudonym.getLoginChallenge': NetOpenfederationPseudonymGetLoginChallengeOutput;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysOutput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigOutput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigOutput;
@@ -2594,6 +2621,8 @@ export interface LexiconErrorMap {
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyError;
   'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensError;
   'net.openfederation.pseudonym.createAccount': NetOpenfederationPseudonymCreateAccountError;
+  'net.openfederation.pseudonym.createSession': NetOpenfederationPseudonymCreateSessionError;
+  'net.openfederation.pseudonym.getLoginChallenge': NetOpenfederationPseudonymGetLoginChallengeError;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysError;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigError;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigError;
@@ -2779,6 +2808,8 @@ export const lexiconContracts = {
   'net.openfederation.partner.verifyKey': { revision: 1, errors: ["InvalidRequest", "NotFound", "VerificationFailed"] as const },
   'net.openfederation.pseudonym.collectTokens': { revision: 1, errors: ["AlreadyCollected", "Forbidden", "InvalidRequest", "WrongEpoch"] as const },
   'net.openfederation.pseudonym.createAccount': { revision: 1, errors: ["AlreadyExists", "InvalidGenesis", "InvalidRequest", "InvalidToken", "SigningKeyNotReserved", "TokenSpent"] as const },
+  'net.openfederation.pseudonym.createSession': { revision: 1, errors: ["AccountNotActive", "Unauthorized"] as const },
+  'net.openfederation.pseudonym.getLoginChallenge': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.pseudonym.getTokenKeys': { revision: 1, errors: [] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 1, errors: [] as const },

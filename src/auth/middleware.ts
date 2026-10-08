@@ -47,8 +47,9 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
   if (req.auth && req.auth.authMethod !== 'service-auth'
     && (policy === 'require-for-write' || policy === 'require-for-login')) {
     try {
+      // Pseudonyms have no mailbox by design; the email policy does not apply to them.
       const row = await query<{ verified: boolean }>(
-        'SELECT (email_verified_at IS NOT NULL) AS verified FROM users WHERE id = $1',
+        `SELECT (email_verified_at IS NOT NULL OR auth_type = 'pseudonym') AS verified FROM users WHERE id = $1`,
         [req.auth.userId],
       );
       req.auth.emailVerified = row.rows[0]?.verified ?? false;

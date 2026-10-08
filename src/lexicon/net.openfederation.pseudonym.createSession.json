@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.pseudonym.createSession",
+  "revision": 1,
+  "description": "Second half of pseudonym phrase login: exchange a signed challenge for a session.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Verifies an owner-key signature over the login message. No email, password or audit trail.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "challengeId": { "type": "string" },
+            "signature": { "type": "string", "description": "base64url, no padding, compact secp256k1 signature." }
+          },
+          "required": ["challengeId", "signature"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string" },
+            "handle": { "type": "string" },
+            "accessJwt": { "type": "string" },
+            "refreshJwt": { "type": "string" },
+            "active": { "type": "boolean" }
+          },
+          "required": ["did", "handle", "accessJwt", "refreshJwt", "active"]
+        }
+      },
+      "errors": [
+        { "name": "Unauthorized", "description": "Invalid credentials." },
+        { "name": "AccountNotActive", "description": "The account is not active." }
+      ]
+    }
+  }
+}
