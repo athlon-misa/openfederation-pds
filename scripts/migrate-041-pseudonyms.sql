@@ -7,9 +7,22 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS pseudonym_owner_key TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_pseudonym_owner_key
   ON users(pseudonym_owner_key) WHERE pseudonym_owner_key IS NOT NULL;
 
-ALTER TABLE users DROP CONSTRAINT IF EXISTS users_auth_type_check;
-ALTER TABLE users ADD CONSTRAINT users_auth_type_check
-  CHECK (auth_type IN ('local', 'external', 'pseudonym'));
+-- Migrations run on every boot. Only replace the check when it does not
+-- already allow 'pseudonym': dropping and re-adding it takes an ACCESS
+-- EXCLUSIVE lock and scans all of users.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'users'::regclass
+      AND conname = 'users_auth_type_check'
+      AND pg_get_constraintdef(oid) LIKE '%''pseudonym''%'
+  ) THEN
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_auth_type_check;
+    ALTER TABLE users ADD CONSTRAINT users_auth_type_check
+      CHECK (auth_type IN ('local', 'external', 'pseudonym'));
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS reserved_signing_keys (
   signing_key TEXT PRIMARY KEY,
