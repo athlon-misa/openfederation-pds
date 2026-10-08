@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/openfederation-sdk",
     "packages/openfederation-react",
-    "packages/openfederation-lexicon"
+    "packages/openfederation-lexicon",
+    "packages/openfederation-pseudonym"
   ],
   "engines": {
     "node": ">=22.0.0 <25.0.0",
