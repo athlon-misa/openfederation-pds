@@ -466,7 +466,7 @@ export type NetOpenfederationCalendarCreateEventOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCalendarCreateEventError = "Forbidden" | "NotMember";
+export type NetOpenfederationCalendarCreateEventError = "Forbidden" | "NotMember" | "ProbationLimit";
 
 export type NetOpenfederationCalendarListEventsInput = {
   "community": string;
@@ -1359,7 +1359,7 @@ export type NetOpenfederationForumCreatePostOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationForumCreatePostError = "Forbidden" | "NotMember" | "ThreadNotFound";
+export type NetOpenfederationForumCreatePostError = "Forbidden" | "NotMember" | "ProbationLimit" | "ThreadNotFound";
 
 export type NetOpenfederationForumCreateThreadInput = {
   "community": string;
@@ -1371,7 +1371,7 @@ export type NetOpenfederationForumCreateThreadOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationForumCreateThreadError = "Forbidden" | "NotMember";
+export type NetOpenfederationForumCreateThreadError = "Forbidden" | "NotMember" | "ProbationLimit";
 
 export type NetOpenfederationForumDeletePostInput = {
   "rkey": string;
@@ -2699,7 +2699,7 @@ export const lexiconContracts = {
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.verifyCommitment': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
-  'net.openfederation.calendar.createEvent': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
+  'net.openfederation.calendar.createEvent': { revision: 3, errors: ["Forbidden", "NotMember", "ProbationLimit"] as const },
   'net.openfederation.calendar.listEvents': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.calendar.listRsvps': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.calendar.rsvp': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
@@ -2764,8 +2764,8 @@ export const lexiconContracts = {
   'net.openfederation.disclosure.revokeGrant': { revision: 1, errors: ["AlreadyRevoked", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.federation.listPeerCommunities': { revision: 1, errors: [] as const },
   'net.openfederation.federation.listPeers': { revision: 1, errors: [] as const },
-  'net.openfederation.forum.createPost': { revision: 3, errors: ["Forbidden", "NotMember", "ThreadNotFound"] as const },
-  'net.openfederation.forum.createThread': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
+  'net.openfederation.forum.createPost': { revision: 4, errors: ["Forbidden", "NotMember", "ProbationLimit", "ThreadNotFound"] as const },
+  'net.openfederation.forum.createThread': { revision: 3, errors: ["Forbidden", "NotMember", "ProbationLimit"] as const },
   'net.openfederation.forum.deletePost': { revision: 1, errors: [] as const },
   'net.openfederation.forum.getThread': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.hidePost': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },

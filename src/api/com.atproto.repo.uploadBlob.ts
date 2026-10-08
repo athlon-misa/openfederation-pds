@@ -14,7 +14,6 @@ const RAW_CODEC = 0x55;
 export default async function uploadBlob(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireApprovedUser(req, res)) return;
-    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const contentType = req.headers['content-type'];
 
@@ -51,6 +50,8 @@ export default async function uploadBlob(req: AuthRequest, res: Response): Promi
       });
       return;
     }
+
+    if (!(await enforcePseudonymProbation(req, res))) return;
 
     // Compute CID: v1, raw codec, sha256
     const hash = await sha256.digest(data);

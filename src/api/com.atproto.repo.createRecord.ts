@@ -23,7 +23,6 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
     if (!requireAuth(req, res)) {
       return;
     }
-    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const { repo, collection, record, rkey } = req.body;
 
@@ -75,6 +74,8 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
         return;
       }
     }
+
+    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const engine = new RepoEngine(repo);
     const keypair = await getKeypairForDid(repo);

@@ -23,7 +23,6 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
     if (!requireAuth(req, res)) {
       return;
     }
-    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const { repo, collection, rkey, record } = req.body;
 
@@ -75,6 +74,8 @@ export default async function putRecord(req: AuthRequest, res: Response): Promis
         return;
       }
     }
+
+    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const engine = new RepoEngine(repo);
     const keypair = await getKeypairForDid(repo);

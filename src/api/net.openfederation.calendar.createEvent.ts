@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
+import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { CALENDAR_EVENT } from '../forum/forum-index.js';
@@ -18,6 +19,8 @@ export default async function createEvent(req: AuthRequest, res: Response): Prom
       req as AuthRequest & { auth: AuthContext }, res, community, 'community.calendar.write'
     );
     if (!hasPermission) return;
+
+    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const engine = new RepoEngine(community); // event lives in the COMMUNITY repo
     const keypair = await getKeypairForDid(community);

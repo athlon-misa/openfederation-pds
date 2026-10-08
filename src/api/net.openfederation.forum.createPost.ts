@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
+import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { indexPost, getThread, FORUM_POST } from '../forum/forum-index.js';
@@ -41,6 +42,8 @@ export default async function createPost(req: AuthRequest, res: Response): Promi
       req as AuthRequest & { auth: AuthContext }, res, community, 'community.forum.write'
     );
     if (!hasPermission) return;
+
+    if (!(await enforcePseudonymProbation(req, res))) return;
 
     const authorDid = req.auth!.did;
     const engine = new RepoEngine(authorDid);
