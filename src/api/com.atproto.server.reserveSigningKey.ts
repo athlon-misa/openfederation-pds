@@ -14,7 +14,14 @@ const MAX_RESERVATIONS = 10_000;
  * table is capped FIFO by seq, keeping the newest rows, so an unused
  * reservation eventually disappears.
  */
-export default async function reserveSigningKey(_req: Request, res: Response): Promise<void> {
+export default async function reserveSigningKey(req: Request, res: Response): Promise<void> {
+  // The optional `did` input is informational only, but must be a DID when present
+  // (the lexicon declares format "did"; the runtime validator does not check formats).
+  const did = req.body?.did;
+  if (did !== undefined && (typeof did !== 'string' || !/^did:[a-z]+:[A-Za-z0-9._:%-]+$/.test(did))) {
+    res.status(400).json({ error: 'InvalidRequest', message: 'did must be a DID' });
+    return;
+  }
   try {
     const keypair = await Secp256k1Keypair.create({ exportable: true });
     const encrypted = await encryptKeyBytes(Buffer.from(await keypair.export()), 'identity.signing-key');

@@ -2692,7 +2692,7 @@ export const lexiconContracts = {
   'com.atproto.server.getSession': { revision: 2, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
   'com.atproto.server.requestEmailConfirmation': { revision: 2, errors: ["AccountNotFound", "EmailDeliveryFailed", "NoEmail", "VerificationDisabled"] as const },
-  'com.atproto.server.reserveSigningKey': { revision: 1, errors: [] as const },
+  'com.atproto.server.reserveSigningKey': { revision: 2, errors: [] as const },
   'com.atproto.sync.getBlob': { revision: 1, errors: ["BlobNotFound"] as const },
   'com.atproto.sync.getRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },

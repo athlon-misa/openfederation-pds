@@ -109,3 +109,11 @@ describe('disclosure audit IP suppression', () => {
     expect(reg.rows).toEqual([{ ip_address: '203.0.113.9' }]);
   });
 });
+
+describe('reserveSigningKey input', () => {
+  it('rejects a did that is not a DID, accepts a DID or none', async () => {
+    expect((await xrpcPost('com.atproto.server.reserveSigningKey', { did: 'not a did' })).status).toBe(400);
+    expect((await xrpcPost('com.atproto.server.reserveSigningKey', { did: 'did:plc:anaanaanaanaanaanaanaana' })).status).toBe(200);
+    expect((await xrpcPost('com.atproto.server.reserveSigningKey', {})).status).toBe(200);
+  });
+});

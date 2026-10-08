@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.reserveSigningKey",
-  "revision": 1,
+  "revision": 2,
   "description": "Reserve a repo signing key for a new account, to be named in its PLC genesis operation.",
   "defs": {
     "main": {
@@ -12,7 +12,7 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "Optional DID the key is intended for." }
+            "did": { "type": "string", "format": "did", "description": "Optional DID the key is intended for." }
           }
         }
       },
