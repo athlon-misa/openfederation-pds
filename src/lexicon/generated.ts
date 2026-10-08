@@ -1816,6 +1816,25 @@ export type NetOpenfederationPartnerVerifyKeyOutput = {
 };
 export type NetOpenfederationPartnerVerifyKeyError = "InvalidRequest" | "NotFound" | "VerificationFailed";
 
+export type NetOpenfederationPseudonymCollectTokensInput = {
+  "epoch": string;
+  "blindedMessages": Array<string>;
+};
+export type NetOpenfederationPseudonymCollectTokensOutput = {
+  "epoch": string;
+  "blindSignatures": Array<string>;
+};
+export type NetOpenfederationPseudonymCollectTokensError = "AlreadyCollected" | "Forbidden" | "InvalidRequest" | "WrongEpoch";
+
+export type NetOpenfederationPseudonymGetTokenKeysInput = undefined;
+export type NetOpenfederationPseudonymGetTokenKeysOutput = {
+  "keys": Array<{
+  "epoch": string;
+  "publicKey": string;
+}>;
+};
+export type NetOpenfederationPseudonymGetTokenKeysError = never;
+
 export type NetOpenfederationServerGetConfigInput = undefined;
 export type NetOpenfederationServerGetConfigOutput = {
   "service": string;
@@ -2183,6 +2202,8 @@ export interface LexiconInputMap {
   'net.openfederation.partner.register': NetOpenfederationPartnerRegisterInput;
   'net.openfederation.partner.revokeKey': NetOpenfederationPartnerRevokeKeyInput;
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyInput;
+  'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensInput;
+  'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysInput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigInput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigInput;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogInput;
@@ -2362,6 +2383,8 @@ export interface LexiconOutputMap {
   'net.openfederation.partner.register': NetOpenfederationPartnerRegisterOutput;
   'net.openfederation.partner.revokeKey': NetOpenfederationPartnerRevokeKeyOutput;
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyOutput;
+  'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensOutput;
+  'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysOutput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigOutput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigOutput;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogOutput;
@@ -2541,6 +2564,8 @@ export interface LexiconErrorMap {
   'net.openfederation.partner.register': NetOpenfederationPartnerRegisterError;
   'net.openfederation.partner.revokeKey': NetOpenfederationPartnerRevokeKeyError;
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyError;
+  'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensError;
+  'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysError;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigError;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigError;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogError;
@@ -2722,6 +2747,8 @@ export const lexiconContracts = {
   'net.openfederation.partner.register': { revision: 1, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "OriginNotAllowed", "PartnerKeyInvalid", "PartnerKeyMissing", "PartnerKeyRevoked", "PartnerKeyUnverified", "PermissionDenied"] as const },
   'net.openfederation.partner.revokeKey': { revision: 1, errors: ["AlreadyRevoked", "NotFound"] as const },
   'net.openfederation.partner.verifyKey': { revision: 1, errors: ["InvalidRequest", "NotFound", "VerificationFailed"] as const },
+  'net.openfederation.pseudonym.collectTokens': { revision: 1, errors: ["AlreadyCollected", "Forbidden", "InvalidRequest", "WrongEpoch"] as const },
+  'net.openfederation.pseudonym.getTokenKeys': { revision: 1, errors: [] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 1, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },

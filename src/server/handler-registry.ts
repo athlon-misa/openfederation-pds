@@ -70,6 +70,8 @@ import confirmPasswordReset from '../api/net.openfederation.account.confirmPassw
 import getSecurityLevel from '../api/net.openfederation.account.getSecurityLevel.js';
 import initiateRecovery from '../api/net.openfederation.account.initiateRecovery.js';
 import completeRecovery from '../api/net.openfederation.account.completeRecovery.js';
+import getTokenKeys from '../api/net.openfederation.pseudonym.getTokenKeys.js';
+import collectTokens from '../api/net.openfederation.pseudonym.collectTokens.js';
 import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js';
 import listPeers from '../api/net.openfederation.federation.listPeers.js';
 import listPeerCommunities from '../api/net.openfederation.federation.listPeerCommunities.js';
@@ -406,6 +408,10 @@ const handlers = Object.freeze({
   'net.openfederation.contact.listBlocks': { handler: listBlocksHandler },
   'net.openfederation.contact.listMutualContacts': { handler: listMutualContactsHandler },
   'net.openfederation.contact.listFriendOfFriends': { handler: listFriendOfFriendsHandler },
+
+  // Pseudonyms
+  'net.openfederation.pseudonym.getTokenKeys': { handler: getTokenKeys, limiter: discoveryLimiter },
+  'net.openfederation.pseudonym.collectTokens': { handler: collectTokens, limiter: createLimiter },
 
   // Forum
   'net.openfederation.forum.createThread': { handler: createThread, limiter: createLimiter },

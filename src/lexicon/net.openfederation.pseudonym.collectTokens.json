@@ -1,0 +1,44 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.pseudonym.collectTokens",
+  "revision": 1,
+  "description": "Collect this epoch's batch of blind-signed pseudonym creation tokens.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Approved, non-pseudonym accounts submit blinded messages and receive blind signatures. One collection per epoch.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": { "type": "string", "description": "Current UTC month, YYYY-MM." },
+            "blindedMessages": {
+              "type": "array",
+              "description": "Exactly the configured tokens-per-epoch count of base64url blinded messages.",
+              "items": { "type": "string" }
+            }
+          },
+          "required": ["epoch", "blindedMessages"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "epoch": { "type": "string" },
+            "blindSignatures": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["epoch", "blindSignatures"]
+        }
+      },
+      "errors": [
+        { "name": "WrongEpoch", "description": "The epoch is not the current UTC month." },
+        { "name": "AlreadyCollected", "description": "Tokens for this epoch were already collected." },
+        { "name": "Forbidden", "description": "Pseudonym accounts cannot collect creation tokens." },
+        { "name": "InvalidRequest", "description": "Wrong batch size or malformed blinded messages." }
+      ]
+    }
+  }
+}
