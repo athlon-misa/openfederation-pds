@@ -98,12 +98,13 @@ export async function ensureHandleEmailAvailable(
 export interface InsertUserParams {
   userId: string;
   handle: string;
-  email: string;
+  email: string | null;
   passwordHash: string | null;
   did: string;
   status: 'pending' | 'approved';
-  authType?: 'local' | 'external';
+  authType?: 'local' | 'external' | 'pseudonym';
   createdByPartner?: string | null;
+  pseudonymOwnerKey?: string;
 }
 
 /**
@@ -115,8 +116,8 @@ export async function insertUserWithRole(client: PoolClient, params: InsertUserP
   const isApproved = params.status === 'approved';
   await client.query(
     `INSERT INTO users
-       (id, handle, email, password_hash, status, did, auth_type, created_by_partner, approved_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, ${isApproved ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
+       (id, handle, email, password_hash, status, did, auth_type, created_by_partner, pseudonym_owner_key, approved_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${isApproved ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
     [
       params.userId,
       params.handle,
@@ -126,6 +127,7 @@ export async function insertUserWithRole(client: PoolClient, params: InsertUserP
       params.did,
       authType,
       params.createdByPartner ?? null,
+      params.pseudonymOwnerKey ?? null,
     ],
   );
   await client.query(`INSERT INTO user_roles (user_id, role) VALUES ($1, 'user')`, [params.userId]);

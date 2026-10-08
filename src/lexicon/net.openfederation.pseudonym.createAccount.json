@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.pseudonym.createAccount",
+  "revision": 1,
+  "description": "Anonymously create a pseudonym account for a did:plc whose genesis operation is already in PLC.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Verifies the PLC genesis operation, spends a blind creation token and consumes a reserved signing key. No email, password or audit trail.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "The pseudonym's did:plc." },
+            "token": {
+              "type": "object",
+              "description": "A finalized blind creation token.",
+              "properties": {
+                "epoch": { "type": "string" },
+                "prepared": { "type": "string" },
+                "signature": { "type": "string" }
+              },
+              "required": ["epoch", "prepared", "signature"]
+            }
+          },
+          "required": ["did"]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string" },
+            "handle": { "type": "string" },
+            "status": { "type": "string" }
+          },
+          "required": ["did", "handle", "status"]
+        }
+      },
+      "errors": [
+        { "name": "InvalidRequest", "description": "The DID is malformed." },
+        { "name": "InvalidGenesis", "description": "The PLC genesis operation is missing or not acceptable to this PDS." },
+        { "name": "SigningKeyNotReserved", "description": "The signing key was not reserved at this PDS." },
+        { "name": "InvalidToken", "description": "The creation token is missing or invalid." },
+        { "name": "TokenSpent", "description": "The creation token was already used." },
+        { "name": "AlreadyExists", "description": "An account with this DID or handle already exists." }
+      ]
+    }
+  }
+}

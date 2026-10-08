@@ -109,6 +109,14 @@ export type ComAtprotoServerRequestEmailConfirmationOutput = {
 };
 export type ComAtprotoServerRequestEmailConfirmationError = "AccountNotFound" | "EmailDeliveryFailed" | "NoEmail" | "VerificationDisabled";
 
+export type ComAtprotoServerReserveSigningKeyInput = {
+  "did"?: string;
+};
+export type ComAtprotoServerReserveSigningKeyOutput = {
+  "signingKey": string;
+};
+export type ComAtprotoServerReserveSigningKeyError = never;
+
 export type ComAtprotoSyncGetBlobInput = {
   "did": string;
   "cid": string;
@@ -1826,6 +1834,21 @@ export type NetOpenfederationPseudonymCollectTokensOutput = {
 };
 export type NetOpenfederationPseudonymCollectTokensError = "AlreadyCollected" | "Forbidden" | "InvalidRequest" | "WrongEpoch";
 
+export type NetOpenfederationPseudonymCreateAccountInput = {
+  "did": string;
+  "token"?: {
+  "epoch": string;
+  "prepared": string;
+  "signature": string;
+};
+};
+export type NetOpenfederationPseudonymCreateAccountOutput = {
+  "did": string;
+  "handle": string;
+  "status": string;
+};
+export type NetOpenfederationPseudonymCreateAccountError = "AlreadyExists" | "InvalidGenesis" | "InvalidRequest" | "InvalidToken" | "SigningKeyNotReserved" | "TokenSpent";
+
 export type NetOpenfederationPseudonymGetTokenKeysInput = undefined;
 export type NetOpenfederationPseudonymGetTokenKeysOutput = {
   "keys": Array<{
@@ -2062,6 +2085,7 @@ export interface LexiconInputMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionInput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionInput;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationInput;
+  'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyInput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobInput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoInput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventInput;
@@ -2203,6 +2227,7 @@ export interface LexiconInputMap {
   'net.openfederation.partner.revokeKey': NetOpenfederationPartnerRevokeKeyInput;
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyInput;
   'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensInput;
+  'net.openfederation.pseudonym.createAccount': NetOpenfederationPseudonymCreateAccountInput;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysInput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigInput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigInput;
@@ -2243,6 +2268,7 @@ export interface LexiconOutputMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionOutput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionOutput;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationOutput;
+  'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyOutput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobOutput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoOutput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventOutput;
@@ -2384,6 +2410,7 @@ export interface LexiconOutputMap {
   'net.openfederation.partner.revokeKey': NetOpenfederationPartnerRevokeKeyOutput;
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyOutput;
   'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensOutput;
+  'net.openfederation.pseudonym.createAccount': NetOpenfederationPseudonymCreateAccountOutput;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysOutput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigOutput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigOutput;
@@ -2424,6 +2451,7 @@ export interface LexiconErrorMap {
   'com.atproto.server.getSession': ComAtprotoServerGetSessionError;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionError;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationError;
+  'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyError;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobError;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoError;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventError;
@@ -2565,6 +2593,7 @@ export interface LexiconErrorMap {
   'net.openfederation.partner.revokeKey': NetOpenfederationPartnerRevokeKeyError;
   'net.openfederation.partner.verifyKey': NetOpenfederationPartnerVerifyKeyError;
   'net.openfederation.pseudonym.collectTokens': NetOpenfederationPseudonymCollectTokensError;
+  'net.openfederation.pseudonym.createAccount': NetOpenfederationPseudonymCreateAccountError;
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysError;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigError;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigError;
@@ -2607,6 +2636,7 @@ export const lexiconContracts = {
   'com.atproto.server.getSession': { revision: 2, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
   'com.atproto.server.requestEmailConfirmation': { revision: 2, errors: ["AccountNotFound", "EmailDeliveryFailed", "NoEmail", "VerificationDisabled"] as const },
+  'com.atproto.server.reserveSigningKey': { revision: 1, errors: [] as const },
   'com.atproto.sync.getBlob': { revision: 1, errors: ["BlobNotFound"] as const },
   'com.atproto.sync.getRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },
@@ -2748,6 +2778,7 @@ export const lexiconContracts = {
   'net.openfederation.partner.revokeKey': { revision: 1, errors: ["AlreadyRevoked", "NotFound"] as const },
   'net.openfederation.partner.verifyKey': { revision: 1, errors: ["InvalidRequest", "NotFound", "VerificationFailed"] as const },
   'net.openfederation.pseudonym.collectTokens': { revision: 1, errors: ["AlreadyCollected", "Forbidden", "InvalidRequest", "WrongEpoch"] as const },
+  'net.openfederation.pseudonym.createAccount': { revision: 1, errors: ["AlreadyExists", "InvalidGenesis", "InvalidRequest", "InvalidToken", "SigningKeyNotReserved", "TokenSpent"] as const },
   'net.openfederation.pseudonym.getTokenKeys': { revision: 1, errors: [] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 1, errors: [] as const },

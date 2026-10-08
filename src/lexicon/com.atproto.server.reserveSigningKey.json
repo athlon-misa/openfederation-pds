@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.reserveSigningKey",
+  "revision": 1,
+  "description": "Reserve a repo signing key for a new account, to be named in its PLC genesis operation.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Unauthenticated and rate limited. The reservation is consumed when the account is created.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": { "type": "string", "description": "Optional DID the key is intended for." }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "signingKey": { "type": "string", "description": "The reserved signing key as a did:key." }
+          },
+          "required": ["signingKey"]
+        }
+      }
+    }
+  }
+}
