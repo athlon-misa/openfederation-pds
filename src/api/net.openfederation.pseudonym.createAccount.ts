@@ -6,7 +6,11 @@ import { getPlcLog } from '../identity/plc-client.js';
 import { checkPseudonymGenesis } from '../identity/pseudonym/genesis.js';
 import { redeemToken } from '../identity/pseudonym/tokens.js';
 import { consumeReservedSigningKey } from './com.atproto.server.reserveSigningKey.js';
-import { insertUserWithRole, initializeUserRepoAsync } from '../auth/account-creation.js';
+import { insertUserWithRole } from '../auth/account-creation.js';
+import { isValidHandle } from '../auth/utils.js';
+import { encryptKeyBytes } from '../auth/encryption.js';
+import { Secp256k1Keypair } from '@atproto/crypto';
+import { RepoEngine } from '../repo/repo-engine.js';
 
 class Refusal extends Error {
   constructor(readonly status: number, readonly code: string, message: string) { super(message); }
@@ -34,8 +38,14 @@ export default async function createPseudonymAccount(req: Request, res: Response
     const check = await checkPseudonymGenesis(did, log[0], { serviceUrl: config.pds.serviceUrl, handleSuffix: config.handleSuffix });
     if (!check.ok) throw new Refusal(400, 'InvalidGenesis', check.reason);
 
+    // Accounts store the bare label; the genesis op carries label + suffix.
+    const label = check.handle.slice(0, -config.handleSuffix.length);
+    if (!isValidHandle(label)) throw new Refusal(400, 'InvalidGenesis', 'BadHandle');
+
     const keyBytes = await withTransaction(async (client) => {
-      const existing = await client.query('SELECT 1 FROM users WHERE did = $1 OR handle = $2', [did, check.handle]);
+      const existing = await client.query(
+        `SELECT 1 FROM users WHERE did = $1 OR handle = $2
+         UNION ALL SELECT 1 FROM communities WHERE handle = $2`, [did, label]);
       if (existing.rows.length > 0) throw new Refusal(409, 'AlreadyExists', 'Account already exists');
       const redeemed = await redeemToken(client, token);
       if (redeemed === 'invalid') throw new Refusal(400, 'InvalidToken', 'Creation token is not valid');
@@ -43,12 +53,24 @@ export default async function createPseudonymAccount(req: Request, res: Response
       const bytes = await consumeReservedSigningKey(client, check.signingKey);
       if (!bytes) throw new Refusal(400, 'SigningKeyNotReserved', 'Signing key was not reserved here');
       await insertUserWithRole(client, {
-        userId: crypto.randomUUID(), handle: check.handle, email: null, passwordHash: null,
+        userId: crypto.randomUUID(), handle: label, email: null, passwordHash: null,
         did, status: 'approved', authType: 'pseudonym', pseudonymOwnerKey: check.ownerKey,
       });
+      // Stored in the same transaction: token spend, key consumption, user
+      // row and signing key commit or roll back together.
+      const encrypted = await encryptKeyBytes(bytes, 'identity.signing-key');
+      await client.query('INSERT INTO user_signing_keys (user_did, signing_key_bytes) VALUES ($1, $2)', [did, encrypted]);
       return bytes;
     });
-    await initializeUserRepoAsync(did, check.handle, keyBytes.toString('base64'));
+    // Best-effort; failures are logged without the DID or handle.
+    try {
+      const keypair = await Secp256k1Keypair.import(keyBytes, { exportable: false });
+      await new RepoEngine(did).createRepo(keypair, [
+        { collection: 'app.bsky.actor.profile', rkey: 'self', record: { displayName: label, description: '' } },
+      ]);
+    } catch {
+      console.error('Warning: failed to initialize pseudonym repo (account still created)');
+    }
     res.status(201).json({ did, handle: check.handle, status: 'approved' });
   } catch (error) {
     if (error instanceof Refusal) {

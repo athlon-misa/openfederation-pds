@@ -10,8 +10,9 @@ const MAX_RESERVATIONS = 10_000;
  * AT Protocol reserveSigningKey. The caller names this key as
  * verificationMethods.atproto in its own PLC genesis op, then creates the
  * account. Unauthenticated (the account does not exist yet) and rate
- * limited. Rows carry no timestamp; the table is capped instead, oldest
- * insertion first, so an unused reservation eventually disappears.
+ * limited. Rows carry no timestamp (seq is a plain insertion counter); the
+ * table is capped FIFO by seq, keeping the newest rows, so an unused
+ * reservation eventually disappears.
  */
 export default async function reserveSigningKey(_req: Request, res: Response): Promise<void> {
   try {
@@ -19,8 +20,8 @@ export default async function reserveSigningKey(_req: Request, res: Response): P
     const encrypted = await encryptKeyBytes(Buffer.from(await keypair.export()), 'identity.signing-key');
     await query('INSERT INTO reserved_signing_keys (signing_key, key_bytes) VALUES ($1, $2)', [keypair.did(), encrypted]);
     await query(
-      `DELETE FROM reserved_signing_keys WHERE ctid IN (
-         SELECT ctid FROM reserved_signing_keys OFFSET $1)`, [MAX_RESERVATIONS]);
+      `DELETE FROM reserved_signing_keys WHERE seq IN (
+         SELECT seq FROM reserved_signing_keys ORDER BY seq DESC OFFSET $1)`, [MAX_RESERVATIONS]);
     res.status(200).json({ signingKey: keypair.did() });
   } catch (error) {
     console.error('Error in reserveSigningKey:', error);

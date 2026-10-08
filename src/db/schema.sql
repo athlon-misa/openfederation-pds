@@ -661,6 +661,9 @@ CREATE TABLE IF NOT EXISTS reserved_signing_keys (
   signing_key TEXT PRIMARY KEY,
   key_bytes BYTEA NOT NULL
 );
+-- Insertion counter for FIFO eviction (not a timestamp).
+ALTER TABLE reserved_signing_keys ADD COLUMN IF NOT EXISTS seq BIGSERIAL;
+CREATE INDEX IF NOT EXISTS idx_reserved_signing_keys_seq ON reserved_signing_keys(seq);
 
 CREATE TABLE IF NOT EXISTS pseudonym_login_challenges (
   id UUID PRIMARY KEY,

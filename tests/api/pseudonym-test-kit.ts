@@ -23,10 +23,10 @@ export async function getToken(): Promise<CreationToken> {
 }
 
 /** Genesis op for a new pseudonym, with a fake PLC log serving it. */
-export async function preparePseudonym(phrase = generatePseudonymPhrase()) {
+export async function preparePseudonym(phrase = generatePseudonymPhrase(), label?: string) {
   const k = derivePseudonymKeys(phrase);
   const { body } = await xrpcPost('com.atproto.server.reserveSigningKey', {});
-  const handle = `${uniqueHandle('pn')}${config.handleSuffix}`;
+  const handle = `${label ?? uniqueHandle('pn')}${config.handleSuffix}`;
   const signed = signGenesisOp(buildPseudonymGenesisOp({
     ownerDidKey: k.ownerDidKey, signingDidKey: body.signingKey, handle,
     pdsEndpoint: config.pds.serviceUrl, ownerDid: 'did:plc:ownerplaceholder', commitmentSaltHex: k.commitmentSaltHex,
