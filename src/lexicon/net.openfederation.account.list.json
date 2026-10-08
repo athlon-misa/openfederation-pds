@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.list",
-  "revision": 1,
+  "revision": 2,
   "description": "List all user accounts with filtering and search. Requires admin or moderator role.",
   "defs": {
     "main": {
@@ -58,7 +58,8 @@
           "type": "string"
         },
         "email": {
-          "type": "string"
+          "type": "string",
+          "description": "Account email address. Absent for accounts without one (pseudonyms)."
         },
         "did": {
           "type": "string"
@@ -85,7 +86,6 @@
       "required": [
         "id",
         "handle",
-        "email",
         "did",
         "status",
         "roles",

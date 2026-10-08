@@ -61,7 +61,7 @@ export default async function listAccounts(req: AuthRequest, res: Response): Pro
     const dataResult = await query<{
       id: string;
       handle: string;
-      email: string;
+      email: string | null;
       did: string;
       status: string;
       created_at: string;
@@ -92,7 +92,8 @@ export default async function listAccounts(req: AuthRequest, res: Response): Pro
     const users = dataResult.rows.map(u => ({
       id: u.id,
       handle: u.handle,
-      email: u.email,
+      // Pseudonym accounts have no email; omit the field rather than send null.
+      email: u.email ?? undefined,
       did: u.did,
       status: u.status,
       roles: rolesMap[u.id] || [],

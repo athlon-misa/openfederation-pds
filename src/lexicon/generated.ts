@@ -222,7 +222,7 @@ export type NetOpenfederationAccountListOutput = {
   "users": Array<{
   "id": string;
   "handle": string;
-  "email": string;
+  "email"?: string;
   "did": string;
   "status": string;
   "roles": Array<string>;
@@ -2705,7 +2705,7 @@ export const lexiconContracts = {
   'net.openfederation.account.getProfile': { revision: 1, errors: ["InvalidRequest", "ProfileNotFound"] as const },
   'net.openfederation.account.getSecurityLevel': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
-  'net.openfederation.account.list': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.account.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
   'net.openfederation.account.listSessions': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.account.register': { revision: 3, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },

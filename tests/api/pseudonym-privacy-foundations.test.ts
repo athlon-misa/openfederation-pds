@@ -79,6 +79,21 @@ describe('pseudonym-safe existing paths', () => {
     const attempts = await query('SELECT 1 FROM recovery_attempts WHERE user_did = $1', [p.did]);
     expect(attempts.rows).toHaveLength(0);
   });
+
+  it('admin account.list still lists accounts when a pseudonym (null email) exists', async () => {
+    const p = await insertPseudonymUser();
+    const adminToken = await getAdminToken();
+    // Newest first, so the pseudonym is on the first page.
+    const res = await xrpcAuthGet('net.openfederation.account.list', adminToken, { limit: '10' });
+    expect(res.status).toBe(200);
+    const row = res.body.users.find((u: any) => u.did === p.did);
+    expect(row).toBeDefined();
+    expect(row).not.toHaveProperty('email');
+    // Search by text (handle OR email ILIKE) must not trip on NULL email either.
+    const search = await xrpcAuthGet('net.openfederation.account.list', adminToken, { q: p.handle });
+    expect(search.status).toBe(200);
+    expect(search.body.users.map((u: any) => u.did)).toContain(p.did);
+  });
 });
 
 describe('disclosure audit IP suppression', () => {
