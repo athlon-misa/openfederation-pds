@@ -36,6 +36,7 @@ const PDS_URL = `http://localhost:${PORTS.pds}`;
 const SERVICE_DID = 'did:web:localhost';
 const HANDLE_SUFFIX = '.opennewsrooms.demo';
 const ELENA = { handle: `elena${HANDLE_SUFFIX}`, name: 'Elena Petrova', email: 'elena@newsroom.demo' };
+const MARKO = { handle: 'marko', name: 'Marko', email: 'marko@newsroom.demo' };
 
 const db = {
   host: process.env.DB_HOST || 'localhost',
@@ -53,6 +54,7 @@ let plc: ChildProcess | null = null;
 let pds: ChildProcess | null = null;
 let admin = { handle: 'admin', email: 'admin@newsroom.demo', password: '' };
 let elena: { did: string; password: string } | null = null;
+let marko: { did: string } | null = null;
 let pseudonymDids = new Set<string>();
 
 function strongPassword(): string {
@@ -127,16 +129,22 @@ async function session(identifier: string, password: string): Promise<{ accessJw
   return xrpc('com.atproto.server.createSession', { identifier, password });
 }
 
-async function seedElena(): Promise<void> {
-  const adminJwt = (await session(admin.handle, admin.password)).accessJwt;
+async function seedAccount(adminJwt: string, handle: string, email: string): Promise<{ did: string; password: string }> {
   const invite = await xrpc<{ code: string }>('net.openfederation.invite.create', { maxUses: 1 }, adminJwt);
   const password = strongPassword();
-  const reg = await xrpc<{ userId?: string; id?: string; did: string }>('net.openfederation.account.register', {
-    handle: ELENA.handle.slice(0, -HANDLE_SUFFIX.length), email: ELENA.email, password, inviteCode: invite.code,
+  const reg = await xrpc<{ userId?: string; id?: string }>('net.openfederation.account.register', {
+    handle, email, password, inviteCode: invite.code,
   });
   await xrpc('net.openfederation.account.approve', { userId: reg.userId || reg.id }, adminJwt);
-  const s = await session(ELENA.email, password);
-  elena = { did: s.did, password };
+  const s = await session(email, password);
+  return { did: s.did, password };
+}
+
+/** Elena, the reporter, and Marko, who later tries to claim Night Desk as his. */
+async function seedPeople(): Promise<void> {
+  const adminJwt = (await session(admin.handle, admin.password)).accessJwt;
+  elena = await seedAccount(adminJwt, ELENA.handle.slice(0, -HANDLE_SUFFIX.length), ELENA.email);
+  marko = { did: (await seedAccount(adminJwt, MARKO.handle, MARKO.email)).did };
 }
 
 let state: 'starting' | 'ready' | 'resetting' | 'failed' = 'starting';
@@ -145,6 +153,7 @@ let lastError = '';
 async function bringUp(): Promise<void> {
   state = state === 'starting' ? 'starting' : 'resetting';
   elena = null;
+  marko = null;
   pseudonymDids = new Set();
   try {
     await Promise.all([stop(pds), stop(plc)]);
@@ -170,7 +179,7 @@ async function bringUp(): Promise<void> {
       PSEUDONYM_PROBATION_DAYS: '7',
     });
     await waitFor(`${PDS_URL}/health`, 'PDS', 120000);
-    await seedElena();
+    await seedPeople();
     state = 'ready';
     lastError = '';
     console.log(`Ready. Open http://localhost:${PORTS.app}`);
@@ -247,7 +256,7 @@ async function bundle(): Promise<void> {
 
 async function main(): Promise<void> {
   await bundle();
-  const { verifyPresence, fetchGenesisOp } = await import('../../src/identity/pseudonym/verify.js');
+  const { verifyPresence, fetchGenesisOp, verifyRevealBundle } = await import('../../src/identity/pseudonym/verify.js');
 
   const app = express();
   app.use(express.json({ limit: '64kb' }));
@@ -264,6 +273,7 @@ async function main(): Promise<void> {
       res.json({
         pdsUrl: PDS_URL, plcUrl: PLC_URL, serviceDid: SERVICE_DID, handleSuffix: HANDLE_SUFFIX,
         elena: { did: s.did, handle: s.handle, name: ELENA.name, email: ELENA.email, accessJwt: s.accessJwt },
+        impostor: { did: marko!.did, name: MARKO.name },
       });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -296,6 +306,16 @@ async function main(): Promise<void> {
       res.json({ valid, challenge, directoryKey: (genesisOp as { rotationKeys?: string[] }).rotationKeys?.[0] });
     } catch (err) {
       res.json({ valid: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Checks a reveal the way `ofc pseudonym verify --online` does: the bundle,
+  // plus both DIDs resolved from the PLC directory.
+  app.post('/api/verify-reveal', async (req, res) => {
+    try {
+      res.json(await verifyRevealBundle(req.body?.bundle, { online: true, plcUrl: PLC_URL }));
+    } catch (err) {
+      res.json({ valid: false, checks: [], error: err instanceof Error ? err.message : String(err) });
     }
   });
 

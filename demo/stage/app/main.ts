@@ -5,14 +5,15 @@
  * database and as the independent verifier.
  */
 import {
-  fetchTokenKeys, collectTokens, loginWithPhrase, signPresence,
+  fetchTokenKeys, collectTokens, loginWithPhrase, signPresence, createRevealBundle,
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
-  type CreationToken,
+  type CreationToken, type RevealBundle,
 } from '../../../packages/openfederation-pseudonym/src/index.js';
 
 interface Config {
   pdsUrl: string; plcUrl: string; serviceDid: string; handleSuffix: string;
   elena: { did: string; handle: string; name: string; email: string; accessJwt: string };
+  impostor: { did: string; name: string };
 }
 interface Saved {
   elenaDid: string;
@@ -21,6 +22,7 @@ interface Saved {
   nd?: { did: string; handle: string; phrase: string };
   ndJwt?: string;
   published?: { uri: string; title: string; hash: string };
+  bundle?: RevealBundle;
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -124,7 +126,7 @@ function renderTokens(): void {
   }
   ($('btn-collect') as HTMLButtonElement).disabled = have > 0;
   if (have > 0) {
-    $('tokens-note').textContent = `${have - (saved?.spent ?? 0)} tokens ready on Elena's laptop. The server only knows she collected this month's batch, like everyone else.`;
+    $('tokens-note').textContent = `${have - (saved?.spent ?? 0)} passes ready on Elena's laptop. The server only knows she collected this month's batch, like everyone else.`;
   }
 }
 
@@ -164,6 +166,7 @@ function renderAll(): void {
   renderTokens();
   renderPhrase();
   renderPublish();
+  renderReveal();
 }
 
 // ---------- Actions ----------
@@ -257,7 +260,8 @@ async function lookInside(): Promise<void> {
         ['did', short(a.did)],
         ['email', a.email],
         ['password', a.hasPassword ? 'stored (scrambled)' : null],
-        ['signs in with', a.loginKey ? `key ${short(a.loginKey)}` : 'email + password'],
+        ['signs in with', a.loginKey ? 'its twelve words (never sent to the server)' : 'email and password'],
+        ...(a.loginKey ? [['public key', short(a.loginKey)] as [string, string]] : []),
         ...(isNd ? [['owner', null] as [string, null]] : []),
         ['audit log', a.auditEntries ? `${a.auditEntries} ${a.auditEntries === 1 ? 'entry' : 'entries'}` : 'no entries', a.auditEntries ? undefined : 'none'],
       ];
@@ -278,7 +282,7 @@ async function lookInside(): Promise<void> {
       const s = document.createElement('strong');
       s.textContent = view.search.bothRows === 0 ? 'Nothing here connects Night Desk to Elena.' : `${view.search.bothRows} rows mention both accounts.`;
       const d = document.createElement('span');
-      d.textContent = `Searched all ${view.search.tables} tables, row by row. Tokens: ${view.tokens.batchesCollected} monthly batch collected, ${view.tokens.spent} spent, with no record of who spent it.`;
+      d.textContent = `Searched all ${view.search.tables} tables, row by row. Passes: ${view.tokens.batchesCollected} monthly batch collected, ${view.tokens.spent} used, with no record of who used it.`;
       verdict.append(s, d);
     }
   } catch (err) {
@@ -313,7 +317,7 @@ $('btn-publish').addEventListener('click', busy($('btn-publish') as HTMLButtonEl
   }, saved!.ndJwt);
   saved!.published = { uri: out.uri, title, hash };
   save();
-  renderPublish();
+  renderAll();
 }));
 
 async function prove(asStranger: boolean): Promise<void> {
@@ -334,7 +338,7 @@ async function prove(asStranger: boolean): Promise<void> {
   const s = document.createElement('strong'); s.textContent = r.valid ? 'VALID' : 'INVALID';
   const t = document.createElement('span');
   t.textContent = r.valid
-    ? 'Whoever signed this holds Night Desk’s words. Elena is Night Desk.'
+    ? 'The person in front of you holds Night Desk’s twelve words.'
     : asStranger ? 'Different words make a different key. Nobody else can sign as Night Desk.' : 'The signature does not match Night Desk.';
   v.append(s, t);
   $('verdict-note').textContent = `The word “${word.trim()}” was signed ${asStranger ? "with a stranger’s twelve words" : "on Elena’s laptop"} and checked by a separate verifier against Night Desk’s key in the public directory${r.directoryKey ? ` (${short(r.directoryKey)})` : ''}.`;
@@ -346,6 +350,73 @@ $('btn-stranger').addEventListener('click', busy($('btn-stranger') as HTMLButton
   await prove(true); ($('btn-stranger') as HTMLButtonElement).disabled = false;
 }));
 $('word').addEventListener('input', () => { $('verdict').hidden = true; $('verdict-note').textContent = ''; });
+
+// ---------- Reveal: Night Desk is Elena ----------
+
+const CHECK_TEXT: [string[], string][] = [
+  [['genesisHash', 'genesisSignature'], 'Night Desk\u2019s public entry is genuine and unchanged since day one'],
+  [['pseudonymSignature'], 'Night Desk\u2019s twelve words signed the sentence'],
+  [['commitment'], 'The sealed note, locked in when Night Desk was created, names this account'],
+  [['ownerSignature', 'ownerKeyCurrent'], 'That account signed the same sentence'],
+  [['statement'], 'The sentence names these two accounts'],
+];
+
+function renderReveal(): void {
+  const has = !!saved?.bundle;
+  $('proof-parts').classList.toggle('ready', has);
+  $('reveal-state').textContent = has ? 'ready to hand over' : 'not made yet';
+  ($('btn-reveal') as HTMLButtonElement).disabled = has || !saved?.nd;
+  ($('btn-check') as HTMLButtonElement).disabled = !has;
+  ($('btn-impostor') as HTMLButtonElement).disabled = !has;
+}
+
+async function checkProof(bundle: RevealBundle, claimant: string): Promise<void> {
+  const r = await api<{ valid: boolean; checks: { name: string; ok: boolean }[] }>('/api/verify-reveal', { bundle });
+  const ul = $('checks');
+  ul.hidden = false;
+  ul.innerHTML = '';
+  for (const [names, text] of CHECK_TEXT) {
+    const cs = r.checks.filter((c) => names.includes(c.name));
+    if (!cs.length) continue;
+    const li = document.createElement('li');
+    li.className = cs.every((c) => c.ok) ? 'ok' : 'bad';
+    li.textContent = text;
+    ul.appendChild(li);
+  }
+  const v = $('reveal-verdict');
+  v.hidden = false;
+  v.className = `verdict ${r.valid ? 'is-valid' : 'is-invalid'}`;
+  v.innerHTML = '';
+  const s = document.createElement('strong'); s.textContent = r.valid ? 'VALID' : 'INVALID';
+  const t = document.createElement('span');
+  t.textContent = r.valid
+    ? `Night Desk belongs to ${claimant}.`
+    : `${claimant} copied Elena\u2019s proof and put his own name in it. Night Desk never signed that, and the sealed note doesn\u2019t name him.`;
+  v.append(s, t);
+}
+
+$('btn-reveal').addEventListener('click', busy($('btn-reveal') as HTMLButtonElement, async () => {
+  const c = cfg!;
+  const nd = saved!.nd!;
+  saved!.bundle = await createRevealBundle({
+    pdsUrl: c.pdsUrl, plcUrl: c.plcUrl, phrase: nd.phrase, pseudonymDid: nd.did, ownerDid: c.elena.did, ownerAccessJwt: c.elena.accessJwt,
+  });
+  save();
+  renderReveal();
+}));
+$('btn-check').addEventListener('click', busy($('btn-check') as HTMLButtonElement, async () => {
+  await checkProof(saved!.bundle!, cfg!.elena.name);
+  ($('btn-check') as HTMLButtonElement).disabled = false;
+}));
+$('btn-impostor').addEventListener('click', busy($('btn-impostor') as HTMLButtonElement, async () => {
+  // Marko takes Elena's finished proof and swaps in his own account.
+  const b = structuredClone(saved!.bundle!);
+  const m = cfg!.impostor.did;
+  b.statement = b.statement.replace(cfg!.elena.did, m);
+  b.owner.did = m;
+  await checkProof(b, cfg!.impostor.name);
+  ($('btn-impostor') as HTMLButtonElement).disabled = false;
+}));
 
 // ---------- Reset ----------
 
@@ -359,6 +430,7 @@ $('btn-reset-yes').addEventListener('click', async () => {
   $<HTMLInputElement>('word').value = '';
   $('verdict').hidden = true; $('verdict-note').textContent = '';
   $('db-grid').innerHTML = ''; $('db-verdict').hidden = true;
+  $('checks').hidden = true; $('reveal-verdict').hidden = true;
   await api('/api/reset', {});
   show(0);
   void boot();

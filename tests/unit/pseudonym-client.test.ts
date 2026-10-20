@@ -44,3 +44,17 @@ describe('pseudonym client safety checks', () => {
     })).rejects.toThrow(/expected did:plc:/);
   });
 });
+
+describe('generatePseudonymPhrase', () => {
+  it('never uses crypto- or money-sounding words, and stays a valid phrase', async () => {
+    const { PHRASE_AVOID_WORDS } = await import('../../packages/openfederation-pseudonym/src/keys.js');
+    const { wordlist } = await import('@scure/bip39/wordlists/english');
+    for (const w of PHRASE_AVOID_WORDS) expect(wordlist).toContain(w);
+    for (let i = 0; i < 300; i++) {
+      const phrase = generatePseudonymPhrase();
+      expect(phrase.split(' ')).toHaveLength(12);
+      expect(phrase.split(' ').filter((w) => PHRASE_AVOID_WORDS.has(w))).toEqual([]);
+      expect(() => derivePseudonymKeys(phrase)).not.toThrow();
+    }
+  });
+});

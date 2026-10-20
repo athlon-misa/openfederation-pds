@@ -38,18 +38,18 @@
       </div>
     </section>
 
-    <!-- 1 · Tokens -->
-    <section class="screen" data-step="Tokens" id="tokens">
+    <!-- 1 · Passes (creation tokens in the code) -->
+    <section class="screen" data-step="Passes" id="passes">
       <div class="split">
         <div class="stack">
           <p class="label">01 · Elena's app gets ready</p>
-          <h2 class="statement">Every month, her app quietly collects <em>20 tokens.</em></h2>
-          <p class="lede">Each token lets her create one anonymous name. The server signs them blindfolded, so it will never recognise them later. Every reporter's app collects them, whether or not they ever use one.</p>
+          <h2 class="statement">Every month, her app quietly collects <em>20 passes.</em></h2>
+          <p class="lede">Each pass lets her create one anonymous name. The server stamps them without seeing them, so it can never recognise them later. Every reporter's app collects them, whether or not they ever use one.</p>
         </div>
         <div class="panel">
           <p class="panel-head"><span>Elena's laptop</span><span id="tokens-who" class="mono"></span></p>
-          <div class="token-grid" id="token-grid" aria-label="Creation tokens"></div>
-          <button class="btn" id="btn-collect" type="button">Collect this month's tokens</button>
+          <div class="token-grid" id="token-grid" aria-label="Creation passes"></div>
+          <button class="btn" id="btn-collect" type="button">Collect this month's passes</button>
           <p class="note" id="tokens-note">Elena is signed in to her normal account, with her email and password.</p>
         </div>
       </div>
@@ -68,7 +68,7 @@
           <ol class="checklist" id="create-steps">
             <li data-k="keys">Make twelve words and Night Desk's key, on this laptop</li>
             <li data-k="plc">Register Night Desk in the public directory</li>
-            <li data-k="account">Open the account, paying with one token</li>
+            <li data-k="account">Open the account, using one pass</li>
           </ol>
           <button class="btn" id="btn-create" type="button">Create Night Desk</button>
           <div id="phrase-box" hidden>
@@ -92,6 +92,11 @@
         </div>
         <div class="db-grid" id="db-grid"></div>
         <div class="db-verdict" id="db-verdict" hidden></div>
+        <dl class="explain" id="db-explain">
+          <div><dt>Handle</dt><dd>The readable name, like a username: <span class="mono">nightdesk</span>. It can be changed later.</dd></div>
+          <div><dt>DID</dt><dd>The permanent ID behind the name, like a passport number: <span class="mono">did:plc:…</span>. It never changes, so posts and proofs stay tied to it even if the handle changes.</dd></div>
+          <div><dt>Public key</dt><dd>The lock that matches Night Desk's twelve words. The server keeps the lock, never the words, so it can check a login but can't log in as Night Desk.</dd></div>
+        </dl>
         <button class="btn btn--ghost" id="btn-look" type="button">Look again</button>
       </div>
     </section>
@@ -121,19 +126,47 @@
       </div>
     </section>
 
-    <!-- 5 · Prove -->
-    <section class="screen" data-step="Prove" id="prove">
+    <!-- 5 · Reveal -->
+    <section class="screen" data-step="Reveal" id="reveal">
       <div class="split">
         <div class="stack">
-          <p class="label">05 · Prove it was me</p>
-          <h2 class="statement">Months later, Elena needs to prove <em>she is Night Desk.</em></h2>
-          <p class="lede">Someone in the room picks a word. Night Desk's words sign it, here and now. A separate verifier checks the signature against Night Desk's key in the public directory.</p>
+          <p class="label">05 · Prove Night Desk is Elena</p>
+          <h2 class="statement">Months later, Elena says: <em>Night Desk is me.</em></h2>
+          <p class="lede">When Night Desk was created, a sealed note naming Elena was locked inside its public entry. Nobody could read it. Now Elena hands over the opener, and anyone can check the proof: an editor, a court, the public.</p>
         </div>
         <div class="panel">
-          <label class="label" for="word">A word from the audience</label>
+          <p class="panel-head"><span>The proof</span><span class="mono" id="reveal-state">not made yet</span></p>
+          <ol class="proof-parts" id="proof-parts">
+            <li><span><b>Night Desk signs</b> “Night Desk is Elena Petrova” with its twelve words.</span></li>
+            <li><span><b>Elena's account signs</b> the same sentence.</span></li>
+            <li><span><b>The opener</b> for the sealed note inside Night Desk.</span></li>
+          </ol>
+          <div class="btns">
+            <button class="btn" id="btn-reveal" type="button">Make the proof</button>
+            <button class="btn" id="btn-check" type="button" disabled>Check it</button>
+            <button class="btn btn--ghost" id="btn-impostor" type="button" disabled>Marko claims Night Desk</button>
+          </div>
+          <ul class="checks" id="checks" hidden></ul>
+          <div class="verdict" id="reveal-verdict" hidden></div>
+          <p class="note">Today Elena's half is signed by her server on her behalf. With self-custody, coming next, only Elena's own key can sign it.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · In person -->
+    <section class="screen" data-step="In person" id="prove">
+      <div class="split">
+        <div class="stack">
+          <p class="label">06 · Prove it face to face</p>
+          <h2 class="statement">No file, no record. <em>Just proof, in the room.</em></h2>
+          <p class="lede">Sometimes Elena can't publish anything. She can still show one person that she holds Night Desk's twelve words.</p>
+          <p class="note big-note"><b>Why a word from the audience?</b> A signature made yesterday could have been copied. A word picked right now can only be signed by someone holding Night Desk's words right now.</p>
+        </div>
+        <div class="panel">
+          <label class="label" for="word">1 · Someone in the room picks any word</label>
           <input id="word" class="field field--big" autocomplete="off" placeholder="say a word…">
           <div class="btns">
-            <button class="btn" id="btn-prove" type="button">Night Desk signs it</button>
+            <button class="btn" id="btn-prove" type="button">2 · Night Desk's words sign it</button>
             <button class="btn btn--ghost" id="btn-stranger" type="button">A stranger tries</button>
           </div>
           <div class="verdict" id="verdict" hidden></div>
@@ -150,7 +183,8 @@
           <ul class="takeaways">
             <li>An anonymous name, created in seconds, that the server can't connect to Elena.</li>
             <li>A login with twelve words and nothing else.</li>
-            <li>A proof of authorship that only the real Night Desk can give.</li>
+            <li>A proof, made only when Elena chooses, that Night Desk is her.</li>
+            <li>A face-to-face proof that leaves nothing behind.</li>
           </ul>
           <p class="note">Next: Elena holds her own key too, so the server can't speak for her either. Open source, and built on OpenFederation.</p>
         </div>

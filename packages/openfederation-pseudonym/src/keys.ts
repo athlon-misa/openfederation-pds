@@ -21,8 +21,25 @@ export interface PseudonymKeys {
   commitmentSaltHex: string;
 }
 
+/**
+ * Words a generated phrase never contains. They sound like cryptocurrency,
+ * money or security jargon, which would mislead the people pseudonyms are for.
+ * Generation simply draws again, so every phrase is still a standard BIP-39
+ * phrase; the cost is well under one bit of strength.
+ */
+export const PHRASE_AVOID_WORDS: ReadonlySet<string> = new Set([
+  'satoshi', 'coin', 'token', 'exchange', 'trade', 'stock', 'cash', 'profit', 'fee', 'gas',
+  'bid', 'sell', 'market', 'price', 'loan', 'crash', 'bubble', 'moon', 'whale', 'gold',
+  'silver', 'rich', 'wealth', 'invest', 'credit', 'fork', 'asset', 'digital', 'address',
+  'private', 'public', 'key', 'seed', 'lottery', 'casino', 'bonus', 'reward', 'pool',
+  'swap', 'rocket', 'gain', 'vault', 'proof', 'code', 'secret', 'sign', 'bitter',
+]);
+
 export function generatePseudonymPhrase(): string {
-  return generateMnemonic(wordlist, 128);
+  for (;;) {
+    const phrase = generateMnemonic(wordlist, 128);
+    if (!phrase.split(' ').some((w) => PHRASE_AVOID_WORDS.has(w))) return phrase;
+  }
 }
 
 export function derivePseudonymKeys(phrase: string): PseudonymKeys {

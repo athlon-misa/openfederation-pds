@@ -10,7 +10,7 @@ Everything runs on the presenter's laptop, with no internet:
 | PDS | 8091 | Its own database, `openfederation_pds_demo`, rebuilt on every reset |
 | Stage app | 4747 | Bound to localhost |
 
-The browser plays Elena's laptop. It runs the real `@open-federation/pseudonym` code, so Night Desk's twelve words and key exist only in the page. The demo server (`run.ts`) seeds Elena's account, reads the PDS database for the "What the server knows" screen, and acts as the independent verifier for the in-person proof.
+The browser plays Elena's laptop. It runs the real `@open-federation/pseudonym` code, so Night Desk's twelve words and key exist only in the page. The demo server (`run.ts`) seeds Elena's account and Marko's (the impostor), reads the PDS database for the "What the server knows" screen, and acts as the independent verifier for the in-person proof.
 
 ## Run it
 
@@ -27,14 +27,17 @@ Logs from the PDS and PLC are in `demo/stage/.logs/`.
 ## The screens
 
 1. **Start**: Elena Petrova, investigative reporter.
-2. **Tokens**: her app collects this month's 20 blind creation tokens.
-3. **Create**: twelve words and a key are made in the browser; Night Desk is registered with PLC and opened on the PDS by spending one token, with no login.
-4. **Server**: the PDS's own `users` rows for both accounts, and a row-by-row search of every table for anything naming both. It finds nothing.
+2. **Passes**: her app collects this month's 20 creation passes (blind tokens in the code; the screen avoids crypto vocabulary).
+3. **Create**: twelve words and a key are made in the browser; Night Desk is registered with PLC and opened on the PDS with one pass, with no login.
+4. **Server**: the PDS's own `users` rows for both accounts, a row-by-row search of every table for anything naming both (it finds nothing), and short notes on what a handle, a DID and a public key are.
 5. **Publish**: Night Desk signs in with the twelve words alone and publishes an authorship claim (a fingerprint of the article).
-6. **Prove**: someone in the audience calls out a word. Night Desk's words sign it, and the verifier checks the signature against Night Desk's key in PLC: VALID. "A stranger tries" signs with new random words: INVALID.
-7. **Next**: what was shown, and what comes next.
+6. **Reveal**: Elena makes a reveal bundle and the verifier checks it online, as `ofc pseudonym verify --online` does: VALID, "Night Desk belongs to Elena Petrova". "Marko claims Night Desk" swaps Marko's account into Elena's proof: INVALID.
+7. **In person**: someone in the audience calls out a word. Night Desk's words sign it, and the verifier checks the signature against Night Desk's key in PLC: VALID. "A stranger tries" signs with new random words: INVALID.
+8. **Next**: what was shown, and what comes next.
 
-The audience's word becomes the 64-hex presence challenge as `sha256("OpenNewsrooms stage challenge\n" + word)`, computed separately by the page and the verifier.
+The "sealed note" on the Reveal screen is the commitment in Night Desk's genesis operation; "the opener" is the commitment salt. The audience's word on the In person screen becomes the 64-hex presence challenge as `sha256("OpenNewsrooms stage challenge\n" + word)`, computed separately by the page and the verifier.
+
+Generated twelve-word phrases never contain crypto-, money- or security-sounding words (`PHRASE_AVOID_WORDS` in the pseudonym package).
 
 ## Rehearsal checklist
 
@@ -46,4 +49,4 @@ The audience's word becomes the 64-hex presence challenge as `sha256("OpenNewsro
 
 ## What it does not show yet
 
-Elena's account is custodial, so her half of a *public* reveal would be signed by a key the PDS holds. The demo therefore centres on the in-person proof, which depends on Night Desk's twelve words alone. Showing self-custody waits for identity custody modes.
+Elena's account is custodial, so her half of the reveal is signed by a key the PDS holds, and the Reveal screen says so. The Night Desk half and the sealed note do not depend on the PDS. Showing self-custody waits for identity custody modes.

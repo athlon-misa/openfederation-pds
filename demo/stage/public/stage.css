@@ -194,3 +194,27 @@ main { position: relative; min-height: 0; }
 .bottom { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px var(--gutter); border-top: 1px solid var(--ink); font-size: 13px; }
 .reset { font-family: var(--mono); font-size: 13px; display: flex; gap: 12px; align-items: center; }
 .reset #reset-confirm { display: inline-flex; gap: 12px; align-items: center; }
+
+/* Plain-language notes under the server view */
+.explain { max-width: 1760px; width: 100%; margin: 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 32px; }
+.explain div { border-top: 1px solid var(--ink); padding-top: 12px; }
+.explain dt { font-family: var(--mono); font-size: 13px; color: var(--red); margin-bottom: 4px; }
+.explain dd { margin: 0; font-size: .9em; line-height: 1.4; }
+@media (max-width: 900px) { .explain { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
+.db-card dd .sub { display: block; color: var(--muted); font-size: .85em; }
+
+/* Reveal */
+.proof-parts { display: flex; flex-direction: column; counter-reset: p; }
+.proof-parts li { counter-increment: p; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-light); color: var(--muted); }
+.proof-parts li::before { content: counter(p); font-family: var(--mono); font-size: 12px; padding-top: 4px; }
+.proof-parts li b { font-weight: 500; }
+.proof-parts.ready li { color: var(--ink); }
+.checks { display: flex; flex-direction: column; }
+.checks li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule-light); align-items: baseline; }
+.checks li::before { font-family: var(--mono); }
+.checks li.ok::before { content: "✓"; color: var(--good); }
+.checks li.bad { color: var(--red); }
+.checks li.bad::before { content: "✗"; }
+.verdict strong.mid { font-size: clamp(30px, 3vw, 60px); line-height: 1; }
+.big-note { font-size: .95em; color: var(--ink); border-left: 3px solid var(--red); padding-left: 16px; max-width: 40ch; }
+.big-note b { font-weight: 600; }
