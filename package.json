@@ -24,6 +24,7 @@
     "dev": "node --import ./scripts/register-ts-node.mjs src/index.ts",
     "cli": "node dist/cli/ofc.js",
     "cli:dev": "node --import ./scripts/register-ts-node.mjs cli/ofc.ts",
+    "demo": "node --import ./scripts/register-ts-node.mjs demo/stage/run.ts",
     "db:init": "node --import ./scripts/register-ts-node.mjs scripts/init-db.ts",
     "db:check": "node --import ./scripts/register-ts-node.mjs scripts/check-db.ts",
     "db:seed-admin": "node --import ./scripts/register-ts-node.mjs scripts/seed-bootstrap-admin.ts",

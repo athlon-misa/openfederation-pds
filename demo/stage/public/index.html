@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Night Desk · Open Newsrooms</title>
+  <link rel="icon" href="/assets/favicon.png">
+  <link rel="stylesheet" href="/stage.css">
+</head>
+<body>
+  <header class="top">
+    <a class="logo" href="#title" aria-label="Back to the start">
+      <span class="logo-mark" aria-hidden="true">“</span>
+      <span class="logo-text">Open<br><em>Newsrooms</em></span>
+    </a>
+    <ol class="progress" id="progress" aria-label="Demo steps"></ol>
+    <div class="status" id="status"><span class="dot"></span><span id="status-text">Starting…</span></div>
+  </header>
+
+  <main id="screens">
+
+    <!-- 0 · Title -->
+    <section class="screen" data-step="Start" id="title">
+      <div class="title-grid">
+        <div class="stack">
+          <p class="label">Live demo</p>
+          <h1 class="display">Night&nbsp;Desk</h1>
+          <p class="lede">A journalist, an anonymous name, and a proof that it was her all along.</p>
+          <div class="person-card" id="elena-card">
+            <span class="avatar" aria-hidden="true">EP</span>
+            <div>
+              <p class="person-name">Elena Petrova</p>
+              <p class="mono muted" id="elena-handle">investigative reporter</p>
+            </div>
+          </div>
+        </div>
+        <figure class="art"><img src="/assets/illustrations/carry-your-work.webp" alt=""></figure>
+      </div>
+    </section>
+
+    <!-- 1 · Tokens -->
+    <section class="screen" data-step="Tokens" id="tokens">
+      <div class="split">
+        <div class="stack">
+          <p class="label">01 · Elena's app gets ready</p>
+          <h2 class="statement">Every month, her app quietly collects <em>20 tokens.</em></h2>
+          <p class="lede">Each token lets her create one anonymous name. The server signs them blindfolded, so it will never recognise them later. Every reporter's app collects them, whether or not they ever use one.</p>
+        </div>
+        <div class="panel">
+          <p class="panel-head"><span>Elena's laptop</span><span id="tokens-who" class="mono"></span></p>
+          <div class="token-grid" id="token-grid" aria-label="Creation tokens"></div>
+          <button class="btn" id="btn-collect" type="button">Collect this month's tokens</button>
+          <p class="note" id="tokens-note">Elena is signed in to her normal account, with her email and password.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · Create -->
+    <section class="screen" data-step="Create" id="create">
+      <div class="split">
+        <div class="stack">
+          <p class="label">02 · Become anonymous</p>
+          <h2 class="statement">Elena creates <em>Night Desk.</em></h2>
+          <p class="lede">No email. No password. No name. Her laptop makes a new key, and twelve words are the only way back in.</p>
+        </div>
+        <div class="panel">
+          <p class="panel-head"><span>Elena's laptop</span><span class="mono">signed out</span></p>
+          <ol class="checklist" id="create-steps">
+            <li data-k="keys">Make twelve words and Night Desk's key, on this laptop</li>
+            <li data-k="plc">Register Night Desk in the public directory</li>
+            <li data-k="account">Open the account, paying with one token</li>
+          </ol>
+          <button class="btn" id="btn-create" type="button">Create Night Desk</button>
+          <div id="phrase-box" hidden>
+            <p class="label">Night Desk's twelve words · write them down</p>
+            <ol class="phrase" id="phrase"></ol>
+            <p class="mono small muted" id="nd-did"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · Server view -->
+    <section class="screen" data-step="Server" id="server">
+      <div class="stack wide">
+        <div class="split split--head">
+          <p class="label">03 · Look inside the server</p>
+          <div class="stack">
+            <h2 class="statement">What does the server <em>know?</em></h2>
+            <p class="lede">Straight from the server's database, not a slide.</p>
+          </div>
+        </div>
+        <div class="db-grid" id="db-grid"></div>
+        <div class="db-verdict" id="db-verdict" hidden></div>
+        <button class="btn btn--ghost" id="btn-look" type="button">Look again</button>
+      </div>
+    </section>
+
+    <!-- 4 · Publish -->
+    <section class="screen" data-step="Publish" id="publish">
+      <div class="split">
+        <div class="stack">
+          <p class="label">04 · Log in and publish</p>
+          <h2 class="statement">Twelve words. <em>That's the whole login.</em></h2>
+          <p class="lede">Night Desk signs in with the words alone, then publishes. A fingerprint of the article is kept in Night Desk's account, so it can't quietly be changed later.</p>
+        </div>
+        <div class="panel">
+          <p class="panel-head"><span>Sign in</span><span class="mono" id="login-state">signed out</span></p>
+          <label class="label" for="login-words">Twelve words</label>
+          <textarea id="login-words" class="field field--mono" rows="3" spellcheck="false"></textarea>
+          <button class="btn" id="btn-login" type="button">Sign in as Night Desk</button>
+          <div id="editor" class="stack stack--tight" hidden>
+            <label class="label" for="article-title">Headline</label>
+            <input id="article-title" class="field" value="Port contract went to a company with no ships">
+            <label class="label" for="article-body">Story</label>
+            <textarea id="article-body" class="field" rows="4">Documents seen by Night Desk show the city's new port contract was awarded to a company registered three weeks before the tender closed. It owns no ships and has no employees.</textarea>
+            <button class="btn" id="btn-publish" type="button">Publish</button>
+          </div>
+          <article class="published" id="published" hidden></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · Prove -->
+    <section class="screen" data-step="Prove" id="prove">
+      <div class="split">
+        <div class="stack">
+          <p class="label">05 · Prove it was me</p>
+          <h2 class="statement">Months later, Elena needs to prove <em>she is Night Desk.</em></h2>
+          <p class="lede">Someone in the room picks a word. Night Desk's words sign it, here and now. A separate verifier checks the signature against Night Desk's key in the public directory.</p>
+        </div>
+        <div class="panel">
+          <label class="label" for="word">A word from the audience</label>
+          <input id="word" class="field field--big" autocomplete="off" placeholder="say a word…">
+          <div class="btns">
+            <button class="btn" id="btn-prove" type="button">Night Desk signs it</button>
+            <button class="btn btn--ghost" id="btn-stranger" type="button">A stranger tries</button>
+          </div>
+          <div class="verdict" id="verdict" hidden></div>
+          <p class="note" id="verdict-note"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · Close -->
+    <section class="screen" data-step="Next" id="next">
+      <div class="title-grid">
+        <div class="stack">
+          <p class="label">What you just saw</p>
+          <ul class="takeaways">
+            <li>An anonymous name, created in seconds, that the server can't connect to Elena.</li>
+            <li>A login with twelve words and nothing else.</li>
+            <li>A proof of authorship that only the real Night Desk can give.</li>
+          </ul>
+          <p class="note">Next: Elena holds her own key too, so the server can't speak for her either. Open source, and built on OpenFederation.</p>
+        </div>
+        <figure class="art"><img src="/assets/illustrations/network-globe.webp" alt=""></figure>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bottom">
+    <span class="mono muted">← → to move</span>
+    <div class="reset">
+      <button class="link" id="btn-reset" type="button">Reset demo</button>
+      <span id="reset-confirm" hidden>
+        Start over with a fresh server?
+        <button class="link link--red" id="btn-reset-yes" type="button">Yes, reset</button>
+        <button class="link" id="btn-reset-no" type="button">Cancel</button>
+      </span>
+    </div>
+  </footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

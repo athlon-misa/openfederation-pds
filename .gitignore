@@ -55,3 +55,8 @@ data/
 
 # Local git worktrees (superpowers:using-git-worktrees)
 .worktrees/
+
+# Stage demo build output and logs
+demo/stage/.logs/
+demo/stage/public/app.js
+demo/stage/public/app.js.map
