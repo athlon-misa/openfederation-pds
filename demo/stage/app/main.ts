@@ -7,8 +7,8 @@
 import {
   fetchTokenKeys, collectTokens, loginWithPhrase, signPresence, createRevealBundle,
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
-  buildMoveOp, signPlcOp,
-  type CreationToken, type RevealBundle,
+  buildMoveOp, signPlcOp, rememberPhraseWithPasskey, unlockPhraseWithPasskey,
+  type CreationToken, type RevealBundle, type RememberedPhrase,
 } from '../../../packages/openfederation-pseudonym/src/index.js';
 
 interface Config {
@@ -24,6 +24,8 @@ interface Saved {
   spent: number;
   nd?: { did: string; handle: string; phrase: string };
   ndJwt?: string;
+  /** Night Desk's words, encrypted on this laptop and unlocked with a passkey (#251). */
+  remembered?: RememberedPhrase;
   published?: { uri: string; title: string; hash: string };
   bundle?: RevealBundle;
   movedTo?: string;
@@ -149,7 +151,7 @@ function renderPhrase(): void {
   nd.phrase.split(' ').forEach((w) => { const li = document.createElement('li'); li.textContent = w; ol.appendChild(li); });
   $('nd-did').textContent = `${nd.handle} · ${nd.did}`;
   const words = $<HTMLTextAreaElement>('login-words');
-  if (!words.value) words.value = nd.phrase;
+  if (!words.value && !saved?.remembered) words.value = nd.phrase;
 }
 
 function renderPublish(): void {
@@ -157,6 +159,7 @@ function renderPublish(): void {
   $('login-state').textContent = signedIn ? `signed in as ${saved!.nd!.handle}` : 'signed out';
   $('editor').hidden = !signedIn || !!saved?.published;
   ($('btn-login') as HTMLButtonElement).disabled = signedIn || !saved?.nd;
+  renderDevice(signedIn);
   const p = saved?.published;
   $('published').hidden = !p;
   if (p) {
@@ -167,6 +170,19 @@ function renderPublish(): void {
     m.textContent = `Fingerprint ${p.hash.slice(0, 16)}… kept at ${p.uri}`;
     $('published').append(k, h, m);
   }
+}
+
+function renderDevice(signedIn: boolean): void {
+  const remembered = !!saved?.remembered;
+  $('device').hidden = !saved?.nd || (!signedIn && !remembered);
+  $('btn-remember').hidden = remembered || !signedIn;
+  $('btn-unlock').hidden = !remembered || signedIn;
+  $('btn-signout').hidden = !signedIn;
+  $('device-note').textContent = !remembered
+    ? 'Keep the words locked on this laptop, so tomorrow is a touch instead of twelve words.'
+    : signedIn
+      ? 'Remembered. The words are stored here encrypted; only Touch ID on this laptop opens them.'
+      : 'No words to type. Touch ID opens them on this laptop, then Night Desk signs in as before.';
 }
 
 function renderAll(): void {
@@ -320,6 +336,42 @@ $('btn-login').addEventListener('click', busy($('btn-login') as HTMLButtonElemen
   if (s.did !== saved?.nd?.did) throw new Error('Signed in to a different account');
   saved!.ndJwt = s.accessJwt;
   save();
+  renderPublish();
+}));
+
+function passkeyError(err: unknown): Error {
+  const msg = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+  if (/PasskeyPrfUnsupported/.test(msg)) return new Error('This browser can\u2019t lock keys with a passkey. Use Chrome or Safari 18.');
+  if (/NotAllowedError|PasskeyCancelled/.test(msg)) return new Error('Touch ID was cancelled. Try again.');
+  return err instanceof Error ? err : new Error(msg);
+}
+
+$('btn-remember').addEventListener('click', busy($('btn-remember') as HTMLButtonElement, async () => {
+  try {
+    saved!.remembered = await rememberPhraseWithPasskey({
+      phrase: saved!.nd!.phrase, rpName: 'Open Newsrooms stage demo', userName: 'Stage demo pseudonym',
+    });
+  } catch (err) { throw passkeyError(err); }
+  save();
+  setStatus('ready', 'Remembered on this laptop');
+  renderPublish();
+}));
+
+$('btn-signout').addEventListener('click', () => {
+  delete saved!.ndJwt;
+  save();
+  $<HTMLTextAreaElement>('login-words').value = '';
+  renderPublish();
+});
+
+$('btn-unlock').addEventListener('click', busy($('btn-unlock') as HTMLButtonElement, async () => {
+  let phrase: string;
+  try { phrase = await unlockPhraseWithPasskey(saved!.remembered!); } catch (err) { throw passkeyError(err); }
+  const s = await loginWithPhrase({ pdsUrl: cfg!.pdsUrl, phrase, expectedServiceDid: cfg!.serviceDid });
+  if (s.did !== saved?.nd?.did) throw new Error('Signed in to a different account');
+  saved!.ndJwt = s.accessJwt;
+  save();
+  setStatus('ready', 'Signed in with Touch ID');
   renderPublish();
 }));
 

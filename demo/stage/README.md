@@ -31,7 +31,7 @@ Logs from the PDS and PLC are in `demo/stage/.logs/`.
 2. **Passes**: her app collects this month's 20 creation passes (blind tokens in the code; the screen avoids crypto vocabulary).
 3. **Create**: twelve words and a key are made in the browser; Night Desk is registered with PLC and opened on the PDS with one pass, with no login.
 4. **Server**: the PDS's own `users` rows for both accounts, a row-by-row search of every table for anything naming both (it finds nothing), and short notes on what a handle, a DID and a public key are.
-5. **Publish**: Night Desk signs in with the twelve words alone and publishes an authorship claim (a fingerprint of the article).
+5. **Publish**: Night Desk signs in with the twelve words alone. "Remember on this laptop" creates a passkey and stores the words encrypted under its PRF output (`rememberPhraseWithPasskey`, #251). "Sign out", then "Unlock with Touch ID" signs in again without typing anything. Night Desk then publishes an authorship claim (a fingerprint of the article).
 6. **Files**: Night Desk's repository shown as folders and files, read live from the PDS (`describeRepo`, `listRecords`). Pick a file to open it. "Download a backup" saves the whole repository as one CAR file (`com.atproto.sync.getRepo`).
 7. **Move**: Night Desk moves to the second PDS. The page takes the backup, the new server loads it (`net.openfederation.admin.importRepo`, run as that server's admin), and Night Desk's twelve words sign a PLC update pointing the DID at the new server. The page then reads the files back from the new server.
 8. **Reveal**: Elena makes a reveal bundle and the verifier checks it online, as `ofc pseudonym verify --online` does: VALID, "Night Desk belongs to Elena Petrova". "Marko claims Night Desk" swaps Marko's account into Elena's proof: INVALID.
@@ -49,6 +49,8 @@ Generated twelve-word phrases never contain crypto-, money- or security-sounding
 - Press "Reset demo" once, then go back to the start screen.
 - Browser full screen; check the text is readable from the back of the room. Zoom with the browser if needed.
 - Have the fallback video ready in case anything fails.
+- Open the page as `http://localhost:4747`, not `127.0.0.1`: passkeys don't work on an IP address. Use Chrome or Safari 18; without passkey PRF support the button explains it and the twelve-word login still works.
+- Each rehearsal of "Remember on this laptop" adds a passkey named "Stage demo pseudonym" for `localhost` to the laptop's password manager. Reset doesn't remove them; delete old ones there (Chrome: Settings → Passwords → passkeys; macOS: Passwords app).
 
 ## What it does not show yet
 

@@ -111,14 +111,24 @@
       <div class="split">
         <div class="stack">
           <p class="label">04 · Log in and publish</p>
-          <h2 class="statement">Twelve words. <em>That's the whole login.</em></h2>
-          <p class="lede">Night Desk signs in with the words alone, then publishes. A fingerprint of the article is kept in Night Desk's account, so it can't quietly be changed later.</p>
+          <h2 class="statement">Twelve words once. <em>After that, a touch.</em></h2>
+          <p class="lede">Night Desk signs in with the words alone. The laptop can then keep them locked behind Touch ID, so the paper stays in the drawer. The server never sees the words or the fingerprint.</p>
+          <p class="lede">Then Night Desk publishes. A fingerprint of the article is kept in Night Desk's account, so it can't quietly be changed later.</p>
         </div>
         <div class="panel">
           <p class="panel-head"><span>Sign in</span><span class="mono" id="login-state">signed out</span></p>
           <label class="label" for="login-words">Twelve words</label>
           <textarea id="login-words" class="field field--mono" rows="3" spellcheck="false"></textarea>
           <button class="btn" id="btn-login" type="button">Sign in as Night Desk</button>
+          <div id="device" class="stack stack--tight" hidden>
+            <p class="label">This laptop</p>
+            <p class="note" id="device-note"></p>
+            <div class="btns">
+              <button class="btn" id="btn-remember" type="button">Remember on this laptop</button>
+              <button class="btn" id="btn-unlock" type="button" hidden>Unlock with Touch ID</button>
+              <button class="btn btn--ghost" id="btn-signout" type="button" hidden>Sign out</button>
+            </div>
+          </div>
           <div id="editor" class="stack stack--tight" hidden>
             <label class="label" for="article-title">Headline</label>
             <input id="article-title" class="field" value="Port contract went to a company with no ships">
