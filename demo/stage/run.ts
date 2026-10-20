@@ -76,7 +76,7 @@ function start(name: string, args: string[], env: NodeJS.ProcessEnv): ChildProce
 }
 
 function stop(child: ChildProcess | null): Promise<void> {
-  if (!child || child.exitCode !== null) return Promise.resolve();
+  if (!child || child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
   return new Promise((resolve) => {
     child.once('exit', () => resolve());
     child.kill('SIGTERM');
