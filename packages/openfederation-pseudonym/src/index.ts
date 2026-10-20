@@ -3,3 +3,4 @@ export { OWNER_KEY_PATH, PHRASE_AVOID_WORDS, generatePseudonymPhrase, derivePseu
 export * from './tokens.js';
 export * from './client.js';
 export * from './plc.js';
+export * from './device-unlock.js';
