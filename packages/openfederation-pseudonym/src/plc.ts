@@ -58,3 +58,46 @@ function base32Lower(bytes: Uint8Array): string {
 export function didForSignedOp(op: SignedPlcGenesisOp): string {
   return `did:plc:${base32Lower(sha256(dagCbor.encode(op))).slice(0, 24)}`;
 }
+
+/** Any did:plc operation after genesis. `prev` is the CID of the operation before it. */
+export interface PlcUpdateOp {
+  type: 'plc_operation';
+  prev: string;
+  rotationKeys: string[];
+  verificationMethods: Record<string, string>;
+  alsoKnownAs: string[];
+  services: { atproto_pds: { type: 'AtprotoPersonalDataServer'; endpoint: string } };
+}
+
+/** CIDv1 (dag-cbor, sha-256, base32) of a signed operation, as PLC uses for `prev`. */
+export function cidForPlcOp(signedOp: object): string {
+  const hash = sha256(dagCbor.encode(signedOp));
+  const bytes = new Uint8Array(4 + hash.length);
+  bytes.set([0x01, 0x71, 0x12, 0x20]);
+  bytes.set(hash, 4);
+  return `b${base32Lower(bytes)}`;
+}
+
+/**
+ * Move a pseudonym to another PDS: same rotation key, handle and commitment,
+ * with the new PDS's endpoint and repo signing key. The pseudonym's own key
+ * signs it, so no server has to agree.
+ */
+export function buildMoveOp(p: {
+  previous: SignedPlcGenesisOp | (PlcUpdateOp & { sig: string });
+  signingDidKey: string;
+  pdsEndpoint: string;
+}): PlcUpdateOp {
+  return {
+    type: 'plc_operation',
+    prev: cidForPlcOp(p.previous),
+    rotationKeys: [...p.previous.rotationKeys],
+    verificationMethods: { ...p.previous.verificationMethods, atproto: p.signingDidKey },
+    alsoKnownAs: [...p.previous.alsoKnownAs],
+    services: { atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: p.pdsEndpoint } },
+  };
+}
+
+export function signPlcOp(op: PlcUpdateOp, privateKey: Uint8Array): PlcUpdateOp & { sig: string } {
+  return { ...op, sig: signBytes(privateKey, dagCbor.encode(op)) };
+}
