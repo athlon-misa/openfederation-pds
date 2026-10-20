@@ -270,7 +270,18 @@ async function main(): Promise<void> {
     if (state !== 'ready' || !elena) return res.status(503).json({ state, error: lastError });
     try {
       const s = await session(ELENA.email, elena.password);
+      const client = new pg.Client({ ...db, database: DEMO_DB });
+      await client.connect();
+      let used: { passesCollected: boolean; pseudonymExists: boolean };
+      try {
+        const b = await client.query('SELECT count(*)::int AS n FROM pseudonym_token_batches');
+        const p = await client.query("SELECT count(*)::int AS n FROM users WHERE auth_type = 'pseudonym'");
+        used = { passesCollected: b.rows[0].n > 0, pseudonymExists: p.rows[0].n > 0 };
+      } finally {
+        await client.end();
+      }
       res.json({
+        used,
         pdsUrl: PDS_URL, plcUrl: PLC_URL, serviceDid: SERVICE_DID, handleSuffix: HANDLE_SUFFIX,
         elena: { did: s.did, handle: s.handle, name: ELENA.name, email: ELENA.email, accessJwt: s.accessJwt },
         impostor: { did: marko!.did, name: MARKO.name },

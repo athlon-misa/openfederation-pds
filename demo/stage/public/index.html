@@ -17,6 +17,11 @@
     <div class="status" id="status"><span class="dot"></span><span id="status-text">Starting…</span></div>
   </header>
 
+  <div class="stale" id="stale" role="alert" hidden>
+    <span>This demo server was already used in another browser window, so this window can't continue from here.</span>
+    <button class="btn" id="btn-stale-reset" type="button">Reset the demo</button>
+  </div>
+
   <main id="screens">
 
     <!-- 0 · Title -->
@@ -71,6 +76,7 @@
             <li data-k="account">Open the account, using one pass</li>
           </ol>
           <button class="btn" id="btn-create" type="button">Create Night Desk</button>
+          <p class="note" id="create-note"></p>
           <div id="phrase-box" hidden>
             <p class="label">Night Desk's twelve words · write them down</p>
             <ol class="phrase" id="phrase"></ol>

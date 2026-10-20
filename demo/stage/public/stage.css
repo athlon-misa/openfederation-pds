@@ -38,7 +38,7 @@ html, body { height: 100%; }
 body {
   margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif);
   font-size: clamp(17px, 1.25vw, 24px); line-height: 1.45;
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden;
 }
 h1, h2, p, ul, ol, figure { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
@@ -84,6 +84,12 @@ button, input, textarea { font: inherit; color: inherit; }
 .status.is-busy .dot { background: linear-gradient(135deg, var(--red) 50%, transparent 50%); border-color: var(--red); }
 .status.is-failed .dot { background: var(--red); border-color: var(--red); }
 .status.is-failed { color: var(--red); }
+
+/* Warning when the server was used from another window */
+.stale { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px var(--gutter); background: var(--red); color: var(--paper); font-size: .9em; }
+.stale .btn { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+.stale .btn:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
 /* Screens */
 main { position: relative; min-height: 0; }

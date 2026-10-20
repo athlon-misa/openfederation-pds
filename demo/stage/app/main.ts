@@ -14,6 +14,8 @@ interface Config {
   pdsUrl: string; plcUrl: string; serviceDid: string; handleSuffix: string;
   elena: { did: string; handle: string; name: string; email: string; accessJwt: string };
   impostor: { did: string; name: string };
+  /** What this server has already been used for, possibly from another browser window. */
+  used: { passesCollected: boolean; pseudonymExists: boolean };
 }
 interface Saved {
   elenaDid: string;
@@ -133,7 +135,10 @@ function renderTokens(): void {
 function renderPhrase(): void {
   const nd = saved?.nd;
   $('phrase-box').hidden = !nd;
-  ($('btn-create') as HTMLButtonElement).disabled = !!nd || !saved?.tokens.length;
+  const btn = $('btn-create') as HTMLButtonElement;
+  btn.disabled = !!nd || !saved?.tokens.length;
+  btn.textContent = nd ? 'Night Desk created' : 'Create Night Desk';
+  $('create-note').textContent = nd || saved?.tokens.length ? '' : 'Collect this month\u2019s passes first (the Passes step).';
   document.querySelectorAll<HTMLElement>('#create-steps li').forEach((li) => { li.className = nd ? 'done' : ''; });
   if (!nd) return;
   const ol = $('phrase');
@@ -171,13 +176,25 @@ function renderAll(): void {
 
 // ---------- Actions ----------
 
+/** Shown when this server's state doesn't match this window, e.g. it was used in another window. */
+function showStale(on: boolean): void {
+  $('stale').hidden = !on;
+}
+
 function busy<T extends unknown[]>(btn: HTMLButtonElement, fn: (...a: T) => Promise<void>) {
   return async (...a: T) => {
     if (btn.disabled) return;
+    if (!cfg) { setStatus('busy', 'The server is still starting. Try again in a moment.'); return; }
     btn.disabled = true;
     try { await fn(...a); } catch (err) {
       console.error(err);
-      setStatus('failed', err instanceof Error ? err.message.slice(0, 90) : 'Something went wrong');
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/AlreadyCollected|AlreadyExists|HandleNotAvailable|already (taken|exists|in use)|InvalidToken|TokenSpent/i.test(msg)) {
+        showStale(true);
+        setStatus('failed', 'This server was already used. Reset the demo.');
+      } else {
+        setStatus('failed', msg.slice(0, 90));
+      }
       btn.disabled = false;
     }
   };
@@ -422,8 +439,10 @@ $('btn-impostor').addEventListener('click', busy($('btn-impostor') as HTMLButton
 
 $('btn-reset').addEventListener('click', () => { $('reset-confirm').hidden = false; $('btn-reset').hidden = true; });
 $('btn-reset-no').addEventListener('click', () => { $('reset-confirm').hidden = true; $('btn-reset').hidden = false; });
+$('btn-stale-reset').addEventListener('click', () => { $('btn-reset-yes').click(); });
 $('btn-reset-yes').addEventListener('click', async () => {
   $('reset-confirm').hidden = true; $('btn-reset').hidden = false;
+  showStale(false);
   try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
   saved = null; cfg = null;
   $<HTMLTextAreaElement>('login-words').value = '';
@@ -451,6 +470,7 @@ async function boot(): Promise<void> {
   cfg = await api<Config>('/api/state');
   load();
   if (saved && saved.elenaDid !== cfg.elena.did) { saved = null; save(); }
+  showStale((cfg.used.passesCollected && !saved?.tokens.length) || (cfg.used.pseudonymExists && !saved?.nd));
   setStatus('ready', 'Local server ready · offline');
   renderAll();
   if (screens[current].id === 'server') void lookInside();
