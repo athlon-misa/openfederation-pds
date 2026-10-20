@@ -17,12 +17,11 @@
     <div class="status" id="status"><span class="dot"></span><span id="status-text">Starting…</span></div>
   </header>
 
-  <div class="stale" id="stale" role="alert" hidden>
-    <span>This demo server was already used in another browser window, so this window can't continue from here.</span>
-    <button class="btn" id="btn-stale-reset" type="button">Reset the demo</button>
-  </div>
-
   <main id="screens">
+    <div class="stale" id="stale" role="alert" hidden>
+      <span>This demo server was already used in another browser window, so this window can't continue from here.</span>
+      <button class="btn" id="btn-stale-reset" type="button">Reset the demo</button>
+    </div>
 
     <!-- 0 · Title -->
     <section class="screen" data-step="Start" id="title">
@@ -132,11 +131,63 @@
       </div>
     </section>
 
-    <!-- 5 · Reveal -->
+    <!-- 5 · Files -->
+    <section class="screen" data-step="Files" id="files">
+      <div class="split">
+        <div class="stack">
+          <p class="label">05 · Your account is a folder</p>
+          <h2 class="statement">Everything Night Desk publishes is <em>files in folders.</em></h2>
+          <p class="lede">This is Night Desk's repository, read live from the server. Each file is signed, so nobody can change one without it showing. The whole folder fits in a single backup file.</p>
+        </div>
+        <div class="panel">
+          <p class="panel-head"><span id="repo-where">On the server</span><span class="mono" id="repo-count"></span></p>
+          <div class="repo">
+            <ul class="tree" id="tree" aria-label="Night Desk's files"></ul>
+            <div class="file-view" id="file-view"><p class="note">Pick a file to open it.</p></div>
+          </div>
+          <div class="btns">
+            <button class="btn" id="btn-backup" type="button">Download a backup</button>
+          </div>
+          <p class="note" id="backup-note">One file holds every folder and file, each one signed. Keep it on a USB stick, or take it to another server.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · Move -->
+    <section class="screen" data-step="Move" id="move">
+      <div class="split">
+        <div class="stack">
+          <p class="label">06 · Move to a new server</p>
+          <h2 class="statement">Moving takes <em>one file and twelve words.</em></h2>
+          <p class="lede">Night Desk moves to a newsroom's own server. The backup carries the files; the twelve words tell the public directory where Night Desk lives now. Nobody has to give permission, not even the old server.</p>
+        </div>
+        <div class="panel">
+          <div class="route">
+            <div><p class="label">Old home</p><p class="mono" id="from-url"></p></div>
+            <span class="arrow" aria-hidden="true">→</span>
+            <div><p class="label">New home</p><p class="mono" id="to-url"></p></div>
+          </div>
+          <ol class="checklist" id="move-steps">
+            <li data-k="backup">Take the backup file</li>
+            <li data-k="load">Load it on the new server</li>
+            <li data-k="point">Night Desk's words update the public directory</li>
+            <li data-k="check">Readers now find Night Desk at the new server</li>
+          </ol>
+          <button class="btn" id="btn-move" type="button">Move Night Desk</button>
+          <div id="moved" class="stack stack--tight" hidden>
+            <p class="moved-line" id="moved-line"></p>
+            <ul class="tree tree--small" id="tree-b" aria-label="Night Desk's files on the new server"></ul>
+            <p class="note">Same name, same DID, same articles. The old server keeps a copy until it is asked to delete it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 · Reveal -->
     <section class="screen" data-step="Reveal" id="reveal">
       <div class="split">
         <div class="stack">
-          <p class="label">05 · Prove Night Desk is Elena</p>
+          <p class="label">07 · Prove Night Desk is Elena</p>
           <h2 class="statement">Months later, Elena says: <em>Night Desk is me.</em></h2>
           <p class="lede">When Night Desk was created, a sealed note naming Elena was locked inside its public entry. Nobody could read it. Now Elena hands over the opener, and anyone can check the proof: an editor, a court, the public.</p>
         </div>
@@ -159,11 +210,11 @@
       </div>
     </section>
 
-    <!-- 6 · In person -->
+    <!-- 8 · In person -->
     <section class="screen" data-step="In person" id="prove">
       <div class="split">
         <div class="stack">
-          <p class="label">06 · Prove it face to face</p>
+          <p class="label">08 · Prove it face to face</p>
           <h2 class="statement">No file, no record. <em>Just proof, in the room.</em></h2>
           <p class="lede">Sometimes Elena can't publish anything. She can still show one person that she holds Night Desk's twelve words.</p>
           <p class="note big-note"><b>Why a word from the audience?</b> A signature made yesterday could have been copied. A word picked right now can only be signed by someone holding Night Desk's words right now.</p>
@@ -189,6 +240,7 @@
           <ul class="takeaways">
             <li>An anonymous name, created in seconds, that the server can't connect to Elena.</li>
             <li>A login with twelve words and nothing else.</li>
+            <li>An account that is a folder of files: back it up, or move it to another server.</li>
             <li>A proof, made only when Elena chooses, that Night Desk is her.</li>
             <li>A face-to-face proof that leaves nothing behind.</li>
           </ul>

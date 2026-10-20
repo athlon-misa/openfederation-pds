@@ -7,11 +7,12 @@
 import {
   fetchTokenKeys, collectTokens, loginWithPhrase, signPresence, createRevealBundle,
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
+  buildMoveOp, signPlcOp,
   type CreationToken, type RevealBundle,
 } from '../../../packages/openfederation-pseudonym/src/index.js';
 
 interface Config {
-  pdsUrl: string; plcUrl: string; serviceDid: string; handleSuffix: string;
+  pdsUrl: string; pdsBUrl: string; plcUrl: string; serviceDid: string; handleSuffix: string;
   elena: { did: string; handle: string; name: string; email: string; accessJwt: string };
   impostor: { did: string; name: string };
   /** What this server has already been used for, possibly from another browser window. */
@@ -25,6 +26,7 @@ interface Saved {
   ndJwt?: string;
   published?: { uri: string; title: string; hash: string };
   bundle?: RevealBundle;
+  movedTo?: string;
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -94,6 +96,7 @@ function show(i: number): void {
   });
   history.replaceState(null, '', `#${screens[current].id}`);
   if (screens[current].id === 'server') void lookInside();
+  if (screens[current].id === 'files') void showRepo();
 }
 
 screens.forEach((s, j) => {
@@ -172,6 +175,7 @@ function renderAll(): void {
   renderPhrase();
   renderPublish();
   renderReveal();
+  renderMove();
 }
 
 // ---------- Actions ----------
@@ -368,6 +372,186 @@ $('btn-stranger').addEventListener('click', busy($('btn-stranger') as HTMLButton
 }));
 $('word').addEventListener('input', () => { $('verdict').hidden = true; $('verdict-note').textContent = ''; });
 
+// ---------- Files: the repository as folders ----------
+
+const FOLDER_NAMES: Record<string, [string, string]> = {
+  'app.bsky.actor.profile': ['profile', 'Night Desk\u2019s public profile: its name and description.'],
+  'net.openfederation.authorship.claim': ['articles', 'The fingerprint of a published article, with its headline and link. If the story is changed, the fingerprint stops matching.'],
+  'net.openfederation.pseudonym.link': ['reveals', 'A public statement linking Night Desk to its owner.'],
+};
+
+interface RepoFile { folder: string; collection: string; name: string; value: unknown }
+
+/**
+ * `folders` lets a server that holds the files, but no account for them yet,
+ * be read: the new home after a move only has the imported repository.
+ */
+async function readRepo(base: string, did: string, folders?: string[]): Promise<RepoFile[]> {
+  const get = async <T>(nsid: string, params: Record<string, string>): Promise<T> => {
+    const res = await fetch(`${base}/xrpc/${nsid}?${new URLSearchParams(params)}`);
+    if (!res.ok) throw new Error(`${nsid} failed (${res.status})`);
+    return res.json() as Promise<T>;
+  };
+  const collections = folders ?? (await get<{ collections: string[] }>('com.atproto.repo.describeRepo', { repo: did })).collections;
+  const files: RepoFile[] = [];
+  for (const collection of collections) {
+    const { records } = await get<{ records: { uri: string; value: unknown }[] }>('com.atproto.repo.listRecords', { repo: did, collection, limit: '50' });
+    for (const rec of records) {
+      files.push({ folder: FOLDER_NAMES[collection]?.[0] ?? collection.split('.').pop()!, collection, name: `${rec.uri.split('/').pop()}.json`, value: rec.value });
+    }
+  }
+  return files;
+}
+
+function renderTree(ul: HTMLElement, root: string, files: RepoFile[], onOpen?: (f: RepoFile, row: HTMLElement) => void): void {
+  ul.innerHTML = '';
+  const top = document.createElement('li'); top.className = 'folder';
+  const topRow = document.createElement('span'); topRow.className = 'row'; topRow.textContent = `${root}/`;
+  const inner = document.createElement('ul');
+  top.append(topRow, inner);
+  ul.appendChild(top);
+  const folders = [...new Set(files.map((f) => f.folder))];
+  for (const folder of folders) {
+    const li = document.createElement('li'); li.className = 'folder';
+    const row = document.createElement('span'); row.className = 'row'; row.textContent = `${folder}/`;
+    const sub = document.createElement('ul');
+    for (const f of files.filter((x) => x.folder === folder)) {
+      const fli = document.createElement('li'); fli.className = 'file';
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'row'; b.textContent = f.name;
+      if (onOpen) b.addEventListener('click', () => onOpen(f, b)); else b.disabled = true;
+      fli.appendChild(b); sub.appendChild(fli);
+    }
+    li.append(row, sub); inner.appendChild(li);
+  }
+}
+
+function openFile(f: RepoFile, row: HTMLElement): void {
+  document.querySelectorAll('#tree .row[aria-current]').forEach((x) => x.removeAttribute('aria-current'));
+  row.setAttribute('aria-current', 'true');
+  const v = $('file-view'); v.innerHTML = '';
+  const h = document.createElement('h4'); h.textContent = `${f.folder}/${f.name}`;
+  const what = document.createElement('p'); what.className = 'note what'; what.textContent = FOLDER_NAMES[f.collection]?.[1] ?? '';
+  const { $type: _t, ...rest } = f.value as Record<string, unknown>;
+  const pre = document.createElement('pre'); pre.textContent = JSON.stringify(rest, null, 2);
+  v.append(h, what, pre);
+}
+
+async function showRepo(): Promise<void> {
+  if (!cfg || !saved?.nd) {
+    $('tree').innerHTML = '';
+    $('repo-count').textContent = '';
+    $('file-view').innerHTML = '<p class="note">Create Night Desk first.</p>';
+    return;
+  }
+  const base = saved.movedTo ?? cfg.pdsUrl;
+  try {
+    const folders = saved.movedTo ? [...new Set((await readRepo(cfg.pdsUrl, saved.nd.did)).map((f) => f.collection))] : undefined;
+    const files = await readRepo(base, saved.nd.did, folders);
+    $('repo-where').textContent = `On ${saved.movedTo ? 'the new home' : 'the server'} · ${base.replace('http://', '')}`;
+    $('repo-count').textContent = `${files.length} files`;
+    renderTree($('tree'), 'night-desk', files, openFile);
+    const first = files.find((f) => f.folder === 'articles') ?? files[0];
+    const row = first && Array.from(document.querySelectorAll<HTMLElement>('#tree .file .row')).find((b) => b.textContent === first.name);
+    if (first && row) openFile(first, row);
+  } catch (err) {
+    setStatus('failed', err instanceof Error ? err.message.slice(0, 90) : 'Could not read the files');
+  }
+}
+
+let backup: Uint8Array | null = null;
+
+async function downloadBackup(): Promise<Uint8Array> {
+  const base = saved!.movedTo ?? cfg!.pdsUrl;
+  const res = await fetch(`${base}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(saved!.nd!.did)}`);
+  if (!res.ok) throw new Error(`Backup failed (${res.status})`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+$('btn-backup').addEventListener('click', busy($('btn-backup') as HTMLButtonElement, async () => {
+  if (!saved?.nd) throw new Error('Create Night Desk first');
+  backup = await downloadBackup();
+  const url = URL.createObjectURL(new Blob([backup as BlobPart], { type: 'application/vnd.ipld.car' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = 'night-desk-backup.car'; a.className = 'backup-link';
+  a.textContent = `night-desk-backup.car \u00b7 ${(backup.length / 1024).toFixed(1)} KB`;
+  a.click();
+  const note = $('backup-note'); note.innerHTML = '';
+  note.append('Saved ', a, '. Every folder and file is inside, each one signed.');
+  ($('btn-backup') as HTMLButtonElement).disabled = false;
+}));
+
+// ---------- Move: to a newsroom's own server ----------
+
+function renderMove(): void {
+  if (!cfg) return;
+  $('from-url').textContent = cfg.pdsUrl.replace('http://', '');
+  $('to-url').textContent = cfg.pdsBUrl.replace('http://', '');
+  const moved = !!saved?.movedTo;
+  ($('btn-move') as HTMLButtonElement).disabled = moved || !saved?.nd;
+  ($('btn-move') as HTMLButtonElement).textContent = moved ? 'Night Desk has moved' : 'Move Night Desk';
+  if (moved) document.querySelectorAll<HTMLElement>('#move-steps li').forEach((li) => { li.className = 'done'; });
+  $('moved').hidden = !moved;
+}
+
+$('btn-move').addEventListener('click', busy($('btn-move') as HTMLButtonElement, async () => {
+  const c = cfg!; const nd = saved!.nd!;
+  const step = (k: string, cls: string) => {
+    const li = document.querySelector<HTMLElement>(`#move-steps li[data-k="${k}"]`);
+    if (li) li.className = cls;
+  };
+  const pause = () => new Promise((res) => setTimeout(res, 450));
+  document.querySelectorAll<HTMLElement>('#move-steps li').forEach((li) => { li.className = ''; });
+
+  step('backup', 'busy'); await pause();
+  const car = backup ?? await downloadBackup();
+  step('backup', 'done');
+
+  step('load', 'busy'); await pause();
+  const imp = await fetch(`/api/server-b/import?did=${encodeURIComponent(nd.did)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/vnd.ipld.car' }, body: car as BlobPart,
+  });
+  if (!imp.ok) { step('load', 'fail'); throw new Error(`New server refused the backup (${imp.status})`); }
+  step('load', 'done');
+
+  step('point', 'busy'); await pause();
+  const logRes = await fetch(`${c.plcUrl}/${nd.did}/log`);
+  const log = await logRes.json() as Parameters<typeof buildMoveOp>[0]['previous'][];
+  const keyRes = await fetch(`${c.pdsBUrl}/xrpc/com.atproto.server.reserveSigningKey`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  });
+  if (!keyRes.ok) throw new Error(`New server did not give a key (${keyRes.status})`);
+  const { signingKey } = await keyRes.json() as { signingKey: string };
+  const op = signPlcOp(buildMoveOp({ previous: log[log.length - 1], signingDidKey: signingKey, pdsEndpoint: c.pdsBUrl }),
+    derivePseudonymKeys(nd.phrase).ownerPrivateKey);
+  const plc = await fetch(`${c.plcUrl}/${nd.did}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op) });
+  if (!plc.ok) { step('point', 'fail'); throw new Error(`Directory refused the move: ${await plc.text()}`); }
+  step('point', 'done');
+
+  step('check', 'busy'); await pause();
+  const doc = await (await fetch(`${c.plcUrl}/${nd.did}`)).json() as { service?: { serviceEndpoint: string }[] };
+  const endpoint = doc.service?.[0]?.serviceEndpoint ?? '';
+  if (endpoint !== c.pdsBUrl) { step('check', 'fail'); throw new Error('The directory still points to the old server'); }
+  const before = [...new Set((await readRepo(c.pdsUrl, nd.did)).map((f) => f.collection))];
+  const files = await readRepo(c.pdsBUrl, nd.did, before);
+  step('check', 'done');
+
+  saved!.movedTo = c.pdsBUrl;
+  save();
+  renderTree($('tree-b'), 'night-desk', files);
+  $('moved-line').textContent = `The public directory now says: Night Desk lives at ${endpoint.replace('http://', '')}. ${files.length} files arrived intact.`;
+  renderMove();
+}));
+
+async function restoreMoved(): Promise<void> {
+  if (!cfg || !saved?.movedTo || !saved.nd) return;
+  try {
+    const before = [...new Set((await readRepo(cfg.pdsUrl, saved.nd.did)).map((f) => f.collection))];
+    const files = await readRepo(saved.movedTo, saved.nd.did, before);
+    renderTree($('tree-b'), 'night-desk', files);
+    $('moved-line').textContent = `The public directory now says: Night Desk lives at ${saved.movedTo.replace('http://', '')}. ${files.length} files arrived intact.`;
+  } catch { /* shown again after the next move */ }
+}
+
 // ---------- Reveal: Night Desk is Elena ----------
 
 const CHECK_TEXT: [string[], string][] = [
@@ -474,6 +658,8 @@ async function boot(): Promise<void> {
   setStatus('ready', 'Local server ready · offline');
   renderAll();
   if (screens[current].id === 'server') void lookInside();
+  if (screens[current].id === 'files') void showRepo();
+  void restoreMoved();
 }
 
 function fromHash(): void {

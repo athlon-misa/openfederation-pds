@@ -5,6 +5,7 @@
  * stage app:
  *   - PLC directory, in memory (port 2683), so every reset starts empty
  *   - PDS on its own database, openfederation_pds_demo (port 8091)
+ *   - a second PDS, "the new home" Night Desk can move to (port 8092)
  *   - the stage app and its small helper API (port 4747)
  *
  * The helper API only seeds Elena's account, reads the PDS database for the
@@ -28,11 +29,14 @@ dotenv.config({ path: join(ROOT, '.env'), quiet: true });
 const PORTS = {
   plc: Number(process.env.DEMO_PLC_PORT || 2683),
   pds: Number(process.env.DEMO_PDS_PORT || 8091),
+  pdsB: Number(process.env.DEMO_PDS_B_PORT || 8092),
   app: Number(process.env.DEMO_APP_PORT || 4747),
 };
 const DEMO_DB = process.env.DEMO_DB_NAME || 'openfederation_pds_demo';
+const DEMO_DB_B = `${DEMO_DB}_b`;
 const PLC_URL = `http://localhost:${PORTS.plc}`;
 const PDS_URL = `http://localhost:${PORTS.pds}`;
+const PDS_B_URL = `http://localhost:${PORTS.pdsB}`;
 const SERVICE_DID = 'did:web:localhost';
 const HANDLE_SUFFIX = '.opennewsrooms.demo';
 const ELENA = { handle: `elena${HANDLE_SUFFIX}`, name: 'Elena Petrova', email: 'elena@newsroom.demo' };
@@ -52,7 +56,9 @@ mkdirSync(LOG_DIR, { recursive: true });
 
 let plc: ChildProcess | null = null;
 let pds: ChildProcess | null = null;
+let pdsB: ChildProcess | null = null;
 let admin = { handle: 'admin', email: 'admin@newsroom.demo', password: '' };
+let adminB = { ...admin };
 let elena: { did: string; password: string } | null = null;
 let marko: { did: string } | null = null;
 let pseudonymDids = new Set<string>();
@@ -90,16 +96,16 @@ async function waitFor(url: string, what: string, timeoutMs = 60000): Promise<vo
   throw new Error(`${what} did not start; see demo/stage/.logs/`);
 }
 
-async function freshDatabase(): Promise<void> {
+async function freshDatabase(name: string): Promise<void> {
   const server = new pg.Client({ ...db, database: 'postgres' });
   await server.connect();
   try {
-    await server.query(`DROP DATABASE IF EXISTS ${DEMO_DB} WITH (FORCE)`);
-    await server.query(`CREATE DATABASE ${DEMO_DB}`);
+    await server.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+    await server.query(`CREATE DATABASE ${name}`);
   } finally {
     await server.end();
   }
-  const client = new pg.Client({ ...db, database: DEMO_DB });
+  const client = new pg.Client({ ...db, database: name });
   await client.connect();
   try {
     await client.query('SET client_min_messages TO warning');
@@ -113,11 +119,11 @@ async function freshDatabase(): Promise<void> {
   }
 }
 
-async function xrpc<T = any>(nsid: string, body?: unknown, jwt?: string): Promise<T> {
+async function xrpc<T = any>(nsid: string, body?: unknown, jwt?: string, base = PDS_URL): Promise<T> {
   const headers: Record<string, string> = {};
   if (jwt) headers.Authorization = `Bearer ${jwt}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const res = await fetch(`${PDS_URL}/xrpc/${nsid}`, body === undefined
+  const res = await fetch(`${base}/xrpc/${nsid}`, body === undefined
     ? { headers }
     : { method: 'POST', headers, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
@@ -125,8 +131,28 @@ async function xrpc<T = any>(nsid: string, body?: unknown, jwt?: string): Promis
   return json as T;
 }
 
-async function session(identifier: string, password: string): Promise<{ accessJwt: string; did: string; handle: string }> {
-  return xrpc('com.atproto.server.createSession', { identifier, password });
+async function session(identifier: string, password: string, base = PDS_URL): Promise<{ accessJwt: string; did: string; handle: string }> {
+  return xrpc('com.atproto.server.createSession', { identifier, password }, undefined, base);
+}
+
+function startPds(name: string, port: number, database: string, serviceDid: string, who: typeof admin): ChildProcess {
+  return start(name, ['--import', './scripts/register-ts-node.mjs', 'src/index.ts'], {
+    ...process.env,
+    NODE_ENV: 'development',
+    PORT: String(port),
+    DB_NAME: database,
+    PDS_HOSTNAME: 'localhost',
+    PDS_SERVICE_URL: `http://localhost:${port}`,
+    PDS_SERVICE_DID: serviceDid,
+    PLC_DIRECTORY_URL: PLC_URL,
+    HANDLE_SUFFIX,
+    BOOTSTRAP_ADMIN_EMAIL: who.email,
+    BOOTSTRAP_ADMIN_HANDLE: who.handle,
+    BOOTSTRAP_ADMIN_PASSWORD: who.password,
+    GLOBAL_RATE_LIMIT: '100000',
+    CREATE_RATE_LIMIT: '10000',
+    PSEUDONYM_PROBATION_DAYS: '7',
+  });
 }
 
 async function seedAccount(adminJwt: string, handle: string, email: string): Promise<{ did: string; password: string }> {
@@ -156,29 +182,15 @@ async function bringUp(): Promise<void> {
   marko = null;
   pseudonymDids = new Set();
   try {
-    await Promise.all([stop(pds), stop(plc)]);
-    await freshDatabase();
+    await Promise.all([stop(pds), stop(pdsB), stop(plc)]);
+    await Promise.all([freshDatabase(DEMO_DB), freshDatabase(DEMO_DB_B)]);
     admin = { ...admin, password: strongPassword() };
+    adminB = { ...admin, password: strongPassword() };
     plc = start('plc', ['node_modules/@did-plc/server/dist/bin.js'], { ...process.env, PORT: String(PORTS.plc), DATABASE_URL: '' });
     await waitFor(`${PLC_URL}/_health`, 'PLC directory');
-    pds = start('pds', ['--import', './scripts/register-ts-node.mjs', 'src/index.ts'], {
-      ...process.env,
-      NODE_ENV: 'development',
-      PORT: String(PORTS.pds),
-      DB_NAME: DEMO_DB,
-      PDS_HOSTNAME: 'localhost',
-      PDS_SERVICE_URL: PDS_URL,
-      PDS_SERVICE_DID: SERVICE_DID,
-      PLC_DIRECTORY_URL: PLC_URL,
-      HANDLE_SUFFIX,
-      BOOTSTRAP_ADMIN_EMAIL: admin.email,
-      BOOTSTRAP_ADMIN_HANDLE: admin.handle,
-      BOOTSTRAP_ADMIN_PASSWORD: admin.password,
-      GLOBAL_RATE_LIMIT: '100000',
-      CREATE_RATE_LIMIT: '10000',
-      PSEUDONYM_PROBATION_DAYS: '7',
-    });
-    await waitFor(`${PDS_URL}/health`, 'PDS', 120000);
+    pds = startPds('pds', PORTS.pds, DEMO_DB, SERVICE_DID, admin);
+    pdsB = startPds('pds-b', PORTS.pdsB, DEMO_DB_B, `did:web:localhost%3A${PORTS.pdsB}`, adminB);
+    await Promise.all([waitFor(`${PDS_URL}/health`, 'PDS', 120000), waitFor(`${PDS_B_URL}/health`, 'Second PDS', 120000)]);
     await seedPeople();
     state = 'ready';
     lastError = '';
@@ -282,7 +294,7 @@ async function main(): Promise<void> {
       }
       res.json({
         used,
-        pdsUrl: PDS_URL, plcUrl: PLC_URL, serviceDid: SERVICE_DID, handleSuffix: HANDLE_SUFFIX,
+        pdsUrl: PDS_URL, pdsBUrl: PDS_B_URL, plcUrl: PLC_URL, serviceDid: SERVICE_DID, handleSuffix: HANDLE_SUFFIX,
         elena: { did: s.did, handle: s.handle, name: ELENA.name, email: ELENA.email, accessJwt: s.accessJwt },
         impostor: { did: marko!.did, name: MARKO.name },
       });
@@ -330,6 +342,25 @@ async function main(): Promise<void> {
     }
   });
 
+  // "The new home" accepts Night Desk's backup. Loading a repository is an
+  // operator step on that server, so the demo server does it as its admin.
+  app.post('/api/server-b/import', express.raw({ type: '*/*', limit: '20mb' }), async (req, res) => {
+    const did = typeof req.query.did === 'string' ? req.query.did : '';
+    if (!did.startsWith('did:plc:') || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'did and a CAR body are required' });
+    }
+    try {
+      const { accessJwt } = await session(adminB.handle, adminB.password, PDS_B_URL);
+      const r = await fetch(`${PDS_B_URL}/xrpc/net.openfederation.admin.importRepo?did=${encodeURIComponent(did)}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${accessJwt}`, 'Content-Type': 'application/vnd.ipld.car' }, body: new Uint8Array(req.body),
+      });
+      const json = await r.json().catch(() => ({}));
+      res.status(r.ok ? 200 : r.status).json(json);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.post('/api/reset', (_req, res) => {
     if (state === 'resetting' || state === 'starting') return res.json({ state });
     state = 'resetting';
@@ -344,7 +375,7 @@ async function main(): Promise<void> {
 }
 
 async function shutdown(): Promise<void> {
-  await Promise.all([stop(pds), stop(plc)]);
+  await Promise.all([stop(pds), stop(pdsB), stop(plc)]);
   process.exit(0);
 }
 process.on('SIGINT', () => { void shutdown(); });
