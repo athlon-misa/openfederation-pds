@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.importRepo",
-  "revision": 2,
+  "revision": 3,
   "description": "Import a CAR file to create or restore a repository on this PDS. Admin only.",
   "defs": {
     "main": {
@@ -45,6 +45,10 @@
         {
           "name": "InvalidCar",
           "description": "CAR data is malformed or cannot be parsed."
+        },
+        {
+          "name": "DidMismatch",
+          "description": "The CAR's commit belongs to a different DID."
         },
         {
           "name": "PayloadTooLarge",

@@ -4,6 +4,7 @@ import {
   getAdminToken, createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { api } from './helpers.js';
+import { query } from '../../src/db/client.js';
 
 describe('importRepo', () => {
   let plcAvailable: boolean;
@@ -88,5 +89,35 @@ describe('importRepo', () => {
       .send(Buffer.from('not valid car data'));
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('InvalidCar');
+  });
+
+  it('should reject a CAR whose commit belongs to another DID', async () => {
+    if (!plcAvailable) return;
+    const res = await api
+      .post('/xrpc/net.openfederation.admin.importRepo?did=did:plc:importtest2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Content-Type', 'application/vnd.ipld.car')
+      .send(exportedCar);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('DidMismatch');
+  });
+
+  it('should restore an exported repo so its records can be read again', async () => {
+    if (!plcAvailable) return;
+    // Simulate a fresh server for this DID: drop its repo, then import the backup.
+    await query('DELETE FROM records_index WHERE community_did = $1', [sourceDid]);
+    await query('DELETE FROM repo_blocks WHERE community_did = $1', [sourceDid]);
+    await query('DELETE FROM repo_roots WHERE did = $1', [sourceDid]);
+
+    const res = await api
+      .post(`/xrpc/net.openfederation.admin.importRepo?did=${sourceDid}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Content-Type', 'application/vnd.ipld.car')
+      .send(exportedCar);
+    expect(res.status).toBe(200);
+
+    const list = await api.get(`/xrpc/com.atproto.repo.listRecords?repo=${sourceDid}&collection=app.bsky.actor.profile`);
+    expect(list.status).toBe(200);
+    expect(list.body.records[0].value.displayName).toBe('Import Test User');
   });
 });

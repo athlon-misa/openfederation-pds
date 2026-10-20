@@ -367,7 +367,7 @@ export type NetOpenfederationAdminImportRepoOutput = {
   "blockCount": number;
   "recordCount": number;
 };
-export type NetOpenfederationAdminImportRepoError = "InvalidCar" | "InvalidRequest" | "PayloadTooLarge" | "RepoAlreadyExists";
+export type NetOpenfederationAdminImportRepoError = "DidMismatch" | "InvalidCar" | "InvalidRequest" | "PayloadTooLarge" | "RepoAlreadyExists";
 
 export type NetOpenfederationAdminListExportSchedulesInput = undefined;
 export type NetOpenfederationAdminListExportSchedulesOutput = {
@@ -2718,7 +2718,7 @@ export const lexiconContracts = {
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
   'net.openfederation.admin.createVerificationChallenge': { revision: 3, errors: ["EmailDeliveryFailed", "NoEmail", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },
-  'net.openfederation.admin.importRepo': { revision: 2, errors: ["InvalidCar", "InvalidRequest", "PayloadTooLarge", "RepoAlreadyExists"] as const },
+  'net.openfederation.admin.importRepo': { revision: 3, errors: ["DidMismatch", "InvalidCar", "InvalidRequest", "PayloadTooLarge", "RepoAlreadyExists"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },
   'net.openfederation.admin.listExportSnapshots': { revision: 1, errors: [] as const },
   'net.openfederation.admin.verifyChallenge': { revision: 1, errors: ["InvalidNonce", "NotFound"] as const },
