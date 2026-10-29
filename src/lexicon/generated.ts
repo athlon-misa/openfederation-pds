@@ -38,6 +38,10 @@ export type ComAtprotoRepoGetRecordInput = JsonObject;
 export type ComAtprotoRepoGetRecordOutput = unknown;
 export type ComAtprotoRepoGetRecordError = "RecordNotFound";
 
+export type ComAtprotoRepoImportRepoInput = undefined;
+export type ComAtprotoRepoImportRepoOutput = undefined;
+export type ComAtprotoRepoImportRepoError = "DidMismatch" | "InvalidCar" | "InvalidRepo" | "InvalidSignature" | "PayloadTooLarge" | "UnresolvableDid";
+
 export type ComAtprotoRepoListRecordsInput = JsonObject;
 export type ComAtprotoRepoListRecordsOutput = unknown;
 export type ComAtprotoRepoListRecordsError = "RepoNotFound";
@@ -401,7 +405,7 @@ export type NetOpenfederationAdminImportRepoOutput = {
   "blockCount": number;
   "recordCount": number;
 };
-export type NetOpenfederationAdminImportRepoError = "DidMismatch" | "InvalidCar" | "InvalidRequest" | "PayloadTooLarge" | "RepoAlreadyExists";
+export type NetOpenfederationAdminImportRepoError = "DidMismatch" | "InvalidCar" | "InvalidRepo" | "InvalidRequest" | "InvalidSignature" | "PayloadTooLarge" | "RepoAlreadyExists" | "UnresolvableDid";
 
 export type NetOpenfederationAdminListExportSchedulesInput = undefined;
 export type NetOpenfederationAdminListExportSchedulesOutput = {
@@ -2149,6 +2153,7 @@ export interface LexiconInputMap {
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordInput;
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoInput;
   'com.atproto.repo.getRecord': ComAtprotoRepoGetRecordInput;
+  'com.atproto.repo.importRepo': ComAtprotoRepoImportRepoInput;
   'com.atproto.repo.listRecords': ComAtprotoRepoListRecordsInput;
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordInput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobInput;
@@ -2339,6 +2344,7 @@ export interface LexiconOutputMap {
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordOutput;
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoOutput;
   'com.atproto.repo.getRecord': ComAtprotoRepoGetRecordOutput;
+  'com.atproto.repo.importRepo': ComAtprotoRepoImportRepoOutput;
   'com.atproto.repo.listRecords': ComAtprotoRepoListRecordsOutput;
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordOutput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobOutput;
@@ -2529,6 +2535,7 @@ export interface LexiconErrorMap {
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordError;
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoError;
   'com.atproto.repo.getRecord': ComAtprotoRepoGetRecordError;
+  'com.atproto.repo.importRepo': ComAtprotoRepoImportRepoError;
   'com.atproto.repo.listRecords': ComAtprotoRepoListRecordsError;
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordError;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobError;
@@ -2721,6 +2728,7 @@ export const lexiconContracts = {
   'com.atproto.repo.deleteRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.getRecord': { revision: 1, errors: ["RecordNotFound"] as const },
+  'com.atproto.repo.importRepo': { revision: 1, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidSignature", "PayloadTooLarge", "UnresolvableDid"] as const },
   'com.atproto.repo.listRecords': { revision: 2, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.putRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 2, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest", "ProbationLimit"] as const },
@@ -2761,7 +2769,7 @@ export const lexiconContracts = {
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
   'net.openfederation.admin.createVerificationChallenge': { revision: 3, errors: ["EmailDeliveryFailed", "NoEmail", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },
-  'net.openfederation.admin.importRepo': { revision: 3, errors: ["DidMismatch", "InvalidCar", "InvalidRequest", "PayloadTooLarge", "RepoAlreadyExists"] as const },
+  'net.openfederation.admin.importRepo': { revision: 4, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidRequest", "InvalidSignature", "PayloadTooLarge", "RepoAlreadyExists", "UnresolvableDid"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },
   'net.openfederation.admin.listExportSnapshots': { revision: 1, errors: [] as const },
   'net.openfederation.admin.verifyChallenge': { revision: 1, errors: ["InvalidNonce", "NotFound"] as const },

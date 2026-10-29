@@ -14,9 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Env vars `PSEUDONYM_TOKENS_PER_EPOCH` (20), `PSEUDONYM_PROBATION_DAYS` (7, `0` disables), `PSEUDONYM_PROBATION_DAILY_WRITES` (20).
 - Migration `scripts/migrate-041-pseudonyms.sql`.
 - **Account migration, first step** (#261): `com.atproto.server.createAccount` imports an existing DID as a deactivated account, with proof of control by a JWT signed by one of the DID's PLC rotation keys (so far pseudonyms only); `com.atproto.server.checkAccountStatus` reports import progress. `reserveSigningKey` binds a reservation to `did` when given. `@open-federation/pseudonym` adds `openAccountForMove` and `signOwnerJwt`. Migration `scripts/migrate-042-account-migration.sql` (`users.migrating_in`, `reserved_signing_keys.did`). E2E tests can start a second PDS (`tests/e2e/second-pds.ts`).
+- **Account migration, repository import** (#262): `com.atproto.repo.importRepo` lets an account that is moving here load its own repository. The CAR is fully verified first (DID, commit signature against the DID's current atproto key, complete record tree) and stored in one transaction with batched inserts, replacing the placeholder repo.
 
 ### Fixed
 
+- `net.openfederation.admin.importRepo` (revision 4) now verifies the backup before storing it (new errors `UnresolvableDid`, `InvalidSignature`, `InvalidRepo`), writes it in one transaction instead of leaving a half-imported repo on failure, keeps only the blocks of the verified repo, and stores records in AT Protocol JSON form (blob references as `{ $type: 'blob', ref: { $link } }`) (#262).
 - `net.openfederation.community.transfer` no longer returns 500 on success: the package carried an undeclared `$type` field, which output validation refused. The web dashboard now asks for the password (#260).
 
 ### Changed

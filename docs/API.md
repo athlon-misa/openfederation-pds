@@ -164,7 +164,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `net.openfederation.server.getConfig` | Admin | Get server config and stats |
 | POST | `net.openfederation.admin.createVerificationChallenge` | Admin | Send identity verification nonce to user |
 | POST | `net.openfederation.admin.verifyChallenge` | Admin | Verify nonce response from user |
-| POST | `net.openfederation.admin.importRepo` | Admin | Registered admin endpoint intended for bounded CAR import; currently nonfunctional pending schema-aligned block storage and real CAR/MST record indexing |
+| POST | `net.openfederation.admin.importRepo` | Admin | Restore a repository from a CAR backup (`?did=`, body `application/vnd.ipld.car`, at most 100 MB) for a DID with no repo here. Verified like `com.atproto.repo.importRepo` (DID, signature against the DID's current atproto key, complete record tree) and stored in one transaction. Output `{ did, rootCid, blockCount, recordCount }`. Errors: `InvalidRequest`, `RepoAlreadyExists` (409), `InvalidCar`, `DidMismatch`, `UnresolvableDid`, `InvalidSignature`, `InvalidRepo`, `PayloadTooLarge` (413) |
 
 ## OpenFederation Contact Graph
 
@@ -237,9 +237,10 @@ Environment variables:
 
 ## Account migration
 
-Moving an account to this PDS from another one, following AT Protocol account migration: open the account here (deactivated), import the repository, copy blobs, point the DID at this PDS, then activate. Built in slices (#250): so far only pseudonyms can arrive, and only the first step exists.
+Moving an account to this PDS from another one, following AT Protocol account migration: open the account here (deactivated), import the repository, copy blobs, point the DID at this PDS, then activate. Built in slices (#250): so far only pseudonyms can arrive; opening the account and importing the repository exist.
 
 | Method | NSID | Auth | Rate limit | Description |
 |:---|:---|:---|:---|:---|
 | POST | `com.atproto.server.createAccount` | Proof JWT (see description) | create | Imports an existing DID; new accounts use `net.openfederation.account.register`. Input `{ did, handle }`: `handle` must end with this PDS's handle suffix. Proof of control: a Bearer JWT shaped like service auth (`iss` = `did`, `aud` = this PDS's service DID, `lxm` = `com.atproto.server.createAccount`, short `exp`, single use) signed by one of the DID's current PLC rotation keys; for a pseudonym that is the owner key, so the old PDS does not have to help. Opens the account **deactivated** with an empty repo signed by the key reserved for the DID (or a fresh one) and returns `{ did, handle, accessJwt, refreshJwt }`. Only pseudonyms are accepted so far. No audit for pseudonyms. Errors: `InvalidRequest` (no `did`), `UnresolvableDid`, `UnsupportedDomain`, `InvalidHandle`, `HandleNotAvailable`, `IncompatibleDidDoc` (not a pseudonym, or service auth from the old PDS), `AuthRequired`/`InvalidToken` (401), `AlreadyExists` (409). |
 | GET | `com.atproto.server.checkAccountStatus` | Yes (own account, also while deactivated) | — | Output `{ activated, validDid, repoCommit, repoRev, repoBlocks, indexedRecords, privateStateValues, expectedBlobs, importedBlobs }`. `validDid` is true once the DID's PLC state names this PDS as `atproto_pds` and this PDS's key as `atproto`. Blob counts are 0 until blob transfer lands (#264). |
+| POST | `com.atproto.repo.importRepo` | Yes (the account itself, deactivated and moving here) | create | Body: the CAR exported by the old PDS (`application/vnd.ipld.car`, at most 100 MB). Fully verified before anything is stored: the commit names this account's DID, is signed by the DID's **current** atproto key (the old PDS's key until the DID is pointed here, which is why import comes before the PLC update), and the record tree is complete. Replaces the account's repository in one transaction, so it can be repeated. Errors: `InvalidCar`, `DidMismatch`, `UnresolvableDid`, `InvalidSignature`, `InvalidRepo`, `PayloadTooLarge` (413), `Forbidden` (not an account moving here, or service auth). |

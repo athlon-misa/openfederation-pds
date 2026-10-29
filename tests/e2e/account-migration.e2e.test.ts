@@ -64,5 +64,29 @@ describe('account migration', () => {
     expect(described.status).toBe(200);
     const session = await loginWithPhrase({ pdsUrl: pdsA, phrase: pseudonym.phrase, expectedServiceDid: config.pds.serviceDid });
     expect(session.did).toBe(pseudonym.did);
+
+    // #262: export from A, import into B. A's key still signs the DID, so B verifies it.
+    const posted = await fetch(`${pdsA}/xrpc/com.atproto.repo.createRecord`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.accessJwt}` },
+      body: JSON.stringify({
+        repo: pseudonym.did, collection: 'net.openfederation.authorship.claim',
+        record: { $type: 'net.openfederation.authorship.claim', contentHash: 'cd'.repeat(32), url: 'https://news.example/moving', createdAt: new Date().toISOString() },
+      }),
+    });
+    expect(posted.status).toBe(200);
+    const car = new Uint8Array(await (await fetch(`${pdsA}/xrpc/com.atproto.sync.getRepo?did=${pseudonym.did}`)).arrayBuffer());
+    const imported = await fetch(`${pdsB!.url}/xrpc/com.atproto.repo.importRepo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.ipld.car', Authorization: `Bearer ${opened.accessJwt}` },
+      body: car,
+    });
+    expect(imported.status).toBe(200);
+
+    const after = await get(pdsB!.url, 'com.atproto.server.checkAccountStatus', opened.accessJwt);
+    expect(after.body).toMatchObject({ activated: false, validDid: false });
+    expect(after.body.indexedRecords).toBeGreaterThanOrEqual(2); // profile + claim
+    const onB = await fetch(`${pdsB!.url}/xrpc/com.atproto.repo.listRecords?repo=${pseudonym.did}&collection=net.openfederation.authorship.claim`);
+    expect((await onB.json()).records.map((r: { value: { url: string } }) => r.value.url)).toContain('https://news.example/moving');
   });
 });

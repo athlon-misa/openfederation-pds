@@ -3,6 +3,7 @@
  * another PDS. The DID's current PLC state is the last operation in its log.
  */
 import { getPlcLog } from './plc-client.js';
+import { getDidResolver } from './did-resolver.js';
 import { commitmentsIn } from '../../packages/openfederation-pseudonym/src/formats.js';
 
 export interface PlcState {
@@ -41,4 +42,13 @@ export function pseudonymOwnerKeyOf(state: PlcState): string | null {
 /** True when the DID already names this PDS and the given key as its repo signing key. */
 export function pointsHere(state: PlcState, serviceUrl: string, signingKey: string): boolean {
   return state.services.atproto_pds?.endpoint === serviceUrl && state.verificationMethods.atproto === signingKey;
+}
+
+/**
+ * The DID's current atproto signing key. For did:plc it is read from the PLC
+ * log, uncached, so it reflects a move made seconds ago.
+ */
+export async function atprotoKeyFor(did: string): Promise<string | null> {
+  if (did.startsWith('did:plc:')) return (await currentPlcState(did))?.verificationMethods.atproto ?? null;
+  return getDidResolver().resolveAtprotoKey(did);
 }

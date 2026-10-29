@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.importRepo",
-  "revision": 3,
+  "revision": 4,
   "description": "Import a CAR file to create or restore a repository on this PDS. Admin only.",
   "defs": {
     "main": {
@@ -53,6 +53,18 @@
         {
           "name": "PayloadTooLarge",
           "description": "Request payload exceeds the accepted size limit."
+        },
+        {
+          "name": "UnresolvableDid",
+          "description": "The DID's atproto signing key could not be resolved."
+        },
+        {
+          "name": "InvalidSignature",
+          "description": "The commit is not signed by the DID's current atproto key."
+        },
+        {
+          "name": "InvalidRepo",
+          "description": "The repository is incomplete or malformed (missing blocks, broken record tree)."
         }
       ]
     }

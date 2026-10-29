@@ -10,43 +10,10 @@ import { config } from '../../src/config.js';
 import { query } from '../../src/db/client.js';
 import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
 import { registerDidPlc } from '../../src/identity/plc-client.js';
-import {
-  generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
-  signOwnerJwt,
-} from '../../packages/openfederation-pseudonym/src/index.js';
+import { generatePseudonymPhrase, signOwnerJwt } from '../../packages/openfederation-pseudonym/src/index.js';
+import { CREATE_ACCOUNT, OLD_PDS, pseudonymElsewhere, newHandle, proofFor, createAccount } from './migration-helpers.js';
 
-const NSID = 'com.atproto.server.createAccount';
-const OLD_PDS = 'https://old-pds.example.test';
-
-/** A pseudonym registered in PLC, hosted (on paper) by another PDS. */
-async function pseudonymElsewhere(): Promise<{ did: string; phrase: string }> {
-  const phrase = generatePseudonymPhrase();
-  const keys = derivePseudonymKeys(phrase);
-  const signing = await Secp256k1Keypair.create();
-  const signed = signGenesisOp(buildPseudonymGenesisOp({
-    ownerDidKey: keys.ownerDidKey, signingDidKey: signing.did(), handle: `${uniqueHandle('old')}.old-pds.example.test`,
-    pdsEndpoint: OLD_PDS, ownerDid: 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa', commitmentSaltHex: keys.commitmentSaltHex,
-  }), keys.ownerPrivateKey);
-  const did = didForSignedOp(signed);
-  const res = await fetch(`${config.plc.directoryUrl}/${did}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signed),
-  });
-  if (!res.ok) throw new Error(`PLC rejected genesis: ${res.status} ${await res.text()}`);
-  return { did, phrase };
-}
-
-function newHandle(): string {
-  return `${uniqueHandle('mv')}${config.handleSuffix}`;
-}
-
-function createAccount(body: Record<string, unknown>, jwt?: string) {
-  const req = api.post(`/xrpc/${NSID}`).send(body).set('Content-Type', 'application/json');
-  return jwt ? req.set('Authorization', `Bearer ${jwt}`) : req;
-}
-
-function proofFor(p: { phrase: string; did: string; aud?: string; lxm?: string }): string {
-  return signOwnerJwt({ phrase: p.phrase, did: p.did, aud: p.aud ?? config.pds.serviceDid, lxm: p.lxm ?? NSID });
-}
+const NSID = CREATE_ACCOUNT;
 
 describe('com.atproto.server.createAccount (account migration)', () => {
   let plc = false;

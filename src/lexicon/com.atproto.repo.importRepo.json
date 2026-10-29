@@ -1,0 +1,41 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.repo.importRepo",
+  "revision": 1,
+  "description": "AT Protocol importRepo: an account moving to this PDS loads its own repository.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Import a repo in the form of a CAR file. On this PDS only an account that is moving here and not yet activated may call it; the CAR must be signed by the DID's current atproto key and is fully verified before anything is stored. Replaces the account's repository.",
+      "input": {
+        "encoding": "application/vnd.ipld.car"
+      },
+      "errors": [
+        {
+          "name": "InvalidCar",
+          "description": "CAR data is malformed or its root is not a repository commit."
+        },
+        {
+          "name": "DidMismatch",
+          "description": "The CAR's commit belongs to a different DID."
+        },
+        {
+          "name": "UnresolvableDid",
+          "description": "The DID's atproto signing key could not be resolved."
+        },
+        {
+          "name": "InvalidSignature",
+          "description": "The commit is not signed by the DID's current atproto key."
+        },
+        {
+          "name": "InvalidRepo",
+          "description": "The repository is incomplete or malformed (missing blocks, broken record tree)."
+        },
+        {
+          "name": "PayloadTooLarge",
+          "description": "Request payload exceeds the accepted size limit."
+        }
+      ]
+    }
+  }
+}
