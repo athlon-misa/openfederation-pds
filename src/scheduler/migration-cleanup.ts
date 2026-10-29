@@ -18,6 +18,25 @@ import { currentPlcState } from '../identity/account-migration.js';
 import { deleteAccountData } from '../identity/delete-account.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 
+/** Communities whose DID now names another PDS are marked moved (#267); nothing is deleted. */
+export async function sweepMovedCommunities(): Promise<number> {
+  let marked = 0;
+  const rows = (await query<{ did: string }>(`SELECT did FROM communities WHERE status = 'active' AND did_method = 'plc'`)).rows;
+  for (const { did } of rows) {
+    let state;
+    try {
+      state = await currentPlcState(did);
+    } catch {
+      return marked;
+    }
+    const endpoint = state?.services.atproto_pds?.endpoint;
+    if (!state || !endpoint || endpoint === config.pds.serviceUrl) continue;
+    await query(`UPDATE communities SET status = 'moved', status_changed_at = CURRENT_TIMESTAMP, status_reason = $2 WHERE did = $1 AND status = 'active'`, [did, `moved to ${endpoint}`]);
+    marked++;
+  }
+  return marked;
+}
+
 export async function sweepUnfinishedMigrations(): Promise<{ flagged: number; deleted: number }> {
   const result = { flagged: 0, deleted: 0 };
   const rows = (await query<{ id: string; did: string; seen_elsewhere: boolean }>(
@@ -54,6 +73,8 @@ export function startMigrationCleanup(): void {
   timer = setInterval(() => {
     sweepUnfinishedMigrations()
       .then((r) => { if (r.deleted) console.log(`[migration] removed ${r.deleted} unfinished incoming account(s)`); })
+      .then(() => sweepMovedCommunities())
+      .then((n) => { if (n) console.log(`[migration] marked ${n} community(ies) as moved`); })
       .catch((err) => console.error('[migration] clean-up sweep failed:', err instanceof Error ? err.message : err));
   }, days * 24 * 60 * 60 * 1000);
   timer.unref();

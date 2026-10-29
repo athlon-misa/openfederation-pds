@@ -58,6 +58,7 @@ See `.env.example` for the full list. Critical ones:
 | `PSEUDONYM_PROBATION_DAILY_WRITES` | No | Default 20; daily writes while on probation (in-memory counters) |
 | `MIGRATION_ACCOUNTS` | No | `open` / `invite` (default) / `closed`: whether user accounts may move here from another PDS |
 | `MIGRATION_PSEUDONYMS` | No | `open` (default) / `token` / `closed`: whether pseudonyms may move here; never invite codes |
+| `MIGRATION_COMMUNITIES` | No | `open` / `invite` (default) / `closed`: whether communities may move here |
 | `MIGRATION_CLEANUP_DAYS` | No | Default 7; days between sweeps removing incoming copies that never activated and whose DID points elsewhere (two sweeps in a row); `0` disables |
 | `EMAIL_VERIFICATION_POLICY` | No | `off` / `advisory` (default) / `require-for-write` / `require-for-login` — what an unverified email blocks |
 

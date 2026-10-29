@@ -11,7 +11,6 @@ import {
   useJoinCommunityMutation,
   useLeaveCommunityMutation,
   useExportCommunityMutation,
-  useTransferCommunityMutation,
   useResolveJoinRequestMutation,
   useUpdateCommunityMutation,
   useRemoveMemberMutation,
@@ -40,8 +39,6 @@ export default function CommunityDetailPage() {
 
   const [membersPage, setMembersPage] = useState(0);
   const [requestsPage, setRequestsPage] = useState(0);
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [transferPassword, setTransferPassword] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ did: string; handle: string } | null>(null);
 
@@ -52,7 +49,6 @@ export default function CommunityDetailPage() {
   const joinMutation = useJoinCommunityMutation();
   const leaveMutation = useLeaveCommunityMutation();
   const exportMutation = useExportCommunityMutation();
-  const transferMutation = useTransferCommunityMutation();
   const resolveRequestMutation = useResolveJoinRequestMutation();
   const removeMemberMutation = useRemoveMemberMutation();
   const deleteCommunityMutation = useDeleteCommunityMutation();
@@ -160,24 +156,6 @@ export default function CommunityDetailPage() {
     });
   };
 
-  const handleTransfer = () => {
-    transferMutation.mutate({ did, password: transferPassword }, {
-      onSuccess: (data) => {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `community-transfer-${community?.handle || did}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('Transfer package downloaded');
-        setTransferPassword('');
-        setTransferOpen(false);
-      },
-      onError: (e) => toast.error(e.message),
-    });
-  };
-
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -219,7 +197,7 @@ export default function CommunityDetailPage() {
     );
   };
 
-  const actionLoading = joinMutation.isPending || leaveMutation.isPending || exportMutation.isPending || transferMutation.isPending || deleteCommunityMutation.isPending;
+  const actionLoading = joinMutation.isPending || leaveMutation.isPending || exportMutation.isPending || deleteCommunityMutation.isPending;
 
   return (
     <div>
@@ -262,11 +240,6 @@ export default function CommunityDetailPage() {
           {community.isOwner && (
             <Button variant="outline" size="sm" onClick={handleExport} disabled={actionLoading}>
               Export
-            </Button>
-          )}
-          {community.isOwner && !isTakenDown && (
-            <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)} disabled={actionLoading}>
-              Transfer
             </Button>
           )}
           {(community.isOwner || isAdmin) && (
@@ -328,31 +301,6 @@ export default function CommunityDetailPage() {
           </TabsContent>
         )}
       </Tabs>
-
-      <ConfirmDialog
-        open={transferOpen}
-        onOpenChange={(open) => {
-          setTransferOpen(open);
-          if (!open) setTransferPassword('');
-        }}
-        title="Transfer Community"
-        description="This will generate a transfer package for migrating this community to another PDS. Enter your password to confirm."
-        confirmLabel="Transfer"
-        variant="destructive"
-        loading={transferMutation.isPending}
-        onConfirm={handleTransfer}
-      >
-        <div className="space-y-2">
-          <Label htmlFor="transfer-password">Password</Label>
-          <Input
-            id="transfer-password"
-            type="password"
-            value={transferPassword}
-            onChange={(e) => setTransferPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-        </div>
-      </ConfirmDialog>
 
       <ConfirmDialog
         open={deleteOpen}

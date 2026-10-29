@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.unlinkApplication",
-  "revision": 1,
+  "revision": 2,
   "description": "Remove a linked application from a community.",
   "defs": {
     "main": {
@@ -54,6 +54,14 @@
         {
           "name": "Forbidden",
           "description": "Insufficient privileges (owner or admin required)."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

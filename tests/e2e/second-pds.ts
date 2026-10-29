@@ -81,6 +81,7 @@ export async function startSecondPds(): Promise<SecondPds> {
       BOOTSTRAP_ADMIN_PASSWORD: 'Second-Pds-Admin-7a!',
       // User accounts may move in without an invite (#266).
       MIGRATION_ACCOUNTS: 'open',
+      MIGRATION_COMMUNITIES: 'open',
       GLOBAL_RATE_LIMIT: '100000',
       CREATE_RATE_LIMIT: '10000',
     },

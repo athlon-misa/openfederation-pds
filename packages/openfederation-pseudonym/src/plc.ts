@@ -89,6 +89,8 @@ export function buildMoveOp(p: {
   signingDidKey: string;
   pdsEndpoint: string;
   handle?: string;
+  /** Replace the rotation keys (a community move swaps the PDS's recovery key). */
+  rotationKeys?: string[];
 }): PlcUpdateOp {
   const alsoKnownAs = p.handle
     ? [`at://${p.handle}`, ...p.previous.alsoKnownAs.filter((a) => !a.startsWith('at://'))]
@@ -96,7 +98,7 @@ export function buildMoveOp(p: {
   return {
     type: 'plc_operation',
     prev: cidForPlcOp(p.previous),
-    rotationKeys: [...p.previous.rotationKeys],
+    rotationKeys: p.rotationKeys ? [...p.rotationKeys] : [...p.previous.rotationKeys],
     verificationMethods: { ...p.previous.verificationMethods, atproto: p.signingDidKey },
     alsoKnownAs,
     services: { atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: p.pdsEndpoint } },

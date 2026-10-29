@@ -80,11 +80,11 @@ export default async function requestDisclosure(req: AuthRequest, res: Response)
     const isSubject = auth.did === subjectDid;
 
     // Check community ownership for issuer access
-    const communityResult = await query<{ created_by: string }>(
-      'SELECT created_by FROM communities WHERE did = $1',
+    const communityResult = await query<{ owner_did: string | null }>(
+      'SELECT owner_did FROM communities WHERE did = $1',
       [communityDid]
     );
-    const isCommunityOwner = communityResult.rows.length > 0 && communityResult.rows[0].created_by === auth.userId;
+    const isCommunityOwner = communityResult.rows.length > 0 && communityResult.rows[0].owner_did === auth.did;
 
     let authorized = isIssuer || isSubject || isCommunityOwner;
 

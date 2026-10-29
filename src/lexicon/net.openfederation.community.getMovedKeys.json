@@ -1,0 +1,66 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.getMovedKeys",
+  "revision": 1,
+  "description": "A moved community's attestation keys, sealed to its new signing key (#267).",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Public. Answers only once the PLC directory names another PDS as the community's home; the payload is readable only with the DID's current atproto signing key. Marks the copy here as moved.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "did"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did",
+            "recipient",
+            "count",
+            "sealed"
+          ],
+          "properties": {
+            "did": {
+              "type": "string"
+            },
+            "recipient": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer"
+            },
+            "sealed": {
+              "type": "string",
+              "description": "Base64: ephemeral public key, IV, tag, AES-256-GCM ciphertext (ECDH secp256k1 + HKDF-SHA256)."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound"
+        },
+        {
+          "name": "UnresolvableDid"
+        },
+        {
+          "name": "NotMoved",
+          "description": "The DID still points to this PDS."
+        },
+        {
+          "name": "IncompatibleDidDoc"
+        }
+      ]
+    }
+  }
+}

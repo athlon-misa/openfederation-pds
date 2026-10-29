@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.deleteAttestation",
-  "revision": 1,
+  "revision": 2,
   "description": "Revoke an attestation by deleting it from the community repo. ATProto-native revocation.",
   "defs": {
     "main": {
@@ -53,6 +53,14 @@
         {
           "name": "AttestationNotFound",
           "description": "No attestation found with the given rkey."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.createEvent",
-  "revision": 3,
+  "revision": 4,
   "description": "Create a community event. Writes a community.lexicon.calendar.event record to the community repo. Requires community.calendar.write.",
   "defs": {
     "main": {
@@ -10,16 +10,51 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["community", "name"],
+          "required": [
+            "community",
+            "name"
+          ],
           "properties": {
-            "community": { "type": "string", "format": "did" },
-            "name": { "type": "string", "maxLength": 300 },
-            "description": { "type": "string", "maxLength": 10000 },
-            "startsAt": { "type": "string", "format": "datetime" },
-            "endsAt": { "type": "string", "format": "datetime" },
-            "mode": { "type": "string", "knownValues": ["inperson", "virtual", "hybrid"] },
-            "status": { "type": "string", "knownValues": ["scheduled", "cancelled", "postponed"] },
-            "location": { "type": "string", "maxLength": 1000 }
+            "community": {
+              "type": "string",
+              "format": "did"
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 10000
+            },
+            "startsAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "endsAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "mode": {
+              "type": "string",
+              "knownValues": [
+                "inperson",
+                "virtual",
+                "hybrid"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "scheduled",
+                "cancelled",
+                "postponed"
+              ]
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 1000
+            }
           }
         }
       },
@@ -27,11 +62,21 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri", "cid", "rkey"],
+          "required": [
+            "uri",
+            "cid",
+            "rkey"
+          ],
           "properties": {
-            "uri": { "type": "string" },
-            "cid": { "type": "string" },
-            "rkey": { "type": "string" }
+            "uri": {
+              "type": "string"
+            },
+            "cid": {
+              "type": "string"
+            },
+            "rkey": {
+              "type": "string"
+            }
           }
         }
       },
@@ -47,6 +92,14 @@
         {
           "name": "Forbidden",
           "description": "Caller does not have the required community permission."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

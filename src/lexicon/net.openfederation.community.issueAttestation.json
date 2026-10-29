@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.issueAttestation",
-  "revision": 3,
+  "revision": 4,
   "description": "Issue a signed attestation for a community member. Supports public and private (encrypted) visibility modes. Claim is capped at 4096 bytes (JSON-serialized) and 5 levels of nesting.",
   "defs": {
     "main": {
@@ -33,6 +33,14 @@
         {
           "name": "NotMember",
           "description": "Subject is not a member of this community."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     },

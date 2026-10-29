@@ -87,6 +87,7 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
     let instructions: string | undefined;
 
     let recoveryKeyBytes: Buffer | undefined;
+    let recoveryDidKey: string | undefined;
 
     if (input.didMethod === 'plc') {
       const result = await createPlcIdentity(input.handle);
@@ -94,6 +95,7 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
       signingKey = result.signingKey;
       primaryRotationKey = result.primaryRotationKey;
       recoveryKeyBytes = result.recoveryKeyBytes;
+      recoveryDidKey = result.recoveryDidKey;
     } else {
       const result = await createWebIdentity(input.domain!);
       did = result.did;
@@ -104,8 +106,8 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
 
     // 3. Store community in database (must come before plc_keys/signing_keys due to foreign keys)
     await query(
-      'INSERT INTO communities (did, handle, did_method, created_by) VALUES ($1, $2, $3, $4)',
-      [did, input.handle, input.didMethod, req.auth!.userId]
+      'INSERT INTO communities (did, handle, did_method, created_by, owner_did, recovery_did_key) VALUES ($1, $2, $3, $4, $5, $6)',
+      [did, input.handle, input.didMethod, req.auth!.userId, req.auth!.did, recoveryDidKey ?? null]
     );
 
     // Store recovery key for did:plc (encrypted at rest)

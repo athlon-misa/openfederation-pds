@@ -1,0 +1,177 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.migrateIn",
+  "revision": 1,
+  "description": "A community arrives from another PDS (#267, ADR-002).",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Open (or refresh) a copy of a community here. Proof: a Bearer JWT signed by one of the community's PLC rotation keys (iss = the community DID, sub = the owner's DID, aud = this PDS's service DID, lxm = this method, short-lived). This PDS pulls the repository and blobs from wherever the DID currently points and rebuilds the member and attestation indexes. The community stays 'importing' until the DID points here and the owner calls community.activate.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did",
+            "handle"
+          ],
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "handle": {
+              "type": "string",
+              "description": "The community's handle here (label only, without the PDS suffix)."
+            },
+            "inviteCode": {
+              "type": "string",
+              "description": "Required when MIGRATION_COMMUNITIES is 'invite'."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did",
+            "handle",
+            "status",
+            "fromPds",
+            "repoCommit",
+            "indexedRecords",
+            "members",
+            "attestations",
+            "expectedBlobs",
+            "importedBlobs",
+            "recommended"
+          ],
+          "properties": {
+            "did": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "fromPds": {
+              "type": "string"
+            },
+            "repoCommit": {
+              "type": "string"
+            },
+            "indexedRecords": {
+              "type": "integer"
+            },
+            "members": {
+              "type": "integer"
+            },
+            "attestations": {
+              "type": "integer"
+            },
+            "expectedBlobs": {
+              "type": "integer"
+            },
+            "importedBlobs": {
+              "type": "integer"
+            },
+            "recommended": {
+              "type": "object",
+              "description": "What the owner should put in the DID to bring the community here.",
+              "properties": {
+                "rotationKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "alsoKnownAs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "verificationMethods": {
+                  "type": "unknown"
+                },
+                "services": {
+                  "type": "unknown"
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "UnresolvableDid"
+        },
+        {
+          "name": "InvalidHandle"
+        },
+        {
+          "name": "HandleNotAvailable"
+        },
+        {
+          "name": "MigrationNotAllowed"
+        },
+        {
+          "name": "InvalidInviteCode"
+        },
+        {
+          "name": "InviteInvalid"
+        },
+        {
+          "name": "InviteExpired"
+        },
+        {
+          "name": "InviteUsed"
+        },
+        {
+          "name": "InviteBound"
+        },
+        {
+          "name": "AuthRequired"
+        },
+        {
+          "name": "InvalidToken"
+        },
+        {
+          "name": "IncompatibleDidDoc",
+          "description": "The DID already points to this PDS."
+        },
+        {
+          "name": "AlreadyExists",
+          "description": "The community already lives here."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The copy here is owned by another DID."
+        },
+        {
+          "name": "InvalidCar"
+        },
+        {
+          "name": "DidMismatch"
+        },
+        {
+          "name": "InvalidSignature"
+        },
+        {
+          "name": "InvalidRepo"
+        },
+        {
+          "name": "PayloadTooLarge"
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The community's current PDS did not answer."
+        }
+      ]
+    }
+  }
+}

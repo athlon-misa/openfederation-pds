@@ -9,7 +9,6 @@ import {
   leaveCommunity,
   updateCommunity,
   exportCommunity,
-  transferCommunity,
   resolveJoinRequest,
   removeMember,
   deleteCommunity,
@@ -104,13 +103,6 @@ export function useUpdateCommunityMutation() {
 export function useExportCommunityMutation() {
   return useMutation({
     mutationFn: async (did: string) => unwrapApi(await exportCommunity(did)),
-  });
-}
-
-export function useTransferCommunityMutation() {
-  return useMutation({
-    mutationFn: async ({ did, password }: { did: string; password: string }) =>
-      unwrapApi(await transferCommunity(did, password)),
   });
 }
 

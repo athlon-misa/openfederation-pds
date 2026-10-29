@@ -37,7 +37,6 @@ import exportCommunity from '../api/net.openfederation.community.export.js';
 import suspendCommunity from '../api/net.openfederation.community.suspend.js';
 import unsuspendCommunity from '../api/net.openfederation.community.unsuspend.js';
 import takedownCommunity from '../api/net.openfederation.community.takedown.js';
-import transferCommunity from '../api/net.openfederation.community.transfer.js';
 import removeMember from '../api/net.openfederation.community.removeMember.js';
 import deleteCommunity from '../api/net.openfederation.community.delete.js';
 import listAccounts from '../api/net.openfederation.account.list.js';
@@ -121,6 +120,11 @@ import getProfileHandler from '../api/net.openfederation.account.getProfile.js';
 import uploadBlob from '../api/com.atproto.repo.uploadBlob.js';
 import syncGetBlob from '../api/com.atproto.sync.getBlob.js';
 import syncListBlobs from '../api/com.atproto.sync.listBlobs.js';
+import communityMigrateIn from '../api/net.openfederation.community.migrateIn.js';
+import communityCheckMigration from '../api/net.openfederation.community.checkMigration.js';
+import communityActivate from '../api/net.openfederation.community.activate.js';
+import communityGetMovedKeys from '../api/net.openfederation.community.getMovedKeys.js';
+import communityMarkMoved from '../api/net.openfederation.community.markMoved.js';
 import requestPlcOperationSignature from '../api/com.atproto.identity.requestPlcOperationSignature.js';
 import signPlcOperation from '../api/com.atproto.identity.signPlcOperation.js';
 import submitPlcOperation from '../api/com.atproto.identity.submitPlcOperation.js';
@@ -244,7 +248,6 @@ const handlers = Object.freeze({
   'net.openfederation.community.suspend': { handler: suspendCommunity },
   'net.openfederation.community.unsuspend': { handler: unsuspendCommunity },
   'net.openfederation.community.takedown': { handler: takedownCommunity },
-  'net.openfederation.community.transfer': { handler: transferCommunity },
   'net.openfederation.community.removeMember': { handler: removeMember },
   'net.openfederation.community.delete': { handler: deleteCommunity },
 
@@ -445,6 +448,11 @@ const handlers = Object.freeze({
   'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus, whileDeactivated: true },
   'com.atproto.repo.importRepo': { handler: importRepoForAccount, limiter: createLimiter, whileDeactivated: true },
   'com.atproto.repo.listMissingBlobs': { handler: listMissingBlobs, whileDeactivated: true },
+  'net.openfederation.community.migrateIn': { handler: communityMigrateIn, limiter: createLimiter },
+  'net.openfederation.community.checkMigration': { handler: communityCheckMigration },
+  'net.openfederation.community.activate': { handler: communityActivate, limiter: createLimiter },
+  'net.openfederation.community.getMovedKeys': { handler: communityGetMovedKeys, limiter: createLimiter },
+  'net.openfederation.community.markMoved': { handler: communityMarkMoved },
   'com.atproto.identity.requestPlcOperationSignature': { handler: requestPlcOperationSignature, limiter: createLimiter },
   'com.atproto.identity.signPlcOperation': { handler: signPlcOperation, limiter: createLimiter },
   'com.atproto.identity.submitPlcOperation': { handler: submitPlcOperation, limiter: createLimiter },

@@ -195,26 +195,6 @@ export interface TakedownCommunityResponse {
   reason: string | null;
 }
 
-// Community transfer type
-export interface CommunityTransferPackage {
-  transferToken: string;
-  transferExpiresAt: string;
-  exportedAt: string;
-  sourcePds: string;
-  community: {
-    did: string;
-    handle: string;
-    didMethod: string;
-  };
-  stats: {
-    totalRecords: number;
-    memberCount: number;
-    collections: number;
-  };
-  collections: Record<string, Array<{ rkey: string; cid: string; record: Record<string, unknown> }>>;
-  instructions: string;
-}
-
 // Account list types
 export interface AccountListItem {
   id: string;

@@ -12,7 +12,7 @@ export class InviteError extends Error {
   }
 }
 
-export async function claimInvite(client: PoolClient, code: string, email: string, userId: string): Promise<void> {
+export async function claimInvite(client: PoolClient, code: string, email: string | null, userId: string | null): Promise<void> {
   const inviteResult = await client.query<{
     code: string; max_uses: number; uses_count: number; expires_at: string | null; bound_to: string | null;
   }>(
@@ -27,13 +27,13 @@ export async function claimInvite(client: PoolClient, code: string, email: strin
   if (invite.uses_count >= invite.max_uses) {
     throw new InviteError(403, 'InviteUsed', 'Invite code has already been used');
   }
-  if (invite.bound_to && invite.bound_to.toLowerCase().trim() !== email.toLowerCase().trim()) {
+  if (invite.bound_to && invite.bound_to.toLowerCase().trim() !== (email ?? '').toLowerCase().trim()) {
     throw new InviteError(403, 'InviteBound', 'This invite code is bound to a specific email address.');
   }
   await client.query(
     `UPDATE invites
      SET uses_count = uses_count + 1, used_by = COALESCE($2, used_by), used_at = CURRENT_TIMESTAMP
      WHERE code = $1`,
-    [invite.code, invite.max_uses === 1 ? userId : null],
+    [invite.code, invite.max_uses === 1 && userId ? userId : null],
   );
 }

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.voteOnProposal",
-  "revision": 7,
+  "revision": 8,
   "description": "Cast a vote on a governance proposal. Quorum and outcome are computed from voter-signed net.openfederation.governance.vote records; the proposal's vote arrays are a non-authoritative read cache.",
   "defs": {
     "main": {
@@ -92,6 +92,14 @@
         {
           "name": "VoteNotRecordable",
           "description": "The voter has no repository, so the vote cannot be written as a voter-signed record and is refused rather than counted as unverifiable evidence."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

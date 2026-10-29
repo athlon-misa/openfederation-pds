@@ -135,6 +135,22 @@ export async function requireActiveCommunity(
     return null;
   }
 
+  if (community.status === 'moved') {
+    res.status(403).json({
+      error: 'CommunityMoved',
+      message: 'This community has moved to another PDS; this copy is read-only.',
+    });
+    return null;
+  }
+
+  if (community.status === 'importing') {
+    res.status(403).json({
+      error: 'CommunityImporting',
+      message: 'This community is still arriving here and is not active yet.',
+    });
+    return null;
+  }
+
   return community;
 }
 
@@ -143,6 +159,22 @@ export async function requireActiveCommunity(
  * Checks: PDS admin always passes, then owner, moderator, member in descending order.
  * Returns the caller's community role if authorized, null otherwise.
  */
+/**
+ * A community that moved away (#267) or is still arriving is read-only here.
+ * Sends the refusal and returns false in that case.
+ */
+export function writableStatus(status: string, res: Response): boolean {
+  if (status === 'moved') {
+    res.status(403).json({ error: 'CommunityMoved', message: 'This community has moved to another PDS; this copy is read-only.' });
+    return false;
+  }
+  if (status === 'importing') {
+    res.status(403).json({ error: 'CommunityImporting', message: 'This community is still arriving here and is not active yet.' });
+    return false;
+  }
+  return true;
+}
+
 export async function requireCommunityRole(
   req: AuthRequest & { auth: AuthContext },
   res: Response,
@@ -155,8 +187,10 @@ export async function requireCommunityRole(
   }
 
   // Check if user is owner
-  const communityResult = await query<{ created_by: string }>(
-    'SELECT created_by FROM communities WHERE did = $1',
+  // Ownership is by DID (#267), so an owner whose account lives on another
+  // PDS passes through cross-PDS service auth.
+  const communityResult = await query<{ owner_did: string | null; status: string }>(
+    'SELECT owner_did, status FROM communities WHERE did = $1',
     [communityDid]
   );
 
@@ -164,8 +198,9 @@ export async function requireCommunityRole(
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
     return null;
   }
+  if (!writableStatus(communityResult.rows[0].status, res)) return null;
 
-  const isOwner = communityResult.rows[0].created_by === req.auth.userId;
+  const isOwner = communityResult.rows[0].owner_did === req.auth.did;
   if (isOwner && requiredRoles.includes('owner')) {
     return 'owner';
   }
@@ -230,6 +265,8 @@ export async function requireCommunityPermission(
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
     return false;
   }
+  const statusRow = await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [communityDid]);
+  if (statusRow.rows[0] && !writableStatus(statusRow.rows[0].status, res)) return false;
 
   if (capabilities.hasAllPermissions || capabilities.permissions.includes(permission)) {
     return true;

@@ -12,41 +12,10 @@ import {
   createCommitment,
   wrapDEK,
 } from '../attestation/encryption.js';
-import { resolveDisplayFields } from '../community/display-projection.js';
+import { upsertAttestationIndex } from '../community/projections.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 
-async function upsertAttestationIndex(
-  communityDid: string,
-  rkey: string,
-  subjectDid: string,
-  subjectHandle: string,
-  type: string,
-  claim: unknown,
-  issuedAt: string,
-  expiresAt: string | null,
-): Promise<void> {
-  const display = await resolveDisplayFields(subjectDid, subjectHandle);
-  await query(
-    `INSERT INTO community_attestation_index
-       (community_did, rkey, subject_did, subject_handle, subject_display_name, subject_avatar_url,
-        type, claim, issued_at, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     ON CONFLICT (community_did, rkey) DO UPDATE SET
-       subject_display_name = EXCLUDED.subject_display_name,
-       subject_avatar_url   = EXCLUDED.subject_avatar_url,
-       type                 = EXCLUDED.type,
-       claim                = EXCLUDED.claim,
-       issued_at            = EXCLUDED.issued_at,
-       expires_at           = EXCLUDED.expires_at`,
-    [
-      communityDid, rkey, subjectDid, subjectHandle,
-      display.displayName, display.avatarUrl,
-      type, claim ? JSON.stringify(claim) : null,
-      issuedAt, expiresAt,
-    ],
-  );
-}
 const VALID_TYPES = ['membership', 'role', 'credential'];
 const MAX_CLAIM_SIZE_BYTES = 4096;
 const MAX_CLAIM_DEPTH = 5;

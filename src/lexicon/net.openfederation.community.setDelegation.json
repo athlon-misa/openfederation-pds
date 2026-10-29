@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.setDelegation",
-  "revision": 2,
+  "revision": 3,
   "description": "Delegate your governance vote to another member.",
   "defs": {
     "main": {
@@ -50,6 +50,14 @@
         {
           "name": "NotMember",
           "description": "Referenced DID is not a member of this community."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

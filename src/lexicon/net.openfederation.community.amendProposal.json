@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.amendProposal",
-  "revision": 1,
+  "revision": 2,
   "description": "Amend an open governance proposal. Resets votes and extends expiration.",
   "defs": {
     "main": {
@@ -32,6 +32,14 @@
         {
           "name": "ProposalClosed",
           "description": "Proposal is not open."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     },

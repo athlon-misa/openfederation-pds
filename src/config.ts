@@ -164,6 +164,7 @@ export const config = {
   migration: {
     accounts: (['open', 'invite', 'closed'] as const).find((v) => v === process.env.MIGRATION_ACCOUNTS) ?? 'invite',
     pseudonyms: (['open', 'token', 'closed'] as const).find((v) => v === process.env.MIGRATION_PSEUDONYMS) ?? 'open',
+    communities: (['open', 'invite', 'closed'] as const).find((v) => v === process.env.MIGRATION_COMMUNITIES) ?? 'invite',
     // Days between clean-up sweeps of accounts that never activated here; 0 disables.
     cleanupDays: (v => Number.isFinite(v) && v >= 0 ? v : 7)(parseInt(process.env.MIGRATION_CLEANUP_DAYS ?? '7', 10)),
   },

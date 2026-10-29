@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.updateRole",
-  "revision": 2,
+  "revision": 3,
   "description": "Update a community role's name, description, or permissions.",
   "defs": {
     "main": {
@@ -72,6 +72,14 @@
         {
           "name": "RoleNameTaken",
           "description": "A role with this name already exists."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

@@ -31,10 +31,10 @@ export default async function exportCommunity(req: AuthRequest, res: Response): 
       did: string;
       handle: string;
       did_method: string;
-      created_by: string;
+      owner_did: string | null;
       status: string;
     }>(
-      'SELECT did, handle, did_method, created_by, status FROM communities WHERE did = $1',
+      'SELECT did, handle, did_method, owner_did, status FROM communities WHERE did = $1',
       [did]
     );
 
@@ -46,7 +46,7 @@ export default async function exportCommunity(req: AuthRequest, res: Response): 
     const community = communityResult.rows[0];
 
     // Authorization: owner or PDS admin
-    const isOwner = community.created_by === req.auth!.userId;
+    const isOwner = community.owner_did === req.auth!.did;
     const isAdmin = req.auth!.roles.includes('admin');
 
     if (!isOwner && !isAdmin) {

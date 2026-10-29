@@ -34,9 +34,9 @@ beforeAll(async () => {
     await seedUser(u);
   }
   await query(
-    `INSERT INTO communities (did, handle, did_method, created_by)
-     VALUES ($1, $2, 'plc', $3)`,
-    [COMMUNITY_DID, `c-${Date.now()}`, owner.id],
+    `INSERT INTO communities (did, handle, did_method, created_by, owner_did)
+     VALUES ($1, $2, 'plc', $3, $4)`,
+    [COMMUNITY_DID, `c-${Date.now()}`, owner.id, owner.did],
   );
   // settings record: private community
   await query(

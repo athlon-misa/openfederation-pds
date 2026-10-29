@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.hidePost",
-  "revision": 2,
+  "revision": 3,
   "description": "Moderator overlay: hide or unhide a forum post from the community view. Does not delete the underlying record in the author's repo.",
   "defs": {
     "main": {
@@ -10,10 +10,17 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["uri", "hidden"],
+          "required": [
+            "uri",
+            "hidden"
+          ],
           "properties": {
-            "uri": { "type": "string" },
-            "hidden": { "type": "boolean" }
+            "uri": {
+              "type": "string"
+            },
+            "hidden": {
+              "type": "boolean"
+            }
           }
         }
       },
@@ -22,7 +29,9 @@
         "schema": {
           "type": "object",
           "properties": {
-            "success": { "type": "boolean" }
+            "success": {
+              "type": "boolean"
+            }
           }
         }
       },
@@ -42,6 +51,14 @@
         {
           "name": "Forbidden",
           "description": "Caller does not have the required community permission."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

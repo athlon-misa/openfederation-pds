@@ -1,3 +1,4 @@
+import { config } from '../../src/config.js';
 import request from 'supertest';
 import { app } from '../../src/server/index.js';
 
@@ -20,6 +21,14 @@ import { app } from '../../src/server/index.js';
  * `unref()` so a live listener never keeps the vitest worker alive.
  */
 const server = app.listen(0);
+// A server-side pull (a community arriving from here, #267) must reach this
+// process at the URL the DIDs it creates carry, so the public URL follows the
+// port the test server actually got.
+await new Promise<void>((resolve) => server.once('listening', () => resolve()));
+{
+  const address = server.address();
+  if (address && typeof address === 'object') config.pds.serviceUrl = `http://127.0.0.1:${address.port}`;
+}
 server.unref();
 export const testServer = server;
 

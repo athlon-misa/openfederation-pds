@@ -23,11 +23,12 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       handle: string;
       did_method: string;
       created_by: string;
+      owner_did: string | null;
       created_at: string;
       status: string;
       status_reason: string | null;
     }>(
-      'SELECT did, handle, did_method, created_by, created_at, status, status_reason FROM communities WHERE did = $1',
+      'SELECT did, handle, did_method, created_by, owner_did, created_at, status, status_reason FROM communities WHERE did = $1',
       [did]
     );
 
@@ -72,7 +73,7 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
 
     // Caller-specific info
     const userId = req.auth?.userId;
-    const isOwner = userId ? community.created_by === userId : false;
+    const isOwner = req.auth ? community.owner_did === req.auth.did : false;
     const isAdmin = req.auth?.roles?.includes('admin') || false;
 
     // Private community: only visible to members, owner, or admin

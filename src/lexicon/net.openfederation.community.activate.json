@@ -1,0 +1,66 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.activate",
+  "revision": 1,
+  "description": "Switch a community on here once its DID points here (#267).",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Owner only (local session or cross-PDS service auth). Requires the DID to name this PDS and its signing key. Fetches the attestation keys from the old home; repeatable while any are missing.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did"
+          ],
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did",
+            "status",
+            "missingAttestationKeys"
+          ],
+          "properties": {
+            "did": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "keysImported": {
+              "type": "integer"
+            },
+            "missingAttestationKeys": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound"
+        },
+        {
+          "name": "Forbidden"
+        },
+        {
+          "name": "InvalidStatus"
+        },
+        {
+          "name": "IncompatibleDidDoc"
+        }
+      ]
+    }
+  }
+}

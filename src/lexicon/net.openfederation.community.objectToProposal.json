@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.objectToProposal",
-  "revision": 2,
-  "description": "Object to the application of a passed proposal during its timelock window. Writes an objector-signed net.openfederation.governance.objection record into the objector's own repo. The change is held once governanceConfig.objectionThreshold countable objections exist; that threshold defaults to 1, so a single member holding community.governance.write can hold a passed proposal. Eligibility is the same community.governance.write permission that gates voting. A hold opens one override round (status 'objection-override'): the electorate votes again against overrideQuorum, by default two-thirds of the electorate and never below quorum + 1, inside governanceConfig.objectionOverrideDays. Reaching it applies the change immediately; the round expiring short of it rejects the proposal, so the objection stands. An objection therefore raises the bar a decision must clear rather than replacing it, and cannot be repeated — a proposal already in its override round is answered by voting in that round. A community that wants a hold to be final sets governanceConfig.objectionReview to 'none', which restores the permanent 'objected' state.",
+  "revision": 3,
+  "description": "Object to the application of a passed proposal during its timelock window. Writes an objector-signed net.openfederation.governance.objection record into the objector's own repo. The change is held once governanceConfig.objectionThreshold countable objections exist; that threshold defaults to 1, so a single member holding community.governance.write can hold a passed proposal. Eligibility is the same community.governance.write permission that gates voting. A hold opens one override round (status 'objection-override'): the electorate votes again against overrideQuorum, by default two-thirds of the electorate and never below quorum + 1, inside governanceConfig.objectionOverrideDays. Reaching it applies the change immediately; the round expiring short of it rejects the proposal, so the objection stands. An objection therefore raises the bar a decision must clear rather than replacing it, and cannot be repeated \u2014 a proposal already in its override round is answered by voting in that round. A community that wants a hold to be final sets governanceConfig.objectionReview to 'none', which restores the permanent 'objected' state.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -86,7 +86,7 @@
         },
         {
           "name": "ObjectionWindowClosed",
-          "description": "The contest window has closed, or the proposal is already held — including while it is in its override round, which is answered by voting rather than by objecting again."
+          "description": "The contest window has closed, or the proposal is already held \u2014 including while it is in its override round, which is answered by voting rather than by objecting again."
         },
         {
           "name": "AlreadyObjected",
@@ -99,6 +99,14 @@
         {
           "name": "ObjectionNotRecordable",
           "description": "The objector has no repository, so the objection cannot be written as an objector-signed record and is refused rather than held on unverifiable evidence."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     },

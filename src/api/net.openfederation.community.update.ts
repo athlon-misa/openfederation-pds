@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, writableStatus } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
@@ -25,8 +25,8 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
     }
 
     // Verify ownership
-    const communityResult = await query<{ created_by: string }>(
-      'SELECT created_by FROM communities WHERE did = $1',
+    const communityResult = await query<{ owner_did: string | null; status: string }>(
+      'SELECT owner_did, status FROM communities WHERE did = $1',
       [did]
     );
 
@@ -35,10 +35,11 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
       return;
     }
 
-    if (communityResult.rows[0].created_by !== req.auth.userId) {
+    if (communityResult.rows[0].owner_did !== req.auth.did) {
       res.status(403).json({ error: 'Forbidden', message: 'Only the community owner can update settings' });
       return;
     }
+    if (!writableStatus(communityResult.rows[0].status, res)) return;
 
     // Validate inputs
     if (visibility !== undefined && !['public', 'private'].includes(visibility)) {

@@ -89,12 +89,18 @@ CREATE TABLE IF NOT EXISTS communities (
     did_method VARCHAR(10) NOT NULL CHECK (did_method IN ('plc', 'web')),
     created_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'takendown')),
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'takendown', 'importing', 'moved')),
     status_changed_at TIMESTAMP WITH TIME ZONE,
     status_changed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
     status_reason TEXT,
-    exported_at TIMESTAMP WITH TIME ZONE
+    exported_at TIMESTAMP WITH TIME ZONE,
+    -- Ownership by DID (#267): the owner may live on any PDS. created_by is history.
+    owner_did VARCHAR(255),
+    -- Public half of the recovery key held here; where an arriving community is pulled from.
+    recovery_did_key TEXT,
+    from_pds TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_communities_owner_did ON communities(owner_did);
 
 CREATE INDEX idx_communities_handle ON communities(handle);
 CREATE INDEX idx_communities_status ON communities(status);

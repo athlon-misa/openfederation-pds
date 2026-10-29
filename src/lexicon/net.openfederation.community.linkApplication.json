@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.linkApplication",
-  "revision": 1,
+  "revision": 2,
   "description": "Link an external application to a community. Creates a repo record for the linked app.",
   "defs": {
     "main": {
@@ -92,6 +92,14 @@
         {
           "name": "Forbidden",
           "description": "Insufficient privileges (owner or admin required)."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

@@ -47,21 +47,21 @@ export default async function auditLog(req: AuthRequest, res: Response): Promise
 
       // Check if caller is community owner
       if (!authorized) {
-        const communityResult = await query<{ created_by: string }>(
-          'SELECT created_by FROM communities WHERE did = $1',
+        const communityResult = await query<{ owner_did: string | null }>(
+          'SELECT owner_did FROM communities WHERE did = $1',
           [communityDid]
         );
-        if (communityResult.rows.length > 0 && communityResult.rows[0].created_by === auth.userId) {
+        if (communityResult.rows.length > 0 && communityResult.rows[0].owner_did === auth.did) {
           authorized = true;
         }
       }
     } else if (communityDid) {
       // If only communityDid, must be community owner
-      const communityResult = await query<{ created_by: string }>(
-        'SELECT created_by FROM communities WHERE did = $1',
+      const communityResult = await query<{ owner_did: string | null }>(
+        'SELECT owner_did FROM communities WHERE did = $1',
         [communityDid]
       );
-      if (communityResult.rows.length > 0 && communityResult.rows[0].created_by === auth.userId) {
+      if (communityResult.rows.length > 0 && communityResult.rows[0].owner_did === auth.did) {
         authorized = true;
       }
     }

@@ -15,6 +15,8 @@ export interface PlcIdentityResult {
   signingKey: string; // Base64 encoded private key for repo signing
   recoveryKeyBytes: Buffer; // Encrypted recovery key bytes for DB storage
   message: string;
+  /** Public half of the recovery key, as did:key (#267). */
+  recoveryDidKey: string;
 }
 
 /**
@@ -65,6 +67,7 @@ export async function createPlcIdentity(handle: string): Promise<PlcIdentityResu
     primaryRotationKey: Buffer.from(primaryKeyExport).toString('base64'),
     signingKey: Buffer.from(signingKeyExport).toString('base64'),
     recoveryKeyBytes: encryptedRecoveryKey,
+    recoveryDidKey: recoveryKey.did(),
     message: 'IMPORTANT: Please back up your primaryRotationKey. This is the only time you will see it. It grants full control over your identity.',
   };
 }

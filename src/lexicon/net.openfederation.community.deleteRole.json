@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.deleteRole",
-  "revision": 1,
+  "revision": 2,
   "description": "Delete a community role. Fails if any members are assigned to it.",
   "defs": {
     "main": {
@@ -46,6 +46,14 @@
         {
           "name": "RoleInUse",
           "description": "Cannot delete a role that has members assigned."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

@@ -1,0 +1,103 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.checkMigration",
+  "revision": 1,
+  "description": "Progress of a community's move here (#267).",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "How far a community's move here has come. Public.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "did"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "status",
+            "validDid",
+            "repoCommit",
+            "repoRev",
+            "indexedRecords",
+            "members",
+            "attestations",
+            "expectedBlobs",
+            "importedBlobs",
+            "missingAttestationKeys"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "validDid": {
+              "type": "boolean"
+            },
+            "repoCommit": {
+              "type": "string"
+            },
+            "repoRev": {
+              "type": "string"
+            },
+            "indexedRecords": {
+              "type": "integer"
+            },
+            "members": {
+              "type": "integer"
+            },
+            "attestations": {
+              "type": "integer"
+            },
+            "expectedBlobs": {
+              "type": "integer"
+            },
+            "importedBlobs": {
+              "type": "integer"
+            },
+            "missingAttestationKeys": {
+              "type": "integer"
+            },
+            "recommended": {
+              "type": "object",
+              "description": "What the owner should put in the DID to bring the community here.",
+              "properties": {
+                "rotationKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "alsoKnownAs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "verificationMethods": {
+                  "type": "unknown"
+                },
+                "services": {
+                  "type": "unknown"
+                }
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound"
+        }
+      ]
+    }
+  }
+}

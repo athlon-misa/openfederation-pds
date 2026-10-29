@@ -25,8 +25,8 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
     }
 
     // Verify community exists and check ownership
-    const communityResult = await query<{ created_by: string; handle: string }>(
-      'SELECT created_by, handle FROM communities WHERE did = $1',
+    const communityResult = await query<{ owner_did: string | null; handle: string }>(
+      'SELECT owner_did, handle FROM communities WHERE did = $1',
       [did]
     );
     if (communityResult.rows.length === 0) {
@@ -34,7 +34,7 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
       return;
     }
 
-    const isOwner = communityResult.rows[0].created_by === req.auth!.userId;
+    const isOwner = communityResult.rows[0].owner_did === req.auth!.did;
     const isAdmin = req.auth!.roles.includes('admin');
 
     if (!isOwner && !isAdmin) {

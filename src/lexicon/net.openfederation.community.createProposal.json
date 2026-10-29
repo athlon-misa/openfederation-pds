@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.createProposal",
-  "revision": 5,
+  "revision": 6,
   "description": "Propose a change to a protected collection in a community governed by vote (simple-majority or on-chain). The proposal's outcome is decided from voter-signed net.openfederation.governance.vote records; the proposer's seed vote produces one, and is omitted when the proposer has no repository to sign it.",
   "defs": {
     "main": {
@@ -32,6 +32,14 @@
         {
           "name": "NotMember",
           "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     },

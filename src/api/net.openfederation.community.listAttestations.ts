@@ -45,11 +45,11 @@ export default async function listAttestations(req: AuthRequest, res: Response):
           AND policy_member.member_did = ${callerDidParam}
       )`);
       // Owner access is deliberately scoped to the attestation's community.
-      privateParams.push(access.userId);
+      // Ownership is by DID (#267), so an owner on another PDS qualifies.
       privateAccess.push(`EXISTS (
         SELECT 1 FROM communities attestation_community
         WHERE attestation_community.did = ai.community_did
-          AND attestation_community.created_by = $3
+          AND attestation_community.owner_did = ${callerDidParam}
       )`);
       // An active viewing grant is an explicit disclosure authorization.
       privateAccess.push(`EXISTS (

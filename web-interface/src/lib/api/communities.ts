@@ -3,7 +3,6 @@ import type {
   CommunityCreateResponse,
   CommunityDetail,
   CommunityExportData,
-  CommunityTransferPackage,
   JoinCommunityResponse,
   LeaveCommunityResponse,
   ListAllCommunitiesResponse,
@@ -124,12 +123,6 @@ export async function unsuspendCommunity(did: string) {
 export async function takedownCommunity(did: string, reason?: string) {
   return xrpc<TakedownCommunityResponse>('net.openfederation.community.takedown', {
     body: { did, reason },
-  });
-}
-
-export async function transferCommunity(did: string, password: string) {
-  return xrpc<CommunityTransferPackage>('net.openfederation.community.transfer', {
-    body: { did, password },
   });
 }
 

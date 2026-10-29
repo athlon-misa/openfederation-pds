@@ -571,7 +571,7 @@ export type NetOpenfederationCalendarCreateEventOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCalendarCreateEventError = "Forbidden" | "NotMember" | "ProbationLimit";
+export type NetOpenfederationCalendarCreateEventError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "NotMember" | "ProbationLimit";
 
 export type NetOpenfederationCalendarListEventsInput = {
   "community": string;
@@ -604,7 +604,18 @@ export type NetOpenfederationCalendarRsvpOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCalendarRsvpError = "Forbidden" | "NotMember";
+export type NetOpenfederationCalendarRsvpError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "NotMember";
+
+export type NetOpenfederationCommunityActivateInput = {
+  "did": string;
+};
+export type NetOpenfederationCommunityActivateOutput = {
+  "did": string;
+  "status": string;
+  "keysImported"?: number;
+  "missingAttestationKeys": number;
+};
+export type NetOpenfederationCommunityActivateError = "Forbidden" | "IncompatibleDidDoc" | "InvalidStatus" | "NotFound";
 
 export type NetOpenfederationCommunityAmendProposalInput = {
   "communityDid": string;
@@ -617,7 +628,30 @@ export type NetOpenfederationCommunityAmendProposalOutput = {
   "cid": string;
   "amendmentCount": number;
 };
-export type NetOpenfederationCommunityAmendProposalError = "InvalidRequest" | "ProposalClosed" | "ProposalNotFound";
+export type NetOpenfederationCommunityAmendProposalError = "CommunityImporting" | "CommunityMoved" | "InvalidRequest" | "ProposalClosed" | "ProposalNotFound";
+
+export type NetOpenfederationCommunityCheckMigrationInput = {
+  "did": string;
+};
+export type NetOpenfederationCommunityCheckMigrationOutput = {
+  "status": string;
+  "validDid": boolean;
+  "repoCommit": string;
+  "repoRev": string;
+  "indexedRecords": number;
+  "members": number;
+  "attestations": number;
+  "expectedBlobs": number;
+  "importedBlobs": number;
+  "missingAttestationKeys": number;
+  "recommended"?: {
+  "rotationKeys"?: Array<string>;
+  "alsoKnownAs"?: Array<string>;
+  "verificationMethods"?: unknown;
+  "services"?: unknown;
+};
+};
+export type NetOpenfederationCommunityCheckMigrationError = "NotFound";
 
 export type NetOpenfederationCommunityCreateInput = {
   "handle": string;
@@ -651,7 +685,7 @@ export type NetOpenfederationCommunityCreateProposalOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCommunityCreateProposalError = "GovernanceNotActive" | "InvalidRequest" | "NotMember";
+export type NetOpenfederationCommunityCreateProposalError = "CommunityImporting" | "CommunityMoved" | "GovernanceNotActive" | "InvalidRequest" | "NotMember";
 
 export type NetOpenfederationCommunityCreateRoleInput = {
   "communityDid": string;
@@ -664,7 +698,7 @@ export type NetOpenfederationCommunityCreateRoleOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCommunityCreateRoleError = "InvalidRequest" | "NotMember" | "RoleNameTaken";
+export type NetOpenfederationCommunityCreateRoleError = "CommunityImporting" | "CommunityMoved" | "InvalidRequest" | "NotMember" | "RoleNameTaken";
 
 export type NetOpenfederationCommunityDeleteInput = {
   "did": string;
@@ -682,7 +716,7 @@ export type NetOpenfederationCommunityDeleteAttestationInput = {
 export type NetOpenfederationCommunityDeleteAttestationOutput = {
   "success": boolean;
 };
-export type NetOpenfederationCommunityDeleteAttestationError = "AttestationNotFound" | "InvalidRequest";
+export type NetOpenfederationCommunityDeleteAttestationError = "AttestationNotFound" | "CommunityImporting" | "CommunityMoved" | "InvalidRequest";
 
 export type NetOpenfederationCommunityDeleteRoleInput = {
   "communityDid": string;
@@ -691,7 +725,7 @@ export type NetOpenfederationCommunityDeleteRoleInput = {
 export type NetOpenfederationCommunityDeleteRoleOutput = {
   "success": boolean;
 };
-export type NetOpenfederationCommunityDeleteRoleError = "RoleInUse" | "RoleNotFound";
+export type NetOpenfederationCommunityDeleteRoleError = "CommunityImporting" | "CommunityMoved" | "RoleInUse" | "RoleNotFound";
 
 export type NetOpenfederationCommunityExportInput = {
   "did": string;
@@ -755,6 +789,17 @@ export type NetOpenfederationCommunityGetDelegationOutput = {
 };
 export type NetOpenfederationCommunityGetDelegationError = never;
 
+export type NetOpenfederationCommunityGetMovedKeysInput = {
+  "did": string;
+};
+export type NetOpenfederationCommunityGetMovedKeysOutput = {
+  "did": string;
+  "recipient": string;
+  "count": number;
+  "sealed": string;
+};
+export type NetOpenfederationCommunityGetMovedKeysError = "IncompatibleDidDoc" | "NotFound" | "NotMoved" | "UnresolvableDid";
+
 export type NetOpenfederationCommunityGetProposalInput = {
   "communityDid": string;
   "rkey": string;
@@ -815,7 +860,7 @@ export type NetOpenfederationCommunityIssueAttestationOutput = {
   "visibility"?: string;
   "commitment"?: string;
 };
-export type NetOpenfederationCommunityIssueAttestationError = "InvalidRequest" | "NotMember" | "PayloadTooLarge";
+export type NetOpenfederationCommunityIssueAttestationError = "CommunityImporting" | "CommunityMoved" | "InvalidRequest" | "NotMember" | "PayloadTooLarge";
 
 export type NetOpenfederationCommunityJoinInput = {
   "did": string;
@@ -849,7 +894,7 @@ export type NetOpenfederationCommunityLinkApplicationOutput = {
   "instanceUrl": string;
   "displayName"?: string;
 };
-export type NetOpenfederationCommunityLinkApplicationError = "Conflict" | "Forbidden" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunityLinkApplicationError = "CommunityImporting" | "CommunityMoved" | "Conflict" | "Forbidden" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunityListAllInput = {
   "limit"?: number;
@@ -1008,6 +1053,41 @@ export type NetOpenfederationCommunityListRolesOutput = {
 };
 export type NetOpenfederationCommunityListRolesError = "InvalidRequest" | "NotFound";
 
+export type NetOpenfederationCommunityMarkMovedInput = {
+  "did": string;
+};
+export type NetOpenfederationCommunityMarkMovedOutput = {
+  "did": string;
+  "status": string;
+  "home": string;
+};
+export type NetOpenfederationCommunityMarkMovedError = "Forbidden" | "NotFound" | "NotMoved";
+
+export type NetOpenfederationCommunityMigrateInInput = {
+  "did": string;
+  "handle": string;
+  "inviteCode"?: string;
+};
+export type NetOpenfederationCommunityMigrateInOutput = {
+  "did": string;
+  "handle": string;
+  "status": string;
+  "fromPds": string;
+  "repoCommit": string;
+  "indexedRecords": number;
+  "members": number;
+  "attestations": number;
+  "expectedBlobs": number;
+  "importedBlobs": number;
+  "recommended": {
+  "rotationKeys"?: Array<string>;
+  "alsoKnownAs"?: Array<string>;
+  "verificationMethods"?: unknown;
+  "services"?: unknown;
+};
+};
+export type NetOpenfederationCommunityMigrateInError = "AlreadyExists" | "AuthRequired" | "DidMismatch" | "Forbidden" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidCar" | "InvalidHandle" | "InvalidInviteCode" | "InvalidRepo" | "InvalidSignature" | "InvalidToken" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteUsed" | "MigrationNotAllowed" | "PayloadTooLarge" | "UnresolvableDid" | "UpstreamFailure";
+
 export type NetOpenfederationCommunityMyCapabilitiesInput = {
   "communityDid": string;
 };
@@ -1038,7 +1118,7 @@ export type NetOpenfederationCommunityObjectToProposalOutput = {
   "overrideQuorum"?: number;
   "overrideExpiresAt"?: string;
 };
-export type NetOpenfederationCommunityObjectToProposalError = "AlreadyObjected" | "InvalidRequest" | "NotMember" | "ObjectionNotRecordable" | "ObjectionWindowClosed" | "ProposalNotFound" | "ProposalNotPending";
+export type NetOpenfederationCommunityObjectToProposalError = "AlreadyObjected" | "CommunityImporting" | "CommunityMoved" | "InvalidRequest" | "NotMember" | "ObjectionNotRecordable" | "ObjectionWindowClosed" | "ProposalNotFound" | "ProposalNotPending";
 
 export type NetOpenfederationCommunityRemoveMemberInput = {
   "did": string;
@@ -1075,7 +1155,7 @@ export type NetOpenfederationCommunitySetDelegationOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationCommunitySetDelegationError = "NotMember";
+export type NetOpenfederationCommunitySetDelegationError = "CommunityImporting" | "CommunityMoved" | "NotMember";
 
 export type NetOpenfederationCommunitySetGovernanceModelInput = {
   "communityDid": string;
@@ -1086,7 +1166,7 @@ export type NetOpenfederationCommunitySetGovernanceModelOutput = {
   "success": boolean;
   "governanceModel": string;
 };
-export type NetOpenfederationCommunitySetGovernanceModelError = "GovernanceDenied" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunitySetGovernanceModelError = "CommunityImporting" | "CommunityMoved" | "GovernanceDenied" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunitySuspendInput = {
   "did": string;
@@ -1110,30 +1190,6 @@ export type NetOpenfederationCommunityTakedownOutput = {
 };
 export type NetOpenfederationCommunityTakedownError = "AlreadyTakenDown" | "ExportRequired" | "InvalidRequest" | "NotFound";
 
-export type NetOpenfederationCommunityTransferInput = {
-  "did": string;
-  "password": string;
-};
-export type NetOpenfederationCommunityTransferOutput = {
-  "transferToken": string;
-  "transferExpiresAt": string;
-  "exportedAt": string;
-  "sourcePds": string;
-  "community": {
-  "did": string;
-  "handle": string;
-  "didMethod": string;
-};
-  "stats": {
-  "totalRecords": number;
-  "memberCount": number;
-  "collections": number;
-};
-  "collections": unknown;
-  "instructions": string;
-};
-export type NetOpenfederationCommunityTransferError = "CommunityTakenDown" | "Forbidden" | "InvalidRequest" | "NotFound" | "Unauthorized";
-
 export type NetOpenfederationCommunityUnlinkApplicationInput = {
   "communityDid": string;
   "rkey": string;
@@ -1141,7 +1197,7 @@ export type NetOpenfederationCommunityUnlinkApplicationInput = {
 export type NetOpenfederationCommunityUnlinkApplicationOutput = {
   "success": boolean;
 };
-export type NetOpenfederationCommunityUnlinkApplicationError = "Forbidden" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunityUnlinkApplicationError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunityUnsuspendInput = {
   "did": string;
@@ -1162,7 +1218,7 @@ export type NetOpenfederationCommunityUpdateInput = {
 export type NetOpenfederationCommunityUpdateOutput = {
   "success": boolean;
 };
-export type NetOpenfederationCommunityUpdateError = "Forbidden" | "GovernanceDenied" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunityUpdateError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "GovernanceDenied" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunityUpdateMemberInput = {
   "communityDid": string;
@@ -1195,7 +1251,7 @@ export type NetOpenfederationCommunityUpdateRoleOutput = {
   "uri": string;
   "cid": string;
 };
-export type NetOpenfederationCommunityUpdateRoleError = "InvalidRequest" | "OwnerLockout" | "RoleNameTaken" | "RoleNotFound";
+export type NetOpenfederationCommunityUpdateRoleError = "CommunityImporting" | "CommunityMoved" | "InvalidRequest" | "OwnerLockout" | "RoleNameTaken" | "RoleNotFound";
 
 export type NetOpenfederationCommunityVerifyAttestationInput = {
   "communityDid": string;
@@ -1233,7 +1289,7 @@ export type NetOpenfederationCommunityVoteOnProposalOutput = {
   "applyAt"?: string;
   "resolutionDeferred"?: boolean;
 };
-export type NetOpenfederationCommunityVoteOnProposalError = "AlreadyVoted" | "InvalidRequest" | "NotMember" | "ProposalClosed" | "ProposalNotFound" | "VoteNotRecordable";
+export type NetOpenfederationCommunityVoteOnProposalError = "AlreadyVoted" | "CommunityImporting" | "CommunityMoved" | "InvalidRequest" | "NotMember" | "ProposalClosed" | "ProposalNotFound" | "VoteNotRecordable";
 
 export type NetOpenfederationContactBlockInput = {
   "subject": string;
@@ -1465,7 +1521,7 @@ export type NetOpenfederationForumCreatePostOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationForumCreatePostError = "Forbidden" | "NotMember" | "ProbationLimit" | "ThreadNotFound";
+export type NetOpenfederationForumCreatePostError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "NotMember" | "ProbationLimit" | "ThreadNotFound";
 
 export type NetOpenfederationForumCreateThreadInput = {
   "community": string;
@@ -1477,7 +1533,7 @@ export type NetOpenfederationForumCreateThreadOutput = {
   "cid": string;
   "rkey": string;
 };
-export type NetOpenfederationForumCreateThreadError = "Forbidden" | "NotMember" | "ProbationLimit";
+export type NetOpenfederationForumCreateThreadError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "NotMember" | "ProbationLimit";
 
 export type NetOpenfederationForumDeletePostInput = {
   "rkey": string;
@@ -1506,7 +1562,7 @@ export type NetOpenfederationForumHidePostInput = {
 export type NetOpenfederationForumHidePostOutput = {
   "success"?: boolean;
 };
-export type NetOpenfederationForumHidePostError = "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
+export type NetOpenfederationForumHidePostError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
 
 export type NetOpenfederationForumHideThreadInput = {
   "uri": string;
@@ -1515,7 +1571,7 @@ export type NetOpenfederationForumHideThreadInput = {
 export type NetOpenfederationForumHideThreadOutput = {
   "success"?: boolean;
 };
-export type NetOpenfederationForumHideThreadError = "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
+export type NetOpenfederationForumHideThreadError = "CommunityImporting" | "CommunityMoved" | "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
 
 export type NetOpenfederationForumListThreadsInput = {
   "community": string;
@@ -2277,7 +2333,9 @@ export interface LexiconInputMap {
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsInput;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsInput;
   'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpInput;
+  'net.openfederation.community.activate': NetOpenfederationCommunityActivateInput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalInput;
+  'net.openfederation.community.checkMigration': NetOpenfederationCommunityCheckMigrationInput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateInput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalInput;
   'net.openfederation.community.createRole': NetOpenfederationCommunityCreateRoleInput;
@@ -2287,6 +2345,7 @@ export interface LexiconInputMap {
   'net.openfederation.community.export': NetOpenfederationCommunityExportInput;
   'net.openfederation.community.get': NetOpenfederationCommunityGetInput;
   'net.openfederation.community.getDelegation': NetOpenfederationCommunityGetDelegationInput;
+  'net.openfederation.community.getMovedKeys': NetOpenfederationCommunityGetMovedKeysInput;
   'net.openfederation.community.getProposal': NetOpenfederationCommunityGetProposalInput;
   'net.openfederation.community.issueAttestation': NetOpenfederationCommunityIssueAttestationInput;
   'net.openfederation.community.join': NetOpenfederationCommunityJoinInput;
@@ -2300,6 +2359,8 @@ export interface LexiconInputMap {
   'net.openfederation.community.listMine': NetOpenfederationCommunityListMineInput;
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsInput;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesInput;
+  'net.openfederation.community.markMoved': NetOpenfederationCommunityMarkMovedInput;
+  'net.openfederation.community.migrateIn': NetOpenfederationCommunityMigrateInInput;
   'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesInput;
   'net.openfederation.community.objectToProposal': NetOpenfederationCommunityObjectToProposalInput;
   'net.openfederation.community.removeMember': NetOpenfederationCommunityRemoveMemberInput;
@@ -2309,7 +2370,6 @@ export interface LexiconInputMap {
   'net.openfederation.community.setGovernanceModel': NetOpenfederationCommunitySetGovernanceModelInput;
   'net.openfederation.community.suspend': NetOpenfederationCommunitySuspendInput;
   'net.openfederation.community.takedown': NetOpenfederationCommunityTakedownInput;
-  'net.openfederation.community.transfer': NetOpenfederationCommunityTransferInput;
   'net.openfederation.community.unlinkApplication': NetOpenfederationCommunityUnlinkApplicationInput;
   'net.openfederation.community.unsuspend': NetOpenfederationCommunityUnsuspendInput;
   'net.openfederation.community.update': NetOpenfederationCommunityUpdateInput;
@@ -2474,7 +2534,9 @@ export interface LexiconOutputMap {
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsOutput;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsOutput;
   'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpOutput;
+  'net.openfederation.community.activate': NetOpenfederationCommunityActivateOutput;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalOutput;
+  'net.openfederation.community.checkMigration': NetOpenfederationCommunityCheckMigrationOutput;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateOutput;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalOutput;
   'net.openfederation.community.createRole': NetOpenfederationCommunityCreateRoleOutput;
@@ -2484,6 +2546,7 @@ export interface LexiconOutputMap {
   'net.openfederation.community.export': NetOpenfederationCommunityExportOutput;
   'net.openfederation.community.get': NetOpenfederationCommunityGetOutput;
   'net.openfederation.community.getDelegation': NetOpenfederationCommunityGetDelegationOutput;
+  'net.openfederation.community.getMovedKeys': NetOpenfederationCommunityGetMovedKeysOutput;
   'net.openfederation.community.getProposal': NetOpenfederationCommunityGetProposalOutput;
   'net.openfederation.community.issueAttestation': NetOpenfederationCommunityIssueAttestationOutput;
   'net.openfederation.community.join': NetOpenfederationCommunityJoinOutput;
@@ -2497,6 +2560,8 @@ export interface LexiconOutputMap {
   'net.openfederation.community.listMine': NetOpenfederationCommunityListMineOutput;
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsOutput;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesOutput;
+  'net.openfederation.community.markMoved': NetOpenfederationCommunityMarkMovedOutput;
+  'net.openfederation.community.migrateIn': NetOpenfederationCommunityMigrateInOutput;
   'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesOutput;
   'net.openfederation.community.objectToProposal': NetOpenfederationCommunityObjectToProposalOutput;
   'net.openfederation.community.removeMember': NetOpenfederationCommunityRemoveMemberOutput;
@@ -2506,7 +2571,6 @@ export interface LexiconOutputMap {
   'net.openfederation.community.setGovernanceModel': NetOpenfederationCommunitySetGovernanceModelOutput;
   'net.openfederation.community.suspend': NetOpenfederationCommunitySuspendOutput;
   'net.openfederation.community.takedown': NetOpenfederationCommunityTakedownOutput;
-  'net.openfederation.community.transfer': NetOpenfederationCommunityTransferOutput;
   'net.openfederation.community.unlinkApplication': NetOpenfederationCommunityUnlinkApplicationOutput;
   'net.openfederation.community.unsuspend': NetOpenfederationCommunityUnsuspendOutput;
   'net.openfederation.community.update': NetOpenfederationCommunityUpdateOutput;
@@ -2671,7 +2735,9 @@ export interface LexiconErrorMap {
   'net.openfederation.calendar.listEvents': NetOpenfederationCalendarListEventsError;
   'net.openfederation.calendar.listRsvps': NetOpenfederationCalendarListRsvpsError;
   'net.openfederation.calendar.rsvp': NetOpenfederationCalendarRsvpError;
+  'net.openfederation.community.activate': NetOpenfederationCommunityActivateError;
   'net.openfederation.community.amendProposal': NetOpenfederationCommunityAmendProposalError;
+  'net.openfederation.community.checkMigration': NetOpenfederationCommunityCheckMigrationError;
   'net.openfederation.community.create': NetOpenfederationCommunityCreateError;
   'net.openfederation.community.createProposal': NetOpenfederationCommunityCreateProposalError;
   'net.openfederation.community.createRole': NetOpenfederationCommunityCreateRoleError;
@@ -2681,6 +2747,7 @@ export interface LexiconErrorMap {
   'net.openfederation.community.export': NetOpenfederationCommunityExportError;
   'net.openfederation.community.get': NetOpenfederationCommunityGetError;
   'net.openfederation.community.getDelegation': NetOpenfederationCommunityGetDelegationError;
+  'net.openfederation.community.getMovedKeys': NetOpenfederationCommunityGetMovedKeysError;
   'net.openfederation.community.getProposal': NetOpenfederationCommunityGetProposalError;
   'net.openfederation.community.issueAttestation': NetOpenfederationCommunityIssueAttestationError;
   'net.openfederation.community.join': NetOpenfederationCommunityJoinError;
@@ -2694,6 +2761,8 @@ export interface LexiconErrorMap {
   'net.openfederation.community.listMine': NetOpenfederationCommunityListMineError;
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsError;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesError;
+  'net.openfederation.community.markMoved': NetOpenfederationCommunityMarkMovedError;
+  'net.openfederation.community.migrateIn': NetOpenfederationCommunityMigrateInError;
   'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesError;
   'net.openfederation.community.objectToProposal': NetOpenfederationCommunityObjectToProposalError;
   'net.openfederation.community.removeMember': NetOpenfederationCommunityRemoveMemberError;
@@ -2703,7 +2772,6 @@ export interface LexiconErrorMap {
   'net.openfederation.community.setGovernanceModel': NetOpenfederationCommunitySetGovernanceModelError;
   'net.openfederation.community.suspend': NetOpenfederationCommunitySuspendError;
   'net.openfederation.community.takedown': NetOpenfederationCommunityTakedownError;
-  'net.openfederation.community.transfer': NetOpenfederationCommunityTransferError;
   'net.openfederation.community.unlinkApplication': NetOpenfederationCommunityUnlinkApplicationError;
   'net.openfederation.community.unsuspend': NetOpenfederationCommunityUnsuspendError;
   'net.openfederation.community.update': NetOpenfederationCommunityUpdateError;
@@ -2866,25 +2934,28 @@ export const lexiconContracts = {
   'net.openfederation.attestation.verifyCommitment': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
   'net.openfederation.authorship.claim': { revision: 1, errors: [] as const },
-  'net.openfederation.calendar.createEvent': { revision: 3, errors: ["Forbidden", "NotMember", "ProbationLimit"] as const },
+  'net.openfederation.calendar.createEvent': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "NotMember", "ProbationLimit"] as const },
   'net.openfederation.calendar.listEvents': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.calendar.listRsvps': { revision: 3, errors: ["NotFound"] as const },
-  'net.openfederation.calendar.rsvp': { revision: 2, errors: ["Forbidden", "NotMember"] as const },
-  'net.openfederation.community.amendProposal': { revision: 1, errors: ["InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
+  'net.openfederation.calendar.rsvp': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "NotMember"] as const },
+  'net.openfederation.community.activate': { revision: 1, errors: ["Forbidden", "IncompatibleDidDoc", "InvalidStatus", "NotFound"] as const },
+  'net.openfederation.community.amendProposal': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
+  'net.openfederation.community.checkMigration': { revision: 1, errors: ["NotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
-  'net.openfederation.community.createProposal': { revision: 5, errors: ["GovernanceNotActive", "InvalidRequest", "NotMember"] as const },
-  'net.openfederation.community.createRole': { revision: 2, errors: ["InvalidRequest", "NotMember", "RoleNameTaken"] as const },
+  'net.openfederation.community.createProposal': { revision: 6, errors: ["CommunityImporting", "CommunityMoved", "GovernanceNotActive", "InvalidRequest", "NotMember"] as const },
+  'net.openfederation.community.createRole': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "InvalidRequest", "NotMember", "RoleNameTaken"] as const },
   'net.openfederation.community.delete': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.deleteAttestation': { revision: 1, errors: ["AttestationNotFound", "InvalidRequest"] as const },
-  'net.openfederation.community.deleteRole': { revision: 1, errors: ["RoleInUse", "RoleNotFound"] as const },
+  'net.openfederation.community.deleteAttestation': { revision: 2, errors: ["AttestationNotFound", "CommunityImporting", "CommunityMoved", "InvalidRequest"] as const },
+  'net.openfederation.community.deleteRole': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "RoleInUse", "RoleNotFound"] as const },
   'net.openfederation.community.export': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.get': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.getDelegation': { revision: 1, errors: [] as const },
+  'net.openfederation.community.getMovedKeys': { revision: 1, errors: ["IncompatibleDidDoc", "NotFound", "NotMoved", "UnresolvableDid"] as const },
   'net.openfederation.community.getProposal': { revision: 6, errors: ["NotFound", "ProposalNotFound"] as const },
-  'net.openfederation.community.issueAttestation': { revision: 3, errors: ["InvalidRequest", "NotMember", "PayloadTooLarge"] as const },
+  'net.openfederation.community.issueAttestation': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "InvalidRequest", "NotMember", "PayloadTooLarge"] as const },
   'net.openfederation.community.join': { revision: 3, errors: ["AlreadyMember", "AlreadyRequested", "InvalidRequest", "NotFound", "PayloadTooLarge"] as const },
   'net.openfederation.community.leave': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
-  'net.openfederation.community.linkApplication': { revision: 1, errors: ["Conflict", "Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.linkApplication': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "Conflict", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listAll': { revision: 1, errors: [] as const },
   'net.openfederation.community.listApplications': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listAttestations': { revision: 3, errors: ["InvalidRequest", "NotFound"] as const },
@@ -2893,24 +2964,25 @@ export const lexiconContracts = {
   'net.openfederation.community.listMine': { revision: 2, errors: ["BadAudience", "BadLexiconMethod", "ExpiredToken", "InvalidSignature", "ReplayedToken"] as const },
   'net.openfederation.community.listProposals': { revision: 4, errors: ["NotFound"] as const },
   'net.openfederation.community.listRoles': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.markMoved': { revision: 1, errors: ["Forbidden", "NotFound", "NotMoved"] as const },
+  'net.openfederation.community.migrateIn': { revision: 1, errors: ["AlreadyExists", "AuthRequired", "DidMismatch", "Forbidden", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidCar", "InvalidHandle", "InvalidInviteCode", "InvalidRepo", "InvalidSignature", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "PayloadTooLarge", "UnresolvableDid", "UpstreamFailure"] as const },
   'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.objectToProposal': { revision: 2, errors: ["AlreadyObjected", "InvalidRequest", "NotMember", "ObjectionNotRecordable", "ObjectionWindowClosed", "ProposalNotFound", "ProposalNotPending"] as const },
+  'net.openfederation.community.objectToProposal': { revision: 3, errors: ["AlreadyObjected", "CommunityImporting", "CommunityMoved", "InvalidRequest", "NotMember", "ObjectionNotRecordable", "ObjectionWindowClosed", "ProposalNotFound", "ProposalNotPending"] as const },
   'net.openfederation.community.removeMember': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.resolveJoinRequest': { revision: 1, errors: ["AlreadyResolved", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.revokeDelegation': { revision: 2, errors: ["NotFound"] as const },
-  'net.openfederation.community.setDelegation': { revision: 2, errors: ["NotMember"] as const },
-  'net.openfederation.community.setGovernanceModel': { revision: 6, errors: ["GovernanceDenied", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.setDelegation': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "NotMember"] as const },
+  'net.openfederation.community.setGovernanceModel': { revision: 7, errors: ["CommunityImporting", "CommunityMoved", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.suspend': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.takedown': { revision: 1, errors: ["AlreadyTakenDown", "ExportRequired", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.transfer': { revision: 2, errors: ["CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "Unauthorized"] as const },
-  'net.openfederation.community.unlinkApplication': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.unlinkApplication': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.unsuspend': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotSuspended"] as const },
-  'net.openfederation.community.update': { revision: 2, errors: ["Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.update': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.updateMember': { revision: 2, errors: ["CannotChangeOwner", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "PayloadTooLarge", "RoleNotFound"] as const },
-  'net.openfederation.community.updateRole': { revision: 2, errors: ["InvalidRequest", "OwnerLockout", "RoleNameTaken", "RoleNotFound"] as const },
+  'net.openfederation.community.updateRole': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "InvalidRequest", "OwnerLockout", "RoleNameTaken", "RoleNotFound"] as const },
   'net.openfederation.community.verifyAttestation': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.verifyMembership': { revision: 2, errors: ["InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.voteOnProposal': { revision: 7, errors: ["AlreadyVoted", "InvalidRequest", "NotMember", "ProposalClosed", "ProposalNotFound", "VoteNotRecordable"] as const },
+  'net.openfederation.community.voteOnProposal': { revision: 8, errors: ["AlreadyVoted", "CommunityImporting", "CommunityMoved", "InvalidRequest", "NotMember", "ProposalClosed", "ProposalNotFound", "VoteNotRecordable"] as const },
   'net.openfederation.contact.block': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.contact.contact': { revision: 1, errors: [] as const },
   'net.openfederation.contact.list': { revision: 1, errors: [] as const },
@@ -2931,12 +3003,12 @@ export const lexiconContracts = {
   'net.openfederation.disclosure.revokeGrant': { revision: 1, errors: ["AlreadyRevoked", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.federation.listPeerCommunities': { revision: 1, errors: [] as const },
   'net.openfederation.federation.listPeers': { revision: 1, errors: [] as const },
-  'net.openfederation.forum.createPost': { revision: 4, errors: ["Forbidden", "NotMember", "ProbationLimit", "ThreadNotFound"] as const },
-  'net.openfederation.forum.createThread': { revision: 3, errors: ["Forbidden", "NotMember", "ProbationLimit"] as const },
+  'net.openfederation.forum.createPost': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "NotMember", "ProbationLimit", "ThreadNotFound"] as const },
+  'net.openfederation.forum.createThread': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "NotMember", "ProbationLimit"] as const },
   'net.openfederation.forum.deletePost': { revision: 1, errors: [] as const },
   'net.openfederation.forum.getThread': { revision: 3, errors: ["NotFound"] as const },
-  'net.openfederation.forum.hidePost': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
-  'net.openfederation.forum.hideThread': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
+  'net.openfederation.forum.hidePost': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
+  'net.openfederation.forum.hideThread': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.listThreads': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.forum.post': { revision: 1, errors: [] as const },
   'net.openfederation.forum.thread': { revision: 1, errors: [] as const },

@@ -1,0 +1,60 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.markMoved",
+  "revision": 1,
+  "description": "Mark the copy left behind by a move as moved (#267).",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Owner only. The DID must point elsewhere. The copy becomes read-only.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did"
+          ],
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did",
+            "status",
+            "home"
+          ],
+          "properties": {
+            "did": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "home": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound"
+        },
+        {
+          "name": "Forbidden"
+        },
+        {
+          "name": "NotMoved"
+        }
+      ]
+    }
+  }
+}

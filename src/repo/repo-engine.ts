@@ -23,7 +23,7 @@ import type { Keypair } from '@atproto/crypto';
 import { PgBlockstore } from './pg-blockstore.js';
 import { query, withTransaction } from '../db/client.js';
 
-const MEMBER_COLLECTION = 'net.openfederation.community.member';
+import { MEMBER_COLLECTION, projectMemberRow } from '../community/projections.js';
 
 export class RepoEngine {
   private storage: PgBlockstore;
@@ -361,41 +361,8 @@ export class RepoEngine {
           [this.did, op.collection, op.rkey, cidStr, JSON.stringify(op.record)]
         );
 
-        if (op.collection === MEMBER_COLLECTION && op.record.did) {
-          const rec = op.record as {
-            did: string;
-            handle?: string | null;
-            role?: string | null;
-            roleRkey?: string | null;
-            kind?: string | null;
-            tags?: string[] | null;
-            attributes?: Record<string, unknown> | null;
-          };
-
-          await client.query(
-            `INSERT INTO members_unique
-               (community_did, member_did, record_rkey, handle, role, role_rkey, kind, tags, attributes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT (community_did, member_did) DO UPDATE
-               SET record_rkey = EXCLUDED.record_rkey,
-                   handle      = COALESCE(EXCLUDED.handle, members_unique.handle),
-                   role        = COALESCE(EXCLUDED.role, members_unique.role),
-                   role_rkey   = EXCLUDED.role_rkey,
-                   kind        = EXCLUDED.kind,
-                   tags        = EXCLUDED.tags,
-                   attributes  = EXCLUDED.attributes`,
-            [
-              this.did,
-              rec.did,
-              op.rkey,
-              rec.handle ?? null,
-              rec.role ?? null,
-              rec.roleRkey ?? null,
-              rec.kind ?? null,
-              rec.tags ? JSON.stringify(rec.tags) : null,
-              rec.attributes ? JSON.stringify(rec.attributes) : null,
-            ],
-          );
+        if (op.collection === MEMBER_COLLECTION) {
+          await projectMemberRow(client, this.did, op.rkey, op.record);
         }
       }
     });

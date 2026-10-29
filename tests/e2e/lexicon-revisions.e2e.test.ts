@@ -32,11 +32,11 @@ describe('Lexicon Revisions', () => {
     }
   });
 
-  it('step 3: issueAttestation has revision 3', () => {
+  it('step 3: issueAttestation has revision 4', () => {
     const content = JSON.parse(
       readFileSync(join(LEXICON_DIR, 'net.openfederation.community.issueAttestation.json'), 'utf-8')
     );
-    expect(content.revision).toBe(3);
+    expect(content.revision).toBe(4);
   });
 
   it('step 4: revision appears after id in key order', () => {

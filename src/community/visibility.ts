@@ -44,6 +44,7 @@ type RoleRecord = { name?: string; permissions?: string[] };
 
 type CommunityContextRow = {
   created_by: string | null;
+  owner_did: string | null;
   visibility: string | null;
   member_rkey: string | null;
   member_record: MemberRecord | null;
@@ -66,6 +67,7 @@ async function loadCommunityContext(
   const result = await query<CommunityContextRow>(
     `SELECT
        c.created_by,
+       c.owner_did,
        s.record->>'visibility' AS visibility,
        mu.record_rkey          AS member_rkey,
        mr.record               AS member_record,
@@ -142,7 +144,7 @@ export async function getCommunityAccess(opts: {
     createdBy: row.created_by ?? undefined,
     visibility: row.visibility || 'public',
     isAdmin: caller?.roles.includes('admin') || false,
-    isOwner: caller ? row.created_by === caller.userId : false,
+    isOwner: caller ? row.owner_did === caller.did : false,
     membership,
   };
 }
@@ -170,7 +172,7 @@ export async function getCallerCommunityCapabilities(opts: {
     createdBy: row.created_by ?? undefined,
     visibility: row.visibility || 'public',
     isAdmin: opts.caller.roles.includes('admin'),
-    isOwner: row.created_by === opts.caller.userId,
+    isOwner: row.owner_did === opts.caller.did,
     membership,
   };
 
