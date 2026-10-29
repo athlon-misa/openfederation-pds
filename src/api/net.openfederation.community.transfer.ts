@@ -132,7 +132,6 @@ export default async function transferCommunity(req: AuthRequest, res: Response)
 
     // Build the transfer package
     const transferPackage = {
-      $type: 'net.openfederation.community.transfer',
       transferToken,
       transferExpiresAt,
       exportedAt: new Date().toISOString(),

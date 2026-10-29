@@ -1011,6 +1011,7 @@ export type NetOpenfederationCommunityTakedownError = "AlreadyTakenDown" | "Expo
 
 export type NetOpenfederationCommunityTransferInput = {
   "did": string;
+  "password": string;
 };
 export type NetOpenfederationCommunityTransferOutput = {
   "transferToken": string;
@@ -1030,7 +1031,7 @@ export type NetOpenfederationCommunityTransferOutput = {
   "collections": unknown;
   "instructions": string;
 };
-export type NetOpenfederationCommunityTransferError = "CommunityTakenDown" | "Forbidden" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunityTransferError = "CommunityTakenDown" | "Forbidden" | "InvalidRequest" | "NotFound" | "Unauthorized";
 
 export type NetOpenfederationCommunityUnlinkApplicationInput = {
   "communityDid": string;
@@ -2763,7 +2764,7 @@ export const lexiconContracts = {
   'net.openfederation.community.setGovernanceModel': { revision: 6, errors: ["GovernanceDenied", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.suspend': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.takedown': { revision: 1, errors: ["AlreadyTakenDown", "ExportRequired", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.transfer': { revision: 1, errors: ["CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.transfer': { revision: 2, errors: ["CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "Unauthorized"] as const },
   'net.openfederation.community.unlinkApplication': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.unsuspend': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotSuspended"] as const },
   'net.openfederation.community.update': { revision: 2, errors: ["Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },

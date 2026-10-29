@@ -74,7 +74,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.community.suspend` | Admin | Suspend a community |
 | POST | `net.openfederation.community.unsuspend` | Admin | Unsuspend a community |
 | POST | `net.openfederation.community.takedown` | Admin | Take down a community (requires prior export) |
-| POST | `net.openfederation.community.transfer` | Owner | Generate transfer package for migration (owner-only per AT Protocol) |
+| POST | `net.openfederation.community.transfer` | Owner | Generate transfer package for migration (owner-only per AT Protocol). Input: `did`, `password` (re-authentication) |
 | POST | `net.openfederation.community.updateMember` | Owner/Admin | Partial update of member record: role, kind, tags, attributes (any subset). Renamed from updateMemberRole to support semantic classification (#50). |
 | POST | `net.openfederation.community.issueAttestation` | Owner/Mod | Issue a signed attestation for a member |
 | POST | `net.openfederation.community.deleteAttestation` | Owner/Mod | Revoke an attestation (delete-as-revoke) |

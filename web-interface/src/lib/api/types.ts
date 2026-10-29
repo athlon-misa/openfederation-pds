@@ -197,7 +197,6 @@ export interface TakedownCommunityResponse {
 
 // Community transfer type
 export interface CommunityTransferPackage {
-  $type: 'net.openfederation.community.transfer';
   transferToken: string;
   transferExpiresAt: string;
   exportedAt: string;

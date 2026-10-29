@@ -20,6 +20,8 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable } from '@/components/data-table/data-table';
@@ -39,6 +41,7 @@ export default function CommunityDetailPage() {
   const [membersPage, setMembersPage] = useState(0);
   const [requestsPage, setRequestsPage] = useState(0);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [transferPassword, setTransferPassword] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<{ did: string; handle: string } | null>(null);
 
@@ -158,7 +161,7 @@ export default function CommunityDetailPage() {
   };
 
   const handleTransfer = () => {
-    transferMutation.mutate(did, {
+    transferMutation.mutate({ did, password: transferPassword }, {
       onSuccess: (data) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -168,6 +171,7 @@ export default function CommunityDetailPage() {
         a.click();
         URL.revokeObjectURL(url);
         toast.success('Transfer package downloaded');
+        setTransferPassword('');
         setTransferOpen(false);
       },
       onError: (e) => toast.error(e.message),
@@ -327,14 +331,28 @@ export default function CommunityDetailPage() {
 
       <ConfirmDialog
         open={transferOpen}
-        onOpenChange={setTransferOpen}
+        onOpenChange={(open) => {
+          setTransferOpen(open);
+          if (!open) setTransferPassword('');
+        }}
         title="Transfer Community"
-        description="This will generate a transfer package for migrating this community to another PDS. Are you sure?"
+        description="This will generate a transfer package for migrating this community to another PDS. Enter your password to confirm."
         confirmLabel="Transfer"
         variant="destructive"
         loading={transferMutation.isPending}
         onConfirm={handleTransfer}
-      />
+      >
+        <div className="space-y-2">
+          <Label htmlFor="transfer-password">Password</Label>
+          <Input
+            id="transfer-password"
+            type="password"
+            value={transferPassword}
+            onChange={(e) => setTransferPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </div>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={deleteOpen}

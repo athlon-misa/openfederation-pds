@@ -109,7 +109,8 @@ export function useExportCommunityMutation() {
 
 export function useTransferCommunityMutation() {
   return useMutation({
-    mutationFn: async (did: string) => unwrapApi(await transferCommunity(did)),
+    mutationFn: async ({ did, password }: { did: string; password: string }) =>
+      unwrapApi(await transferCommunity(did, password)),
   });
 }
 

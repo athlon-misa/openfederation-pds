@@ -127,9 +127,9 @@ export async function takedownCommunity(did: string, reason?: string) {
   });
 }
 
-export async function transferCommunity(did: string) {
+export async function transferCommunity(did: string, password: string) {
   return xrpc<CommunityTransferPackage>('net.openfederation.community.transfer', {
-    body: { did },
+    body: { did, password },
   });
 }
 

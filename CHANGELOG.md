@@ -14,12 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Env vars `PSEUDONYM_TOKENS_PER_EPOCH` (20), `PSEUDONYM_PROBATION_DAYS` (7, `0` disables), `PSEUDONYM_PROBATION_DAILY_WRITES` (20).
 - Migration `scripts/migrate-041-pseudonyms.sql`.
 
+### Fixed
+
+- `net.openfederation.community.transfer` no longer returns 500 on success: the package carried an undeclared `$type` field, which output validation refused. The web dashboard now asks for the password (#260).
+
 ### Changed
 
 - New error `NoEmail` on `com.atproto.server.confirmEmail`, `requestEmailConfirmation` and `net.openfederation.admin.createVerificationChallenge` (accounts without an email).
 - `net.openfederation.account.list` (revision 2): `email` is optional and omitted for accounts without one (pseudonyms); previously such an account made the endpoint return 500.
 - New error `ProbationLimit` (429) on `com.atproto.repo.createRecord`, `putRecord`, `uploadBlob`, `net.openfederation.forum.createThread`, `forum.createPost` and `calendar.createEvent` for pseudonyms in their probation period.
 - `auditLog()` drops entries whose actor or target is a pseudonym; disclosure audit stores no IP for pseudonym requesters.
+- `net.openfederation.community.transfer` (revision 2) declares the `password` it has always required, plus the `Unauthorized` error for a wrong one. Before, the runtime refused the field and no request could succeed (#260).
 - Requirements note: `@cloudflare/blindrsa-ts` (used by the pseudonym package) declares `engines.node >= 24`, while this repo's root declares `>=22 <25`.
 
 ## [1.3.0] - 2026-08-07

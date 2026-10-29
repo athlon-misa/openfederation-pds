@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.transfer",
-  "revision": 1,
+  "revision": 2,
   "description": "Generate a transfer package for migrating a community to another PDS. Requires auth (owner only). Per AT Protocol, only the DID holder can initiate transfer.",
   "defs": {
     "main": {
@@ -24,7 +24,11 @@
       "errors": [
         {
           "name": "InvalidRequest",
-          "description": "Missing or invalid DID."
+          "description": "Missing DID or password."
+        },
+        {
+          "name": "Unauthorized",
+          "description": "The password is wrong."
         },
         {
           "name": "NotFound",
@@ -46,10 +50,15 @@
         "did": {
           "type": "string",
           "description": "The DID of the community to transfer."
+        },
+        "password": {
+          "type": "string",
+          "description": "The owner's password, to confirm this sensitive operation."
         }
       },
       "required": [
-        "did"
+        "did",
+        "password"
       ]
     },
     "communityInfo": {
