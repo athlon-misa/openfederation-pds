@@ -397,10 +397,40 @@ $('btn-publish').addEventListener('click', busy($('btn-publish') as HTMLButtonEl
       url: `https://opennewsrooms.demo/night-desk/${slug}`, publishedAt: now, createdAt: now,
     },
   }, saved!.ndJwt);
+  await setProfilePicture(saved!.nd!.did, saved!.ndJwt!);
   saved!.published = { uri: out.uri, title, hash };
   save();
   renderAll();
 }));
+
+/** A small moon on the night sky, as a PNG. */
+function drawPicture(): Promise<Blob> {
+  const c = document.createElement('canvas'); c.width = c.height = 96;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#10131a'; g.fillRect(0, 0, 96, 96);
+  g.fillStyle = '#f2efe6'; g.beginPath(); g.arc(50, 46, 24, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#10131a'; g.beginPath(); g.arc(61, 38, 22, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f2efe6';
+  for (const [x, y] of [[20, 20], [76, 70], [70, 18], [26, 74]]) g.fillRect(x, y, 2, 2);
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('No picture'))), 'image/png'));
+}
+
+/** Night Desk's profile picture: a blob the profile file points to. It travels with a move (#264). */
+async function setProfilePicture(did: string, jwt: string): Promise<void> {
+  const base = home();
+  const current = await fetch(`${base}/xrpc/com.atproto.repo.getRecord?${new URLSearchParams({ repo: did, collection: 'app.bsky.actor.profile', rkey: 'self' })}`);
+  const profile = current.ok ? ((await current.json()) as { value: Record<string, unknown> }).value : {};
+  if (profile.avatar) return;
+  const up = await fetch(`${base}/xrpc/com.atproto.repo.uploadBlob`, {
+    method: 'POST', headers: { 'Content-Type': 'image/png', Authorization: `Bearer ${jwt}` }, body: await drawPicture(),
+  });
+  if (!up.ok) throw new Error(`uploadBlob failed (${up.status})`);
+  const { blob } = await up.json() as { blob: unknown };
+  await xrpc('com.atproto.repo.putRecord', {
+    repo: did, collection: 'app.bsky.actor.profile', rkey: 'self',
+    record: { ...profile, $type: 'app.bsky.actor.profile', avatar: blob },
+  }, jwt);
+}
 
 async function prove(asStranger: boolean): Promise<void> {
   const word = $<HTMLInputElement>('word').value;
@@ -436,7 +466,7 @@ $('word').addEventListener('input', () => { $('verdict').hidden = true; $('verdi
 // ---------- Files: the repository as folders ----------
 
 const FOLDER_NAMES: Record<string, [string, string]> = {
-  'app.bsky.actor.profile': ['profile', 'Night Desk\u2019s public profile: its name and description.'],
+  'app.bsky.actor.profile': ['profile', 'Night Desk\u2019s public profile: its name, description and picture. The picture itself is stored next to the files and goes wherever they go.'],
   'net.openfederation.authorship.claim': ['articles', 'The fingerprint of a published article, with its headline and link. If the story is changed, the fingerprint stops matching.'],
   'net.openfederation.pseudonym.link': ['reveals', 'A public statement linking Night Desk to its owner.'],
 };
@@ -490,7 +520,14 @@ function openFile(f: RepoFile, row: HTMLElement): void {
   const what = document.createElement('p'); what.className = 'note what'; what.textContent = FOLDER_NAMES[f.collection]?.[1] ?? '';
   const { $type: _t, ...rest } = f.value as Record<string, unknown>;
   const pre = document.createElement('pre'); pre.textContent = JSON.stringify(rest, null, 2);
-  v.append(h, what, pre);
+  v.append(h, what);
+  const avatar = (rest.avatar as { ref?: { $link?: string } } | undefined)?.ref?.$link;
+  if (avatar && saved?.nd) {
+    const img = document.createElement('img'); img.className = 'file-picture'; img.alt = 'Night Desk\u2019s picture';
+    img.src = `${home()}/xrpc/com.atproto.sync.getBlob?${new URLSearchParams({ did: saved.nd.did, cid: avatar })}`;
+    v.appendChild(img);
+  }
+  v.appendChild(pre);
 }
 
 async function showRepo(): Promise<void> {
@@ -550,7 +587,7 @@ function renderMove(): void {
 
 /** The move's steps, as the checklist on the Move screen names them. */
 const MOVE_ITEM: Record<MoveStep, string> = {
-  open: 'open', export: 'copy', import: 'copy', check: 'check', point: 'point', activate: 'activate', retire: 'retire',
+  open: 'open', export: 'copy', import: 'copy', blobs: 'copy', check: 'check', point: 'point', activate: 'activate', retire: 'retire',
 };
 
 $('btn-move').addEventListener('click', busy($('btn-move') as HTMLButtonElement, async () => {

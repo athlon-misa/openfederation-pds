@@ -58,7 +58,7 @@ export async function openAccountForMove(p: {
   return { ...created, signingKey };
 }
 
-export type MoveStep = 'open' | 'export' | 'import' | 'check' | 'point' | 'activate' | 'retire';
+export type MoveStep = 'open' | 'export' | 'import' | 'blobs' | 'check' | 'point' | 'activate' | 'retire';
 
 async function get<T>(pdsUrl: string, nsid: string, bearer: string): Promise<T> {
   const res = await fetch(`${pdsUrl}/xrpc/${nsid}`, { headers: { Authorization: `Bearer ${bearer}` } });
@@ -67,15 +67,46 @@ async function get<T>(pdsUrl: string, nsid: string, bearer: string): Promise<T> 
   return json as T;
 }
 
-interface AccountStatus { activated: boolean; validDid: boolean; repoCommit: string; indexedRecords: number }
+interface AccountStatus {
+  activated: boolean; validDid: boolean; repoCommit: string; indexedRecords: number;
+  expectedBlobs: number; importedBlobs: number;
+}
+
+/**
+ * Copy every blob the new PDS reports missing from the old PDS
+ * (com.atproto.repo.listMissingBlobs → sync.getBlob → repo.uploadBlob).
+ * Returns how many were copied.
+ */
+export async function copyMissingBlobs(p: { oldPdsUrl: string; newPdsUrl: string; did: string; accessJwt: string }): Promise<number> {
+  let copied = 0;
+  for (;;) {
+    // Each upload removes a blob from the missing list, so always read the first page.
+    const page = await get<{ blobs: { cid: string }[] }>(p.newPdsUrl, 'com.atproto.repo.listMissingBlobs?limit=100', p.accessJwt);
+    if (page.blobs.length === 0) return copied;
+    for (const { cid } of page.blobs) {
+      const blob = await fetch(`${p.oldPdsUrl}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(p.did)}&cid=${encodeURIComponent(cid)}`);
+      if (!blob.ok) throw new Error(`Old PDS did not serve blob ${cid} (${blob.status})`);
+      const up = await fetch(`${p.newPdsUrl}/xrpc/com.atproto.repo.uploadBlob`, {
+        method: 'POST',
+        headers: { 'Content-Type': blob.headers.get('content-type') ?? 'application/octet-stream', Authorization: `Bearer ${p.accessJwt}` },
+        body: new Uint8Array(await blob.arrayBuffer()),
+      });
+      const json = await up.json().catch(() => ({})) as { blob?: { ref?: { $link?: string } }; error?: string; message?: string };
+      if (!up.ok) throw new Error(`New PDS refused blob ${cid} (${up.status}): ${json.error ?? ''} ${json.message ?? ''}`.trim());
+      if (json.blob?.ref?.$link !== cid) throw new Error(`Blob ${cid} arrived as ${json.blob?.ref?.$link}`);
+      copied++;
+    }
+  }
+}
 
 /**
  * Move a pseudonym to another PDS, in the standard AT Protocol order:
- * open the account there (deactivated) → copy the repository → check it
- * arrived → point the DID there → activate → retire the old home.
+ * open the account there (deactivated) → copy the repository → copy the
+ * blobs its records reference → check everything arrived → point the DID
+ * there → activate → retire the old home.
  *
  * The DID is only pointed at the new PDS once that PDS reports the exact
- * repository the old one exported, so a refusal or failure at any earlier
+ * repository the old one exported and every blob it references, so a refusal or failure at any earlier
  * step leaves the pseudonym working where it was. Returns a session at the
  * new home. `onStep` is called (and awaited) as each step starts, for progress
  * displays.
@@ -109,11 +140,17 @@ export async function moveAccount(p: {
     throw new Error(`New PDS refused the repository (${imported.status}): ${json.error ?? ''} ${json.message ?? ''}`.trim());
   }
 
+  await step('blobs');
+  await copyMissingBlobs({ oldPdsUrl: p.oldPdsUrl, newPdsUrl: p.newPdsUrl, did: p.did, accessJwt: opened.accessJwt });
+
   await step('check');
   const status = await get<AccountStatus>(p.newPdsUrl, 'com.atproto.server.checkAccountStatus', opened.accessJwt);
   const exportedRoot = carRoot(car);
   if (status.repoCommit !== exportedRoot || status.indexedRecords === 0) {
     throw new Error('The new PDS does not hold the exported repository; the DID was not changed');
+  }
+  if (status.importedBlobs !== status.expectedBlobs) {
+    throw new Error(`The new PDS holds ${status.importedBlobs} of ${status.expectedBlobs} blobs; the DID was not changed`);
   }
 
   await step('point');

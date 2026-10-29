@@ -4,7 +4,7 @@
  * in-process test server. Start it in beforeAll and stop it in afterAll.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createWriteStream, mkdirSync } from 'node:fs';
+import { createWriteStream, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 import { config } from '../../src/config.js';
@@ -57,6 +57,7 @@ export async function startSecondPds(): Promise<SecondPds> {
   const handleSuffix = '.pds-b.test';
   const logDir = join(ROOT, 'tests', 'e2e', '.logs');
   mkdirSync(logDir, { recursive: true });
+  rmSync(join(logDir, 'pds-b-blobs'), { recursive: true, force: true });
   const log = createWriteStream(join(logDir, 'pds-b.log'), { flags: 'w' });
 
   const child = spawn(process.execPath, ['--import', './scripts/register-ts-node.mjs', 'src/index.ts'], {
@@ -72,6 +73,9 @@ export async function startSecondPds(): Promise<SecondPds> {
       PDS_SERVICE_DID: serviceDid,
       PLC_DIRECTORY_URL: config.plc.directoryUrl,
       HANDLE_SUFFIX: handleSuffix,
+      // Its own blob store, so a moved blob is really copied.
+      BLOB_STORAGE: 'local',
+      BLOB_STORAGE_PATH: join(logDir, 'pds-b-blobs'),
       BOOTSTRAP_ADMIN_HANDLE: 'admin',
       BOOTSTRAP_ADMIN_EMAIL: 'admin@pds-b.test',
       BOOTSTRAP_ADMIN_PASSWORD: 'Second-Pds-Admin-7a!',

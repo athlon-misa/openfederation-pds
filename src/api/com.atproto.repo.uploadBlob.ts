@@ -11,9 +11,18 @@ import { CID } from 'multiformats/cid';
 // Raw codec for blobs (not CBOR)
 const RAW_CODEC = 0x55;
 
+async function isMigratingIn(req: AuthRequest): Promise<boolean> {
+  if (!req.auth || req.auth.authMethod === 'service-auth') return false;
+  const row = (await query<{ migrating: boolean }>(
+    `SELECT (migrating_in AND status = 'deactivated') AS migrating FROM users WHERE did = $1`, [req.auth.did])).rows[0];
+  return !!row?.migrating;
+}
+
 export default async function uploadBlob(req: AuthRequest, res: Response): Promise<void> {
   try {
-    if (!requireApprovedUser(req, res)) return;
+    // An account moving here uploads its blobs before it is activated (#264).
+    const migrating = await isMigratingIn(req);
+    if (!migrating && !requireApprovedUser(req, res)) return;
 
     const contentType = req.headers['content-type'];
 
@@ -51,7 +60,8 @@ export default async function uploadBlob(req: AuthRequest, res: Response): Promi
       return;
     }
 
-    if (!(await enforcePseudonymProbation(req, res))) return;
+    // Copying existing blobs during a move is not new writing.
+    if (!migrating && !(await enforcePseudonymProbation(req, res))) return;
 
     // Compute CID: v1, raw codec, sha256
     const hash = await sha256.digest(data);

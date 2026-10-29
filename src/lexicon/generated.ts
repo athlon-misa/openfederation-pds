@@ -51,6 +51,19 @@ export type ComAtprotoRepoImportRepoInput = undefined;
 export type ComAtprotoRepoImportRepoOutput = undefined;
 export type ComAtprotoRepoImportRepoError = "DidMismatch" | "InvalidCar" | "InvalidRepo" | "InvalidSignature" | "PayloadTooLarge" | "UnresolvableDid";
 
+export type ComAtprotoRepoListMissingBlobsInput = {
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type ComAtprotoRepoListMissingBlobsOutput = {
+  "cursor"?: string;
+  "blobs": Array<{
+  "cid": string;
+  "recordUri": string;
+}>;
+};
+export type ComAtprotoRepoListMissingBlobsError = never;
+
 export type ComAtprotoRepoListRecordsInput = JsonObject;
 export type ComAtprotoRepoListRecordsOutput = unknown;
 export type ComAtprotoRepoListRecordsError = "RepoNotFound";
@@ -174,6 +187,18 @@ export type ComAtprotoSyncGetBlobError = "BlobNotFound";
 export type ComAtprotoSyncGetRepoInput = JsonObject;
 export type ComAtprotoSyncGetRepoOutput = unknown;
 export type ComAtprotoSyncGetRepoError = "RepoNotFound";
+
+export type ComAtprotoSyncListBlobsInput = {
+  "did": string;
+  "since"?: string;
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type ComAtprotoSyncListBlobsOutput = {
+  "cursor"?: string;
+  "cids": Array<string>;
+};
+export type ComAtprotoSyncListBlobsError = "RepoNotFound";
 
 export type CommunityLexiconCalendarEventInput = undefined;
 export type CommunityLexiconCalendarEventOutput = undefined;
@@ -2164,6 +2189,7 @@ export interface LexiconInputMap {
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoInput;
   'com.atproto.repo.getRecord': ComAtprotoRepoGetRecordInput;
   'com.atproto.repo.importRepo': ComAtprotoRepoImportRepoInput;
+  'com.atproto.repo.listMissingBlobs': ComAtprotoRepoListMissingBlobsInput;
   'com.atproto.repo.listRecords': ComAtprotoRepoListRecordsInput;
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordInput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobInput;
@@ -2181,6 +2207,7 @@ export interface LexiconInputMap {
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyInput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobInput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoInput;
+  'com.atproto.sync.listBlobs': ComAtprotoSyncListBlobsInput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventInput;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpInput;
   'net.openfederation.account.approve': NetOpenfederationAccountApproveInput;
@@ -2356,6 +2383,7 @@ export interface LexiconOutputMap {
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoOutput;
   'com.atproto.repo.getRecord': ComAtprotoRepoGetRecordOutput;
   'com.atproto.repo.importRepo': ComAtprotoRepoImportRepoOutput;
+  'com.atproto.repo.listMissingBlobs': ComAtprotoRepoListMissingBlobsOutput;
   'com.atproto.repo.listRecords': ComAtprotoRepoListRecordsOutput;
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordOutput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobOutput;
@@ -2373,6 +2401,7 @@ export interface LexiconOutputMap {
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyOutput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobOutput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoOutput;
+  'com.atproto.sync.listBlobs': ComAtprotoSyncListBlobsOutput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventOutput;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpOutput;
   'net.openfederation.account.approve': NetOpenfederationAccountApproveOutput;
@@ -2548,6 +2577,7 @@ export interface LexiconErrorMap {
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoError;
   'com.atproto.repo.getRecord': ComAtprotoRepoGetRecordError;
   'com.atproto.repo.importRepo': ComAtprotoRepoImportRepoError;
+  'com.atproto.repo.listMissingBlobs': ComAtprotoRepoListMissingBlobsError;
   'com.atproto.repo.listRecords': ComAtprotoRepoListRecordsError;
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordError;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobError;
@@ -2565,6 +2595,7 @@ export interface LexiconErrorMap {
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyError;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobError;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoError;
+  'com.atproto.sync.listBlobs': ComAtprotoSyncListBlobsError;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventError;
   'community.lexicon.calendar.rsvp': CommunityLexiconCalendarRsvpError;
   'net.openfederation.account.approve': NetOpenfederationAccountApproveError;
@@ -2742,6 +2773,7 @@ export const lexiconContracts = {
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.getRecord': { revision: 1, errors: ["RecordNotFound"] as const },
   'com.atproto.repo.importRepo': { revision: 1, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidSignature", "PayloadTooLarge", "UnresolvableDid"] as const },
+  'com.atproto.repo.listMissingBlobs': { revision: 1, errors: [] as const },
   'com.atproto.repo.listRecords': { revision: 2, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.putRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 2, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest", "ProbationLimit"] as const },
@@ -2759,6 +2791,7 @@ export const lexiconContracts = {
   'com.atproto.server.reserveSigningKey': { revision: 2, errors: [] as const },
   'com.atproto.sync.getBlob': { revision: 1, errors: ["BlobNotFound"] as const },
   'com.atproto.sync.getRepo': { revision: 1, errors: ["RepoNotFound"] as const },
+  'com.atproto.sync.listBlobs': { revision: 1, errors: ["RepoNotFound"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },
   'community.lexicon.calendar.rsvp': { revision: 1, errors: [] as const },
   'net.openfederation.account.approve': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },

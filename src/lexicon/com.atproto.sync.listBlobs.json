@@ -1,0 +1,65 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.sync.listBlobs",
+  "revision": 1,
+  "description": "AT Protocol listBlobs: the blob CIDs a repository references.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List blob CIDs referenced by the records of a repository, in CID order. Does not require auth; private community repositories are gated like getRepo. The since parameter is accepted and ignored: the full list is returned.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "did"
+        ],
+        "properties": {
+          "did": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the repo."
+          },
+          "since": {
+            "type": "string",
+            "format": "tid",
+            "description": "Optional revision of the repo to list blobs since. Ignored on this PDS."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 500
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "cids"
+          ],
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "cids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "cid"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "RepoNotFound"
+        }
+      ]
+    }
+  }
+}

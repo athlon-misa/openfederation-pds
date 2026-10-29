@@ -245,6 +245,7 @@ main { position: relative; min-height: 0; }
 .file-view h4 { margin: 0; font-family: var(--mono); font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
 .file-view pre { margin: 0; font-family: var(--mono); font-size: clamp(11px, .75vw, 14px); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .file-view .what { font-size: .82em; }
+.file-view .file-picture { width: 72px; height: 72px; border-radius: 50%; border: 1px solid var(--ink); }
 .backup-link { font-family: var(--mono); font-size: .8em; color: var(--ink); }
 
 /* Move */

@@ -114,6 +114,21 @@ describe('account migration', () => {
     const story = await post(pdsA, atA.accessJwt, nd.did, 'https://news.example/before-the-move');
     expect(story.status).toBe(200);
 
+    // #264: an avatar the profile references must come along.
+    const avatarBytes = new TextEncoder().encode(`night desk avatar ${nd.did}`);
+    const uploaded = await fetch(`${pdsA}/xrpc/com.atproto.repo.uploadBlob`, {
+      method: 'POST', headers: { 'Content-Type': 'image/png', Authorization: `Bearer ${atA.accessJwt}` }, body: avatarBytes,
+    });
+    expect(uploaded.status).toBe(200);
+    const { blob: avatar } = await uploaded.json();
+    const profile = await fetch(`${pdsA}/xrpc/com.atproto.repo.putRecord`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${atA.accessJwt}` },
+      body: JSON.stringify({ repo: nd.did, collection: 'app.bsky.actor.profile', rkey: 'self',
+        record: { $type: 'app.bsky.actor.profile', displayName: 'Night Desk', avatar } }),
+    });
+    expect(profile.status).toBe(200);
+
     const steps: MoveStep[] = [];
     const label = nd.handle.slice(0, -config.handleSuffix.length);
     const newHandle = `${label}${pdsB!.handleSuffix}`;
@@ -123,7 +138,7 @@ describe('account migration', () => {
       plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle,
       onStep: (s) => steps.push(s),
     });
-    expect(steps).toEqual(['open', 'export', 'import', 'check', 'point', 'activate', 'retire']);
+    expect(steps).toEqual(['open', 'export', 'import', 'blobs', 'check', 'point', 'activate', 'retire']);
     expect(session.did).toBe(nd.did);
 
     // The DID now names B, with the new handle and the commitment kept.
@@ -140,6 +155,10 @@ describe('account migration', () => {
     const urls = (await (await fetch(`${pdsB!.url}/xrpc/com.atproto.repo.listRecords?repo=${nd.did}&collection=net.openfederation.authorship.claim`)).json())
       .records.map((r: { value: { url: string } }) => r.value.url);
     expect(urls).toEqual(expect.arrayContaining(['https://news.example/before-the-move', 'https://news.example/after-the-move']));
+    expect(status.body).toMatchObject({ expectedBlobs: 1, importedBlobs: 1 });
+    const served = await fetch(`${pdsB!.url}/xrpc/com.atproto.sync.getBlob?did=${nd.did}&cid=${avatar.ref.$link}`);
+    expect(served.status).toBe(200);
+    expect(new Uint8Array(await served.arrayBuffer())).toEqual(avatarBytes);
 
     // A: deactivated, so the old session and the phrase no longer work there.
     expect((await post(pdsA, atA.accessJwt, nd.did, 'https://news.example/stale')).status).toBe(401);

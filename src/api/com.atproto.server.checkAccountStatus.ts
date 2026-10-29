@@ -5,6 +5,7 @@ import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { currentPlcState, pointsHere } from '../identity/account-migration.js';
+import { countBlobs } from '../repo/blob-refs.js';
 
 /**
  * AT Protocol checkAccountStatus: how far an account is through import or
@@ -22,9 +23,10 @@ export default async function checkAccountStatus(req: AuthRequest, res: Response
       res.status(404).json({ error: 'InvalidRequest', message: 'Account has no repository here' });
       return;
     }
-    const [blocks, records] = await Promise.all([
+    const [blocks, records, blobs] = await Promise.all([
       query<{ n: string }>('SELECT COUNT(*) AS n FROM repo_blocks WHERE community_did = $1', [did]),
       query<{ n: string }>('SELECT COUNT(*) AS n FROM records_index WHERE community_did = $1', [did]),
+      countBlobs(did),
     ]);
 
     let validDid = false;
@@ -44,9 +46,8 @@ export default async function checkAccountStatus(req: AuthRequest, res: Response
       repoBlocks: Number(blocks.rows[0].n),
       indexedRecords: Number(records.rows[0].n),
       privateStateValues: 0,
-      // Blob transfer arrives with #264.
-      expectedBlobs: 0,
-      importedBlobs: 0,
+      expectedBlobs: blobs.expected,
+      importedBlobs: blobs.imported,
     });
   } catch (error) {
     console.error('Error in checkAccountStatus');

@@ -120,6 +120,8 @@ import updateProfile from '../api/net.openfederation.account.updateProfile.js';
 import getProfileHandler from '../api/net.openfederation.account.getProfile.js';
 import uploadBlob from '../api/com.atproto.repo.uploadBlob.js';
 import syncGetBlob from '../api/com.atproto.sync.getBlob.js';
+import syncListBlobs from '../api/com.atproto.sync.listBlobs.js';
+import listMissingBlobs from '../api/com.atproto.repo.listMissingBlobs.js';
 import importRepo from '../api/net.openfederation.admin.importRepo.js';
 import createRole from '../api/net.openfederation.community.createRole.js';
 import updateRole from '../api/net.openfederation.community.updateRole.js';
@@ -371,6 +373,7 @@ const handlers = Object.freeze({
   'com.atproto.sync.getRepo': { handler: syncGetRepo },
   'com.atproto.repo.uploadBlob': { handler: uploadBlob },
   'com.atproto.sync.getBlob': { handler: syncGetBlob },
+  'com.atproto.sync.listBlobs': { handler: syncListBlobs },
 
   // Admin repo management
   'net.openfederation.admin.importRepo': { handler: importRepo },
@@ -431,6 +434,7 @@ const handlers = Object.freeze({
   'com.atproto.server.createAccount': { handler: createAccount, limiter: createLimiter },
   'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus },
   'com.atproto.repo.importRepo': { handler: importRepoForAccount, limiter: createLimiter },
+  'com.atproto.repo.listMissingBlobs': { handler: listMissingBlobs },
   'com.atproto.identity.getRecommendedDidCredentials': { handler: getRecommendedDidCredentials },
 
   // Forum

@@ -1,0 +1,64 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.repo.listMissingBlobs",
+  "revision": 1,
+  "description": "AT Protocol listMissingBlobs: blobs the account's records reference that this PDS does not hold.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Returns a list of missing blobs for the requesting account. Intended to be used in the account migration flow. Callable while the account is deactivated.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 500
+          },
+          "cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "blobs"
+          ],
+          "properties": {
+            "cursor": {
+              "type": "string"
+            },
+            "blobs": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#recordBlob"
+              }
+            }
+          }
+        }
+      }
+    },
+    "recordBlob": {
+      "type": "object",
+      "required": [
+        "cid",
+        "recordUri"
+      ],
+      "properties": {
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        },
+        "recordUri": {
+          "type": "string",
+          "format": "at-uri"
+        }
+      }
+    }
+  }
+}
