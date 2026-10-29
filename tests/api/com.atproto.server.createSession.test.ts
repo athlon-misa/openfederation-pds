@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { xrpcAuthGet, xrpcAuthPost, xrpcPost, getAdminHandle, getAdminPassword } from './helpers.js';
 import { query } from '../../src/db/client.js';
+import { hashToken } from '../../src/auth/tokens.js';
 
 describe('com.atproto.server.createSession', () => {
   // Uses the bootstrap admin account — no PLC directory required.
@@ -60,13 +61,24 @@ describe('com.atproto.server.createSession', () => {
     });
     expect(login.status).toBe(200);
 
+    // Pause only the rotated session's row. The losing request revokes every
+    // session the admin has, and the shared admin collects one per login
+    // across the suite, so a per-row pause on all of them outlasts the timeout.
+    const { rows: [session] } = await query<{ id: string }>(
+      'SELECT id FROM sessions WHERE refresh_token_hash = $1',
+      [hashToken(login.body.refreshJwt)],
+    );
     await query(`
       CREATE OR REPLACE FUNCTION test_refresh_rotation_pause()
       RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(0.25); RETURN NEW; END; $$;
     `);
+    // A run killed mid-test leaves the trigger behind; replace it rather than fail.
+    await query('DROP TRIGGER IF EXISTS test_refresh_rotation_pause ON sessions');
     await query(`
       CREATE TRIGGER test_refresh_rotation_pause
-      BEFORE UPDATE ON sessions FOR EACH ROW EXECUTE FUNCTION test_refresh_rotation_pause();
+      BEFORE UPDATE ON sessions FOR EACH ROW
+      WHEN (OLD.id = '${session.id}')
+      EXECUTE FUNCTION test_refresh_rotation_pause();
     `);
     try {
       const results = await Promise.all([

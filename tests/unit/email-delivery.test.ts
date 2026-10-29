@@ -45,9 +45,11 @@ describe('sendEmail outcomes (#83)', () => {
     config.email.host = 'smtp.test.invalid';
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     sendMail.mockReset();
     verify.mockReset();
+    // Recipients are fixed, so rows from an earlier run would be read back as this run's.
+    await query("DELETE FROM email_deliveries WHERE recipient LIKE '%@example.test'");
   });
 
   it('reports sent, with the provider message id, and records it', async () => {
