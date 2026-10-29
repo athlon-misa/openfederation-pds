@@ -63,6 +63,20 @@ export type ComAtprotoServerActivateAccountInput = unknown;
 export type ComAtprotoServerActivateAccountOutput = unknown;
 export type ComAtprotoServerActivateAccountError = "InvalidStatus" | "NotFound";
 
+export type ComAtprotoServerCheckAccountStatusInput = undefined;
+export type ComAtprotoServerCheckAccountStatusOutput = {
+  "activated": boolean;
+  "validDid": boolean;
+  "repoCommit": string;
+  "repoRev": string;
+  "repoBlocks": number;
+  "indexedRecords": number;
+  "privateStateValues": number;
+  "expectedBlobs": number;
+  "importedBlobs": number;
+};
+export type ComAtprotoServerCheckAccountStatusError = never;
+
 export type ComAtprotoServerConfirmEmailInput = {
   "email": string;
   "token": string;
@@ -71,6 +85,26 @@ export type ComAtprotoServerConfirmEmailOutput = {
   "verified": boolean;
 };
 export type ComAtprotoServerConfirmEmailError = "ExpiredToken" | "InvalidEmail" | "InvalidToken" | "NoEmail";
+
+export type ComAtprotoServerCreateAccountInput = {
+  "email"?: string;
+  "handle": string;
+  "did"?: string;
+  "inviteCode"?: string;
+  "verificationCode"?: string;
+  "verificationPhone"?: string;
+  "password"?: string;
+  "recoveryKey"?: string;
+  "plcOp"?: unknown;
+};
+export type ComAtprotoServerCreateAccountOutput = {
+  "accessJwt": string;
+  "refreshJwt": string;
+  "handle": string;
+  "did": string;
+  "didDoc"?: unknown;
+};
+export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "UnresolvableDid" | "UnsupportedDomain";
 
 export type ComAtprotoServerCreateSessionInput = unknown;
 export type ComAtprotoServerCreateSessionOutput = unknown;
@@ -2119,7 +2153,9 @@ export interface LexiconInputMap {
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordInput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobInput;
   'com.atproto.server.activateAccount': ComAtprotoServerActivateAccountInput;
+  'com.atproto.server.checkAccountStatus': ComAtprotoServerCheckAccountStatusInput;
   'com.atproto.server.confirmEmail': ComAtprotoServerConfirmEmailInput;
+  'com.atproto.server.createAccount': ComAtprotoServerCreateAccountInput;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionInput;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountInput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionInput;
@@ -2307,7 +2343,9 @@ export interface LexiconOutputMap {
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordOutput;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobOutput;
   'com.atproto.server.activateAccount': ComAtprotoServerActivateAccountOutput;
+  'com.atproto.server.checkAccountStatus': ComAtprotoServerCheckAccountStatusOutput;
   'com.atproto.server.confirmEmail': ComAtprotoServerConfirmEmailOutput;
+  'com.atproto.server.createAccount': ComAtprotoServerCreateAccountOutput;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionOutput;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountOutput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionOutput;
@@ -2495,7 +2533,9 @@ export interface LexiconErrorMap {
   'com.atproto.repo.putRecord': ComAtprotoRepoPutRecordError;
   'com.atproto.repo.uploadBlob': ComAtprotoRepoUploadBlobError;
   'com.atproto.server.activateAccount': ComAtprotoServerActivateAccountError;
+  'com.atproto.server.checkAccountStatus': ComAtprotoServerCheckAccountStatusError;
   'com.atproto.server.confirmEmail': ComAtprotoServerConfirmEmailError;
+  'com.atproto.server.createAccount': ComAtprotoServerCreateAccountError;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionError;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountError;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionError;
@@ -2685,7 +2725,9 @@ export const lexiconContracts = {
   'com.atproto.repo.putRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 2, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest", "ProbationLimit"] as const },
   'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
+  'com.atproto.server.checkAccountStatus': { revision: 1, errors: [] as const },
   'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
+  'com.atproto.server.createAccount': { revision: 1, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "UnresolvableDid", "UnsupportedDomain"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteSession': { revision: 1, errors: [] as const },

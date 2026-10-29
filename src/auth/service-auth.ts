@@ -42,6 +42,12 @@ export type ServiceAuthVerifyOptions = {
   clockSkewSec?: number;
   /** Override DID → atproto signing-key resolution. Used by tests. */
   resolveSigningKey?: (did: string) => Promise<string>;
+  /**
+   * Accept a signature by any of these keys instead of the atproto signing
+   * key. Account migration uses it to take proof from a DID's PLC rotation
+   * keys, which the account holder may control without the old PDS.
+   */
+  resolveVerificationKeys?: (did: string) => Promise<string[]>;
 };
 
 /** Typed errors so the middleware can map to specific HTTP codes. */
@@ -145,12 +151,12 @@ export async function verifyServiceAuthJwt(
     throw new ServiceAuthError('IssuerResolutionFailed', 'did:web issuers are not supported for inbound service-auth');
   }
 
-  // Resolve iss → atproto signing key → verify signature
-  let signingKeyDidKey: string;
+  // Resolve iss → atproto signing key (or the caller's key set) → verify signature
+  let candidateKeys: string[];
   try {
-    signingKeyDidKey = opts.resolveSigningKey
-      ? await opts.resolveSigningKey(iss)
-      : await getDidResolver().resolveAtprotoKey(iss);
+    if (opts.resolveVerificationKeys) candidateKeys = await opts.resolveVerificationKeys(iss);
+    else if (opts.resolveSigningKey) candidateKeys = [await opts.resolveSigningKey(iss)];
+    else candidateKeys = [await getDidResolver().resolveAtprotoKey(iss)];
   } catch (err) {
     throw new ServiceAuthError('IssuerResolutionFailed', `Could not resolve iss DID: ${iss}`);
   }
@@ -158,13 +164,14 @@ export async function verifyServiceAuthJwt(
   const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
   const sigBytes = base64UrlDecodeBytes(sigB64);
 
-  let verified: boolean;
-  try {
-    verified = await verifySignature(signingKeyDidKey, signingInput, sigBytes, {
-      jwtAlg: header.alg,
-    });
-  } catch (err) {
-    throw new ServiceAuthError('InvalidSignature', 'JWT signature verification failed');
+  let verified = false;
+  for (const key of candidateKeys) {
+    try {
+      verified = await verifySignature(key, signingInput, sigBytes, { jwtAlg: header.alg });
+    } catch {
+      verified = false;
+    }
+    if (verified) break;
   }
   if (!verified) {
     throw new ServiceAuthError('InvalidSignature', 'JWT signature did not verify');

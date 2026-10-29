@@ -47,6 +47,21 @@ const session = await loginWithPhrase({
 
 `expectedServiceDid` is required. The login message is signed over the service DID that the server's challenge names, so the client refuses to sign (and throws) when the challenge names any other service. Without this check a malicious server could relay another PDS's challenge and log in there as you. Pin the value in your app's configuration; do not take it from the server you are logging in to.
 
+## Moving to another PDS
+
+A pseudonym's owner key is its only PLC rotation key, so the owner can move it without help from the old PDS. The first step opens the account at the new PDS, deactivated:
+
+```ts
+import { openAccountForMove } from '@open-federation/pseudonym';
+
+const opened = await openAccountForMove({
+  newPdsUrl, newServiceDid: 'did:web:new-pds.example.net', // the PDS you are moving to
+  phrase, did, handle: 'nightdesk.new-pds.example.net',  // a handle under the new PDS's domain
+}); // { did, handle, signingKey, accessJwt, refreshJwt }
+```
+
+It reserves a signing key for the DID at the new PDS and calls `com.atproto.server.createAccount` with a short-lived JWT signed by the owner key (`signOwnerJwt`). Nothing changes for readers yet: the DID still points at the old PDS. Importing the repository, pointing the DID at the new PDS and activating follow in later releases.
+
 ## Reveal
 
 Revealing is always the owner's choice. Build a bundle with `createRevealBundle` (needs the phrase and the owner's session; the PDS signs the owner half through `signLink`), then pick a mode.

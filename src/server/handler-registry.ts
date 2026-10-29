@@ -73,6 +73,8 @@ import completeRecovery from '../api/net.openfederation.account.completeRecovery
 import getTokenKeys from '../api/net.openfederation.pseudonym.getTokenKeys.js';
 import collectTokens from '../api/net.openfederation.pseudonym.collectTokens.js';
 import reserveSigningKey from '../api/com.atproto.server.reserveSigningKey.js';
+import createAccount from '../api/com.atproto.server.createAccount.js';
+import checkAccountStatus from '../api/com.atproto.server.checkAccountStatus.js';
 import getLoginChallenge from '../api/net.openfederation.pseudonym.getLoginChallenge.js';
 import createPseudonymSession from '../api/net.openfederation.pseudonym.createSession.js';
 import createPseudonymAccount from '../api/net.openfederation.pseudonym.createAccount.js';
@@ -422,6 +424,10 @@ const handlers = Object.freeze({
   'net.openfederation.pseudonym.createSession': { handler: createPseudonymSession, limiter: authLimiter },
   'net.openfederation.pseudonym.signLink': { handler: signLink, limiter: createLimiter },
   'com.atproto.server.reserveSigningKey': { handler: reserveSigningKey, limiter: createLimiter },
+
+  // Account migration
+  'com.atproto.server.createAccount': { handler: createAccount, limiter: createLimiter },
+  'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus },
 
   // Forum
   'net.openfederation.forum.createThread': { handler: createThread, limiter: createLimiter },

@@ -4,3 +4,4 @@ export * from './tokens.js';
 export * from './client.js';
 export * from './plc.js';
 export * from './device-unlock.js';
+export * from './migrate.js';

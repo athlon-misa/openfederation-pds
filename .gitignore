@@ -58,5 +58,8 @@ data/
 
 # Stage demo build output and logs
 demo/stage/.logs/
+
+# Second PDS log from migration E2E tests
+tests/e2e/.logs/
 demo/stage/public/app.js
 demo/stage/public/app.js.map

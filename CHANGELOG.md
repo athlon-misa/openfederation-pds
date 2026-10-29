@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@open-federation/pseudonym` package (`packages/openfederation-pseudonym`) and `ofc pseudonym verify | presence-challenge | verify-presence` (offline verification; exit code 2 means signatures are valid but the owner key was not confirmed).
 - Env vars `PSEUDONYM_TOKENS_PER_EPOCH` (20), `PSEUDONYM_PROBATION_DAYS` (7, `0` disables), `PSEUDONYM_PROBATION_DAILY_WRITES` (20).
 - Migration `scripts/migrate-041-pseudonyms.sql`.
+- **Account migration, first step** (#261): `com.atproto.server.createAccount` imports an existing DID as a deactivated account, with proof of control by a JWT signed by one of the DID's PLC rotation keys (so far pseudonyms only); `com.atproto.server.checkAccountStatus` reports import progress. `reserveSigningKey` binds a reservation to `did` when given. `@open-federation/pseudonym` adds `openAccountForMove` and `signOwnerJwt`. Migration `scripts/migrate-042-account-migration.sql` (`users.migrating_in`, `reserved_signing_keys.did`). E2E tests can start a second PDS (`tests/e2e/second-pds.ts`).
 
 ### Fixed
 

@@ -664,6 +664,13 @@ CREATE TABLE IF NOT EXISTS reserved_signing_keys (
 -- Insertion counter for FIFO eviction (not a timestamp).
 ALTER TABLE reserved_signing_keys ADD COLUMN IF NOT EXISTS seq BIGSERIAL;
 CREATE INDEX IF NOT EXISTS idx_reserved_signing_keys_seq ON reserved_signing_keys(seq);
+-- Reserved for a named DID; consumed by createAccount for that DID (#261).
+ALTER TABLE reserved_signing_keys ADD COLUMN IF NOT EXISTS did TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reserved_signing_keys_did
+  ON reserved_signing_keys(did) WHERE did IS NOT NULL;
+
+-- Account migration (#261): arrived from another PDS, not yet activated here.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS migrating_in BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS pseudonym_login_challenges (
   id UUID PRIMARY KEY,
