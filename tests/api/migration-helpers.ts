@@ -5,11 +5,11 @@
  */
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { MemoryBlockstore, Repo, WriteOpAction, blocksToCarFile } from '@atproto/repo';
-import { api, uniqueHandle } from './helpers.js';
+import { api, uniqueHandle, xrpcAuthGet } from './helpers.js';
 import { config } from '../../src/config.js';
 import {
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
-  signOwnerJwt,
+  signOwnerJwt, buildMoveOp, signPlcOp,
 } from '../../packages/openfederation-pseudonym/src/index.js';
 
 export const CREATE_ACCOUNT = 'com.atproto.server.createAccount';
@@ -73,4 +73,20 @@ export function importRepo(car: Uint8Array, jwt: string) {
     .set('Authorization', `Bearer ${jwt}`)
     .set('Content-Type', 'application/vnd.ipld.car')
     .send(Buffer.from(car));
+}
+
+/** The owner key signs a PLC update naming what this PDS recommends. */
+export async function pointHere(p: PseudonymElsewhere, accessJwt: string): Promise<void> {
+  const creds = await xrpcAuthGet('com.atproto.identity.getRecommendedDidCredentials', accessJwt);
+  const log = await (await fetch(`${config.plc.directoryUrl}/${p.did}/log`)).json();
+  const op = signPlcOp(buildMoveOp({
+    previous: log[log.length - 1],
+    signingDidKey: creds.body.verificationMethods.atproto,
+    pdsEndpoint: creds.body.services.atproto_pds.endpoint,
+    handle: creds.body.alsoKnownAs[0].slice('at://'.length),
+  }), derivePseudonymKeys(p.phrase).ownerPrivateKey);
+  const res = await fetch(`${config.plc.directoryUrl}/${p.did}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op),
+  });
+  if (!res.ok) throw new Error(`PLC refused the update: ${res.status} ${await res.text()}`);
 }

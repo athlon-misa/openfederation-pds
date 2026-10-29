@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.createAccount",
-  "revision": 1,
+  "revision": 2,
   "description": "AT Protocol createAccount, used here to import an account from another PDS.",
   "defs": {
     "main": {
@@ -48,6 +48,26 @@
             "plcOp": {
               "type": "unknown",
               "description": "A signed DID PLC operation to be submitted as part of importing an existing account to this instance. NOTE: this optional field may be updated when full account migration is implemented."
+            },
+            "token": {
+              "type": "object",
+              "description": "Blind creation token (net.openfederation.pseudonym.collectTokens). Required for a pseudonym when this PDS's pseudonym migration policy is 'token'; ignored otherwise.",
+              "properties": {
+                "epoch": {
+                  "type": "string"
+                },
+                "prepared": {
+                  "type": "string"
+                },
+                "signature": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "epoch",
+                "prepared",
+                "signature"
+              ]
             }
           }
         }
@@ -119,6 +139,14 @@
         {
           "name": "AlreadyExists",
           "description": "This DID already has an account on this PDS."
+        },
+        {
+          "name": "MigrationNotAllowed",
+          "description": "This PDS does not accept accounts moving in (policy closed)."
+        },
+        {
+          "name": "TokenSpent",
+          "description": "The creation token was already used."
         }
       ]
     }

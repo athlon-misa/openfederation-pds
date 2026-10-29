@@ -120,9 +120,17 @@ export async function moveAccount(p: {
   const step = async (s: MoveStep) => { await p.onStep?.(s); };
 
   await step('open');
-  const opened = await openAccountForMove({
-    newPdsUrl: p.newPdsUrl, newServiceDid: p.newServiceDid, phrase: p.phrase, did: p.did, handle: p.newHandle,
-  });
+  let opened: { accessJwt: string };
+  try {
+    opened = await openAccountForMove({
+      newPdsUrl: p.newPdsUrl, newServiceDid: p.newServiceDid, phrase: p.phrase, did: p.did, handle: p.newHandle,
+    });
+  } catch (err) {
+    // Moving back: the PDS still holds the copy left behind by an earlier
+    // move, deactivated. Its limited session is enough to refill and activate it.
+    if (!(err instanceof Error && /AlreadyExists/.test(err.message))) throw err;
+    opened = await loginWithPhrase({ pdsUrl: p.newPdsUrl, phrase: p.phrase, expectedServiceDid: p.newServiceDid });
+  }
 
   await step('export');
   const exported = await fetch(`${p.oldPdsUrl}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(p.did)}`);

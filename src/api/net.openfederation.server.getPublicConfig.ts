@@ -22,6 +22,8 @@ export default async function getPublicConfig(_req: Request, res: Response): Pro
       hostname: config.pds.hostname,
       serviceUrl: config.pds.serviceUrl,
       webUrl: config.federation.webUiUrl || null,
+      // Whether accounts from other PDSes can move here (#265).
+      migration: { accounts: config.migration.accounts, pseudonyms: config.migration.pseudonyms },
       stats: {
         activeCommunities: parseInt(activeCommunitiesResult.rows[0].count, 10),
         totalUsers: parseInt(totalUsersResult.rows[0].count, 10),

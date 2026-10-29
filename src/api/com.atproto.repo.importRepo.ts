@@ -7,8 +7,10 @@ import { RepoImportError, readCarBody, storeRepoImport, verifyRepoImport } from 
 
 /**
  * AT Protocol importRepo (#262): an account that is moving here loads its
- * own repository from a CAR exported by its old PDS. Allowed only while the
- * account is deactivated and marked as migrating in.
+ * own repository from a CAR exported by its old PDS. Allowed while the
+ * account is deactivated, which also covers a copy left behind by a move
+ * when the account comes back (#265): the CAR must be signed by the DID's
+ * current key, so only the real current home's export is accepted.
  *
  * The CAR must be signed by the DID's current atproto key, which is the old
  * PDS's key until the DID is pointed here. That is why the standard order is
@@ -24,10 +26,9 @@ export default async function importRepo(req: AuthRequest, res: Response): Promi
   }
   const did = req.auth.did;
   try {
-    const user = (await query<{ status: string; migrating_in: boolean }>(
-      'SELECT status, migrating_in FROM users WHERE did = $1', [did])).rows[0];
-    if (!user || !user.migrating_in || user.status !== 'deactivated') {
-      res.status(403).json({ error: 'Forbidden', message: 'Only an account that is moving here and not yet activated can import a repository' });
+    const user = (await query<{ status: string }>('SELECT status FROM users WHERE did = $1', [did])).rows[0];
+    if (!user || user.status !== 'deactivated') {
+      res.status(403).json({ error: 'Forbidden', message: 'Only a deactivated account can import a repository' });
       return;
     }
 

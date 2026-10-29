@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.activateAccount",
-  "revision": 2,
+  "revision": 3,
   "description": "Generated XRPC contract for com.atproto.server.activateAccount.",
   "defs": {
     "main": {
@@ -31,6 +31,10 @@
         {
           "name": "IncompatibleDidDoc",
           "description": "Account migration: the DID does not yet name this PDS and its signing key."
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The PLC directory could not be reached to check where the DID points; try again later."
         }
       ]
     }

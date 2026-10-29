@@ -159,6 +159,14 @@ export const config = {
     probationDays: (v => Number.isFinite(v) && v >= 0 ? v : 7)(parseInt(process.env.PSEUDONYM_PROBATION_DAYS ?? '7', 10)),
     probationDailyWrites: (v => Number.isFinite(v) && v >= 1 ? v : 20)(parseInt(process.env.PSEUDONYM_PROBATION_DAILY_WRITES ?? '20', 10)),
   },
+  // Accounts moving in from another PDS (#265). Pseudonyms never use invite
+  // codes: a code can say who handed it out.
+  migration: {
+    accounts: (['open', 'invite', 'closed'] as const).find((v) => v === process.env.MIGRATION_ACCOUNTS) ?? 'invite',
+    pseudonyms: (['open', 'token', 'closed'] as const).find((v) => v === process.env.MIGRATION_PSEUDONYMS) ?? 'open',
+    // Days between clean-up sweeps of accounts that never activated here; 0 disables.
+    cleanupDays: (v => Number.isFinite(v) && v >= 0 ? v : 7)(parseInt(process.env.MIGRATION_CLEANUP_DAYS ?? '7', 10)),
+  },
   email: {
     enabled: process.env.SMTP_HOST ? true : false,
     host: process.env.SMTP_HOST || '',

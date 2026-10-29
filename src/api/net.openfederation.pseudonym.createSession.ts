@@ -29,10 +29,12 @@ export default async function createPseudonymSession(req: Request, res: Response
     const user = (await query<{ id: string; handle: string; did: string; status: string; token_version: number }>(
       `SELECT id, handle, did, status, token_version FROM users WHERE pseudonym_owner_key = $1 AND auth_type = 'pseudonym'`, [ownerKey])).rows[0];
     if (!user) { res.status(401).json(UNAUTHORIZED); return; }
-    if (user.status !== 'approved') { res.status(403).json({ error: 'AccountNotActive', message: 'This account is not active.' }); return; }
+    // Deactivated: a limited session (#265), enough to move or reactivate.
+    const deactivated = user.status === 'deactivated';
+    if (!deactivated && user.status !== 'approved') { res.status(403).json({ error: 'AccountNotActive', message: 'This account is not active.' }); return; }
 
     const { accessJwt, refreshJwt } = await issueSession({ ...user, email: null }, { pseudonym: true });
-    res.status(200).json({ did: user.did, handle: user.handle, accessJwt, refreshJwt, active: true });
+    res.status(200).json({ did: user.did, handle: user.handle, accessJwt, refreshJwt, active: !deactivated, ...(deactivated ? { status: 'deactivated' } : {}) });
   } catch (error) {
     console.error('Error in pseudonym.createSession');
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to create session' });

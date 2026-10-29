@@ -158,18 +158,10 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    if (user.status === 'deactivated') {
-      await auditLog('session.loginFailed', null, user.id, {
-        identifier: input.identifier, reason: 'account_deactivated', ip: req.ip,
-      });
-      res.status(403).json({
-        error: 'AccountDeactivated',
-        message: 'Your account is deactivated. Reactivate it to continue.',
-      });
-      return;
-    }
-
-    if (user.status !== 'approved') {
+    // A deactivated account gets a session limited to checking on, filling,
+    // activating or backing up the account (#265), so it is never locked out.
+    const deactivated = user.status === 'deactivated';
+    if (!deactivated && user.status !== 'approved') {
       await auditLog('session.loginFailed', null, user.id, {
         identifier: input.identifier, reason: 'account_not_approved', ip: req.ip,
       });
@@ -208,7 +200,8 @@ export default async function createSession(req: Request, res: Response): Promis
       email: user.email,
       accessJwt,
       refreshJwt,
-      active: true,
+      active: !deactivated,
+      ...(deactivated ? { status: 'deactivated' } : {}),
       roles,
     });
   } catch (error) {

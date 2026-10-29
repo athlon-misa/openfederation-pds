@@ -202,6 +202,13 @@ export type HandlerEntry = {
    * state is consulted.
    */
   enabledWhen?: () => boolean;
+  /**
+   * Reachable with the limited session of a deactivated account (#265): the
+   * endpoints that check on, fill, activate or back up an account. Every
+   * other method refuses such a session in the router, so nobody is locked
+   * out and a switched-off account can still do nothing else.
+   */
+  whileDeactivated?: true;
 };
 
 // Static handler registry (frozen after initialization to prevent runtime modification)
@@ -335,7 +342,7 @@ const handlers = Object.freeze({
   'net.openfederation.account.getProfile': { handler: getProfileHandler, limiter: discoveryLimiter },
 
   // OpenFederation account lifecycle
-  'net.openfederation.account.export': { handler: exportAccount },
+  'net.openfederation.account.export': { handler: exportAccount, whileDeactivated: true },
   'net.openfederation.account.updateRoles': { handler: updateRoles },
   'net.openfederation.account.changePassword': { handler: changePassword, limiter: authLimiter },
   'net.openfederation.account.listSessions': { handler: listSessions },
@@ -352,28 +359,28 @@ const handlers = Object.freeze({
   'com.atproto.admin.deleteAccount': { handler: adminDeleteAccount },
 
   // Standard ATProto endpoints
-  'com.atproto.server.deactivateAccount': { handler: deactivateAccount },
-  'com.atproto.server.activateAccount': { handler: activateAccount },
+  'com.atproto.server.deactivateAccount': { handler: deactivateAccount, whileDeactivated: true },
+  'com.atproto.server.activateAccount': { handler: activateAccount, whileDeactivated: true },
   'com.atproto.server.createSession': { handler: createSession, limiter: authLimiter },
-  'com.atproto.server.refreshSession': { handler: refreshSession, limiter: authLimiter },
-  'com.atproto.server.getSession': { handler: getSession },
+  'com.atproto.server.refreshSession': { handler: refreshSession, limiter: authLimiter, whileDeactivated: true },
+  'com.atproto.server.getSession': { handler: getSession, whileDeactivated: true },
   // Resends are rate-limited like other creation-ish actions; confirm is
   // token-authenticated by design and needs no session (#83).
   'com.atproto.server.requestEmailConfirmation': { handler: requestEmailConfirmation, limiter: createLimiter },
   'com.atproto.server.confirmEmail': { handler: confirmEmail },
-  'com.atproto.server.deleteSession': { handler: deleteSession },
+  'com.atproto.server.deleteSession': { handler: deleteSession, whileDeactivated: true },
   'com.atproto.server.getServiceAuth': { handler: getServiceAuthEndpoint },
   'com.atproto.identity.resolveHandle': { handler: resolveHandle, limiter: discoveryLimiter },
-  'com.atproto.repo.getRecord': { handler: getRecord },
+  'com.atproto.repo.getRecord': { handler: getRecord, whileDeactivated: true },
   'com.atproto.repo.putRecord': { handler: putRecord },
   'com.atproto.repo.createRecord': { handler: createRecord },
   'com.atproto.repo.deleteRecord': { handler: deleteRecord },
-  'com.atproto.repo.describeRepo': { handler: describeRepo },
-  'com.atproto.repo.listRecords': { handler: listRecords },
-  'com.atproto.sync.getRepo': { handler: syncGetRepo },
-  'com.atproto.repo.uploadBlob': { handler: uploadBlob },
-  'com.atproto.sync.getBlob': { handler: syncGetBlob },
-  'com.atproto.sync.listBlobs': { handler: syncListBlobs },
+  'com.atproto.repo.describeRepo': { handler: describeRepo, whileDeactivated: true },
+  'com.atproto.repo.listRecords': { handler: listRecords, whileDeactivated: true },
+  'com.atproto.sync.getRepo': { handler: syncGetRepo, whileDeactivated: true },
+  'com.atproto.repo.uploadBlob': { handler: uploadBlob, whileDeactivated: true },
+  'com.atproto.sync.getBlob': { handler: syncGetBlob, whileDeactivated: true },
+  'com.atproto.sync.listBlobs': { handler: syncListBlobs, whileDeactivated: true },
 
   // Admin repo management
   'net.openfederation.admin.importRepo': { handler: importRepo },
@@ -432,10 +439,10 @@ const handlers = Object.freeze({
 
   // Account migration
   'com.atproto.server.createAccount': { handler: createAccount, limiter: createLimiter },
-  'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus },
-  'com.atproto.repo.importRepo': { handler: importRepoForAccount, limiter: createLimiter },
-  'com.atproto.repo.listMissingBlobs': { handler: listMissingBlobs },
-  'com.atproto.identity.getRecommendedDidCredentials': { handler: getRecommendedDidCredentials },
+  'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus, whileDeactivated: true },
+  'com.atproto.repo.importRepo': { handler: importRepoForAccount, limiter: createLimiter, whileDeactivated: true },
+  'com.atproto.repo.listMissingBlobs': { handler: listMissingBlobs, whileDeactivated: true },
+  'com.atproto.identity.getRecommendedDidCredentials': { handler: getRecommendedDidCredentials, whileDeactivated: true },
 
   // Forum
   'net.openfederation.forum.createThread': { handler: createThread, limiter: createLimiter },

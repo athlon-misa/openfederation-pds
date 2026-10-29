@@ -11,17 +11,15 @@ import { CID } from 'multiformats/cid';
 // Raw codec for blobs (not CBOR)
 const RAW_CODEC = 0x55;
 
-async function isMigratingIn(req: AuthRequest): Promise<boolean> {
-  if (!req.auth || req.auth.authMethod === 'service-auth') return false;
-  const row = (await query<{ migrating: boolean }>(
-    `SELECT (migrating_in AND status = 'deactivated') AS migrating FROM users WHERE did = $1`, [req.auth.did])).rows[0];
-  return !!row?.migrating;
+/** A deactivated account copying its blobs in (#264, #265); it cannot write records. */
+function isDeactivated(req: AuthRequest): boolean {
+  return !!req.auth && req.auth.authMethod !== 'service-auth' && req.auth.status === 'deactivated';
 }
 
 export default async function uploadBlob(req: AuthRequest, res: Response): Promise<void> {
   try {
     // An account moving here uploads its blobs before it is activated (#264).
-    const migrating = await isMigratingIn(req);
+    const migrating = isDeactivated(req);
     if (!migrating && !requireApprovedUser(req, res)) return;
 
     const contentType = req.headers['content-type'];

@@ -160,9 +160,38 @@ describe('account migration', () => {
     expect(served.status).toBe(200);
     expect(new Uint8Array(await served.arrayBuffer())).toEqual(avatarBytes);
 
-    // A: deactivated, so the old session and the phrase no longer work there.
+    // A: deactivated. The old session is gone; the phrase still signs in,
+    // but only to a limited session that cannot publish (#265).
     expect((await post(pdsA, atA.accessJwt, nd.did, 'https://news.example/stale')).status).toBe(401);
-    await expect(loginWithPhrase({ pdsUrl: pdsA, phrase: nd.phrase, expectedServiceDid: config.pds.serviceDid }))
-      .rejects.toThrow(/AccountNotActive/);
+    const left = await loginWithPhrase({ pdsUrl: pdsA, phrase: nd.phrase, expectedServiceDid: config.pds.serviceDid });
+    expect(left).toMatchObject({ did: nd.did, active: false, status: 'deactivated' });
+    const stale = await post(pdsA, left.accessJwt, nd.did, 'https://news.example/stale');
+    expect(stale.status).toBe(403);
+    expect((await stale.json()).error).toBe('AccountDeactivated');
+    // Nor can the copy left behind be switched on while the DID names B.
+    const wrong = await fetch(`${pdsA}/xrpc/com.atproto.server.activateAccount`, { method: 'POST', headers: { Authorization: `Bearer ${left.accessJwt}` } });
+    expect(wrong.status).toBe(400);
+    expect((await wrong.json()).error).toBe('IncompatibleDidDoc');
+
+    // Moving back (#265): A still holds the old copy, so the move refills it
+    // from B, brings the new story along, and switches it on again.
+    const backSteps: MoveStep[] = [];
+    const home = await moveAccount({
+      oldPdsUrl: pdsB!.url, oldServiceDid: pdsB!.serviceDid,
+      newPdsUrl: pdsA, newServiceDid: config.pds.serviceDid,
+      plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle: nd.handle,
+      onStep: (s) => backSteps.push(s),
+    });
+    expect(backSteps).toEqual(['open', 'export', 'import', 'blobs', 'check', 'point', 'activate', 'retire']);
+    expect(home.did).toBe(nd.did);
+    const docBack = await (await fetch(`${config.plc.directoryUrl}/${nd.did}`)).json();
+    expect(docBack.service[0].serviceEndpoint).toBe(config.pds.serviceUrl);
+    const atHome = (await (await fetch(`${pdsA}/xrpc/com.atproto.repo.listRecords?repo=${nd.did}&collection=net.openfederation.authorship.claim`)).json())
+      .records.map((r: { value: { url: string } }) => r.value.url);
+    expect(atHome).toEqual(expect.arrayContaining(['https://news.example/before-the-move', 'https://news.example/after-the-move']));
+    expect((await post(pdsA, home.accessJwt, nd.did, 'https://news.example/home-again')).status).toBe(200);
+    expect((await fetch(`${pdsA}/xrpc/com.atproto.sync.getBlob?did=${nd.did}&cid=${avatar.ref.$link}`)).status).toBe(200);
+    const onB = await get(pdsB!.url, 'com.atproto.server.checkAccountStatus', session.accessJwt);
+    expect(onB.status).toBe(401); // B's session ended with the deactivation there
   });
 });

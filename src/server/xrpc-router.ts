@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { handlerRegistry } from './handler-registry.js';
+import type { AuthRequest } from '../auth/types.js';
 import { enforceXrpcErrorResponses, renderXrpcError } from '../xrpc/errors.js';
 import { validateXrpcInput } from '../lexicon/runtime.js';
 
@@ -31,6 +32,17 @@ export function createXrpcRouter(): Router {
         return res.status(501).json({
           error: 'MethodNotImplemented',
           message: 'XRPC method not implemented'
+        });
+      }
+
+      // A deactivated account keeps a session (#265) but may only use it to
+      // check on, fill, activate or back up the account. Status is read from
+      // the database per request, so activation takes effect at once.
+      const auth = (req as AuthRequest).auth;
+      if (auth && auth.authMethod !== 'service-auth' && auth.status === 'deactivated' && !entry.whileDeactivated) {
+        return res.status(403).json({
+          error: 'AccountDeactivated',
+          message: 'Your account is deactivated. Reactivate it with com.atproto.server.activateAccount to continue.',
         });
       }
 

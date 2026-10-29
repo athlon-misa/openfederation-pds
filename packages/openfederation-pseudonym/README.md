@@ -74,7 +74,7 @@ const session = await moveAccount({
 }); // a session at the new home
 ```
 
-It opens the account at the new PDS, copies the repository (`sync.getRepo` → `com.atproto.repo.importRepo`) and the blobs its records reference (`copyMissingBlobs`: `repo.listMissingBlobs` → `sync.getBlob` → `repo.uploadBlob`), and only signs the PLC update once the new PDS reports the exact repository the old one exported and every blob. The update uses the new PDS's recommended credentials (endpoint, signing key, handle) and keeps the rotation key and the commitment. Then it activates the account there, logs in, and deactivates the old account. A failure before the PLC update leaves the pseudonym working where it was.
+It opens the account at the new PDS, copies the repository (`sync.getRepo` → `com.atproto.repo.importRepo`) and the blobs its records reference (`copyMissingBlobs`: `repo.listMissingBlobs` → `sync.getBlob` → `repo.uploadBlob`), and only signs the PLC update once the new PDS reports the exact repository the old one exported and every blob. The update uses the new PDS's recommended credentials (endpoint, signing key, handle) and keeps the rotation key and the commitment. Then it activates the account there, logs in, and deactivates the old account. A failure before the PLC update leaves the pseudonym working where it was. Moving to a PDS that still holds a copy from an earlier stay signs in to that copy (deactivated accounts keep a limited session) and refills it, so moving back works the same way.
 
 ## Reveal
 

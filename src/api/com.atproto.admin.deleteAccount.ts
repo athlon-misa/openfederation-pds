@@ -4,14 +4,13 @@ import { requireRole } from '../auth/guards.js';
 import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
+import { deleteAccountData } from '../identity/delete-account.js';
 
 /**
  * com.atproto.admin.deleteAccount
  *
  * ATProto-standard admin endpoint to permanently delete a user account.
- * Removes all associated data: signing keys, repo blocks, repo roots,
- * records index, commits, community memberships, sessions, roles, and
- * the user record itself. Uses a transaction to prevent partial deletes.
+ * Removes all associated data (see deleteAccountData) in one transaction.
  */
 export default async function adminDeleteAccount(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -57,27 +56,7 @@ export default async function adminDeleteAccount(req: AuthRequest, res: Response
     });
 
     // Delete all associated data in a transaction
-    await withTransaction(async (client) => {
-      // Delete user repo data
-      await client.query('DELETE FROM user_signing_keys WHERE user_did = $1', [user.did]);
-      await client.query('DELETE FROM records_index WHERE community_did = $1', [user.did]);
-      await client.query('DELETE FROM repo_blocks WHERE community_did = $1', [user.did]);
-      await client.query('DELETE FROM repo_roots WHERE did = $1', [user.did]);
-
-      // Delete custodial secrets
-      await client.query('DELETE FROM custodial_secrets WHERE user_did = $1', [user.did]);
-
-      // Delete community memberships and join requests
-      await client.query('DELETE FROM members_unique WHERE member_did = $1', [user.did]);
-      await client.query('DELETE FROM join_requests WHERE user_id = $1', [user.id]);
-
-      // Delete sessions and roles
-      await client.query('DELETE FROM sessions WHERE user_id = $1', [user.id]);
-      await client.query('DELETE FROM user_roles WHERE user_id = $1', [user.id]);
-
-      // Delete the user record
-      await client.query('DELETE FROM users WHERE id = $1', [user.id]);
-    });
+    await withTransaction((client) => deleteAccountData(client, user));
 
     invalidateAuthContext(user.did);
 

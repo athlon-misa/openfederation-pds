@@ -87,7 +87,7 @@ export type ComAtprotoRepoUploadBlobError = "BlobTooLarge" | "InvalidMimeType" |
 
 export type ComAtprotoServerActivateAccountInput = unknown;
 export type ComAtprotoServerActivateAccountOutput = unknown;
-export type ComAtprotoServerActivateAccountError = "IncompatibleDidDoc" | "InvalidStatus" | "NotFound";
+export type ComAtprotoServerActivateAccountError = "IncompatibleDidDoc" | "InvalidStatus" | "NotFound" | "UpstreamFailure";
 
 export type ComAtprotoServerCheckAccountStatusInput = undefined;
 export type ComAtprotoServerCheckAccountStatusOutput = {
@@ -122,6 +122,11 @@ export type ComAtprotoServerCreateAccountInput = {
   "password"?: string;
   "recoveryKey"?: string;
   "plcOp"?: unknown;
+  "token"?: {
+  "epoch": string;
+  "prepared": string;
+  "signature": string;
+};
 };
 export type ComAtprotoServerCreateAccountOutput = {
   "accessJwt": string;
@@ -130,7 +135,7 @@ export type ComAtprotoServerCreateAccountOutput = {
   "did": string;
   "didDoc"?: unknown;
 };
-export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "UnresolvableDid" | "UnsupportedDomain";
+export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "MigrationNotAllowed" | "TokenSpent" | "UnresolvableDid" | "UnsupportedDomain";
 
 export type ComAtprotoServerCreateSessionInput = unknown;
 export type ComAtprotoServerCreateSessionOutput = unknown;
@@ -1936,6 +1941,7 @@ export type NetOpenfederationPseudonymCreateSessionOutput = {
   "accessJwt": string;
   "refreshJwt": string;
   "active": boolean;
+  "status"?: string;
 };
 export type NetOpenfederationPseudonymCreateSessionError = "AccountNotActive" | "Unauthorized";
 
@@ -2777,10 +2783,10 @@ export const lexiconContracts = {
   'com.atproto.repo.listRecords': { revision: 2, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.putRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 2, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest", "ProbationLimit"] as const },
-  'com.atproto.server.activateAccount': { revision: 2, errors: ["IncompatibleDidDoc", "InvalidStatus", "NotFound"] as const },
+  'com.atproto.server.activateAccount': { revision: 3, errors: ["IncompatibleDidDoc", "InvalidStatus", "NotFound", "UpstreamFailure"] as const },
   'com.atproto.server.checkAccountStatus': { revision: 1, errors: [] as const },
   'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
-  'com.atproto.server.createAccount': { revision: 1, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "UnresolvableDid", "UnsupportedDomain"] as const },
+  'com.atproto.server.createAccount': { revision: 2, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "MigrationNotAllowed", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteSession': { revision: 1, errors: [] as const },
@@ -2933,7 +2939,7 @@ export const lexiconContracts = {
   'net.openfederation.partner.verifyKey': { revision: 1, errors: ["InvalidRequest", "NotFound", "VerificationFailed"] as const },
   'net.openfederation.pseudonym.collectTokens': { revision: 1, errors: ["AlreadyCollected", "Forbidden", "InvalidRequest", "WrongEpoch"] as const },
   'net.openfederation.pseudonym.createAccount': { revision: 1, errors: ["AlreadyExists", "InvalidGenesis", "InvalidRequest", "InvalidToken", "SigningKeyNotReserved", "TokenSpent"] as const },
-  'net.openfederation.pseudonym.createSession': { revision: 1, errors: ["AccountNotActive", "Unauthorized"] as const },
+  'net.openfederation.pseudonym.createSession': { revision: 2, errors: ["AccountNotActive", "Unauthorized"] as const },
   'net.openfederation.pseudonym.getLoginChallenge': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.pseudonym.getTokenKeys': { revision: 1, errors: [] as const },
   'net.openfederation.pseudonym.link': { revision: 1, errors: [] as const },

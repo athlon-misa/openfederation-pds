@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.pseudonym.createSession",
-  "revision": 1,
+  "revision": 2,
   "description": "Second half of pseudonym phrase login: exchange a signed challenge for a session.",
   "defs": {
     "main": {
@@ -12,10 +12,18 @@
         "schema": {
           "type": "object",
           "properties": {
-            "challengeId": { "type": "string" },
-            "signature": { "type": "string", "description": "base64url, no padding, compact secp256k1 signature." }
+            "challengeId": {
+              "type": "string"
+            },
+            "signature": {
+              "type": "string",
+              "description": "base64url, no padding, compact secp256k1 signature."
+            }
           },
-          "required": ["challengeId", "signature"]
+          "required": [
+            "challengeId",
+            "signature"
+          ]
         }
       },
       "output": {
@@ -23,18 +31,45 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string" },
-            "handle": { "type": "string" },
-            "accessJwt": { "type": "string" },
-            "refreshJwt": { "type": "string" },
-            "active": { "type": "boolean" }
+            "did": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "accessJwt": {
+              "type": "string"
+            },
+            "refreshJwt": {
+              "type": "string"
+            },
+            "active": {
+              "type": "boolean",
+              "description": "False when the account is deactivated; the session is then limited."
+            },
+            "status": {
+              "type": "string",
+              "description": "Present when the account is deactivated: the session is limited to checking on, filling, activating or backing up the account (#265)."
+            }
           },
-          "required": ["did", "handle", "accessJwt", "refreshJwt", "active"]
+          "required": [
+            "did",
+            "handle",
+            "accessJwt",
+            "refreshJwt",
+            "active"
+          ]
         }
       },
       "errors": [
-        { "name": "Unauthorized", "description": "Invalid credentials." },
-        { "name": "AccountNotActive", "description": "The account is not active." }
+        {
+          "name": "Unauthorized",
+          "description": "Invalid credentials."
+        },
+        {
+          "name": "AccountNotActive",
+          "description": "The account is not active."
+        }
       ]
     }
   }

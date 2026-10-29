@@ -7,24 +7,8 @@ import type { AddressInfo } from 'node:net';
 import { xrpcAuthGet, xrpcAuthPost, isPLCAvailable, testServer } from './helpers.js';
 import { config } from '../../src/config.js';
 import { query } from '../../src/db/client.js';
-import { buildMoveOp, signPlcOp, derivePseudonymKeys, loginWithPhrase } from '../../packages/openfederation-pseudonym/src/index.js';
-import { pseudonymElsewhere, openHere, exportedRepo, importRepo, type PseudonymElsewhere } from './migration-helpers.js';
-
-/** The owner key signs a PLC update naming what this PDS recommends. */
-async function pointHere(p: PseudonymElsewhere, accessJwt: string): Promise<void> {
-  const creds = await xrpcAuthGet('com.atproto.identity.getRecommendedDidCredentials', accessJwt);
-  const log = await (await fetch(`${config.plc.directoryUrl}/${p.did}/log`)).json();
-  const op = signPlcOp(buildMoveOp({
-    previous: log[log.length - 1],
-    signingDidKey: creds.body.verificationMethods.atproto,
-    pdsEndpoint: creds.body.services.atproto_pds.endpoint,
-    handle: creds.body.alsoKnownAs[0].slice('at://'.length),
-  }), derivePseudonymKeys(p.phrase).ownerPrivateKey);
-  const res = await fetch(`${config.plc.directoryUrl}/${p.did}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op),
-  });
-  if (!res.ok) throw new Error(`PLC refused the update: ${res.status} ${await res.text()}`);
-}
+import { loginWithPhrase } from '../../packages/openfederation-pseudonym/src/index.js';
+import { pseudonymElsewhere, openHere, exportedRepo, importRepo, pointHere } from './migration-helpers.js';
 
 describe('com.atproto.server.activateAccount (account migration)', () => {
   let plc = false;

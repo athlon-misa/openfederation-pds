@@ -118,15 +118,8 @@ export default async function refreshSession(req: Request, res: Response): Promi
       return;
     }
 
-    if (user.status === 'deactivated') {
-      res.status(403).json({
-        error: 'AccountDeactivated',
-        message: 'Your account is deactivated. Reactivate it to continue.',
-      });
-      return;
-    }
-
-    if (user.status !== 'approved') {
+    // Deactivated accounts keep a limited session (#265).
+    if (user.status !== 'approved' && user.status !== 'deactivated') {
       res.status(403).json({
         error: 'AccountNotApproved',
         message: 'Your account must be approved before refreshing session.',

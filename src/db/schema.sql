@@ -671,6 +671,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_reserved_signing_keys_did
 
 -- Account migration (#261): arrived from another PDS, not yet activated here.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS migrating_in BOOLEAN NOT NULL DEFAULT false;
+-- Clean-up (#265): set when a sweep found the DID pointing elsewhere; a flag, not a time.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS seen_elsewhere BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS pseudonym_login_challenges (
   id UUID PRIMARY KEY,

@@ -10,6 +10,7 @@ import { isValidHandle } from '../auth/utils.js';
 import { issueSession } from '../auth/session-issue.js';
 import { ServiceAuthError, verifyServiceAuthJwt } from '../auth/service-auth.js';
 import { currentPlcState, pseudonymOwnerKeyOf } from '../identity/account-migration.js';
+import { redeemToken } from '../identity/pseudonym/tokens.js';
 import { consumeReservedSigningKeyForDid } from './com.atproto.server.reserveSigningKey.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 
@@ -37,6 +38,7 @@ class Refusal extends Error {
 export default async function createAccount(req: AuthRequest, res: Response): Promise<void> {
   const did = typeof req.body?.did === 'string' ? req.body.did : '';
   const handle = typeof req.body?.handle === 'string' ? req.body.handle.trim().toLowerCase() : '';
+  const token = req.body?.token;
   try {
     if (!did) {
       throw new Refusal(400, 'InvalidRequest', 'This PDS creates new accounts with net.openfederation.account.register; createAccount only imports an existing did');
@@ -55,7 +57,13 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
     const state = await currentPlcState(did);
     if (!state) throw new Refusal(400, 'UnresolvableDid', 'DID is not in the PLC directory');
     const ownerKey = pseudonymOwnerKeyOf(state);
+    // The gate (#265): refused here, nothing has changed anywhere.
+    const policy = ownerKey ? config.migration.pseudonyms : config.migration.accounts;
+    if (policy === 'closed') throw new Refusal(403, 'MigrationNotAllowed', 'This PDS does not accept accounts moving in');
     if (!ownerKey) throw new Refusal(400, 'IncompatibleDidDoc', 'Only pseudonyms can move to this PDS so far');
+    if (policy === 'token' && (!token || typeof token !== 'object')) {
+      throw new Refusal(400, 'InvalidToken', 'This PDS asks for a creation token to accept a pseudonym');
+    }
 
     const header = req.headers.authorization;
     const jwt = header?.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
@@ -87,6 +95,13 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
         'SELECT 1 FROM users WHERE handle = $1 UNION ALL SELECT 1 FROM communities WHERE handle = $1', [label]);
       if (taken.rows.length > 0) throw new Refusal(400, 'HandleNotAvailable', 'Handle is already taken');
 
+      // Token mode spends a blind token in the same transaction: the PDS learns
+      // only that a pass from some account was used, not whose.
+      if (policy === 'token') {
+        const redeemed = await redeemToken(client, token);
+        if (redeemed === 'invalid') throw new Refusal(400, 'InvalidToken', 'Creation token is not valid');
+        if (redeemed === 'spent') throw new Refusal(400, 'TokenSpent', 'Creation token was already used');
+      }
       const reserved = await consumeReservedSigningKeyForDid(client, did);
       const bytes = reserved?.keyBytes
         ?? Buffer.from(await (await Secp256k1Keypair.create({ exportable: true })).export());

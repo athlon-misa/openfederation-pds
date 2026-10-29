@@ -13,6 +13,7 @@ import { createExternalOAuthRouter } from '../oauth/external-routes.js';
 import { registerAttestor } from '../governance/attestor.js';
 import { createEvmAdapter, installChainModule } from '../modules/chain/index.js';
 import { startExportScheduler } from '../scheduler/export-scheduler.js';
+import { startMigrationCleanup } from '../scheduler/migration-cleanup.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { setSecurityHeaders } from './security-headers.js';
 import { isAllowedStaticOrigin } from './cors-config.js';
@@ -467,6 +468,7 @@ export async function startServer(): Promise<void> {
       }
       // Start export scheduler after server is listening
       startExportScheduler();
+      startMigrationCleanup();
       resolve();
     });
   });
