@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration `scripts/migrate-041-pseudonyms.sql`.
 - **Account migration, first step** (#261): `com.atproto.server.createAccount` imports an existing DID as a deactivated account, with proof of control by a JWT signed by one of the DID's PLC rotation keys (so far pseudonyms only); `com.atproto.server.checkAccountStatus` reports import progress. `reserveSigningKey` binds a reservation to `did` when given. `@open-federation/pseudonym` adds `openAccountForMove` and `signOwnerJwt`. Migration `scripts/migrate-042-account-migration.sql` (`users.migrating_in`, `reserved_signing_keys.did`). E2E tests can start a second PDS (`tests/e2e/second-pds.ts`).
 - **Account migration, repository import** (#262): `com.atproto.repo.importRepo` lets an account that is moving here load its own repository. The CAR is fully verified first (DID, commit signature against the DID's current atproto key, complete record tree) and stored in one transaction with batched inserts, replacing the placeholder repo.
+- **Account migration, activation** (#263): `com.atproto.identity.getRecommendedDidCredentials`; `com.atproto.server.activateAccount` (revision 2) activates an account that moved here once its DID points here (`IncompatibleDidDoc` otherwise). `@open-federation/pseudonym` adds `moveAccount` (the whole move in the standard order, refusing to change the DID until the new PDS holds the exported repository) and `buildMoveOp({ handle })`. The stage demo moves Night Desk this way and then publishes from the new home; the admin import route is gone.
 
 ### Fixed
 
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `com.atproto.server.activateAccount` and `deactivateAccount` record no status timestamps for pseudonyms.
 - New error `NoEmail` on `com.atproto.server.confirmEmail`, `requestEmailConfirmation` and `net.openfederation.admin.createVerificationChallenge` (accounts without an email).
 - `net.openfederation.account.list` (revision 2): `email` is optional and omitted for accounts without one (pseudonyms); previously such an account made the endpoint return 500.
 - New error `ProbationLimit` (429) on `com.atproto.repo.createRecord`, `putRecord`, `uploadBlob`, `net.openfederation.forum.createThread`, `forum.createPost` and `calendar.createEvent` for pseudonyms in their probation period.

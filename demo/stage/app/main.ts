@@ -7,12 +7,12 @@
 import {
   fetchTokenKeys, collectTokens, loginWithPhrase, signPresence, createRevealBundle,
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
-  buildMoveOp, signPlcOp, rememberPhraseWithPasskey, unlockPhraseWithPasskey,
-  type CreationToken, type RevealBundle, type RememberedPhrase,
+  moveAccount, rememberPhraseWithPasskey, unlockPhraseWithPasskey,
+  type CreationToken, type RevealBundle, type RememberedPhrase, type MoveStep,
 } from '../../../packages/openfederation-pseudonym/src/index.js';
 
 interface Config {
-  pdsUrl: string; pdsBUrl: string; plcUrl: string; serviceDid: string; handleSuffix: string;
+  pdsUrl: string; pdsBUrl: string; plcUrl: string; serviceDid: string; pdsBServiceDid: string; handleSuffix: string;
   elena: { did: string; handle: string; name: string; email: string; accessJwt: string };
   impostor: { did: string; name: string };
   /** What this server has already been used for, possibly from another browser window. */
@@ -53,8 +53,17 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   return json as T;
 }
 
+/** Night Desk's home: the first server, or the one it moved to. */
+function home(): string {
+  return saved?.movedTo ?? cfg!.pdsUrl;
+}
+
+function homeServiceDid(): string {
+  return saved?.movedTo ? cfg!.pdsBServiceDid : cfg!.serviceDid;
+}
+
 async function xrpc<T>(nsid: string, body: unknown, jwt?: string): Promise<T> {
-  const res = await fetch(`${cfg!.pdsUrl}/xrpc/${nsid}`, {
+  const res = await fetch(`${home()}/xrpc/${nsid}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
     body: JSON.stringify(body),
@@ -332,7 +341,7 @@ $('btn-look').addEventListener('click', () => { void lookInside(); });
 
 $('btn-login').addEventListener('click', busy($('btn-login') as HTMLButtonElement, async () => {
   const phrase = $<HTMLTextAreaElement>('login-words').value.trim().toLowerCase().split(/\s+/).join(' ');
-  const s = await loginWithPhrase({ pdsUrl: cfg!.pdsUrl, phrase, expectedServiceDid: cfg!.serviceDid });
+  const s = await loginWithPhrase({ pdsUrl: home(), phrase, expectedServiceDid: homeServiceDid() });
   if (s.did !== saved?.nd?.did) throw new Error('Signed in to a different account');
   saved!.ndJwt = s.accessJwt;
   save();
@@ -367,7 +376,7 @@ $('btn-signout').addEventListener('click', () => {
 $('btn-unlock').addEventListener('click', busy($('btn-unlock') as HTMLButtonElement, async () => {
   let phrase: string;
   try { phrase = await unlockPhraseWithPasskey(saved!.remembered!); } catch (err) { throw passkeyError(err); }
-  const s = await loginWithPhrase({ pdsUrl: cfg!.pdsUrl, phrase, expectedServiceDid: cfg!.serviceDid });
+  const s = await loginWithPhrase({ pdsUrl: home(), phrase, expectedServiceDid: homeServiceDid() });
   if (s.did !== saved?.nd?.did) throw new Error('Signed in to a different account');
   saved!.ndJwt = s.accessJwt;
   save();
@@ -434,17 +443,13 @@ const FOLDER_NAMES: Record<string, [string, string]> = {
 
 interface RepoFile { folder: string; collection: string; name: string; value: unknown }
 
-/**
- * `folders` lets a server that holds the files, but no account for them yet,
- * be read: the new home after a move only has the imported repository.
- */
-async function readRepo(base: string, did: string, folders?: string[]): Promise<RepoFile[]> {
+async function readRepo(base: string, did: string): Promise<RepoFile[]> {
   const get = async <T>(nsid: string, params: Record<string, string>): Promise<T> => {
     const res = await fetch(`${base}/xrpc/${nsid}?${new URLSearchParams(params)}`);
     if (!res.ok) throw new Error(`${nsid} failed (${res.status})`);
     return res.json() as Promise<T>;
   };
-  const collections = folders ?? (await get<{ collections: string[] }>('com.atproto.repo.describeRepo', { repo: did })).collections;
+  const { collections } = await get<{ collections: string[] }>('com.atproto.repo.describeRepo', { repo: did });
   const files: RepoFile[] = [];
   for (const collection of collections) {
     const { records } = await get<{ records: { uri: string; value: unknown }[] }>('com.atproto.repo.listRecords', { repo: did, collection, limit: '50' });
@@ -495,10 +500,9 @@ async function showRepo(): Promise<void> {
     $('file-view').innerHTML = '<p class="note">Create Night Desk first.</p>';
     return;
   }
-  const base = saved.movedTo ?? cfg.pdsUrl;
+  const base = home();
   try {
-    const folders = saved.movedTo ? [...new Set((await readRepo(cfg.pdsUrl, saved.nd.did)).map((f) => f.collection))] : undefined;
-    const files = await readRepo(base, saved.nd.did, folders);
+    const files = await readRepo(base, saved.nd.did);
     $('repo-where').textContent = `On ${saved.movedTo ? 'the new home' : 'the server'} · ${base.replace('http://', '')}`;
     $('repo-count').textContent = `${files.length} files`;
     renderTree($('tree'), 'night-desk', files, openFile);
@@ -513,8 +517,7 @@ async function showRepo(): Promise<void> {
 let backup: Uint8Array | null = null;
 
 async function downloadBackup(): Promise<Uint8Array> {
-  const base = saved!.movedTo ?? cfg!.pdsUrl;
-  const res = await fetch(`${base}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(saved!.nd!.did)}`);
+  const res = await fetch(`${home()}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(saved!.nd!.did)}`);
   if (!res.ok) throw new Error(`Backup failed (${res.status})`);
   return new Uint8Array(await res.arrayBuffer());
 }
@@ -545,60 +548,57 @@ function renderMove(): void {
   $('moved').hidden = !moved;
 }
 
+/** The move's steps, as the checklist on the Move screen names them. */
+const MOVE_ITEM: Record<MoveStep, string> = {
+  open: 'open', export: 'copy', import: 'copy', check: 'check', point: 'point', activate: 'activate', retire: 'retire',
+};
+
 $('btn-move').addEventListener('click', busy($('btn-move') as HTMLButtonElement, async () => {
   const c = cfg!; const nd = saved!.nd!;
-  const step = (k: string, cls: string) => {
-    const li = document.querySelector<HTMLElement>(`#move-steps li[data-k="${k}"]`);
-    if (li) li.className = cls;
-  };
+  const items = Array.from(document.querySelectorAll<HTMLElement>('#move-steps li'));
+  items.forEach((li) => { li.className = ''; });
+  let current = '';
   const pause = () => new Promise((res) => setTimeout(res, 450));
-  document.querySelectorAll<HTMLElement>('#move-steps li').forEach((li) => { li.className = ''; });
+  const label = nd.handle.slice(0, -c.handleSuffix.length);
 
-  step('backup', 'busy'); await pause();
-  const car = backup ?? await downloadBackup();
-  step('backup', 'done');
+  try {
+    // Night Desk's own words drive every step; neither server's operator is needed.
+    const session = await moveAccount({
+      oldPdsUrl: c.pdsUrl, oldServiceDid: c.serviceDid,
+      newPdsUrl: c.pdsBUrl, newServiceDid: c.pdsBServiceDid,
+      plcUrl: c.plcUrl, phrase: nd.phrase, did: nd.did, newHandle: `${label}${c.handleSuffix}`,
+      onStep: async (s) => {
+        const k = MOVE_ITEM[s];
+        if (k === current) return;
+        items.find((li) => li.dataset.k === current)?.classList.replace('busy', 'done');
+        items.find((li) => li.dataset.k === k)?.classList.add('busy');
+        current = k;
+        await pause();
+      },
+    });
+    await pause();
+    items.find((li) => li.dataset.k === current)?.classList.replace('busy', 'done');
+    saved!.movedTo = c.pdsBUrl;
+    saved!.ndJwt = session.accessJwt;
+  } catch (err) {
+    items.find((li) => li.dataset.k === current)?.classList.replace('busy', 'fail');
+    throw err;
+  }
 
-  step('load', 'busy'); await pause();
-  const imp = await fetch(`/api/server-b/import?did=${encodeURIComponent(nd.did)}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/vnd.ipld.car' }, body: car as BlobPart,
-  });
-  if (!imp.ok) { step('load', 'fail'); throw new Error(`New server refused the backup (${imp.status})`); }
-  step('load', 'done');
-
-  step('point', 'busy'); await pause();
-  const logRes = await fetch(`${c.plcUrl}/${nd.did}/log`);
-  const log = await logRes.json() as Parameters<typeof buildMoveOp>[0]['previous'][];
-  const keyRes = await fetch(`${c.pdsBUrl}/xrpc/com.atproto.server.reserveSigningKey`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
-  });
-  if (!keyRes.ok) throw new Error(`New server did not give a key (${keyRes.status})`);
-  const { signingKey } = await keyRes.json() as { signingKey: string };
-  const op = signPlcOp(buildMoveOp({ previous: log[log.length - 1], signingDidKey: signingKey, pdsEndpoint: c.pdsBUrl }),
-    derivePseudonymKeys(nd.phrase).ownerPrivateKey);
-  const plc = await fetch(`${c.plcUrl}/${nd.did}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op) });
-  if (!plc.ok) { step('point', 'fail'); throw new Error(`Directory refused the move: ${await plc.text()}`); }
-  step('point', 'done');
-
-  step('check', 'busy'); await pause();
   const doc = await (await fetch(`${c.plcUrl}/${nd.did}`)).json() as { service?: { serviceEndpoint: string }[] };
   const endpoint = doc.service?.[0]?.serviceEndpoint ?? '';
-  if (endpoint !== c.pdsBUrl) { step('check', 'fail'); throw new Error('The directory still points to the old server'); }
-  const before = [...new Set((await readRepo(c.pdsUrl, nd.did)).map((f) => f.collection))];
-  const files = await readRepo(c.pdsBUrl, nd.did, before);
-  step('check', 'done');
-
-  saved!.movedTo = c.pdsBUrl;
+  const files = await readRepo(c.pdsBUrl, nd.did);
   save();
   renderTree($('tree-b'), 'night-desk', files);
-  $('moved-line').textContent = `The public directory now says: Night Desk lives at ${endpoint.replace('http://', '')}. ${files.length} files arrived intact.`;
+  $('moved-line').textContent = `The public directory now says: Night Desk lives at ${endpoint.replace('http://', '')}. ${files.length} files arrived intact, and Night Desk is signed in there.`;
   renderMove();
+  renderPublish();
 }));
 
 async function restoreMoved(): Promise<void> {
   if (!cfg || !saved?.movedTo || !saved.nd) return;
   try {
-    const before = [...new Set((await readRepo(cfg.pdsUrl, saved.nd.did)).map((f) => f.collection))];
-    const files = await readRepo(saved.movedTo, saved.nd.did, before);
+    const files = await readRepo(saved.movedTo, saved.nd.did);
     renderTree($('tree-b'), 'night-desk', files);
     $('moved-line').textContent = `The public directory now says: Night Desk lives at ${saved.movedTo.replace('http://', '')}. ${files.length} files arrived intact.`;
   } catch { /* shown again after the next move */ }

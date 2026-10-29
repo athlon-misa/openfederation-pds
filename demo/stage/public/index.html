@@ -178,16 +178,18 @@
             <div><p class="label">New home</p><p class="mono" id="to-url"></p></div>
           </div>
           <ol class="checklist" id="move-steps">
-            <li data-k="backup">Take the backup file</li>
-            <li data-k="load">Load it on the new server</li>
+            <li data-k="open">The new server opens a place for Night Desk</li>
+            <li data-k="copy">Night Desk's files are copied there</li>
+            <li data-k="check">The new server confirms every file arrived</li>
             <li data-k="point">Night Desk's words update the public directory</li>
-            <li data-k="check">Readers now find Night Desk at the new server</li>
+            <li data-k="activate">Night Desk switches on at the new server</li>
+            <li data-k="retire">The old server closes Night Desk's account</li>
           </ol>
           <button class="btn" id="btn-move" type="button">Move Night Desk</button>
           <div id="moved" class="stack stack--tight" hidden>
             <p class="moved-line" id="moved-line"></p>
             <ul class="tree tree--small" id="tree-b" aria-label="Night Desk's files on the new server"></ul>
-            <p class="note">Same name, same DID, same articles. The old server keeps a copy until it is asked to delete it.</p>
+            <p class="note">Same name, same DID, same articles. Night Desk now signs in and publishes at the new server. The old server keeps a closed copy until it is asked to delete it.</p>
           </div>
         </div>
       </div>

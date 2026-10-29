@@ -79,21 +79,26 @@ export function cidForPlcOp(signedOp: object): string {
 }
 
 /**
- * Move a pseudonym to another PDS: same rotation key, handle and commitment,
- * with the new PDS's endpoint and repo signing key. The pseudonym's own key
- * signs it, so no server has to agree.
+ * Move a pseudonym to another PDS: same rotation key and commitment, with the
+ * new PDS's endpoint and repo signing key, and optionally the handle it has
+ * there (the `at://` entry is replaced; the commitment entry is kept). The
+ * pseudonym's own key signs it, so no server has to agree.
  */
 export function buildMoveOp(p: {
   previous: SignedPlcGenesisOp | (PlcUpdateOp & { sig: string });
   signingDidKey: string;
   pdsEndpoint: string;
+  handle?: string;
 }): PlcUpdateOp {
+  const alsoKnownAs = p.handle
+    ? [`at://${p.handle}`, ...p.previous.alsoKnownAs.filter((a) => !a.startsWith('at://'))]
+    : [...p.previous.alsoKnownAs];
   return {
     type: 'plc_operation',
     prev: cidForPlcOp(p.previous),
     rotationKeys: [...p.previous.rotationKeys],
     verificationMethods: { ...p.previous.verificationMethods, atproto: p.signingDidKey },
-    alsoKnownAs: [...p.previous.alsoKnownAs],
+    alsoKnownAs,
     services: { atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: p.pdsEndpoint } },
   };
 }

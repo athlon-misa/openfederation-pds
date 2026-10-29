@@ -8,7 +8,7 @@ import { isPLCAvailable, createTestUser, uniqueHandle, testServer, xrpcGet } fro
 import { startSecondPds, type SecondPds } from './second-pds.js';
 import { config } from '../../src/config.js';
 import {
-  fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase, openAccountForMove,
+  fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase, openAccountForMove, moveAccount, type MoveStep,
 } from '../../packages/openfederation-pseudonym/src/index.js';
 
 let plc = false;
@@ -28,6 +28,17 @@ afterAll(async () => {
 async function get(base: string, nsid: string, jwt: string) {
   const res = await fetch(`${base}/xrpc/${nsid}`, { headers: { Authorization: `Bearer ${jwt}` } });
   return { status: res.status, body: await res.json().catch(() => ({})) };
+}
+
+function post(base: string, jwt: string, did: string, url: string) {
+  return fetch(`${base}/xrpc/com.atproto.repo.createRecord`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+    body: JSON.stringify({
+      repo: did, collection: 'net.openfederation.authorship.claim',
+      record: { $type: 'net.openfederation.authorship.claim', contentHash: 'ab'.repeat(32), url, createdAt: new Date().toISOString() },
+    }),
+  });
 }
 
 describe('account migration', () => {
@@ -88,5 +99,51 @@ describe('account migration', () => {
     expect(after.body.indexedRecords).toBeGreaterThanOrEqual(2); // profile + claim
     const onB = await fetch(`${pdsB!.url}/xrpc/com.atproto.repo.listRecords?repo=${pseudonym.did}&collection=net.openfederation.authorship.claim`);
     expect((await onB.json()).records.map((r: { value: { url: string } }) => r.value.url)).toContain('https://news.example/moving');
+  });
+
+  it('moves a pseudonym end to end: it logs in and publishes at the new home, the old home is retired', async (ctx) => {
+    if (!plc || !pdsB) ctx.skip('PLC directory not available');
+    const owner = await createTestUser(uniqueHandle('mv-owner'));
+    const keys = await fetchTokenKeys(pdsA);
+    const [token] = await collectTokens({ pdsUrl: pdsA, accessJwt: owner.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
+    const nd = await createPseudonym({
+      pdsUrl: pdsA, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,
+      handle: `${uniqueHandle('nightdesk')}${config.handleSuffix}`, ownerDid: owner.did, token,
+    });
+    const atA = await loginWithPhrase({ pdsUrl: pdsA, phrase: nd.phrase, expectedServiceDid: config.pds.serviceDid });
+    const story = await post(pdsA, atA.accessJwt, nd.did, 'https://news.example/before-the-move');
+    expect(story.status).toBe(200);
+
+    const steps: MoveStep[] = [];
+    const label = nd.handle.slice(0, -config.handleSuffix.length);
+    const newHandle = `${label}${pdsB!.handleSuffix}`;
+    const session = await moveAccount({
+      oldPdsUrl: pdsA, oldServiceDid: config.pds.serviceDid,
+      newPdsUrl: pdsB!.url, newServiceDid: pdsB!.serviceDid,
+      plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle,
+      onStep: (s) => steps.push(s),
+    });
+    expect(steps).toEqual(['open', 'export', 'import', 'check', 'point', 'activate', 'retire']);
+    expect(session.did).toBe(nd.did);
+
+    // The DID now names B, with the new handle and the commitment kept.
+    const doc = await (await fetch(`${config.plc.directoryUrl}/${nd.did}`)).json();
+    expect(doc.service[0].serviceEndpoint).toBe(pdsB!.url);
+    expect(doc.alsoKnownAs[0]).toBe(`at://${newHandle}`);
+    expect(doc.alsoKnownAs.some((a: string) => a.startsWith('urn:openfederation:pseudonym-commitment:'))).toBe(true);
+
+    // B: activated, the old story arrived, and a new one can be published.
+    const status = await get(pdsB!.url, 'com.atproto.server.checkAccountStatus', session.accessJwt);
+    expect(status.body).toMatchObject({ activated: true, validDid: true });
+    expect((await fetch(`${pdsB!.url}/xrpc/com.atproto.repo.describeRepo?repo=${nd.did}`)).status).toBe(200);
+    expect((await post(pdsB!.url, session.accessJwt, nd.did, 'https://news.example/after-the-move')).status).toBe(200);
+    const urls = (await (await fetch(`${pdsB!.url}/xrpc/com.atproto.repo.listRecords?repo=${nd.did}&collection=net.openfederation.authorship.claim`)).json())
+      .records.map((r: { value: { url: string } }) => r.value.url);
+    expect(urls).toEqual(expect.arrayContaining(['https://news.example/before-the-move', 'https://news.example/after-the-move']));
+
+    // A: deactivated, so the old session and the phrase no longer work there.
+    expect((await post(pdsA, atA.accessJwt, nd.did, 'https://news.example/stale')).status).toBe(401);
+    await expect(loginWithPhrase({ pdsUrl: pdsA, phrase: nd.phrase, expectedServiceDid: config.pds.serviceDid }))
+      .rejects.toThrow(/AccountNotActive/);
   });
 });

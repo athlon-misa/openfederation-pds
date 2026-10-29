@@ -60,7 +60,21 @@ const opened = await openAccountForMove({
 }); // { did, handle, signingKey, accessJwt, refreshJwt }
 ```
 
-It reserves a signing key for the DID at the new PDS and calls `com.atproto.server.createAccount` with a short-lived JWT signed by the owner key (`signOwnerJwt`). Nothing changes for readers yet: the DID still points at the old PDS. Importing the repository, pointing the DID at the new PDS and activating follow in later releases.
+It reserves a signing key for the DID at the new PDS and calls `com.atproto.server.createAccount` with a short-lived JWT signed by the owner key (`signOwnerJwt`). Nothing changes for readers yet: the DID still points at the old PDS.
+
+`moveAccount` runs the whole move in the standard AT Protocol order:
+
+```ts
+import { moveAccount } from '@open-federation/pseudonym';
+
+const session = await moveAccount({
+  oldPdsUrl, oldServiceDid, newPdsUrl, newServiceDid, plcUrl, phrase, did,
+  newHandle: 'nightdesk.new-pds.example.net',
+  onStep: (step) => show(step), // open, export, import, check, point, activate, retire (awaited)
+}); // a session at the new home
+```
+
+It opens the account at the new PDS, copies the repository (`sync.getRepo` → `com.atproto.repo.importRepo`), and only signs the PLC update once the new PDS reports the exact repository the old one exported. The update uses the new PDS's recommended credentials (endpoint, signing key, handle) and keeps the rotation key and the commitment. Then it activates the account there, logs in, and deactivates the old account. A failure before the PLC update leaves the pseudonym working where it was. Blobs are not copied yet.
 
 ## Reveal
 

@@ -14,6 +14,15 @@ export type ComAtprotoAdminUpdateSubjectStatusInput = unknown;
 export type ComAtprotoAdminUpdateSubjectStatusOutput = unknown;
 export type ComAtprotoAdminUpdateSubjectStatusError = "AlreadySuspended" | "AlreadyTakenDown" | "ExportRequired" | "NotFound" | "NotSuspended" | "NotTakenDown";
 
+export type ComAtprotoIdentityGetRecommendedDidCredentialsInput = undefined;
+export type ComAtprotoIdentityGetRecommendedDidCredentialsOutput = {
+  "rotationKeys"?: Array<string>;
+  "alsoKnownAs"?: Array<string>;
+  "verificationMethods"?: unknown;
+  "services"?: unknown;
+};
+export type ComAtprotoIdentityGetRecommendedDidCredentialsError = never;
+
 export type ComAtprotoIdentityResolveHandleInput = {
   "handle": string;
 };
@@ -65,7 +74,7 @@ export type ComAtprotoRepoUploadBlobError = "BlobTooLarge" | "InvalidMimeType" |
 
 export type ComAtprotoServerActivateAccountInput = unknown;
 export type ComAtprotoServerActivateAccountOutput = unknown;
-export type ComAtprotoServerActivateAccountError = "InvalidStatus" | "NotFound";
+export type ComAtprotoServerActivateAccountError = "IncompatibleDidDoc" | "InvalidStatus" | "NotFound";
 
 export type ComAtprotoServerCheckAccountStatusInput = undefined;
 export type ComAtprotoServerCheckAccountStatusOutput = {
@@ -2148,6 +2157,7 @@ export interface LexiconInputMap {
   'com.atproto.admin.deleteAccount': ComAtprotoAdminDeleteAccountInput;
   'com.atproto.admin.getSubjectStatus': ComAtprotoAdminGetSubjectStatusInput;
   'com.atproto.admin.updateSubjectStatus': ComAtprotoAdminUpdateSubjectStatusInput;
+  'com.atproto.identity.getRecommendedDidCredentials': ComAtprotoIdentityGetRecommendedDidCredentialsInput;
   'com.atproto.identity.resolveHandle': ComAtprotoIdentityResolveHandleInput;
   'com.atproto.repo.createRecord': ComAtprotoRepoCreateRecordInput;
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordInput;
@@ -2339,6 +2349,7 @@ export interface LexiconOutputMap {
   'com.atproto.admin.deleteAccount': ComAtprotoAdminDeleteAccountOutput;
   'com.atproto.admin.getSubjectStatus': ComAtprotoAdminGetSubjectStatusOutput;
   'com.atproto.admin.updateSubjectStatus': ComAtprotoAdminUpdateSubjectStatusOutput;
+  'com.atproto.identity.getRecommendedDidCredentials': ComAtprotoIdentityGetRecommendedDidCredentialsOutput;
   'com.atproto.identity.resolveHandle': ComAtprotoIdentityResolveHandleOutput;
   'com.atproto.repo.createRecord': ComAtprotoRepoCreateRecordOutput;
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordOutput;
@@ -2530,6 +2541,7 @@ export interface LexiconErrorMap {
   'com.atproto.admin.deleteAccount': ComAtprotoAdminDeleteAccountError;
   'com.atproto.admin.getSubjectStatus': ComAtprotoAdminGetSubjectStatusError;
   'com.atproto.admin.updateSubjectStatus': ComAtprotoAdminUpdateSubjectStatusError;
+  'com.atproto.identity.getRecommendedDidCredentials': ComAtprotoIdentityGetRecommendedDidCredentialsError;
   'com.atproto.identity.resolveHandle': ComAtprotoIdentityResolveHandleError;
   'com.atproto.repo.createRecord': ComAtprotoRepoCreateRecordError;
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordError;
@@ -2723,6 +2735,7 @@ export const lexiconContracts = {
   'com.atproto.admin.deleteAccount': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.getSubjectStatus': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.updateSubjectStatus': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "ExportRequired", "NotFound", "NotSuspended", "NotTakenDown"] as const },
+  'com.atproto.identity.getRecommendedDidCredentials': { revision: 1, errors: [] as const },
   'com.atproto.identity.resolveHandle': { revision: 1, errors: ["HandleNotFound"] as const },
   'com.atproto.repo.createRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.deleteRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
@@ -2732,7 +2745,7 @@ export const lexiconContracts = {
   'com.atproto.repo.listRecords': { revision: 2, errors: ["RepoNotFound"] as const },
   'com.atproto.repo.putRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.uploadBlob': { revision: 2, errors: ["BlobTooLarge", "InvalidMimeType", "InvalidRequest", "ProbationLimit"] as const },
-  'com.atproto.server.activateAccount': { revision: 1, errors: ["InvalidStatus", "NotFound"] as const },
+  'com.atproto.server.activateAccount': { revision: 2, errors: ["IncompatibleDidDoc", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.checkAccountStatus': { revision: 1, errors: [] as const },
   'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
   'com.atproto.server.createAccount': { revision: 1, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "UnresolvableDid", "UnsupportedDomain"] as const },

@@ -38,6 +38,7 @@ const PLC_URL = `http://localhost:${PORTS.plc}`;
 const PDS_URL = `http://localhost:${PORTS.pds}`;
 const PDS_B_URL = `http://localhost:${PORTS.pdsB}`;
 const SERVICE_DID = 'did:web:localhost';
+const SERVICE_DID_B = `did:web:localhost%3A${PORTS.pdsB}`;
 const HANDLE_SUFFIX = '.opennewsrooms.demo';
 const ELENA = { handle: `elena${HANDLE_SUFFIX}`, name: 'Elena Petrova', email: 'elena@newsroom.demo' };
 const MARKO = { handle: 'marko', name: 'Marko', email: 'marko@newsroom.demo' };
@@ -189,7 +190,7 @@ async function bringUp(): Promise<void> {
     plc = start('plc', ['node_modules/@did-plc/server/dist/bin.js'], { ...process.env, PORT: String(PORTS.plc), DATABASE_URL: '' });
     await waitFor(`${PLC_URL}/_health`, 'PLC directory');
     pds = startPds('pds', PORTS.pds, DEMO_DB, SERVICE_DID, admin);
-    pdsB = startPds('pds-b', PORTS.pdsB, DEMO_DB_B, `did:web:localhost%3A${PORTS.pdsB}`, adminB);
+    pdsB = startPds('pds-b', PORTS.pdsB, DEMO_DB_B, SERVICE_DID_B, adminB);
     await Promise.all([waitFor(`${PDS_URL}/health`, 'PDS', 120000), waitFor(`${PDS_B_URL}/health`, 'Second PDS', 120000)]);
     await seedPeople();
     state = 'ready';
@@ -294,7 +295,7 @@ async function main(): Promise<void> {
       }
       res.json({
         used,
-        pdsUrl: PDS_URL, pdsBUrl: PDS_B_URL, plcUrl: PLC_URL, serviceDid: SERVICE_DID, handleSuffix: HANDLE_SUFFIX,
+        pdsUrl: PDS_URL, pdsBUrl: PDS_B_URL, plcUrl: PLC_URL, serviceDid: SERVICE_DID, pdsBServiceDid: SERVICE_DID_B, handleSuffix: HANDLE_SUFFIX,
         elena: { did: s.did, handle: s.handle, name: ELENA.name, email: ELENA.email, accessJwt: s.accessJwt },
         impostor: { did: marko!.did, name: MARKO.name },
       });
@@ -339,25 +340,6 @@ async function main(): Promise<void> {
       res.json(await verifyRevealBundle(req.body?.bundle, { online: true, plcUrl: PLC_URL }));
     } catch (err) {
       res.json({ valid: false, checks: [], error: err instanceof Error ? err.message : String(err) });
-    }
-  });
-
-  // "The new home" accepts Night Desk's backup. Loading a repository is an
-  // operator step on that server, so the demo server does it as its admin.
-  app.post('/api/server-b/import', express.raw({ type: '*/*', limit: '20mb' }), async (req, res) => {
-    const did = typeof req.query.did === 'string' ? req.query.did : '';
-    if (!did.startsWith('did:plc:') || !Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ error: 'did and a CAR body are required' });
-    }
-    try {
-      const { accessJwt } = await session(adminB.handle, adminB.password, PDS_B_URL);
-      const r = await fetch(`${PDS_B_URL}/xrpc/net.openfederation.admin.importRepo?did=${encodeURIComponent(did)}`, {
-        method: 'POST', headers: { Authorization: `Bearer ${accessJwt}`, 'Content-Type': 'application/vnd.ipld.car' }, body: new Uint8Array(req.body),
-      });
-      const json = await r.json().catch(() => ({}));
-      res.status(r.ok ? 200 : r.status).json(json);
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 

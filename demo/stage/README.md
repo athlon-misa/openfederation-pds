@@ -33,7 +33,7 @@ Logs from the PDS and PLC are in `demo/stage/.logs/`.
 4. **Server**: the PDS's own `users` rows for both accounts, a row-by-row search of every table for anything naming both (it finds nothing), and short notes on what a handle, a DID and a public key are.
 5. **Publish**: Night Desk signs in with the twelve words alone. "Remember on this laptop" creates a passkey and stores the words encrypted under its PRF output (`rememberPhraseWithPasskey`, #251). "Sign out", then "Unlock with Touch ID" signs in again without typing anything. Night Desk then publishes an authorship claim (a fingerprint of the article).
 6. **Files**: Night Desk's repository shown as folders and files, read live from the PDS (`describeRepo`, `listRecords`). Pick a file to open it. "Download a backup" saves the whole repository as one CAR file (`com.atproto.sync.getRepo`).
-7. **Move**: Night Desk moves to the second PDS. The page takes the backup, the new server loads it (`net.openfederation.admin.importRepo`, run as that server's admin), and Night Desk's twelve words sign a PLC update pointing the DID at the new server. The page then reads the files back from the new server.
+7. **Move**: Night Desk moves to the second PDS with `moveAccount` from `@open-federation/pseudonym`, in the standard AT Protocol order, driven only by its twelve words: the new server opens a deactivated account (`com.atproto.server.createAccount`, proved with the owner key), the repository is copied (`sync.getRepo` → `com.atproto.repo.importRepo`, verified by the new server), the new server confirms it (`checkAccountStatus`), the words sign a PLC update with the new server's recommended credentials, the account is activated there and the old server's account is deactivated. Night Desk is then signed in at the new home: Publish and Files use it from then on.
 8. **Reveal**: Elena makes a reveal bundle and the verifier checks it online, as `ofc pseudonym verify --online` does: VALID, "Night Desk belongs to Elena Petrova". "Marko claims Night Desk" swaps Marko's account into Elena's proof: INVALID.
 9. **In person**: someone in the audience calls out a word. Night Desk's words sign it, and the verifier checks the signature against Night Desk's key in PLC: VALID. "A stranger tries" signs with new random words: INVALID.
 10. **Next**: what was shown, and what comes next.
@@ -54,7 +54,7 @@ Generated twelve-word phrases never contain crypto-, money- or security-sounding
 
 ## What it does not show yet
 
-- The new home holds Night Desk's files and the directory points to it, but it has no login account for Night Desk yet, so Night Desk can't publish from there. A real move also opens the account on the new server (AT Protocol account migration); that is not built.
+- Blobs (images) are not moved yet (#264); Night Desk has none in the demo.
 - OAuth is disabled on both demo servers because they run on `localhost`. The demo doesn't use it.
 
 

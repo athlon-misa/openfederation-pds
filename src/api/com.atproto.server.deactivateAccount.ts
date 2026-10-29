@@ -24,8 +24,8 @@ export default async function deactivateAccount(req: AuthRequest, res: Response)
     const userDid = req.auth!.did;
 
     // Fetch current status
-    const userResult = await query<{ status: string }>(
-      'SELECT status FROM users WHERE id = $1',
+    const userResult = await query<{ status: string; auth_type: string }>(
+      'SELECT status, auth_type FROM users WHERE id = $1',
       [userId]
     );
 
@@ -49,11 +49,15 @@ export default async function deactivateAccount(req: AuthRequest, res: Response)
       return;
     }
 
-    // Set status to deactivated
+    // Set status to deactivated. Pseudonyms keep no status timestamps (they
+    // could line up with the owner's activity), e.g. when retiring the old
+    // home after a move (#263).
+    const stamped = user.auth_type !== 'pseudonym';
     await query(
       `UPDATE users
-       SET status = 'deactivated', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
-           status_changed_by = $1, status_reason = 'User-initiated deactivation'
+       SET status = 'deactivated', token_version = token_version + 1,
+           status_changed_at = ${stamped ? 'CURRENT_TIMESTAMP' : 'NULL'}, status_changed_by = ${stamped ? '$1' : 'NULL'},
+           status_reason = 'User-initiated deactivation'
        WHERE id = $1`,
       [userId]
     );
