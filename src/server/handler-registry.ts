@@ -121,6 +121,9 @@ import getProfileHandler from '../api/net.openfederation.account.getProfile.js';
 import uploadBlob from '../api/com.atproto.repo.uploadBlob.js';
 import syncGetBlob from '../api/com.atproto.sync.getBlob.js';
 import syncListBlobs from '../api/com.atproto.sync.listBlobs.js';
+import requestPlcOperationSignature from '../api/com.atproto.identity.requestPlcOperationSignature.js';
+import signPlcOperation from '../api/com.atproto.identity.signPlcOperation.js';
+import submitPlcOperation from '../api/com.atproto.identity.submitPlcOperation.js';
 import listMissingBlobs from '../api/com.atproto.repo.listMissingBlobs.js';
 import importRepo from '../api/net.openfederation.admin.importRepo.js';
 import createRole from '../api/net.openfederation.community.createRole.js';
@@ -442,6 +445,9 @@ const handlers = Object.freeze({
   'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus, whileDeactivated: true },
   'com.atproto.repo.importRepo': { handler: importRepoForAccount, limiter: createLimiter, whileDeactivated: true },
   'com.atproto.repo.listMissingBlobs': { handler: listMissingBlobs, whileDeactivated: true },
+  'com.atproto.identity.requestPlcOperationSignature': { handler: requestPlcOperationSignature, limiter: createLimiter },
+  'com.atproto.identity.signPlcOperation': { handler: signPlcOperation, limiter: createLimiter },
+  'com.atproto.identity.submitPlcOperation': { handler: submitPlcOperation, limiter: createLimiter },
   'com.atproto.identity.getRecommendedDidCredentials': { handler: getRecommendedDidCredentials, whileDeactivated: true },
 
   // Forum

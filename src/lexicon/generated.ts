@@ -23,6 +23,10 @@ export type ComAtprotoIdentityGetRecommendedDidCredentialsOutput = {
 };
 export type ComAtprotoIdentityGetRecommendedDidCredentialsError = never;
 
+export type ComAtprotoIdentityRequestPlcOperationSignatureInput = undefined;
+export type ComAtprotoIdentityRequestPlcOperationSignatureOutput = undefined;
+export type ComAtprotoIdentityRequestPlcOperationSignatureError = "EmailDeliveryFailed" | "NoEmail" | "NotCustodial";
+
 export type ComAtprotoIdentityResolveHandleInput = {
   "handle": string;
 };
@@ -30,6 +34,25 @@ export type ComAtprotoIdentityResolveHandleOutput = {
   "did": string;
 };
 export type ComAtprotoIdentityResolveHandleError = "HandleNotFound";
+
+export type ComAtprotoIdentitySignPlcOperationInput = {
+  "token": string;
+  "password": string;
+  "rotationKeys"?: Array<string>;
+  "alsoKnownAs"?: Array<string>;
+  "verificationMethods"?: unknown;
+  "services"?: unknown;
+};
+export type ComAtprotoIdentitySignPlcOperationOutput = {
+  "operation": unknown;
+};
+export type ComAtprotoIdentitySignPlcOperationError = "AuthenticationRequired" | "InvalidToken" | "NotCustodial";
+
+export type ComAtprotoIdentitySubmitPlcOperationInput = {
+  "operation": unknown;
+};
+export type ComAtprotoIdentitySubmitPlcOperationOutput = undefined;
+export type ComAtprotoIdentitySubmitPlcOperationError = "InvalidRequest" | "PlcRejected";
 
 export type ComAtprotoRepoCreateRecordInput = unknown;
 export type ComAtprotoRepoCreateRecordOutput = unknown;
@@ -134,8 +157,9 @@ export type ComAtprotoServerCreateAccountOutput = {
   "handle": string;
   "did": string;
   "didDoc"?: unknown;
+  "rotationDeviceShare"?: string;
 };
-export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "MigrationNotAllowed" | "TokenSpent" | "UnresolvableDid" | "UnsupportedDomain";
+export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteUsed" | "MigrationNotAllowed" | "TokenSpent" | "UnresolvableDid" | "UnsupportedDomain";
 
 export type ComAtprotoServerCreateSessionInput = unknown;
 export type ComAtprotoServerCreateSessionOutput = unknown;
@@ -2189,7 +2213,10 @@ export interface LexiconInputMap {
   'com.atproto.admin.getSubjectStatus': ComAtprotoAdminGetSubjectStatusInput;
   'com.atproto.admin.updateSubjectStatus': ComAtprotoAdminUpdateSubjectStatusInput;
   'com.atproto.identity.getRecommendedDidCredentials': ComAtprotoIdentityGetRecommendedDidCredentialsInput;
+  'com.atproto.identity.requestPlcOperationSignature': ComAtprotoIdentityRequestPlcOperationSignatureInput;
   'com.atproto.identity.resolveHandle': ComAtprotoIdentityResolveHandleInput;
+  'com.atproto.identity.signPlcOperation': ComAtprotoIdentitySignPlcOperationInput;
+  'com.atproto.identity.submitPlcOperation': ComAtprotoIdentitySubmitPlcOperationInput;
   'com.atproto.repo.createRecord': ComAtprotoRepoCreateRecordInput;
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordInput;
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoInput;
@@ -2383,7 +2410,10 @@ export interface LexiconOutputMap {
   'com.atproto.admin.getSubjectStatus': ComAtprotoAdminGetSubjectStatusOutput;
   'com.atproto.admin.updateSubjectStatus': ComAtprotoAdminUpdateSubjectStatusOutput;
   'com.atproto.identity.getRecommendedDidCredentials': ComAtprotoIdentityGetRecommendedDidCredentialsOutput;
+  'com.atproto.identity.requestPlcOperationSignature': ComAtprotoIdentityRequestPlcOperationSignatureOutput;
   'com.atproto.identity.resolveHandle': ComAtprotoIdentityResolveHandleOutput;
+  'com.atproto.identity.signPlcOperation': ComAtprotoIdentitySignPlcOperationOutput;
+  'com.atproto.identity.submitPlcOperation': ComAtprotoIdentitySubmitPlcOperationOutput;
   'com.atproto.repo.createRecord': ComAtprotoRepoCreateRecordOutput;
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordOutput;
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoOutput;
@@ -2577,7 +2607,10 @@ export interface LexiconErrorMap {
   'com.atproto.admin.getSubjectStatus': ComAtprotoAdminGetSubjectStatusError;
   'com.atproto.admin.updateSubjectStatus': ComAtprotoAdminUpdateSubjectStatusError;
   'com.atproto.identity.getRecommendedDidCredentials': ComAtprotoIdentityGetRecommendedDidCredentialsError;
+  'com.atproto.identity.requestPlcOperationSignature': ComAtprotoIdentityRequestPlcOperationSignatureError;
   'com.atproto.identity.resolveHandle': ComAtprotoIdentityResolveHandleError;
+  'com.atproto.identity.signPlcOperation': ComAtprotoIdentitySignPlcOperationError;
+  'com.atproto.identity.submitPlcOperation': ComAtprotoIdentitySubmitPlcOperationError;
   'com.atproto.repo.createRecord': ComAtprotoRepoCreateRecordError;
   'com.atproto.repo.deleteRecord': ComAtprotoRepoDeleteRecordError;
   'com.atproto.repo.describeRepo': ComAtprotoRepoDescribeRepoError;
@@ -2772,8 +2805,11 @@ export const lexiconContracts = {
   'com.atproto.admin.deleteAccount': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.getSubjectStatus': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.updateSubjectStatus': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "ExportRequired", "NotFound", "NotSuspended", "NotTakenDown"] as const },
-  'com.atproto.identity.getRecommendedDidCredentials': { revision: 1, errors: [] as const },
+  'com.atproto.identity.getRecommendedDidCredentials': { revision: 2, errors: [] as const },
+  'com.atproto.identity.requestPlcOperationSignature': { revision: 1, errors: ["EmailDeliveryFailed", "NoEmail", "NotCustodial"] as const },
   'com.atproto.identity.resolveHandle': { revision: 1, errors: ["HandleNotFound"] as const },
+  'com.atproto.identity.signPlcOperation': { revision: 1, errors: ["AuthenticationRequired", "InvalidToken", "NotCustodial"] as const },
+  'com.atproto.identity.submitPlcOperation': { revision: 1, errors: ["InvalidRequest", "PlcRejected"] as const },
   'com.atproto.repo.createRecord': { revision: 4, errors: ["GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.deleteRecord': { revision: 3, errors: ["GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 1, errors: ["RepoNotFound"] as const },
@@ -2786,7 +2822,7 @@ export const lexiconContracts = {
   'com.atproto.server.activateAccount': { revision: 3, errors: ["IncompatibleDidDoc", "InvalidStatus", "NotFound", "UpstreamFailure"] as const },
   'com.atproto.server.checkAccountStatus': { revision: 1, errors: [] as const },
   'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
-  'com.atproto.server.createAccount': { revision: 2, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "MigrationNotAllowed", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
+  'com.atproto.server.createAccount': { revision: 3, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteSession': { revision: 1, errors: [] as const },

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.createAccount",
-  "revision": 2,
+  "revision": 3,
   "description": "AT Protocol createAccount, used here to import an account from another PDS.",
   "defs": {
     "main": {
@@ -16,7 +16,8 @@
           ],
           "properties": {
             "email": {
-              "type": "string"
+              "type": "string",
+              "description": "Email for a user account moving here (service auth from the old PDS)."
             },
             "handle": {
               "type": "string",
@@ -29,7 +30,8 @@
               "description": "Pre-existing atproto DID, being imported to a new account."
             },
             "inviteCode": {
-              "type": "string"
+              "type": "string",
+              "description": "Invite code, required for a user account when this PDS's account migration policy is 'invite'. Never used for pseudonyms."
             },
             "verificationCode": {
               "type": "string"
@@ -39,7 +41,7 @@
             },
             "password": {
               "type": "string",
-              "description": "Initial account password. May need to meet instance-specific password strength requirements."
+              "description": "Password for the account at this PDS (user accounts)."
             },
             "recoveryKey": {
               "type": "string",
@@ -102,6 +104,10 @@
             "didDoc": {
               "type": "unknown",
               "description": "Complete DID document."
+            },
+            "rotationDeviceShare": {
+              "type": "string",
+              "description": "User accounts only: share 1 of the rotation key this PDS made for the account (2-of-3). Keep it; the PDS holds shares 2 and 3."
             }
           }
         }
@@ -147,6 +153,22 @@
         {
           "name": "TokenSpent",
           "description": "The creation token was already used."
+        },
+        {
+          "name": "InviteInvalid",
+          "description": "Invite code is invalid."
+        },
+        {
+          "name": "InviteExpired",
+          "description": "Invite code has expired."
+        },
+        {
+          "name": "InviteUsed",
+          "description": "Invite code has already been used."
+        },
+        {
+          "name": "InviteBound",
+          "description": "Invite code is bound to another email."
         }
       ]
     }

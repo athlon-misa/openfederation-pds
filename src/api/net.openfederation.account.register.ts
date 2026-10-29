@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { config } from '../config.js';
 import { withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
+import { claimInvite, InviteError } from '../auth/invites.js';
 import { issueEmailVerification } from '../email/verification.js';
 import { createUserIdentity } from '../identity/user-identity.js';
 import {
@@ -66,51 +67,6 @@ export default async function registerAccount(req: Request, res: Response): Prom
     const result = await withTransaction(async (client) => {
       await ensureHandleEmailAvailable(client, handle, email);
 
-      let inviteCodeToUse: string | null = null;
-      let inviteMaxUses: number | null = null;
-
-      if (config.auth.inviteRequired) {
-        const inviteResult = await client.query<{
-          code: string;
-          max_uses: number;
-          uses_count: number;
-          expires_at: string | null;
-          bound_to: string | null;
-        }>(
-          `SELECT code, max_uses, uses_count, expires_at, bound_to
-           FROM invites
-           WHERE code = $1
-           FOR UPDATE`,
-          [input.inviteCode],
-        );
-
-        if (inviteResult.rows.length === 0) {
-          throw new RegistrationValidationError(403, 'InviteInvalid', 'Invite code is invalid');
-        }
-
-        const invite = inviteResult.rows[0];
-        if (invite.expires_at && new Date(invite.expires_at).getTime() <= Date.now()) {
-          throw new RegistrationValidationError(403, 'InviteExpired', 'Invite code has expired');
-        }
-        if (invite.uses_count >= invite.max_uses) {
-          throw new RegistrationValidationError(403, 'InviteUsed', 'Invite code has already been used');
-        }
-        if (invite.bound_to) {
-          const normalizedBound = invite.bound_to.toLowerCase().trim();
-          const normalizedEmail = input.email.toLowerCase().trim();
-          if (normalizedBound !== normalizedEmail) {
-            throw new RegistrationValidationError(
-              403,
-              'InviteBound',
-              'This invite code is bound to a specific email address.',
-            );
-          }
-        }
-
-        inviteCodeToUse = invite.code;
-        inviteMaxUses = invite.max_uses;
-      }
-
       const userId = crypto.randomUUID();
 
       await insertUserWithRole(client, {
@@ -122,16 +78,13 @@ export default async function registerAccount(req: Request, res: Response): Prom
         status: 'pending',
       });
 
-      if (inviteCodeToUse) {
-        const usedBy = inviteMaxUses === 1 ? userId : null;
-        await client.query(
-          `UPDATE invites
-           SET uses_count = uses_count + 1,
-               used_by = COALESCE($2, used_by),
-               used_at = CURRENT_TIMESTAMP
-           WHERE code = $1`,
-          [inviteCodeToUse, usedBy],
-        );
+      if (config.auth.inviteRequired) {
+        try {
+          await claimInvite(client, input.inviteCode!, input.email, userId);
+        } catch (err) {
+          if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
+          throw err;
+        }
       }
 
       return { userId, identity };

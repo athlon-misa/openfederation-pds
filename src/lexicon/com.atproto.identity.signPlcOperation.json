@@ -1,0 +1,79 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.identity.signPlcOperation",
+  "revision": 1,
+  "description": "AT Protocol: sign a PLC operation with the rotation key this PDS holds for the account. This PDS also asks for the account password.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Signs a PLC operation to update the account's identity: the current PLC state with the given fields replaced. Requires the emailed code (requestPlcOperationSignature) and the account password. The rotation key is rebuilt for this call only.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "token",
+            "password"
+          ],
+          "properties": {
+            "token": {
+              "type": "string",
+              "description": "The code emailed by requestPlcOperationSignature."
+            },
+            "password": {
+              "type": "string",
+              "description": "The account password (this PDS's second check)."
+            },
+            "rotationKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "alsoKnownAs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "verificationMethods": {
+              "type": "unknown"
+            },
+            "services": {
+              "type": "unknown"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "operation"
+          ],
+          "properties": {
+            "operation": {
+              "type": "unknown",
+              "description": "A signed PLC operation."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotCustodial",
+          "description": "This PDS holds no rotation key for the account."
+        },
+        {
+          "name": "InvalidToken",
+          "description": "The code is missing, wrong, used or expired."
+        },
+        {
+          "name": "AuthenticationRequired",
+          "description": "The password is wrong."
+        }
+      ]
+    }
+  }
+}

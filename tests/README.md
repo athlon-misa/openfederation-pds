@@ -62,7 +62,7 @@ Test real XRPC endpoints against a live server backed by PostgreSQL. Tests that 
 
 Full multi-step journeys. Examples: vault recovery, wallet linking, encrypted attestation disclosure, governance proof verification. These always require both PostgreSQL and PLC.
 
-Account-migration tests (`tests/e2e/account-migration.e2e.test.ts`) also start a **second PDS** with `startSecondPds()` from `tests/e2e/second-pds.ts`: its own process on port `TEST_PDS_B_PORT` (default 8093), a fresh database `${TEST_DB_NAME}_b` (dropped and recreated each run), service DID `did:web:localhost%3A8093` and handle suffix `.pds-b.test`, sharing the local PLC directory with the in-process test server. Its log is written to `tests/e2e/.logs/pds-b.log`.
+Account-migration tests (`tests/e2e/account-migration.e2e.test.ts`, `tests/e2e/custodial-migration.e2e.test.ts`) also start a **second PDS** with `startSecondPds()` from `tests/e2e/second-pds.ts`: its own process on port `TEST_PDS_B_PORT` (default 8093), a fresh database `${TEST_DB_NAME}_b` (dropped and recreated each run), service DID `did:web:localhost%3A8093` and handle suffix `.pds-b.test`, sharing the local PLC directory with the in-process test server. Its log is written to `tests/e2e/.logs/pds-b.log`, its blobs to `tests/e2e/.logs/pds-b-blobs/`. It accepts user accounts without an invite (`MIGRATION_ACCOUNTS=open`).
 
 ---
 

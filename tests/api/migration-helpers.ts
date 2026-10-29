@@ -7,6 +7,8 @@ import { Secp256k1Keypair } from '@atproto/crypto';
 import { MemoryBlockstore, Repo, WriteOpAction, blocksToCarFile } from '@atproto/repo';
 import { api, uniqueHandle, xrpcAuthGet } from './helpers.js';
 import { config } from '../../src/config.js';
+import { registerDidPlc } from '../../src/identity/plc-client.js';
+import { signServiceAuthJwt } from '../../src/auth/service-auth.js';
 import {
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
   signOwnerJwt, buildMoveOp, signPlcOp,
@@ -89,4 +91,24 @@ export async function pointHere(p: PseudonymElsewhere, accessJwt: string): Promi
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op),
   });
   if (!res.ok) throw new Error(`PLC refused the update: ${res.status} ${await res.text()}`);
+}
+
+/** A user account registered in PLC, hosted (on paper) by another PDS that holds both its keys. */
+export interface UserElsewhere { did: string; handle: string; signingKey: Secp256k1Keypair; rotationKey: Secp256k1Keypair }
+
+export async function userElsewhere(): Promise<UserElsewhere> {
+  const [signingKey, rotationKey] = await Promise.all([
+    Secp256k1Keypair.create({ exportable: true }), Secp256k1Keypair.create({ exportable: true }),
+  ]);
+  const handle = `${uniqueHandle('user')}.old-pds.example.test`;
+  const did = await registerDidPlc({ signingKey, rotationKeys: [rotationKey], handle, pdsEndpoint: OLD_PDS });
+  return { did, handle, signingKey, rotationKey };
+}
+
+/** What the old PDS's getServiceAuth would mint for the move. */
+export function serviceAuthFor(u: UserElsewhere, opts: { aud?: string; lxm?: string; iss?: string } = {}): Promise<string> {
+  return signServiceAuthJwt({
+    keypair: u.signingKey, iss: opts.iss ?? u.did, aud: opts.aud ?? config.pds.serviceDid,
+    exp: Math.floor(Date.now() / 1000) + 60, lxm: opts.lxm ?? CREATE_ACCOUNT,
+  });
 }

@@ -1,0 +1,26 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.identity.requestPlcOperationSignature",
+  "revision": 1,
+  "description": "AT Protocol: email a one-time code that lets this PDS sign a PLC operation with the rotation key it holds for the account.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Request an email with a code to confirm an identity change (account migration). Only for accounts whose rotation key this PDS holds in custody.",
+      "errors": [
+        {
+          "name": "NotCustodial",
+          "description": "This PDS holds no rotation key for the account (pseudonym or external account)."
+        },
+        {
+          "name": "NoEmail",
+          "description": "The account has no email address."
+        },
+        {
+          "name": "EmailDeliveryFailed",
+          "description": "The code could not be sent."
+        }
+      ]
+    }
+  }
+}

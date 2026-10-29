@@ -673,6 +673,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_reserved_signing_keys_did
 ALTER TABLE users ADD COLUMN IF NOT EXISTS migrating_in BOOLEAN NOT NULL DEFAULT false;
 -- Clean-up (#265): set when a sweep found the DID pointing elsewhere; a flag, not a time.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS seen_elsewhere BOOLEAN NOT NULL DEFAULT false;
+-- Custodial migration (#266): the public half of the rotation key made here for an arriving account.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rotation_did_key TEXT;
+
+-- One-time emailed codes for com.atproto.identity.signPlcOperation (#266).
+CREATE TABLE IF NOT EXISTS plc_operation_tokens (
+    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_plc_operation_tokens_user ON plc_operation_tokens(user_id);
 
 CREATE TABLE IF NOT EXISTS pseudonym_login_challenges (
   id UUID PRIMARY KEY,

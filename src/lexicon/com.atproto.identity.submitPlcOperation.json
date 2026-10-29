@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.identity.submitPlcOperation",
+  "revision": 1,
+  "description": "AT Protocol: submit a signed PLC operation for the account's DID to the PLC directory.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Validates a PLC operation to ensure it does not break the account, then submits it to the PLC directory. Only for the caller's own DID.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "operation"
+          ],
+          "properties": {
+            "operation": {
+              "type": "unknown"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "The operation is malformed or names another DID's chain."
+        },
+        {
+          "name": "PlcRejected",
+          "description": "The PLC directory refused the operation."
+        }
+      ]
+    }
+  }
+}
