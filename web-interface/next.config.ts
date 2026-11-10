@@ -11,6 +11,23 @@ import type { NextConfig } from "next";
 // `.next/standalone/web-interface/server.js` and copying `.next/static` and
 // `public/` alongside it, since the standalone tree does not include them;
 // worth doing if the dashboard is ever containerised, not before.
-const nextConfig: NextConfig = {};
+// Security headers for every dashboard page. Only rules that cannot break the
+// app: a full script CSP would need nonces for Next's inline scripts. The
+// dashboard must never be framed (clickjacking on admin actions).
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+];
+
+const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
+};
 
 export default nextConfig;
