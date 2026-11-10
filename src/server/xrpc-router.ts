@@ -41,10 +41,22 @@ export function createXrpcRouter(): Router {
       // check on, fill, activate or back up the account. Status is read from
       // the database per request, so activation takes effect at once.
       const auth = (req as AuthRequest).auth;
-      if (auth && auth.authMethod !== 'service-auth' && auth.status === 'deactivated' && !entry.whileDeactivated) {
+      // This includes a service-auth token signed for a local account: its
+      // context carries the local status. A remote caller has no status here.
+      if (auth && auth.status === 'deactivated' && !entry.whileDeactivated) {
         return res.status(403).json({
           error: 'AccountDeactivated',
           message: 'Your account is deactivated. Reactivate it with com.atproto.server.activateAccount to continue.',
+        });
+      }
+
+      // An account that is not approved (a pending sign-up, or rejected) gets
+      // nothing either. Local login already refuses these; this is what stops
+      // an OAuth grant or a service-auth token from acting for them.
+      if (auth && (auth.status === 'pending' || auth.status === 'rejected')) {
+        return res.status(403).json({
+          error: 'AccountNotApproved',
+          message: 'This account has not been approved yet.',
         });
       }
 

@@ -180,7 +180,10 @@ async function authContextForLocalDid(
     email: user.email || '',
     did,
     status: user.status as UserStatus,
-    roles: roleResult.rows.map(r => r.role) as UserRole[],
+    // An OAuth token is held by a third-party app. It acts as the account, but
+    // never with the account's PDS roles: an admin signing in to some app must
+    // not hand that app admin powers. Admin work uses a direct session.
+    roles: authMethod === 'oauth' ? [] : roleResult.rows.map(r => r.role) as UserRole[],
     authMethod,
   };
   setCachedAuthContext(authMethod, did, context);
