@@ -1,0 +1,17 @@
+{
+  "$comment": "High/critical advisories in production dependencies that CI accepts, each with the reason and when to revisit. scripts/audit-check.mjs fails on anything not listed here, and on entries past their review date.",
+  "accepted": [
+    {
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "reason": "Pulled in by every @atproto/* library at 3.25.76; fixed only in zod 4. Request bodies are size-limited, which bounds the input. Clears with the AT Protocol library upgrade.",
+      "review_by": "2027-02-01"
+    },
+    {
+      "id": "GHSA-8cpq-38p9-67gx",
+      "package": "kysely",
+      "reason": "MySQL-only injection. Reached only through @did-plc/server in plc-server, which runs on Postgres.",
+      "review_by": "2027-02-01"
+    }
+  ]
+}

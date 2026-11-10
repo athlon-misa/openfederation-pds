@@ -148,11 +148,77 @@ jobs:
             kill -KILL "$plc_pid" 2>/dev/null || true
           fi
 
-  # One stable check for branch protection: passes only if every shard passed.
+  # Everything else that ships or deploys: the production Docker image (Railway
+  # builds from it), the dashboard, the Matrix bridge and the SIWOF demo.
+  builds:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [docker, web-interface, matrix-bridge, siwof-demo]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Docker image
+        if: matrix.target == 'docker'
+        run: docker build --tag openfederation-pds:ci .
+      - name: Dashboard
+        if: matrix.target == 'web-interface'
+        working-directory: web-interface
+        run: npm ci && npm run build
+      - name: Matrix bridge
+        if: matrix.target == 'matrix-bridge'
+        working-directory: bridges/matrix
+        run: npm ci && npm run build
+      - name: SIWOF demo (needs the local SDK and React packages built)
+        if: matrix.target == 'siwof-demo'
+        run: |
+          npm ci
+          (cd packages/openfederation-sdk && npm run build)
+          (cd packages/openfederation-react && npm run build)
+          cd demos/siwof-dapp && npm ci && npm run build
+
+  # Production dependencies: fail on a high or critical advisory that is not
+  # accepted in .github/audit-allowlist.json, and keep a CycloneDX SBOM per
+  # project as a build artifact (attached to releases by sbom-release.yml).
+  dependencies:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [".", web-interface, plc-server, bridges/matrix, demos/siwof-dapp]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Install exactly the lockfile
+        working-directory: ${{ matrix.dir }}
+        run: npm ci --ignore-scripts
+      - name: Audit production dependencies
+        working-directory: ${{ matrix.dir }}
+        run: npm audit --omit=dev --json | node "$GITHUB_WORKSPACE/scripts/audit-check.mjs"
+      - name: CycloneDX SBOM
+        working-directory: ${{ matrix.dir }}
+        run: |
+          name=$(echo "${{ matrix.dir }}" | tr '/' '-' | sed 's/^\.$/pds/')
+          npm sbom --sbom-format cyclonedx --sbom-type application --omit dev > "$RUNNER_TEMP/sbom-$name.cdx.json"
+          echo "SBOM_FILE=$RUNNER_TEMP/sbom-$name.cdx.json" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-${{ strategy.job-index }}
+          path: ${{ env.SBOM_FILE }}
+
+  # One stable check for branch protection: passes only if every job passed.
   ci:
     if: always()
-    needs: build
+    needs: [build, builds, dependencies]
     runs-on: ubuntu-latest
     steps:
-      - name: All build shards passed
-        run: test "${{ needs.build.result }}" = success
+      - name: All jobs passed
+        run: |
+          test "${{ needs.build.result }}" = success
+          test "${{ needs.builds.result }}" = success
+          test "${{ needs.dependencies.result }}" = success
