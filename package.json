@@ -99,7 +99,7 @@
     "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.16.0",
     "@types/supertest": "^7.2.0",
-    "happy-dom": "^20.9.0",
+    "happy-dom": "^21.0.4",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
