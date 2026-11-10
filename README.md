@@ -184,14 +184,16 @@ All endpoints are XRPC methods at `/xrpc/{nsid}`. Formal lexicon schemas for all
 | `net.openfederation.community.suspend` | POST | PDS Admin | Suspend a community (reversible) |
 | `net.openfederation.community.unsuspend` | POST | PDS Admin | Lift a community suspension |
 | `net.openfederation.community.takedown` | POST | PDS Admin | Take down a community (requires prior export) |
-| `net.openfederation.community.transfer` | POST | Owner | Initiate transfer to another PDS |
+| `net.openfederation.community.migrateIn` | POST | Rotation-key proof | Open (or refresh) a copy of a community moving here |
+| `net.openfederation.community.checkMigration` | GET | Public | How far a community's move here has come |
+| `net.openfederation.community.markMoved` | POST | Owner | Mark the old copy moved (read-only) once the DID points elsewhere |
+| `net.openfederation.community.getMovedKeys` | GET | Public | Hand the moved community's keys to its new PDS |
 
 Both communities and user accounts follow the AT Protocol "free to go" principle:
 - Owners/users can always export their data
 - Suspended communities/accounts remain readable for export purposes
 - Takedown requires that an export has been performed first
-- Transfer generates a package with migration instructions for did:plc or did:web
-- **Transfer is owner-only** per AT Protocol — the DID holder initiates migration, not the PDS admin
+- A community moves to another PDS with its owner's PLC rotation key (see `docs/adr/ADR-002-community-migration.md`); the DID holder initiates the move, not the PDS admin
 - Users can self-deactivate and later reactivate without admin involvement
 - Admin-suspended accounts cannot be reactivated by the user — only admins can unsuspend
 - All moderation actions (suspend, unsuspend, takedown, delete) are recorded in the audit log

@@ -63,3 +63,6 @@ demo/stage/.logs/
 tests/e2e/.logs/
 demo/stage/public/app.js
 demo/stage/public/app.js.map
+
+# Cybersecurity Readiness Audit: private, never published
+docs/cra-audit/
