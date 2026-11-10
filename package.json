@@ -85,7 +85,7 @@
     "express-rate-limit": "^8.2.1",
     "jose": "^5.10.0",
     "multiformats": "^13.4.2",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^10.4.0",
     "pg": "^8.18.0",
     "secrets.js-grempe": "^2.0.0",
     "tweetnacl": "^1.0.3"

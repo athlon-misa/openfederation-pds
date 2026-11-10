@@ -25,6 +25,13 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/scripts/ ./scripts/
 COPY --from=builder /app/src/db/schema.sql ./src/db/schema.sql
 COPY --from=builder /app/src/lexicon/ ./src/lexicon/
+# Run as the unprivileged `node` user that ships with the base image. The blob
+# directories are created and handed to it here, so a new named volume mounted
+# on either path inherits that ownership. A volume created by an earlier,
+# root-running image stays root-owned: chown it once before upgrading
+# (docker run --rm -v <volume>:/data/blobs alpine chown -R 1000:1000 /data/blobs).
+RUN mkdir -p /data/blobs /app/data/blobs && chown -R node:node /data /app/data
+USER node
 EXPOSE 8080
 ENV PORT=8080
 CMD ["node", "dist/src/index.js"]

@@ -30,6 +30,21 @@ services:
       KEY_ENCRYPTION_SECRET: ${KEY_ENCRYPTION_SECRET:?Set KEY_ENCRYPTION_SECRET in .env}
       PDS_HOSTNAME: ${PDS_HOSTNAME:-localhost}
       PDS_SERVICE_URL: ${PDS_SERVICE_URL:-http://localhost:8080}
+      # did:plc directory. Inside the container the default (localhost:2582)
+      # points at the container itself, so this has to be set.
+      PLC_DIRECTORY_URL: ${PLC_DIRECTORY_URL:?Set PLC_DIRECTORY_URL in .env (e.g. https://plc.openfederation.net)}
+      # Production refuses to start without SMTP unless ALLOW_NO_EMAIL=true says
+      # that is intended. Set SMTP_* or ALLOW_NO_EMAIL in .env.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      ALLOW_NO_EMAIL: ${ALLOW_NO_EMAIL:-}
+      # Without these the OAuth server signs with per-process keys and every
+      # OAuth token dies on restart.
+      OAUTH_SIGNING_KEY: ${OAUTH_SIGNING_KEY:-}
+      OAUTH_DPOP_SECRET: ${OAUTH_DPOP_SECRET:-}
       BLOB_STORAGE: ${BLOB_STORAGE:-local}
       BLOB_STORAGE_PATH: /data/blobs
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?Set BOOTSTRAP_ADMIN_EMAIL in .env}
