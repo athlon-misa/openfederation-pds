@@ -15,7 +15,19 @@ import bs58 from 'bs58';
 import nacl from 'tweetnacl';
 import { fetchGuarded, OutboundFetchError, type GuardedFetchOptions } from './net-guard.js';
 
-const DEFAULT_PLC_URL = 'https://plc.directory';
+/**
+ * Where a did:plc is looked up when the integrator names no directory: the
+ * public AT Protocol directory, then the one OpenFederation accounts are
+ * registered in. With only the first, verifying an OpenFederation sign-in with
+ * default options always failed, because that is not where its DIDs live.
+ */
+const DEFAULT_PLC_URLS = ['https://plc.directory', 'https://plc.openfederation.net'] as const;
+const PLC_FETCH_TIMEOUT_MS = 10_000;
+
+/** The directories consulted, in order, when `plcUrl` is not given. */
+export function defaultPlcDirectories(): string[] {
+  return [...DEFAULT_PLC_URLS];
+}
 
 // multicodec varint prefixes used in did:key / publicKeyMultibase
 const SECP256K1_PREFIX = new Uint8Array([0xe7, 0x01]);
@@ -45,13 +57,19 @@ export interface WalletProof {
 
 export interface VerifySignInOptions {
   /**
-   * Root URL of the PLC directory to resolve did:plc identifiers (default
-   * https://plc.directory). Only consulted if the iss DID is did:plc.
+   * Root URL of the PLC directory to resolve did:plc identifiers. Only
+   * consulted if the iss DID is did:plc. When omitted, the public directory
+   * (https://plc.directory) and OpenFederation's (https://plc.openfederation.net)
+   * are tried in that order; when given, only this one is used.
    */
   plcUrl?: string;
   /**
    * Expected audience. If provided, the JWT's aud and the message's URI
    * must match; otherwise rejection.
+   *
+   * Always pass this when verifying on a server. Without it a token that
+   * was issued for a different site is accepted here, so a sign-in the user
+   * performed elsewhere can be replayed against you.
    */
   expectedAudience?: string;
   /** Seconds of clock skew tolerance (default 30). */
@@ -178,7 +196,7 @@ export async function verifySignInAssertion(
   // 2. Resolve the issuer DID → atproto signing key → verify JWT signature.
   const signingKeyDidKey = opts.resolveSigningKey
     ? await opts.resolveSigningKey(iss)
-    : await resolveAtprotoKey(iss, opts.plcUrl ?? DEFAULT_PLC_URL, opts.network ?? {});
+    : await resolveAtprotoKey(iss, opts.plcUrl ?? defaultPlcDirectories(), opts.network ?? {});
   const keyBytes = parseDidKey(signingKeyDidKey);
   const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
   const digest = sha256(signingInput);
@@ -256,13 +274,27 @@ function verifyEip191(msgBytes: Uint8Array, signatureHex: string, expectedAddres
 
 export async function resolveAtprotoKey(
   did: string,
-  plcUrl: string,
+  plcUrl: string | string[],
   netOptions: GuardedFetchOptions = {},
 ): Promise<string> {
+  // Several directories: the first that knows the DID answers.
+  if (Array.isArray(plcUrl) && did.startsWith('did:plc:')) {
+    let lastError: unknown = new SiwofVerifyError('UnresolvableDid', 'No PLC directory configured');
+    for (const directory of plcUrl) {
+      try {
+        return await resolveAtprotoKey(did, directory, netOptions);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError;
+  }
+  const plcRoot = Array.isArray(plcUrl) ? (plcUrl[0] ?? '') : plcUrl;
+
   let docUrl: string;
   let guard: boolean;
   if (did.startsWith('did:plc:')) {
-    docUrl = `${plcUrl.replace(/\/$/, '')}/${did}`;
+    docUrl = `${plcRoot.replace(/\/$/, '')}/${did}`;
     // The PLC directory URL is supplied by the integrator, not by the token, so
     // it is deliberately exempt: a self-hosted or local PLC is a normal setup.
     guard = false;
@@ -289,11 +321,23 @@ export async function resolveAtprotoKey(
       throw new SiwofVerifyError('UnresolvableDid', reason);
     }
   } else {
-    const res = await (netOptions.fetchImpl ?? fetch)(docUrl, {
-      headers: { Accept: 'application/did+json, application/json' },
-    });
-    if (!res.ok) throw new SiwofVerifyError('UnresolvableDid', `DID document fetch failed (${res.status})`);
-    body = await res.text();
+    // Bounded: a directory that accepts the connection and then says nothing
+    // must not hang the verification (and whatever request is waiting on it).
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), netOptions.timeoutMs ?? PLC_FETCH_TIMEOUT_MS);
+    try {
+      const res = await (netOptions.fetchImpl ?? fetch)(docUrl, {
+        headers: { Accept: 'application/did+json, application/json' },
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new SiwofVerifyError('UnresolvableDid', `DID document fetch failed (${res.status})`);
+      body = await res.text();
+    } catch (err) {
+      if (err instanceof SiwofVerifyError) throw err;
+      throw new SiwofVerifyError('UnresolvableDid', 'DID document could not be fetched from the PLC directory');
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   let doc: { verificationMethod?: Array<{ id?: string; type?: string; publicKeyMultibase?: string }> };

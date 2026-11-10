@@ -33,6 +33,8 @@ import type { UserRole, UserStatus } from '../auth/types.js';
 import { parseCookies } from '../auth/utils.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { DidResolver } from '@atproto/identity';
+import { chooseExternalHandle } from './external-handle.js';
+import { resolveExternalHandle } from '../identity/external-handle-resolver.js';
 
 // Cookie name for tracking client-app redirects through the OAuth flow
 const REDIRECT_COOKIE = 'ofd_auth_redirect';
@@ -52,17 +54,16 @@ interface PendingCode {
    * Requiring the verifier means only the browser that started the flow can
    * redeem the code.
    *
-   * Null only for the SDK redirect flow, where the consumer supplies and
-   * validates its own `state` on its own callback. Web-UI codes always carry
-   * one — see `requiresVerifier`.
+   * Every flow supplies one: the web UI in the OAuth `state`, an SDK as
+   * `code_challenge` on `/auth/atproto` (which refuses to start without it).
+   * Null therefore only means something went wrong, and such a code is never
+   * redeemable — see `requiresVerifier`.
    */
   codeChallenge: string | null;
   /**
-   * True when this code was minted for the web-interface flow, which always
-   * establishes a challenge. Tracked separately from `codeChallenge` so a code
-   * cannot be downgraded to no-verifier by omitting the challenge: an attacker
-   * who forces the SDK branch (the web UI origin is an allowed redirect target)
-   * would otherwise get an unbound code the web callback would happily redeem.
+   * Always true. Kept as an explicit field, separate from `codeChallenge`, so
+   * that a code can never be downgraded to no-verifier by arriving without a
+   * challenge: redemption fails closed when the challenge is missing.
    */
   requiresVerifier: boolean;
 }
@@ -104,6 +105,15 @@ export function readCodeChallenge(state: string | null | undefined): string | nu
   } catch {
     return null; // legacy or SDK-supplied state that is not ours
   }
+}
+
+/**
+ * The challenge an SDK sent when it started a login through `/auth/atproto`
+ * (`code_challenge`, the base64url SHA-256 of a secret it kept). Returns it
+ * only when it has exactly that shape; anything else is treated as absent.
+ */
+export function challengeFromSdkLogin(value: unknown): string | null {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value) ? value : null;
 }
 
 /** Constant-time compare of two hex/base64url digests of equal expected length. */
@@ -238,12 +248,27 @@ export function createExternalOAuthRouter(): Router {
     const handle = req.query.handle as string | undefined;
     const redirectUri = req.query.redirect_uri as string | undefined;
     const state = req.query.state as string | undefined;
+    // Sent by SDKs that bind the login to the tab that started it. The code
+    // handed back at the end can then only be redeemed with the matching
+    // verifier, which never leaves that tab.
+    const sdkChallenge = challengeFromSdkLogin(req.query.code_challenge);
 
     if (!handle || typeof handle !== 'string') {
       return res.status(400).json({ error: 'InvalidRequest', message: 'handle query parameter is required' });
     }
     if (!redirectUri || typeof redirectUri !== 'string') {
       return res.status(400).json({ error: 'InvalidRequest', message: 'redirect_uri query parameter is required' });
+    }
+
+    // An SDK login must be bound to the tab that starts it. Without a
+    // challenge the code handed back at the end would be a bearer token:
+    // whoever finished a login as themselves could send their callback link to
+    // someone else and sign that person in as them. There is no unbound mode.
+    if (!sdkChallenge) {
+      return res.status(400).json({
+        error: 'InvalidRequest',
+        message: 'code_challenge is required: the base64url SHA-256 of a verifier kept by the browser that starts the login',
+      });
     }
 
     // Validate redirect_uri origin against allowlist (open redirect prevention)
@@ -259,7 +284,11 @@ export function createExternalOAuthRouter(): Router {
 
     try {
       // Set cookie so we know where to redirect after the OAuth callback
-      const cookieValue = JSON.stringify({ redirectUri, state: state || '' });
+      const cookieValue = JSON.stringify({
+        redirectUri,
+        state: state || '',
+        ...(sdkChallenge ? { codeChallenge: sdkChallenge } : {}),
+      });
       const isProduction = config.env.isProduction;
       res.setHeader('Set-Cookie', [
         `${REDIRECT_COOKIE}=${encodeURIComponent(cookieValue)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600${isProduction ? '; Secure' : ''}`,
@@ -304,7 +333,7 @@ export function createExternalOAuthRouter(): Router {
     // Check for the redirect cookie (client-side SDK flow)
     const cookies = parseCookies(req.headers.cookie);
     const redirectCookie = cookies[REDIRECT_COOKIE];
-    let clientRedirect: { redirectUri: string; state: string } | null = null;
+    let clientRedirect: { redirectUri: string; state: string; codeChallenge?: unknown } | null = null;
 
     if (redirectCookie) {
       try {
@@ -330,16 +359,16 @@ export function createExternalOAuthRouter(): Router {
       // when the flow started, so it survives the round-trip through the
       // external PDS without needing a cookie that would have to be
       // SameSite=None to work for cross-site consumers.
-      const codeChallenge = readCodeChallenge(oauthState);
+      // (An SDK login carries its challenge in the redirect cookie instead.)
+      const codeChallenge = readCodeChallenge(oauthState) ?? challengeFromSdkLogin(clientRedirect?.codeChallenge);
 
       // Generate a temporary code for the frontend to exchange
       const tempCode = crypto.randomBytes(32).toString('hex');
-      const isWebFlow = !clientRedirect?.redirectUri;
       addPendingCode(tempCode, {
         tokens: localTokens,
         expiresAt: Date.now() + 60_000, // 60 seconds
         codeChallenge,
-        requiresVerifier: isWebFlow,
+        requiresVerifier: true,
       });
 
       if (clientRedirect?.redirectUri) {
@@ -467,9 +496,16 @@ async function ensureExternalUser(
     status = user.status as UserStatus;
     tokenVersion = user.token_version;
 
+    // Proving control of the DID at another PDS does not lift a suspension or
+    // takedown here, or stand in for approval. createSession refuses these
+    // statuses for local accounts; this is the same rule for external ones.
+    if (status !== 'approved') {
+      throw new ExternalLoginRefusedError(status);
+    }
+
     // Update handle from DID document if it was a DID-derived placeholder
     if (handle.startsWith('plc-') || handle.startsWith('web-')) {
-      const resolvedHandle = await resolveHandleFromDid(did);
+      const resolvedHandle = await localHandleFor(did);
       if (resolvedHandle && resolvedHandle !== handle) {
         handle = resolvedHandle;
         await query('UPDATE users SET handle = $1 WHERE id = $2', [handle, userId]);
@@ -478,16 +514,18 @@ async function ensureExternalUser(
   } else {
     // Create new external user — resolve handle from DID document
     userId = crypto.randomUUID();
-    handle = await resolveHandleFromDid(did) || did.replace(/^did:/, '').replace(/:/g, '-');
+    handle = await localHandleFor(did);
     email = '';
     status = 'approved'; // External users are auto-approved at PDS level
 
     const pdsUrl = session.serverMetadata?.issuer || null;
 
     await query(
+      // No email is NULL, never '': the column is UNIQUE, so a second external
+      // account with '' would collide with the first.
       `INSERT INTO users (id, handle, email, password_hash, status, did, auth_type, pds_url)
-       VALUES ($1, $2, $3, NULL, $4, $5, 'external', $6)`,
-      [userId, handle, email, status, did, pdsUrl]
+       VALUES ($1, $2, NULL, NULL, $3, $4, 'external', $5)`,
+      [userId, handle, status, did, pdsUrl]
     );
 
     await query(
@@ -527,6 +565,27 @@ async function ensureExternalUser(
   );
 
   return { did, handle, email, accessJwt, refreshJwt };
+}
+
+/** An existing external account that may not sign in here in its current status. */
+export class ExternalLoginRefusedError extends Error {
+  constructor(public readonly accountStatus: string) {
+    super(`External sign-in refused: account is ${accountStatus}`);
+    this.name = 'ExternalLoginRefusedError';
+  }
+}
+
+/** The handle this account gets here: its own if it checks out, else a placeholder. */
+async function localHandleFor(did: string): Promise<string> {
+  return chooseExternalHandle(did, await resolveHandleFromDid(did), {
+    localSuffix: config.handleSuffix,
+    resolveHandle: resolveExternalHandle,
+    isTaken: async (handle) => (await query(
+      `SELECT 1 FROM users WHERE handle = $1 AND did <> $2
+       UNION ALL SELECT 1 FROM communities WHERE handle = $1`,
+      [handle, did],
+    )).rows.length > 0,
+  });
 }
 
 /**

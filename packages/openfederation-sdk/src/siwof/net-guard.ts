@@ -42,8 +42,17 @@ export function isBlockedAddress(value: string): boolean {
   if (host === '::' || host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
   if (/^(?:fc|fd|fe[89ab])/i.test(host)) return true;
 
-  const match = /^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(host);
-  const ipv4 = match?.[1] ?? host;
+  // IPv4-mapped IPv6 has two spellings: dotted (::ffff:127.0.0.1) and hex
+  // (::ffff:7f00:1). URL parsing normalises the first into the second, so both
+  // have to be recognised or a mapped loopback address gets through.
+  const dotted = /^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(host);
+  const hex = /^(?:0*:)*:?ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(host);
+  let ipv4 = dotted?.[1] ?? host;
+  if (hex) {
+    const hi = parseInt(hex[1], 16);
+    const lo = parseInt(hex[2], 16);
+    ipv4 = `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+  }
   const octets = ipv4.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!octets) return false;
   const [a, b, c] = octets.slice(1).map(Number);
