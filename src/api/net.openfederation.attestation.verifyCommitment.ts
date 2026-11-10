@@ -55,8 +55,12 @@ export default async function verifyCommitment(req: Request, res: Response): Pro
     if (row.schema_hash) {
       commitment.schemaHash = row.schema_hash;
     }
+    // The salt is deliberately not returned. It is what keeps a guessable claim
+    // (a yes/no, an age band, a tier) from being confirmed by hashing each
+    // possibility against this commitment, and this endpoint is public. The
+    // salt reaches a verifier with the claim itself, through a viewing grant
+    // (`disclosure.redeemGrant`).
     if (row.commitment_salt) {
-      commitment.salt = row.commitment_salt;
       commitment.version = '2';
     }
 

@@ -86,6 +86,7 @@ export {
   overrideQuorumFrom,
   timelockHours,
 } from './decision-rules.js';
+import { placeMemberContentForVisibility } from '../forum/member-content.js';
 
 /** The community's settings record, or `undefined` when it has none. */
 export async function communitySettingsRecord(communityDid: string): Promise<any> {
@@ -293,12 +294,17 @@ export async function countableObjections(input: {
     return [];
   }
 
-  const rows = await query<{ repo_did: string; rkey: string; cid: string; record: any }>(
-    `SELECT community_did AS repo_did, rkey, cid, record
+  const rows = await query<{ repo_did: string; objector_did: string; rkey: string; cid: string; record: any }>(
+    // As for votes: an objection in the community's own repo (a private
+    // community) counts for its `author`.
+    `SELECT community_did AS repo_did,
+            CASE WHEN community_did = $2 THEN record->>'author' ELSE community_did END AS objector_did,
+            rkey, cid, record
      FROM records_index
      WHERE collection = $1
        AND record->>'community' = $2
-       AND record->>'proposalRkey' = $3`,
+       AND record->>'proposalRkey' = $3
+       AND (community_did <> $2 OR record->>'author' IS NOT NULL)`,
     [OBJECTION_COLLECTION, communityDid, proposalRkey],
   );
 
@@ -315,10 +321,10 @@ export async function countableObjections(input: {
   for (const row of rows.rows) {
     const result = checkObjectionRecord(row.record ?? {}, ctx);
     if (!result.countable) continue;
-    const existing = held.get(row.repo_did);
+    const existing = held.get(row.objector_did);
     if (existing && existing.createdAt <= result.createdAt) continue;
-    held.set(row.repo_did, {
-      objector: row.repo_did,
+    held.set(row.objector_did, {
+      objector: row.objector_did,
       record: { uri: `at://${row.repo_did}/${OBJECTION_COLLECTION}/${row.rkey}`, cid: row.cid },
       createdAt: result.createdAt,
       ...(typeof row.record?.reason === 'string' ? { reason: row.record.reason } : {}),
@@ -441,6 +447,7 @@ export async function applyProposedChange(
 ): Promise<void> {
   const ops = await proposedChangeOps(engine.did, proposal);
   if (ops.length > 0) await engine.applyWrites(keypair, ops);
+  if (proposal?.targetCollection === SETTINGS_COLLECTION) await placeMemberContentForVisibility(engine.did);
 }
 
 /**
@@ -614,6 +621,7 @@ export async function applyIfDue(input: {
       }),
       ...ops,
     ]);
+    if (proposal.targetCollection === SETTINGS_COLLECTION) await placeMemberContentForVisibility(communityDid);
 
     await auditLog('community.proposal.apply', null, communityDid, {
       rkey: proposalRkey,

@@ -46,7 +46,10 @@ export default async function rejectAccount(req: AuthRequest, res: Response): Pr
     values.push(email);
   }
 
-  const whereClause = criteria.join(' OR ');
+  // Every identifier supplied must match the same account. Joined with OR,
+  // one request naming three different people changed all three while the
+  // audit log and the response showed only the first.
+  const whereClause = criteria.join(' AND ');
 
   const { rows } = await query<{
     id: string;

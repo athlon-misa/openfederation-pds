@@ -5,13 +5,21 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
-import { ROLE_COLLECTION, ALL_PERMISSIONS, OWNER_REQUIRED_PERMISSIONS } from '../auth/permissions.js';
+import { ROLE_COLLECTION, ALL_PERMISSIONS, OWNER_REQUIRED_PERMISSIONS, invalidAttestationTypes } from '../auth/permissions.js';
+import { getCommunityOwner } from '../community/membership/utils.js';
+import { enforceGovernance } from '../governance/enforcement.js';
 
 export default async function updateRole(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireAuth(req, res)) return;
 
-    const { communityDid, rkey, name, description, permissions } = req.body;
+    const { communityDid, rkey, name, description, permissions, attestationTypes } = req.body;
+
+    const badTypes = invalidAttestationTypes(attestationTypes);
+    if (badTypes) {
+      res.status(400).json({ error: 'InvalidRequest', message: badTypes });
+      return;
+    }
 
     if (!communityDid || !rkey) {
       res.status(400).json({ error: 'InvalidRequest', message: 'Missing required fields: communityDid, rkey' });
@@ -22,6 +30,19 @@ export default async function updateRole(req: AuthRequest, res: Response): Promi
       req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.role.write'
     );
     if (!hasPermission) return;
+
+    // Roles decide who holds which powers, voting included, so they are under
+    // the community's governance like any other protected record. The generic
+    // record endpoints already refuse this write; this is the same rule.
+    const governance = await enforceGovernance(communityDid, ROLE_COLLECTION, 'write');
+    if (!governance.allowed) {
+      res.status(403).json({
+        error: 'GovernanceDenied',
+        message: governance.reason || 'Blocked by governance policy',
+        ...(governance.requiresProposal ? { requiresProposal: true } : {}),
+      });
+      return;
+    }
 
     const existing = await query<{ record: any }>(
       `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
@@ -34,6 +55,17 @@ export default async function updateRole(req: AuthRequest, res: Response): Promi
 
     const currentRole = existing.rows[0].record;
 
+    if (name !== undefined && (typeof name !== 'string' || name.length === 0 || name.length > 64)) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'name must be a string of 1-64 characters' });
+      return;
+    }
+
+    // The owner role is whichever role the owner holds, not whichever role is
+    // currently named "owner": otherwise renaming it first sidesteps the
+    // lockout check below.
+    const owner = await getCommunityOwner(communityDid, 'net.openfederation.community.updateRole');
+    const isOwnerRole = currentRole.name === 'owner' || rkey === owner.ownerRoleRkey;
+
     if (permissions) {
       if (!Array.isArray(permissions)) {
         res.status(400).json({ error: 'InvalidRequest', message: 'permissions must be an array' });
@@ -45,7 +77,7 @@ export default async function updateRole(req: AuthRequest, res: Response): Promi
         return;
       }
 
-      if (currentRole.name === 'owner') {
+      if (isOwnerRole) {
         const missing = OWNER_REQUIRED_PERMISSIONS.filter(p => !permissions.includes(p));
         if (missing.length > 0) {
           res.status(400).json({
@@ -77,6 +109,10 @@ export default async function updateRole(req: AuthRequest, res: Response): Promi
       ...(description !== undefined ? { description } : {}),
       ...(permissions !== undefined ? { permissions } : {}),
     };
+    // An explicit null lifts the restriction; a list replaces it; leaving it
+    // out keeps whatever the role has.
+    if (attestationTypes === null) delete updatedRecord.attestationTypes;
+    else if (Array.isArray(attestationTypes)) updatedRecord.attestationTypes = attestationTypes;
 
     const result = await engine.putRecord(keypair, ROLE_COLLECTION, rkey, updatedRecord);
 

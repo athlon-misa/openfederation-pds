@@ -76,8 +76,12 @@ export async function createUserIdentity(handle: string): Promise<UserIdentityRe
       holders: { 1: 'device', 2: 'vault', 3: 'vault' },
     });
   } catch (err) {
-    // Log but don't fail identity creation — vault is an enhancement
-    console.error('Warning: failed to create Shamir shares for vault (identity still created):', err);
+    // The rotation key exists only in this function's memory. If its shares
+    // were not stored, nobody can ever rotate, repair or migrate this DID, so
+    // this is not an identity anyone should be given. Fail, and let the
+    // caller register a fresh one.
+    console.error(`Failed to store rotation-key shares for ${did}; abandoning this identity:`, err);
+    throw err;
   }
 
   return { did, signingKeyBase64, deviceShare };

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.join",
-  "revision": 3,
+  "revision": 4,
   "description": "Join a community or submit a join request. Requires an approved user account. Optional `kind`, `tags`, and `attributes` classify the membership semantically (see issue #50).",
   "defs": {
     "main": {
@@ -72,6 +72,22 @@
         {
           "name": "PayloadTooLarge",
           "description": "Membership attributes exceed the maximum serialized size."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

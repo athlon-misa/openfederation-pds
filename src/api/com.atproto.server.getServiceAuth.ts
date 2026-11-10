@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { signServiceAuthJwt } from '../auth/service-auth.js';
+import { config } from '../config.js';
 
 const MAX_TTL_SEC = 30 * 60; // 30 minutes — matches common atproto defaults
 const DEFAULT_TTL_SEC = 60;  // atproto default for service-auth JWTs
@@ -27,6 +28,16 @@ export default async function getServiceAuth(req: AuthRequest, res: Response): P
   const aud = typeof req.query.aud === 'string' ? req.query.aud : '';
   if (!aud || !aud.startsWith('did:')) {
     res.status(400).json({ error: 'InvalidRequest', message: 'aud must be a DID' });
+    return;
+  }
+
+  // A service-auth token is how this account speaks to *another* server. One
+  // addressed to this PDS would be accepted here as the account itself, but
+  // without the checks a session goes through (email-verification policy, the
+  // limits on a deactivated account, token_version on password change), so it
+  // would be a way to trade a session for something that outlives it.
+  if (aud === config.pds.serviceDid || aud.startsWith(`${config.pds.serviceDid}#`)) {
+    res.status(400).json({ error: 'InvalidRequest', message: 'aud must be another service, not this PDS' });
     return;
   }
 

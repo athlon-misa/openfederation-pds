@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.sync.getRepo",
-  "revision": 1,
+  "revision": 2,
   "description": "Generated XRPC contract for com.atproto.sync.getRepo.",
   "defs": {
     "main": {
@@ -21,6 +21,10 @@
         {
           "name": "RepoNotFound",
           "description": "Repository was not found."
+        },
+        {
+          "name": "RepoTakendown",
+          "description": "The repository has been taken down."
         }
       ]
     }

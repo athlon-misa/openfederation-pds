@@ -5,13 +5,14 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
-import { ROLE_COLLECTION, ALL_PERMISSIONS } from '../auth/permissions.js';
+import { ROLE_COLLECTION, ALL_PERMISSIONS, invalidAttestationTypes } from '../auth/permissions.js';
+import { enforceGovernance } from '../governance/enforcement.js';
 
 export default async function createRole(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireAuth(req, res)) return;
 
-    const { communityDid, name, description, permissions } = req.body;
+    const { communityDid, name, description, permissions, attestationTypes } = req.body;
 
     if (!communityDid || !name || !permissions) {
       res.status(400).json({ error: 'InvalidRequest', message: 'Missing required fields: communityDid, name, permissions' });
@@ -34,10 +35,29 @@ export default async function createRole(req: AuthRequest, res: Response): Promi
       return;
     }
 
+    const badTypes = invalidAttestationTypes(attestationTypes);
+    if (badTypes) {
+      res.status(400).json({ error: 'InvalidRequest', message: badTypes });
+      return;
+    }
+
     const hasPermission = await requireCommunityPermission(
       req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.role.write'
     );
     if (!hasPermission) return;
+
+    // Roles decide who holds which powers, voting included, so they are under
+    // the community's governance like any other protected record. The generic
+    // record endpoints already refuse this write; this is the same rule.
+    const governance = await enforceGovernance(communityDid, ROLE_COLLECTION, 'write');
+    if (!governance.allowed) {
+      res.status(403).json({
+        error: 'GovernanceDenied',
+        message: governance.reason || 'Blocked by governance policy',
+        ...(governance.requiresProposal ? { requiresProposal: true } : {}),
+      });
+      return;
+    }
 
     const existing = await query(
       `SELECT 1 FROM records_index WHERE community_did = $1 AND collection = $2 AND record->>'name' = $3`,
@@ -52,7 +72,12 @@ export default async function createRole(req: AuthRequest, res: Response): Promi
     const keypair = await getKeypairForDid(communityDid);
     const rkey = RepoEngine.generateTid();
 
-    const record = { name, ...(description ? { description } : {}), permissions };
+    const record = {
+      name,
+      ...(description ? { description } : {}),
+      permissions,
+      ...(Array.isArray(attestationTypes) ? { attestationTypes } : {}),
+    };
     const result = await engine.putRecord(keypair, ROLE_COLLECTION, rkey, record);
 
     await auditLog('community.role.create', req.auth!.userId, communityDid, { rkey, name });

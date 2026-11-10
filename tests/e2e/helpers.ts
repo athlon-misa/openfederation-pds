@@ -5,6 +5,7 @@ export {
 } from '../api/helpers.js';
 
 import { xrpcAuthPost, createTestUser, uniqueHandle } from '../api/helpers.js';
+import { query } from '../../src/db/client.js';
 
 export interface CommunityWithMember {
   communityDid: string;
@@ -40,5 +41,22 @@ export async function issuePrivateAttestation(
 export async function createOracleForCommunity(adminToken: string, communityDid: string, name = 'E2E Test Oracle'): Promise<string> {
   const res = await xrpcAuthPost('net.openfederation.oracle.createCredential', adminToken, { communityDid, name });
   if (res.status !== 200 && res.status !== 201) throw new Error(`Failed to create Oracle: ${res.status} ${JSON.stringify(res.body)}`);
+  await setTestGovernanceContract(communityDid);
   return res.body.key;
 }
+
+/**
+ * Give a test community a governance contract. An oracle's proofs are checked
+ * against the community's own contract (governanceConfig.contractAddress), so
+ * a community with an oracle needs one. No chain is pinned: these tests use
+ * several test chain ids.
+ */
+export async function setTestGovernanceContract(communityDid: string, contractAddress = '0x000000000000000000000000000000000000c0de'): Promise<void> {
+  await query(
+    `UPDATE records_index SET record = jsonb_set(record, '{governanceConfig}',
+       COALESCE(record->'governanceConfig', '{}'::jsonb) || jsonb_build_object('contractAddress', $2::text))
+     WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,
+    [communityDid, contractAddress],
+  );
+}
+

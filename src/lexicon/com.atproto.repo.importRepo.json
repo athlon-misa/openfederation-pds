@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.repo.importRepo",
-  "revision": 1,
+  "revision": 2,
   "description": "AT Protocol importRepo: an account moving to this PDS loads its own repository.",
   "defs": {
     "main": {
@@ -34,6 +34,10 @@
         {
           "name": "PayloadTooLarge",
           "description": "Request payload exceeds the accepted size limit."
+        },
+        {
+          "name": "RepoRollback",
+          "description": "The repository being imported is older than the one already here."
         }
       ]
     }

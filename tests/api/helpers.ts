@@ -208,3 +208,28 @@ export function uniqueHandle(prefix = 'test'): string {
   const suffix = `-${Date.now()}-${counter}`;
   return `${prefix.slice(0, 30 - suffix.length)}${suffix}`;
 }
+
+/**
+ * Give a dApp origin wallet signing consent the way it now has to happen: the
+ * dApp requests it, the user approves it on the PDS's own page with their
+ * password. Returns a response-shaped object: the request's error response if
+ * the request was refused, otherwise `{ status: 200, body: <the consent> }`.
+ */
+export async function grantWalletConsent(
+  token: string,
+  origin: string,
+  body: Record<string, unknown>,
+  password = 'TestPassword123!',
+): Promise<{ status: number; body: any }> {
+  const requested = await xrpcAuthPostFromOrigin('net.openfederation.wallet.requestConsent', token, origin, body);
+  if (requested.status !== 200) return { status: requested.status, body: requested.body };
+  const { config } = await import('../../src/config.js');
+  const approved = await api.post('/xrpc/net.openfederation.wallet.approveConsentRequest')
+    .set('Origin', new URL(config.pds.serviceUrl).origin)
+    .send({ requestId: requested.body.requestId, password, approve: true });
+  if (approved.status !== 200) return { status: approved.status, body: approved.body };
+  const listed = await api.get('/xrpc/net.openfederation.wallet.listConsents').set('Authorization', `Bearer ${token}`);
+  const consent = (listed.body.consents ?? []).find((c: any) => c.id === approved.body.consentId);
+  return { status: 200, body: consent ?? approved.body };
+}
+

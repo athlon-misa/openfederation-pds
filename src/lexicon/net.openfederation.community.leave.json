@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.leave",
-  "revision": 1,
+  "revision": 2,
   "description": "Leave a community. Requires auth. Owners cannot leave their own community.",
   "defs": {
     "main": {
@@ -53,6 +53,22 @@
         {
           "name": "NotFound",
           "description": "Community not found."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

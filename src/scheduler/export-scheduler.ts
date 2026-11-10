@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { query } from '../db/client.js';
+import { query, tryWithAdvisoryLock } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getBlobStore } from '../blob/blob-store.js';
 import { auditLog } from '../db/audit.js';
@@ -101,7 +101,17 @@ async function exportCommunity(schedule: ExportSchedule): Promise<void> {
   }
 }
 
+/**
+ * One export cycle at a time, across every server process. Without this a
+ * cycle that outlasts the check interval, or a second replica, exports every
+ * due community again and races the retention deletes.
+ */
 async function runExportCycle(): Promise<void> {
+  const attempt = await tryWithAdvisoryLock('scheduler:export-cycle', exportDueCommunities);
+  if (!attempt.ran) console.log('[Export] A cycle is already running; skipping this one');
+}
+
+async function exportDueCommunities(): Promise<void> {
   const result = await query<ExportSchedule>(
     'SELECT * FROM export_schedules WHERE enabled = true'
   );

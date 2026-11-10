@@ -15,11 +15,15 @@ import {
 import { auditLog } from '../db/audit.js';
 import type { UserStatus } from '../auth/types.js';
 import crypto from 'crypto';
+import { redeemPartnerTicket, PartnerTicketError } from '../auth/partner-ticket.js';
+import { issueEmailVerification } from '../email/verification.js';
 
 interface PartnerRegisterInput {
   handle: string;
   email: string;
   password: string;
+  /** A registration ticket signed by the partner's backend; required when the key has a ticket key. */
+  ticket?: string;
 }
 
 export default async function partnerRegister(req: AuthRequest, res: Response): Promise<void> {
@@ -44,8 +48,8 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
     const result = await withTransaction(async (client) => {
       // Serialize registrations for this key before reading its quota. Without
       // this row lock, simultaneous requests can both see available capacity.
-      const partnerKey = await client.query<{ rate_limit_per_hour: number }>(
-        `SELECT rate_limit_per_hour FROM partner_keys
+      const partnerKey = await client.query<{ rate_limit_per_hour: number; ticket_public_key: string | null }>(
+        `SELECT rate_limit_per_hour, ticket_public_key FROM partner_keys
          WHERE id = $1 AND status = 'active'
          FOR UPDATE`,
         [partner.partnerId],
@@ -69,6 +73,20 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
       }
 
       await ensureHandleEmailAvailable(client, handle, email);
+
+      // Having the partner key proves nothing: it is in the partner's page for
+      // anyone to copy. What this sign-up is worth depends on what else came
+      // with it. A ticket signed by the partner's backend is the partner
+      // vouching for it: approved, and signed in. Without one (a partner with
+      // no backend) the account is created but stays pending until whoever
+      // holds the email address proves it.
+      const ticketKey = partnerKey.rows[0].ticket_public_key;
+      const vouched = ticketKey !== null;
+      if (ticketKey !== null) {
+        await redeemPartnerTicket(client, {
+          ticket: input.ticket, ticketPublicKey: ticketKey, partnerKeyId: partner.partnerId, handle, email,
+        });
+      }
 
       let identity;
       let passwordHash: string;
@@ -94,7 +112,7 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
         email,
         passwordHash,
         did: identity.did,
-        status: 'approved',
+        status: vouched ? 'approved' : 'pending',
         createdByPartner: partner.partnerId,
       });
 
@@ -103,10 +121,30 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
         [partner.partnerId],
       );
 
-      return { userId, identity };
+      return { userId, identity, vouched };
     });
 
     await initializeUserRepoAsync(result.identity.did, handle, result.identity.signingKeyBase64);
+
+    if (!result.vouched) {
+      // No session. The account becomes usable when its email is verified
+      // (confirmEmailToken approves partner-created pending accounts).
+      const delivery = await issueEmailVerification({ id: result.userId, handle, email });
+      auditLog('partner.register', partner.partnerId, result.userId, {
+        handle, partnerName: partner.partnerName, did: result.identity.did,
+        mode: 'email-verification', delivery: delivery.outcome,
+      }).catch(() => {});
+      res.status(201).json({
+        id: result.userId,
+        handle,
+        did: result.identity.did,
+        email,
+        status: 'pending',
+        emailVerificationRequired: true,
+        active: false,
+      });
+      return;
+    }
 
     const accessJwt = await signAccessToken({
       userId: result.userId,
@@ -147,6 +185,10 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
   } catch (err) {
     if (err instanceof RegistrationValidationError) {
       res.status(err.status).json({ error: err.code, message: err.message });
+      return;
+    }
+    if (err instanceof PartnerTicketError) {
+      res.status(401).json({ error: err.code, message: err.message });
       return;
     }
     console.error('Error in partner registration:', err);

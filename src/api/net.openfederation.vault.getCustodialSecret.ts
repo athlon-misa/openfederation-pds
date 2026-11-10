@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, requireLocalAccount } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { logVaultAudit } from '../vault/vault-store.js';
 
@@ -13,10 +13,17 @@ import { logVaultAudit } from '../vault/vault-store.js';
 export default async function getCustodialSecret(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireAuth(req, res)) return;
+    if (!requireLocalAccount(req, res)) return;
 
     const chain = req.query.chain as string | undefined;
     if (!chain || typeof chain !== 'string' || chain.length > 64) {
       res.status(400).json({ error: 'InvalidRequest', message: 'chain is required (max 64 chars)' });
+      return;
+    }
+
+    const walletAddress = req.query.walletAddress as string | undefined;
+    if (walletAddress !== undefined && (typeof walletAddress !== 'string' || walletAddress.length === 0 || walletAddress.length > 256)) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'walletAddress must be a string of at most 256 chars' });
       return;
     }
 
@@ -30,12 +37,22 @@ export default async function getCustodialSecret(req: AuthRequest, res: Response
     }>(
       `SELECT secret_type, chain, encrypted_blob, wallet_address, created_at, updated_at
        FROM custodial_secrets
-       WHERE user_did = $1 AND chain = $2`,
-      [req.auth.did, chain],
+       WHERE user_did = $1 AND chain = $2 AND ($3::text IS NULL OR wallet_address = $3)
+       ORDER BY updated_at DESC`,
+      [req.auth.did, chain, walletAddress ?? null],
     );
 
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'NotFound', message: 'No custodial secret found for this chain' });
+      return;
+    }
+    // Each wallet has its own secret. With several on the chain, handing back
+    // "the" secret would be a guess, and a wrong guess looks like a corrupt key.
+    if (result.rows.length > 1) {
+      res.status(400).json({
+        error: 'WalletAddressRequired',
+        message: 'Several wallets on this chain have a stored secret; pass walletAddress to say which one',
+      });
       return;
     }
 

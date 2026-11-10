@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 
 const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
 
@@ -13,6 +14,9 @@ export default async function getDelegation(req: AuthRequest, res: Response): Pr
       res.status(400).json({ error: 'InvalidRequest', message: 'communityDid and memberDid required' });
       return;
     }
+
+    // The delegation graph names members; it is readable by whoever may read the community.
+    if (!(await requireCommunityReadable(req, res, communityDid))) return;
 
     const delegatedTo = await query<{ record: Record<string, unknown> }>(
       `SELECT record FROM records_index

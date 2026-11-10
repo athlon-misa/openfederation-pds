@@ -4,3 +4,5 @@ export * from './consent.js';
 export * from './linking.js';
 export * from './eligibility.js';
 export * from './origin-binding.js';
+export * from './consent-scope.js';
+export * from './consent-requests.js';

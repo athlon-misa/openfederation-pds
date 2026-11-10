@@ -1,0 +1,113 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.requestConsent",
+  "revision": 1,
+  "description": "Request custodial signing consent from the user.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Ask the user to let this dApp have the PDS sign with a Tier 1 wallet. Grants nothing: the user approves on approveUrl.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "dappOrigin"
+          ],
+          "properties": {
+            "dappOrigin": {
+              "type": "string",
+              "description": "The dApp's origin; must match the request's Origin header."
+            },
+            "chain": {
+              "type": "string",
+              "knownValues": [
+                "ethereum",
+                "solana"
+              ]
+            },
+            "walletAddress": {
+              "type": "string"
+            },
+            "ttlSeconds": {
+              "type": "integer",
+              "minimum": 60,
+              "description": "How long the consent lasts once approved. Default 3600; at most WALLET_CONSENT_MAX_HOURS."
+            },
+            "allowedContracts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Ethereum addresses (or Solana program ids) transactions may be sent to. Without it the consent signs messages only."
+            },
+            "maxValuePerTx": {
+              "type": "string",
+              "description": "Most native value one transaction may move, in wei, as a decimal string. Without it no value may be moved."
+            },
+            "maxTotalValue": {
+              "type": "string",
+              "description": "Most native value all transactions under this consent may move together, in wei."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "requestId",
+            "approveUrl",
+            "expiresAt"
+          ],
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "approveUrl": {
+              "type": "string",
+              "description": "Page on this PDS where the user approves the request."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the request lapses if not approved."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest"
+        },
+        {
+          "name": "UnsupportedChain"
+        },
+        {
+          "name": "OriginRequired",
+          "description": "No browser Origin header."
+        },
+        {
+          "name": "OriginMismatch",
+          "description": "dappOrigin does not match the Origin header."
+        },
+        {
+          "name": "EmailNotVerified"
+        },
+        {
+          "name": "AccountSuspended"
+        },
+        {
+          "name": "AccountTakenDown"
+        },
+        {
+          "name": "AccountDeactivated"
+        },
+        {
+          "name": "AccountNotApproved"
+        }
+      ]
+    }
+  }
+}

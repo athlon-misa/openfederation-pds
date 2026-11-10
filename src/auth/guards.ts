@@ -5,6 +5,7 @@ import type { PartnerContext } from './partner-guard.js';
 import { query } from '../db/client.js';
 import { getCallerCommunityCapabilities, getCommunityAccess, canViewPrivateCommunity } from '../community/visibility.js';
 import { HttpError } from '../xrpc/errors.js';
+import { PERMISSIONS } from './permissions.js';
 
 export function requireAuth(req: AuthRequest, res: Response): req is AuthRequest & { auth: AuthContext } {
   if (!req.auth) {
@@ -38,6 +39,28 @@ export function requireRole(req: AuthRequest, res: Response, roles: UserRole[]):
     return false;
   }
 
+  return true;
+}
+
+/**
+ * True when the caller authenticated with a service-auth token for a DID that
+ * is not hosted here: another server speaking for one of its accounts. Such a
+ * caller's context carries the DID where a local account's carries a user id.
+ */
+export function isRemoteCaller(req: AuthRequest): boolean {
+  return !!req.auth && req.auth.authMethod === 'service-auth' && req.auth.userId === req.auth.did;
+}
+
+/**
+ * Guard: the caller must be an account on this PDS. Use on endpoints that
+ * store something for the account or create something it will own here; a
+ * DID hosted elsewhere has no row to hang either on.
+ */
+export function requireLocalAccount(req: AuthRequest, res: Response): boolean {
+  if (isRemoteCaller(req)) {
+    res.status(403).json({ error: 'Forbidden', message: 'This action requires an account on this PDS' });
+    return false;
+  }
   return true;
 }
 
@@ -160,16 +183,33 @@ export async function requireActiveCommunity(
  * Returns the caller's community role if authorized, null otherwise.
  */
 /**
+ * Why a community in this status cannot be written to, or null if it can.
+ *
  * A community that moved away (#267) or is still arriving is read-only here.
- * Sends the refusal and returns false in that case.
+ * A suspended or taken-down community is frozen: moderation would mean little
+ * if members could keep posting, or the owner could rewrite roles, change
+ * settings or delete the evidence while it is in force.
  */
-export function writableStatus(status: string, res: Response): boolean {
-  if (status === 'moved') {
-    res.status(403).json({ error: 'CommunityMoved', message: 'This community has moved to another PDS; this copy is read-only.' });
-    return false;
+export function communityWriteRefusal(status: string | undefined): { status: number; error: string; message: string } | null {
+  switch (status) {
+    case 'suspended':
+      return { status: 403, error: 'CommunitySuspended', message: 'This community has been suspended by the PDS administrator.' };
+    case 'takendown':
+      return { status: 410, error: 'CommunityTakenDown', message: 'This community has been taken down.' };
+    case 'moved':
+      return { status: 403, error: 'CommunityMoved', message: 'This community has moved to another PDS; this copy is read-only.' };
+    case 'importing':
+      return { status: 403, error: 'CommunityImporting', message: 'This community is still arriving here and is not active yet.' };
+    default:
+      return null;
   }
-  if (status === 'importing') {
-    res.status(403).json({ error: 'CommunityImporting', message: 'This community is still arriving here and is not active yet.' });
+}
+
+/** Sends the refusal and returns false when the community cannot be written to. */
+export function writableStatus(status: string, res: Response): boolean {
+  const refusal = communityWriteRefusal(status);
+  if (refusal) {
+    res.status(refusal.status).json({ error: refusal.error, message: refusal.message });
     return false;
   }
   return true;
@@ -259,14 +299,17 @@ export async function requireCommunityPermission(
   const capabilities = await getCallerCommunityCapabilities({
     communityDid,
     caller: req.auth,
+    // Proposing, voting, objecting and delegating are the community deciding
+    // for itself. A PDS admin moderates communities through the admin
+    // endpoints; they do not get a vote in one they have not joined.
+    withoutOperatorOverride: permission === PERMISSIONS.GOVERNANCE_WRITE,
   });
 
   if (!capabilities.exists) {
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
     return false;
   }
-  const statusRow = await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [communityDid]);
-  if (statusRow.rows[0] && !writableStatus(statusRow.rows[0].status, res)) return false;
+  if (!writableStatus(capabilities.status || 'active', res)) return false;
 
   if (capabilities.hasAllPermissions || capabilities.permissions.includes(permission)) {
     return true;
@@ -278,6 +321,27 @@ export async function requireCommunityPermission(
   }
 
   res.status(403).json({ error: 'Forbidden', message: 'Insufficient community privileges' });
+  return false;
+}
+
+/**
+ * Guard: the caller's role must allow this kind of attestation. Call after
+ * `requireCommunityPermission` has established they may issue or revoke at all.
+ * A PDS admin acting from outside the community is not bound by a role.
+ */
+export async function requireAttestationType(
+  req: AuthRequest & { auth: AuthContext },
+  res: Response,
+  communityDid: string,
+  type: string,
+): Promise<boolean> {
+  const capabilities = await getCallerCommunityCapabilities({ communityDid, caller: req.auth });
+  const allowed = capabilities.attestationTypes;
+  if (allowed === null || allowed.includes(type)) return true;
+  res.status(403).json({
+    error: 'AttestationTypeNotAllowed',
+    message: `Your role may only issue or revoke attestations of type: ${allowed.join(', ') || '(none)'}`,
+  });
   return false;
 }
 
@@ -302,6 +366,12 @@ export async function requireCommunityReadable(
   const access = await getCommunityAccess({ communityDid, caller: req.auth });
   if (!access.exists || (access.visibility === 'private' && !canViewPrivateCommunity(access))) {
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
+    return false;
+  }
+  // Taken down means not served, to anyone but a PDS admin. Checked after the
+  // privacy gate so a private community's existence still isn't revealed.
+  if (access.status === 'takendown' && !access.isAdmin) {
+    res.status(410).json({ error: 'CommunityTakenDown', message: 'This community has been taken down.' });
     return false;
   }
   return true;
@@ -330,6 +400,21 @@ export async function requireRepoReadable(
   if (access.exists && access.visibility === 'private' && !canViewPrivateCommunity(access)) {
     res.status(404).json({ error: 'RepoNotFound', message: `Repository not found for DID: ${did}` });
     return false;
+  }
+
+  // A taken-down repo is not served, whether it belongs to a community or an
+  // account. A PDS admin can still read it (moderation, export).
+  const isAdmin = req.auth?.roles?.includes('admin') || false;
+  if (!isAdmin) {
+    let takenDown = access.exists && access.status === 'takendown';
+    if (!access.exists) {
+      const user = await query<{ status: string }>('SELECT status FROM users WHERE did = $1', [did]);
+      takenDown = user.rows[0]?.status === 'takendown';
+    }
+    if (takenDown) {
+      res.status(400).json({ error: 'RepoTakendown', message: `Repository has been taken down: ${did}` });
+      return false;
+    }
   }
   return true;
 }

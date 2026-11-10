@@ -16,6 +16,7 @@ export type {
   User,
   Session,
   RegisterOptions,
+  RegisterResult,
   LoginOptions,
   FetchOptions,
   // Wallet Linking
@@ -51,6 +52,8 @@ export type {
   ProvisionTier3Options,
   ProvisionResult,
   GrantConsentOptions,
+  ConsentRequest,
+  ConsentRequestStatus,
   ConsentGrant,
   WalletSignOptions,
   WalletSignTransactionOptions,
@@ -96,6 +99,14 @@ export type {
   SolanaTransactionLike,
 } from './wallet/index.js';
 export type { VerifiedSession, VerifyPdsTokenOptions } from './verify.js';
+
+// Registration tickets: for a partner's backend, never for browser code.
+export {
+  createPartnerTicket,
+  generatePartnerTicketKey,
+  partnerTicketPublicKey,
+  type PartnerTicketOptions,
+} from './partner-ticket.js';
 
 import { OpenFederationClient } from './client.js';
 import type { ClientConfig } from './types.js';

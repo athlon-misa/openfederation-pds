@@ -9,8 +9,7 @@ import {
   getAdminToken,
   isPLCAvailable,
   uniqueHandle,
-  xrpcAuthPostFromOrigin,
-} from './helpers.js';
+  xrpcAuthPostFromOrigin, grantWalletConsent} from './helpers.js';
 
 // End-to-end tests for Tier 1 custodial wallets: provision, grant consent,
 // sign, verify signature independently, then exercise every rejection path.
@@ -128,7 +127,7 @@ describe('Tier 1 custodial wallets', () => {
       const ethWallet = list.body.walletLinks.find((l: any) => l.chain === 'ethereum');
       expect(ethWallet).toBeDefined();
 
-      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://game.example.com', {
+      const res = await grantWalletConsent(user.accessJwt, 'https://game.example.com', {
         dappOrigin: 'https://game.example.com',
         chain: 'ethereum',
         walletAddress: ethWallet.walletAddress,
@@ -142,7 +141,7 @@ describe('Tier 1 custodial wallets', () => {
 
     it('rejects ttlSeconds beyond 30 days', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://game.example.com', {
+      const res = await grantWalletConsent(user.accessJwt, 'https://game.example.com', {
         dappOrigin: 'https://game.example.com',
         ttlSeconds: 365 * 24 * 60 * 60,
       });
@@ -151,7 +150,7 @@ describe('Tier 1 custodial wallets', () => {
 
     it('rejects malformed origin', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'not-a-url', {
+      const res = await grantWalletConsent(user.accessJwt, 'not-a-url', {
         dappOrigin: 'not-a-url',
       });
       expect(res.status).toBe(400);
@@ -159,7 +158,7 @@ describe('Tier 1 custodial wallets', () => {
 
     it('rejects inconsistent scope (chain without walletAddress)', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://game.example.com', {
+      const res = await grantWalletConsent(user.accessJwt, 'https://game.example.com', {
         dappOrigin: 'https://game.example.com',
         chain: 'ethereum',
       });
@@ -195,7 +194,7 @@ describe('Tier 1 custodial wallets', () => {
       const solWallet = list.body.walletLinks.find((l: any) => l.chain === 'solana');
 
       // Grant Solana consent.
-      const grantRes = await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://sol.example.com', {
+      const grantRes = await grantWalletConsent(user.accessJwt, 'https://sol.example.com', {
         dappOrigin: 'https://sol.example.com',
         chain: 'solana',
         walletAddress: solWallet.walletAddress,

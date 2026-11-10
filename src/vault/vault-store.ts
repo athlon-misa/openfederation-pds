@@ -86,9 +86,15 @@ export async function logVaultAudit(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   const id = crypto.randomUUID();
+  // The pseudonym rule of `auditLog()` applies to this log as well: no row is
+  // written when the account, or whoever acted on it, is a pseudonym.
   await query(
     `INSERT INTO vault_audit_log (id, user_did, action, actor_did, share_index, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+     SELECT $1, $2::varchar, $3, $4::varchar, $5, $6
+     WHERE NOT EXISTS (
+       SELECT 1 FROM users u WHERE u.auth_type = 'pseudonym'
+         AND (u.did = $2::varchar OR u.did = $4::varchar)
+     )`,
     [id, userDid, action, actorDid || null, shareIndex ?? null, metadata ? JSON.stringify(metadata) : null]
   );
 }

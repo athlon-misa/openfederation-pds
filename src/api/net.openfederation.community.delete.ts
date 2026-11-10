@@ -25,8 +25,8 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
     }
 
     // Verify community exists and check ownership
-    const communityResult = await query<{ owner_did: string | null; handle: string }>(
-      'SELECT owner_did, handle FROM communities WHERE did = $1',
+    const communityResult = await query<{ owner_did: string | null; handle: string; status: string }>(
+      'SELECT owner_did, handle, status FROM communities WHERE did = $1',
       [did]
     );
     if (communityResult.rows.length === 0) {
@@ -39,6 +39,17 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
 
     if (!isOwner && !isAdmin) {
       res.status(403).json({ error: 'Forbidden', message: 'Only the community owner or PDS admin can delete a community' });
+      return;
+    }
+
+    // While a community is suspended or taken down, only a PDS admin may
+    // delete it: otherwise its owner could erase it mid-moderation.
+    const status = communityResult.rows[0].status;
+    if (!isAdmin && (status === 'suspended' || status === 'takendown')) {
+      res.status(403).json({
+        error: status === 'suspended' ? 'CommunitySuspended' : 'CommunityTakenDown',
+        message: 'This community is under moderation and cannot be deleted by its owner.',
+      });
       return;
     }
 

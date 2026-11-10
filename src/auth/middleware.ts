@@ -44,7 +44,10 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
   // Service-auth callers are other servers, not mailbox owners; the concept
   // does not apply to them.
   const policy = config.emailVerification.policy;
-  if (req.auth && req.auth.authMethod !== 'service-auth'
+  // (A service-auth token signed by an account hosted *here* is that account,
+  // mailbox and all; its context carries the local user id, not the DID.)
+  const isRemoteServer = req.auth?.authMethod === 'service-auth' && req.auth.userId === req.auth.did;
+  if (req.auth && !isRemoteServer
     && (policy === 'require-for-write' || policy === 'require-for-login')) {
     try {
       // Pseudonyms have no mailbox by design; the email policy does not apply to them.

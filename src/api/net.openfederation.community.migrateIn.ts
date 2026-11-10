@@ -67,10 +67,12 @@ export default async function migrateIn(req: AuthRequest, res: Response): Promis
     }
 
     await withTransaction(async (client) => {
+      // Checked on every call, not only the first: a repeat call may name a
+      // different handle, and it must be just as free.
+      const taken = await client.query(
+        'SELECT 1 FROM users WHERE handle = $1 UNION ALL SELECT 1 FROM communities WHERE handle = $1 AND did <> $2', [handle, did]);
+      if (taken.rows.length > 0) throw new CommunityMoveError(400, 'HandleNotAvailable', 'Handle is already taken');
       if (!existing) {
-        const taken = await client.query(
-          'SELECT 1 FROM users WHERE handle = $1 UNION ALL SELECT 1 FROM communities WHERE handle = $1 AND did <> $2', [handle, did]);
-        if (taken.rows.length > 0) throw new CommunityMoveError(400, 'HandleNotAvailable', 'Handle is already taken');
         await client.query(
           `INSERT INTO communities (did, handle, did_method, created_by, owner_did, status, from_pds)
            VALUES ($1, $2, 'plc', NULL, $3, 'importing', $4)`, [did, handle, ownerDid, fromPds]);

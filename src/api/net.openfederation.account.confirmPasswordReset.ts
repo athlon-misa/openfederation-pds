@@ -6,6 +6,7 @@ import { isStrongPassword, passwordValidationMessage } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { sendEmail } from '../email/email-service.js';
 import { passwordChangedEmail } from '../email/templates.js';
+import { revokeOAuthGrants } from '../auth/revoke-grants.js';
 
 export default async function confirmPasswordReset(req: Request, res: Response): Promise<void> {
   try {
@@ -20,7 +21,8 @@ export default async function confirmPasswordReset(req: Request, res: Response):
     // Find valid, unused, non-expired token
     const tokenResult = await query<{ id: string; user_id: string }>(
       `SELECT id, user_id FROM password_reset_tokens
-       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()`,
+       WHERE token_hash = $1 AND purpose = 'password-reset'
+         AND used_at IS NULL AND expires_at > NOW()`,
       [tokenHash]
     );
 
@@ -37,18 +39,32 @@ export default async function confirmPasswordReset(req: Request, res: Response):
       return;
     }
 
-    // Update password
+    // Hash first (slow), then claim the token in one statement: of two
+    // concurrent requests with the same token, only one sets the password.
     const newHash = await hashPassword(newPassword);
-    await query('UPDATE users SET password_hash = $1, token_version = token_version + 1 WHERE id = $2', [newHash, resetToken.user_id]);
+    const claimed = await query(
+      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND used_at IS NULL AND expires_at > NOW()`,
+      [resetToken.id]
+    );
+    if (claimed.rowCount !== 1) {
+      res.status(400).json({ error: 'InvalidToken', message: 'Token is invalid, expired, or already used.' });
+      return;
+    }
 
-    // Mark token as used
-    await query('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = $1', [resetToken.id]);
+    await query('UPDATE users SET password_hash = $1, token_version = token_version + 1 WHERE id = $2', [newHash, resetToken.user_id]);
 
     // Revoke all sessions
     const sessionResult = await query(
       'UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
       [resetToken.user_id]
     );
+
+    // ...and every client authorised through OAuth: a reset is how an owner
+    // takes an account back, and a grant given while someone else held the
+    // password must not survive it.
+    const owner = await query<{ did: string }>('SELECT did FROM users WHERE id = $1', [resetToken.user_id]);
+    if (owner.rows[0]?.did) await revokeOAuthGrants(owner.rows[0].did);
 
     // Reset failed login counter
     await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [resetToken.user_id]);

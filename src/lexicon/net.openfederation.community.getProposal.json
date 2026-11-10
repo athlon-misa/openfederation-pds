@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.getProposal",
-  "revision": 6,
+  "revision": 7,
   "description": "Get a specific governance proposal.",
   "defs": {
     "main": {
@@ -36,6 +36,10 @@
         {
           "name": "NotFound",
           "description": "Community not found or not readable."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     },

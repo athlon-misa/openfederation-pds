@@ -1,9 +1,12 @@
-import { query } from '../db/client.js';
+import { query, withAdvisoryLock } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import type { AuthContext } from '../auth/types.js';
 import { resolveDisplayFields, batchResolveOptionalDisplayFields } from '../community/display-projection.js';
 import { createNotification } from '../notification/index.js';
+
+/** Longest note a contact request may carry (matches the lexicon). */
+const MAX_NOTE_LENGTH = 280;
 
 const REQUEST_COLLECTION = 'net.openfederation.contact.request';
 const CONTACT_COLLECTION = 'net.openfederation.contact.contact';
@@ -19,6 +22,18 @@ export async function sendContactRequest(
   if (!callerDid) throw Object.assign(new Error('No DID on caller'), { code: 'InvalidRequest', status: 400 });
   if (!subject || !subject.startsWith('did:')) throw Object.assign(new Error('Invalid subject DID'), { code: 'InvalidRequest', status: 400 });
   if (subject === callerDid) throw Object.assign(new Error('Cannot send a contact request to yourself'), { code: 'InvalidRequest', status: 400 });
+  if (note !== undefined && note !== null && (typeof note !== 'string' || note.length > MAX_NOTE_LENGTH)) {
+    throw Object.assign(new Error(`note must be text of at most ${MAX_NOTE_LENGTH} characters`), { code: 'InvalidRequest', status: 400 });
+  }
+
+  // A request can only be accepted by an account on this PDS (acceptance
+  // writes to both repositories), so one addressed to anything else can never
+  // complete. Refusing it also stops requests and their notifications being
+  // created for arbitrary or invented DIDs.
+  const recipient = await query<{ handle: string }>('SELECT handle FROM users WHERE did = $1', [subject]);
+  if (recipient.rows.length === 0) {
+    throw Object.assign(new Error('No account with that DID on this server'), { code: 'NotFound', status: 404 });
+  }
 
   // Check for blocks in either direction
   const blockCheck = await query(
@@ -100,57 +115,70 @@ export async function respondToContactRequest(
     throw Object.assign(new Error("action must be 'accept' or 'reject'"), { code: 'InvalidRequest', status: 400 });
   }
 
-  const reqRow = await query<{ from_did: string; note: string | null; created_at: Date }>(
-    'SELECT from_did, note, created_at FROM contact_requests WHERE to_did = $1 AND rkey = $2',
-    [callerDid, rkey],
-  );
-  if (reqRow.rows.length === 0) {
-    throw Object.assign(new Error('No incoming request with the given rkey'), { code: 'NotFound', status: 404 });
-  }
-  const { from_did: fromDid } = reqRow.rows[0];
-
-  if (action === 'accept') {
-    const acceptedAt = new Date().toISOString();
-
-    // Create contact record on caller's repo (pointing at requester)
-    const callerEngine = new RepoEngine(callerDid);
-    const callerKeypair = await getKeypairForDid(callerDid);
-    const callerRkey = RepoEngine.generateTid();
-    await callerEngine.putRecord(callerKeypair, CONTACT_COLLECTION, callerRkey, {
-      subject: fromDid,
-      acceptedAt,
-    });
-
-    // Create contact record on requester's repo (pointing at caller)
-    const fromEngine = new RepoEngine(fromDid);
-    const fromKeypair = await getKeypairForDid(fromDid);
-    const fromContactRkey = RepoEngine.generateTid();
-    await fromEngine.putRecord(fromKeypair, CONTACT_COLLECTION, fromContactRkey, {
-      subject: callerDid,
-      acceptedAt,
-    });
-
-    // Delete the request record from requester's repo
-    await fromEngine.deleteRecord(fromKeypair, REQUEST_COLLECTION, rkey);
-
-    // Insert both contact rows into the index
-    await query(
-      `INSERT INTO contacts (user_did, contact_did, rkey, accepted_at)
-       VALUES ($1, $2, $3, $4), ($2, $1, $5, $4)
-       ON CONFLICT DO NOTHING`,
-      [callerDid, fromDid, callerRkey, acceptedAt, fromContactRkey],
+  // One response at a time per request. Accepting writes a contact record to
+  // each of two repositories, removes the request record and updates the
+  // index; two responses running together each did all of that. Under the
+  // lock the second finds the request already gone.
+  await withAdvisoryLock(`contact-request:${callerDid}:${rkey}`, async () => {
+    const reqRow = await query<{ from_did: string }>(
+      'SELECT from_did FROM contact_requests WHERE to_did = $1 AND rkey = $2',
+      [callerDid, rkey],
     );
-  } else {
-    // Reject — just delete the request record from requester's repo
-    const fromEngine = new RepoEngine(fromDid);
-    const fromKeypair = await getKeypairForDid(fromDid);
-    await fromEngine.deleteRecord(fromKeypair, REQUEST_COLLECTION, rkey);
-  }
+    if (reqRow.rows.length === 0) {
+      throw Object.assign(new Error('No incoming request with the given rkey'), { code: 'NotFound', status: 404 });
+    }
+    const { from_did: fromDid } = reqRow.rows[0];
 
-  // Remove from index
+    // Every step below checks whether it has already been done, and the
+    // request row is removed last. If something fails part-way the request is
+    // still there, and responding again finishes the job without repeating
+    // the steps that succeeded.
+    if (action === 'accept') {
+      const acceptedAt = new Date().toISOString();
+      await ensureContact(callerDid, fromDid, acceptedAt);
+      await ensureContact(fromDid, callerDid, acceptedAt);
+    }
+
+    // Remove the request record from the requester's repo, if it is still there.
+    const requestRecord = await query(
+      'SELECT 1 FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
+      [fromDid, REQUEST_COLLECTION, rkey],
+    );
+    if (requestRecord.rows.length > 0) {
+      const fromEngine = new RepoEngine(fromDid);
+      await fromEngine.deleteRecord(await getKeypairForDid(fromDid), REQUEST_COLLECTION, rkey);
+    }
+
+    await query('DELETE FROM contact_requests WHERE to_did = $1 AND rkey = $2', [callerDid, rkey]);
+  });
+}
+
+/**
+ * Make sure `ownerDid` has a contact record naming `contactDid`, and that the
+ * index says so. Does nothing that is already done: an existing record is
+ * reused, not duplicated.
+ */
+async function ensureContact(ownerDid: string, contactDid: string, acceptedAt: string): Promise<void> {
+  const existing = await query<{ rkey: string }>(
+    `SELECT rkey FROM records_index
+     WHERE community_did = $1 AND collection = $2 AND record->>'subject' = $3
+     ORDER BY rkey LIMIT 1`,
+    [ownerDid, CONTACT_COLLECTION, contactDid],
+  );
+  let contactRkey = existing.rows[0]?.rkey;
+  if (!contactRkey) {
+    contactRkey = RepoEngine.generateTid();
+    const engine = new RepoEngine(ownerDid);
+    await engine.putRecord(await getKeypairForDid(ownerDid), CONTACT_COLLECTION, contactRkey, {
+      subject: contactDid,
+      acceptedAt,
+    });
+  }
   await query(
-    'DELETE FROM contact_requests WHERE to_did = $1 AND rkey = $2',
-    [callerDid, rkey],
+    `INSERT INTO contacts (user_did, contact_did, rkey, accepted_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT DO NOTHING`,
+    [ownerDid, contactDid, contactRkey, acceptedAt],
   );
 }
 
@@ -454,6 +482,15 @@ export async function blockContact(auth: AuthContext, subject: string): Promise<
     [callerDid, subject],
   );
 
+  // Already blocked: the cleanup above has run again, and there is nothing to
+  // add. Writing another block record each time left duplicates in the repo
+  // that a single unblock did not remove.
+  const alreadyBlocked = await query(
+    'SELECT 1 FROM contact_blocks WHERE blocker_did = $1 AND blocked_did = $2',
+    [callerDid, subject],
+  );
+  if (alreadyBlocked.rows.length > 0) return;
+
   // Create block record on caller's repo
   const engine = new RepoEngine(callerDid);
   const keypair = await getKeypairForDid(callerDid);
@@ -608,8 +645,21 @@ export async function listFriendOfFriends(
 
   let sql = `SELECT * FROM (${innerSql}) sub`;
   if (cursor) {
-    sql += ` WHERE mutual_count < $${idx++}::bigint`;
-    params.push(parseInt(cursor, 10) || 0);
+    // Cursor is "<mutual_count>:<did>", the last row of the previous page in
+    // the (mutual_count DESC, did ASC) ordering. Paging on the count alone
+    // skipped every remaining suggestion that shared the boundary's count.
+    const sep = cursor.indexOf(':');
+    const count = parseInt(sep === -1 ? cursor : cursor.slice(0, sep), 10) || 0;
+    const afterDid = sep === -1 ? null : cursor.slice(sep + 1);
+    if (afterDid) {
+      sql += ` WHERE (mutual_count < $${idx}::bigint OR (mutual_count = $${idx}::bigint AND did > $${idx + 1}))`;
+      params.push(count, afterDid);
+      idx += 2;
+    } else {
+      // A bare count is the old cursor format; keep honouring it.
+      sql += ` WHERE mutual_count < $${idx++}::bigint`;
+      params.push(count);
+    }
   }
   sql += ` ORDER BY mutual_count DESC, did ASC LIMIT $${idx}`;
   params.push(limit + 1);
@@ -620,7 +670,8 @@ export async function listFriendOfFriends(
   let nextCursor: string | undefined;
   if (rows.length > limit) {
     rows = rows.slice(0, limit);
-    nextCursor = rows[rows.length - 1].mutual_count;
+    const last = rows[rows.length - 1];
+    nextCursor = `${last.mutual_count}:${last.did}`;
   }
 
   return {

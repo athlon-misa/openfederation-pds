@@ -3,6 +3,7 @@ import { Transaction as EthersTransaction } from 'ethers';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 import {
+
   xrpcAuthGet,
   xrpcAuthPost,
   xrpcPost,
@@ -10,7 +11,11 @@ import {
   isPLCAvailable,
   uniqueHandle,
   xrpcAuthPostFromOrigin,
+  grantWalletConsent,
 } from './helpers.js';
+
+/** The Solana System Program id: 32 zero bytes. */
+const SYSTEM_PROGRAM = '11111111111111111111111111111111';
 
 async function registerAndApproveUser(handle: string) {
   const adminToken = await getAdminToken();
@@ -61,15 +66,19 @@ describe('net.openfederation.wallet.signTransaction', () => {
     solAddress = t1sol.body.walletAddress;
 
     // Grant consents for both (separate grants; per-wallet scope).
-    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://tx-demo.example.com', {
+    await grantWalletConsent(user.accessJwt, 'https://tx-demo.example.com', {
       dappOrigin: 'https://tx-demo.example.com',
       chain: 'ethereum',
       walletAddress: ethAddress,
+      // A consent names what it covers: the contract and how much value.
+      allowedContracts: ['0x0000000000000000000000000000000000000123'],
+      maxValuePerTx: '1000000000000000',
     });
-    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://tx-demo.example.com', {
+    await grantWalletConsent(user.accessJwt, 'https://tx-demo.example.com', {
       dappOrigin: 'https://tx-demo.example.com',
       chain: 'solana',
       walletAddress: solAddress,
+      allowedContracts: [SYSTEM_PROGRAM],
     });
   });
 
@@ -142,7 +151,14 @@ describe('net.openfederation.wallet.signTransaction', () => {
   describe('Solana', () => {
     it('signs Solana message bytes; sig verifies against the wallet pubkey', async () => {
       if (!plcAvailable) return;
-      const messageBytes = new Uint8Array([0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
+      // A real (legacy) transaction message: the wallet pays, one instruction
+      // to the System Program, which the consent names.
+      const messageBytes = new Uint8Array([
+        1, 0, 1,                               // header: 1 signer, 0 readonly signed, 1 readonly unsigned
+        2, ...bs58.decode(solAddress), ...new Uint8Array(32), // account keys: wallet, System Program
+        ...new Uint8Array(32).fill(7),         // recent blockhash
+        1, 1, 1, 0, 1, 0,                      // 1 instruction: program index 1, accounts [0], data [0]
+      ]);
       const messageBase64 = Buffer.from(messageBytes).toString('base64');
 
       const res = await xrpcAuthPostFromOrigin('net.openfederation.wallet.signTransaction', user.accessJwt, 'https://tx-demo.example.com', {
@@ -198,7 +214,7 @@ describe('net.openfederation.wallet.signTransaction', () => {
       expect(link.status).toBe(200);
 
       // Grant consent (to pass the consent check and hit the tier check).
-      await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://tx-demo.example.com', {
+      await grantWalletConsent(user.accessJwt, 'https://tx-demo.example.com', {
         dappOrigin: 'https://tx-demo.example.com',
         chain: 'ethereum',
         walletAddress: w.address,

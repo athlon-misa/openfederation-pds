@@ -39,15 +39,6 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
 
     const community = communityResult.rows[0];
 
-    // Taken-down communities are invisible to everyone except PDS admin
-    if (community.status === 'takendown') {
-      const isAdmin = req.auth?.roles?.includes('admin') || false;
-      if (!isAdmin) {
-        res.status(410).json({ error: 'CommunityTakenDown', message: 'This community has been taken down.' });
-        return;
-      }
-    }
-
     // Fetch profile, settings, and member count in parallel (independent queries)
     const [profileResult, settingsResult, countResult] = await Promise.all([
       query<{ record: { displayName?: string; description?: string } }>(
@@ -88,6 +79,16 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
       );
       if (memberCheck.rows.length === 0) {
         res.status(404).json({ error: 'NotFound', message: 'Community not found' });
+        return;
+      }
+    }
+
+    // Taken-down communities are invisible to everyone except PDS admin. Checked
+    // after the privacy gate, so a private community's takedown is not announced
+    // to people who could not have seen it.
+    if (community.status === 'takendown') {
+      if (!isAdmin) {
+        res.status(410).json({ error: 'CommunityTakenDown', message: 'This community has been taken down.' });
         return;
       }
     }

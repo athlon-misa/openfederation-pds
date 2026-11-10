@@ -37,11 +37,29 @@ BEGIN;
 -- only read back, and is converted with it so it cannot become the same bug the
 -- first time someone adds the obvious check.
 
-ALTER TABLE viewing_grants
-  ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';
+-- Guarded: the USING clause reinterprets a naive value as UTC. Applied to a
+-- column that is already timestamptz it would shift every stored value by the
+-- session's UTC offset, so it only runs while the column is still naive.
+DO $$ BEGIN
+  IF (SELECT data_type FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'viewing_grants' AND column_name = 'expires_at')
+     = 'timestamp without time zone' THEN
+    ALTER TABLE viewing_grants
+      ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';
+  END IF;
+END $$;
 
-ALTER TABLE disclosure_sessions
-  ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';
+-- Guarded: the USING clause reinterprets a naive value as UTC. Applied to a
+-- column that is already timestamptz it would shift every stored value by the
+-- session's UTC offset, so it only runs while the column is still naive.
+DO $$ BEGIN
+  IF (SELECT data_type FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'disclosure_sessions' AND column_name = 'expires_at')
+     = 'timestamp without time zone' THEN
+    ALTER TABLE disclosure_sessions
+      ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at AT TIME ZONE 'UTC';
+  END IF;
+END $$;
 
 -- ── Written by Postgres in the server's timezone ─────────────────────
 --

@@ -13,7 +13,11 @@ export default async function walletListConsents(req: AuthRequest, res: Response
   try {
     if (!requireApprovedUser(req, res)) return;
     const grants = await listConsents(req.auth!.did);
-    res.status(200).json({ consents: grants });
+    // Active consents only, so `revokedAt` is always empty; empty fields are
+    // left out rather than sent as null, which the lexicon does not declare.
+    const consents = grants.map(({ revokedAt: _revokedAt, ...grant }) =>
+      Object.fromEntries(Object.entries(grant).filter(([, value]) => value !== null && value !== undefined)));
+    res.status(200).json({ consents });
   } catch (err) {
     console.error('Error in walletListConsents:', err);
     if (!res.headersSent) {

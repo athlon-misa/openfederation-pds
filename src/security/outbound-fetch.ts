@@ -47,8 +47,18 @@ export function isBlockedAddress(value: string): boolean {
   if (host === '::' || host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
   if (/^(?:fc|fd|fe[89ab])/i.test(host)) return true;
 
-  const match = /^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(host);
-  const ipv4 = match?.[1] ?? host;
+  // IPv4-mapped IPv6 comes in two spellings: dotted (::ffff:127.0.0.1) and
+  // hex (::ffff:7f00:1). `new URL()` normalises the first into the second, so
+  // matching only the dotted form lets a mapped loopback or metadata address
+  // through.
+  const dotted = /^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(host);
+  const hex = /^(?:0*:)*:?ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(host);
+  let ipv4 = dotted?.[1] ?? host;
+  if (hex) {
+    const hi = parseInt(hex[1], 16);
+    const lo = parseInt(hex[2], 16);
+    ipv4 = `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+  }
   const octets = ipv4.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!octets) return false;
   const [a, b, c] = octets.slice(1).map(Number);
@@ -63,13 +73,18 @@ export function isBlockedAddress(value: string): boolean {
     a >= 224;
 }
 
-/** Read a remote response without retaining more than `maxBytes`. */
+/** Read a remote response as text without retaining more than `maxBytes`. */
 export async function readLimitedText(response: Response, maxBytes: number): Promise<string> {
+  return new TextDecoder().decode(await readLimitedBytes(response, maxBytes));
+}
+
+/** Read a remote response without retaining more than `maxBytes`. */
+export async function readLimitedBytes(response: Response, maxBytes: number): Promise<Uint8Array> {
   const declared = response.headers.get('content-length');
   if (declared && Number(declared) > maxBytes) {
     throw new OutboundFetchError('Outbound response is too large');
   }
-  if (!response.body) return '';
+  if (!response.body) return new Uint8Array(0);
 
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -95,5 +110,5 @@ export async function readLimitedText(response: Response, maxBytes: number): Pro
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(bytes);
+  return bytes;
 }

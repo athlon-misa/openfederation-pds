@@ -31,6 +31,13 @@ export interface RedeemGrantResult {
   sessionKey: string;
   expiresAt: string;
   watermarkId: string;
+  /**
+   * The salt of the attestation's public commitment, present only when the
+   * grant covers the whole claim. With it the grantee can check that what
+   * they were shown is what was attested: sha256(`salt:canonical(claim)`)
+   * equals the published commitment hash.
+   */
+  commitmentSalt?: string;
 }
 
 export interface RevokeGrantInput {
@@ -146,11 +153,20 @@ export async function redeemGrantLifecycle(
     metadata: { sessionId, grantedFields: grant.granted_fields },
   });
 
+  // Only with a full disclosure. The commitment covers the whole claim, so a
+  // partial view cannot be checked against it anyway, and the salt together
+  // with some of the fields would let the grantee guess the rest.
+  const fullDisclosure = grant.granted_fields === null || grant.granted_fields === undefined;
+  const commitmentSalt = fullDisclosure
+    ? await getCommitmentSalt(grant.attestation_community_did, grant.attestation_rkey)
+    : null;
+
   return {
     sessionEncryptedPayload,
     sessionKey: sessionKey.toString('base64'),
     expiresAt: sessionExpiresAt.toISOString(),
     watermarkId,
+    ...(commitmentSalt ? { commitmentSalt } : {}),
   };
 }
 
@@ -203,6 +219,23 @@ function validateCreateViewingGrantInput(input: CreateViewingGrantInput): {
       400,
       'Missing required fields: communityDid, rkey, grantedToDid',
     );
+  }
+
+  // `grantedFields` narrows what the grantee sees. Left out, the grant covers
+  // the whole claim. Given, it has to be a list naming at least one field:
+  // an empty list or a bare string used to be stored as-is and then read back
+  // as "no restriction", disclosing everything to someone the subject meant
+  // to show one field or none.
+  if (input.grantedFields !== undefined && input.grantedFields !== null) {
+    const fields = input.grantedFields;
+    if (!Array.isArray(fields) || fields.length === 0 || fields.length > 100
+      || !fields.every((f) => typeof f === 'string' && f.length > 0 && f.length <= 256)) {
+      throw new AttestationLifecycleError(
+        'InvalidRequest',
+        400,
+        'grantedFields must be a non-empty list of field names; omit it to grant the whole claim',
+      );
+    }
   }
 
   const expiresInMinutes = Math.min(
@@ -315,17 +348,31 @@ async function getAttestationRecord(communityDid: string, rkey: string): Promise
   return recordResult.rows[0].record;
 }
 
-function filterGrantedFields(
+async function getCommitmentSalt(communityDid: string, rkey: string): Promise<string | null> {
+  const result = await query<{ commitment_salt: string | null }>(
+    'SELECT commitment_salt FROM attestation_encryption WHERE community_did = $1 AND rkey = $2',
+    [communityDid, rkey],
+  );
+  return result.rows[0]?.commitment_salt ?? null;
+}
+
+export function filterGrantedFields(
   decryptedClaim: Record<string, unknown>,
-  grantedFields: string[] | null,
+  grantedFields: unknown,
 ): Record<string, unknown> {
-  if (!Array.isArray(grantedFields) || grantedFields.length === 0) {
+  // No restriction recorded: the whole claim. Anything else restricts, and a
+  // restriction this code cannot read (not a list) discloses nothing rather
+  // than everything.
+  if (grantedFields === null || grantedFields === undefined) {
     return decryptedClaim;
+  }
+  if (!Array.isArray(grantedFields)) {
+    return {};
   }
 
   const disclosedData: Record<string, unknown> = {};
   for (const field of grantedFields) {
-    if (field in decryptedClaim) {
+    if (typeof field === 'string' && Object.hasOwn(decryptedClaim, field)) {
       disclosedData[field] = decryptedClaim[field];
     }
   }

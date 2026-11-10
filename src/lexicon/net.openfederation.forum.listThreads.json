@@ -1,30 +1,56 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.listThreads",
-  "revision": 3,
+  "revision": 4,
   "description": "List forum threads in a community, newest activity first. Callers holding community.forum.moderate also receive hidden threads, each carrying a hidden flag.",
   "defs": {
     "main": {
       "type": "query",
       "parameters": {
         "type": "params",
-        "required": ["community"],
+        "required": [
+          "community"
+        ],
         "properties": {
-          "community": { "type": "string", "format": "did" },
-          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 },
-          "before": { "type": "string" }
+          "community": {
+            "type": "string",
+            "format": "did"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "before": {
+            "type": "string"
+          }
         }
       },
       "errors": [
-        { "name": "NotFound", "description": "Community not found or not readable." }
+        {
+          "name": "NotFound",
+          "description": "Community not found or not readable."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        }
       ],
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
           "properties": {
-            "threads": { "type": "array", "items": { "type": "unknown" } },
-            "cursor": { "type": "string" }
+            "threads": {
+              "type": "array",
+              "items": {
+                "type": "unknown"
+              }
+            },
+            "cursor": {
+              "type": "string"
+            }
           }
         }
       }

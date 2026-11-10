@@ -39,6 +39,13 @@ function isChainId(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+const MAX_TIMELOCK_HOURS = 24 * 365;
+const MAX_PROPOSAL_TTL_DAYS = 365;
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+}
+
 function isVotingModel(model: string): boolean {
   return (VOTING_MODELS as readonly string[]).includes(model);
 }
@@ -57,14 +64,13 @@ function checkVotingConfig(
   normalize: boolean,
 ): SettingsProblem | null {
   if (requireQuorum) {
-    if (!governanceConfig.quorum || typeof governanceConfig.quorum !== 'number' || governanceConfig.quorum < 1) {
+    if (!isPositiveInteger(governanceConfig.quorum)) {
       return { message: 'governanceConfig.quorum must be a positive integer' };
     }
     if (!governanceConfig.voterRole || typeof governanceConfig.voterRole !== 'string') {
       return { message: 'governanceConfig.voterRole is required' };
     }
-  } else if (governanceConfig.quorum !== undefined
-    && (typeof governanceConfig.quorum !== 'number' || governanceConfig.quorum < 1)) {
+  } else if (governanceConfig.quorum !== undefined && !isPositiveInteger(governanceConfig.quorum)) {
     return { message: 'governanceConfig.quorum must be a positive integer' };
   }
 
@@ -77,6 +83,21 @@ function checkVotingConfig(
       return {
         message: 'governanceConfig.timelockHours must be a non-negative number of hours (0 applies changes immediately)',
       };
+    }
+    // Bounded above: the apply date is computed from this at resolution, after
+    // the votes are already recorded, and an absurd value overflows the date.
+    if (hours > MAX_TIMELOCK_HOURS) {
+      return { message: `governanceConfig.timelockHours must be at most ${MAX_TIMELOCK_HOURS} (one year)` };
+    }
+  }
+
+  // How long a proposal stays open. Optional (a default applies), but when
+  // present it is used to compute every new proposal's expiry, so a value that
+  // is not a sensible number of days breaks proposing altogether.
+  if (governanceConfig.proposalTtlDays !== undefined) {
+    const days = governanceConfig.proposalTtlDays;
+    if (typeof days !== 'number' || !Number.isFinite(days) || days <= 0 || days > MAX_PROPOSAL_TTL_DAYS) {
+      return { message: `governanceConfig.proposalTtlDays must be a number of days between 1 and ${MAX_PROPOSAL_TTL_DAYS}` };
     }
   }
 
@@ -235,6 +256,14 @@ export function checkGovernanceSettings(
   if (config && typeof config === 'object' && !Array.isArray(config)) {
     const invalid = checkAnchoring(config);
     if (invalid) return invalid;
+    // The community's governance contract. A proof submitted by an oracle is
+    // verified only as a transaction on this contract, never as just any
+    // successful transaction on the chain.
+    const contract = (config as Record<string, unknown>).contractAddress;
+    if (contract !== undefined && contract !== null
+      && (typeof contract !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(contract))) {
+      return { message: 'governanceConfig.contractAddress must be a 0x-prefixed 20-byte address' };
+    }
   }
 
   return null;

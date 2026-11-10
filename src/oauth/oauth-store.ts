@@ -47,6 +47,7 @@ import {
 } from '../auth/account-creation.js';
 import { config } from '../config.js';
 import crypto from 'crypto';
+import { checkPasswordWithLockout } from '../auth/password-check.js';
 
 // ---------- AccountStore ----------
 
@@ -141,10 +142,6 @@ export class PgAccountStore implements AccountStore {
 
     const user = result.rows[0];
 
-    if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      throw new Error('Account is temporarily locked');
-    }
-
     if (user.auth_type === 'external') {
       throw new Error('This account uses ATProto OAuth. Please sign in via your home PDS.');
     }
@@ -153,26 +150,9 @@ export class PgAccountStore implements AccountStore {
       throw new Error('Invalid credentials');
     }
 
-    const valid = await verifyPassword(data.password, user.password_hash);
-    if (!valid) {
-      await query(
-        `UPDATE users
-         SET failed_login_attempts = failed_login_attempts + 1,
-             locked_until = CASE
-               WHEN failed_login_attempts + 1 >= 20 THEN CURRENT_TIMESTAMP + INTERVAL '2 hours'
-               WHEN failed_login_attempts + 1 >= 15 THEN CURRENT_TIMESTAMP + INTERVAL '30 minutes'
-               WHEN failed_login_attempts + 1 >= 10 THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-               WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '1 minute'
-               ELSE NULL
-             END
-         WHERE id = $1`,
-        [user.id],
-      );
-      throw new Error('Invalid credentials');
-    }
-
-    if (user.failed_login_attempts > 0) {
-      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    const check = await checkPasswordWithLockout(user.id, user.password_hash, data.password);
+    if (!check.ok) {
+      throw new Error(check.reason === 'locked' ? 'Account is temporarily locked' : 'Invalid credentials');
     }
 
     if (user.status !== 'approved') {

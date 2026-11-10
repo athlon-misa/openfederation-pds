@@ -6,6 +6,7 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
 import { ROLE_COLLECTION, MEMBER_COLLECTION } from '../auth/permissions.js';
+import { enforceGovernance } from '../governance/enforcement.js';
 
 export default async function deleteRole(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -22,6 +23,19 @@ export default async function deleteRole(req: AuthRequest, res: Response): Promi
       req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.role.write'
     );
     if (!hasPermission) return;
+
+    // Roles decide who holds which powers, voting included, so they are under
+    // the community's governance like any other protected record. The generic
+    // record endpoints already refuse this write; this is the same rule.
+    const governance = await enforceGovernance(communityDid, ROLE_COLLECTION, 'delete');
+    if (!governance.allowed) {
+      res.status(403).json({
+        error: 'GovernanceDenied',
+        message: governance.reason || 'Blocked by governance policy',
+        ...(governance.requiresProposal ? { requiresProposal: true } : {}),
+      });
+      return;
+    }
 
     const existing = await query<{ record: any }>(
       `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,

@@ -94,10 +94,12 @@ describe('Oracle middleware — chain module enabled', () => {
       .set('X-Oracle-Key', rawKey)
       .send({ chainId: 'eip155:31337', transactionHash: `0x${randomUUID().replace(/-/g, '')}` });
 
-    // The route-mounted middleware authenticated the key: the handler ran and
-    // fell back to oracle-trust (no attestor registered for this chain).
+    // The route-mounted middleware authenticated the key: the handler ran. No
+    // attestor is registered for this chain, so it answers "not verified"
+    // (trusting the oracle instead is an operator opt-in).
     expect(res.status).toBe(200);
-    expect(res.body.verificationMethod).toBe('oracle-trust');
+    expect(res.body.verified).toBe(false);
+    expect(res.body.verificationMethod).toBe('none');
   });
 
   it('still 401s the same route without a key', async () => {

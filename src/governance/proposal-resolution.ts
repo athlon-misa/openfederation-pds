@@ -146,6 +146,8 @@ export async function proposalWriteOp(
 
 interface VoteRow {
   repo_did: string;
+  /** Who the vote counts for: the repo owner, or the `author` of a record in the community's repo. */
+  voter_did: string;
   rkey: string;
   cid: string;
   record: any;
@@ -171,11 +173,18 @@ export async function tallyFromVoteRecords(input: {
     // it -- the earliest-record rule and the sort below both order explicitly --
     // but an unordered scan makes two identical runs differ in the intermediate
     // state, which is needless variance in something meant to be replayable.
-    `SELECT community_did AS repo_did, rkey, cid, record
+    // A vote counts for the repo it sits in, except in the community's own
+    // repo, where a private community keeps its members' votes: there it
+    // counts for the record's `author`. Only this server writes governance
+    // records there (generic writes and imports refuse unsigned ones).
+    `SELECT community_did AS repo_did,
+            CASE WHEN community_did = $2 THEN record->>'author' ELSE community_did END AS voter_did,
+            rkey, cid, record
      FROM records_index
      WHERE collection = $1
        AND record->>'community' = $2
        AND record->>'proposalRkey' = $3
+       AND (community_did <> $2 OR record->>'author' IS NOT NULL)
      ORDER BY community_did, rkey`,
     [VOTE_COLLECTION, communityDid, proposalRkey],
   );
@@ -187,7 +196,7 @@ export async function tallyFromVoteRecords(input: {
 
   for (const row of rows.rows) {
     const record = row.record ?? {};
-    const voter = row.repo_did;
+    const voter = row.voter_did;
 
     // Exactly the predicate the offline verifier re-runs on the same record.
     const eligibility = checkVoteRecord(record, { proposalUri: uri, knownCids, epoch });
@@ -206,7 +215,7 @@ export async function tallyFromVoteRecords(input: {
     counted.set(voter, {
       voter,
       vote: eligibility.vote,
-      record: { uri: `at://${voter}/${VOTE_COLLECTION}/${row.rkey}`, cid: row.cid },
+      record: { uri: `at://${row.repo_did}/${VOTE_COLLECTION}/${row.rkey}`, cid: row.cid },
       proposalCid: eligibility.proposalCid,
       ...(typeof record.castBy === 'string' ? { castBy: record.castBy } : {}),
     });

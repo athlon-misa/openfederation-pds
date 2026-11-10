@@ -26,6 +26,8 @@ export interface CommunityAccess {
   exists: boolean;
   createdBy?: string;
   visibility?: string;
+  /** communities.status: active, suspended, takendown, importing or moved. */
+  status?: string;
   isAdmin: boolean;
   isOwner: boolean;
   membership: CallerMembership | null;
@@ -34,17 +36,23 @@ export interface CommunityAccess {
 export interface CallerCommunityCapabilities extends CommunityAccess {
   hasAllPermissions: boolean;
   permissions: string[];
+  /**
+   * The attestation types the caller's role limits them to, or null when
+   * their role sets no limit (or they have no role record here).
+   */
+  attestationTypes: string[] | null;
 }
 
 // Shared with the offline verifier; see decision-rules.ts.
 export { LEGACY_ROLE_PERMISSIONS } from '../governance/decision-rules.js';
 import { LEGACY_ROLE_PERMISSIONS } from '../governance/decision-rules.js';
 
-type RoleRecord = { name?: string; permissions?: string[] };
+type RoleRecord = { name?: string; permissions?: string[]; attestationTypes?: unknown };
 
 type CommunityContextRow = {
   created_by: string | null;
   owner_did: string | null;
+  status: string | null;
   visibility: string | null;
   member_rkey: string | null;
   member_record: MemberRecord | null;
@@ -68,6 +76,7 @@ async function loadCommunityContext(
     `SELECT
        c.created_by,
        c.owner_did,
+       c.status,
        s.record->>'visibility' AS visibility,
        mu.record_rkey          AS member_rkey,
        mr.record               AS member_record,
@@ -143,6 +152,7 @@ export async function getCommunityAccess(opts: {
     exists: true,
     createdBy: row.created_by ?? undefined,
     visibility: row.visibility || 'public',
+    status: row.status || 'active',
     isAdmin: caller?.roles.includes('admin') || false,
     isOwner: caller ? row.owner_did === caller.did : false,
     membership,
@@ -152,6 +162,13 @@ export async function getCommunityAccess(opts: {
 export async function getCallerCommunityCapabilities(opts: {
   communityDid: string;
   caller: AuthContext;
+  /**
+   * Resolve what the caller holds as a participant in the community, without
+   * the PDS admin's blanket pass. Used where the question is "is this person
+   * part of the community's decision-making", which running the server does
+   * not make you.
+   */
+  withoutOperatorOverride?: boolean;
 }): Promise<CallerCommunityCapabilities> {
   const row = await loadCommunityContext(opts.communityDid, opts.caller);
   const membership = membershipFromRow(row);
@@ -164,6 +181,7 @@ export async function getCallerCommunityCapabilities(opts: {
       membership,
       hasAllPermissions: false,
       permissions: [],
+      attestationTypes: null,
     };
   }
 
@@ -171,17 +189,18 @@ export async function getCallerCommunityCapabilities(opts: {
     exists: true,
     createdBy: row.created_by ?? undefined,
     visibility: row.visibility || 'public',
+    status: row.status || 'active',
     isAdmin: opts.caller.roles.includes('admin'),
     isOwner: row.owner_did === opts.caller.did,
     membership,
   };
 
-  if (access.isAdmin || access.isOwner) {
-    return { ...access, hasAllPermissions: true, permissions: [...ALL_PERMISSIONS] };
+  if ((access.isAdmin && !opts.withoutOperatorOverride) || access.isOwner) {
+    return { ...access, hasAllPermissions: true, permissions: [...ALL_PERMISSIONS], attestationTypes: roleAttestationTypes(row) };
   }
 
   if (!membership || membership.status !== 'member') {
-    return { ...access, hasAllPermissions: false, permissions: [] };
+    return { ...access, hasAllPermissions: false, permissions: [], attestationTypes: null };
   }
 
   if (membership.roleRkey) {
@@ -189,6 +208,7 @@ export async function getCallerCommunityCapabilities(opts: {
       ...access,
       hasAllPermissions: false,
       permissions: row.role_record?.permissions || [],
+      attestationTypes: roleAttestationTypes(row),
     };
   }
 
@@ -196,7 +216,14 @@ export async function getCallerCommunityCapabilities(opts: {
     ...access,
     hasAllPermissions: false,
     permissions: LEGACY_ROLE_PERMISSIONS[membership.role || 'member'] || [],
+    attestationTypes: null,
   };
+}
+
+/** The type list on the role record the caller's membership points at, if it has one. */
+function roleAttestationTypes(row: CommunityContextRow): string[] | null {
+  const types = row.member_record?.roleRkey ? row.role_record?.attestationTypes : undefined;
+  return Array.isArray(types) ? types.filter((t): t is string => typeof t === 'string') : null;
 }
 
 export function canViewPrivateCommunity(access: CommunityAccess): boolean {

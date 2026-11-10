@@ -980,13 +980,22 @@ await client.register({ handle, email, password });
 const t1 = await client.wallet.createTier1({ chain: 'ethereum', label: 'game-1' });
 // => { chain: 'ethereum', walletAddress: '0x…', custodyTier: 'custodial', label: 'game-1' }
 
-// Before any dApp can sign with this wallet, the user must grant consent
-// to the dApp's origin. Default TTL 7 days, max 30 days.
-await client.wallet.grantConsent({
+// Before any dApp can sign with this wallet, the user must approve it on a
+// page the PDS serves. The dApp asks, naming what the consent covers; the
+// user reads it there and approves with their password. Default 1 hour,
+// at most WALLET_CONSENT_MAX_HOURS (24).
+const request = await client.wallet.requestConsent({
   dappOrigin: 'https://game.example.com',
   chain: 'ethereum',
   walletAddress: t1.walletAddress,
+  // Needed to sign transactions; without it the consent signs messages only.
+  allowedContracts: ['0xYourGameContract…'],
+  // Most native value (wei) per transaction and in total. Omit: no value moves.
+  maxValuePerTx: '0',
 });
+window.open(request.approveUrl, '_blank', 'noopener');
+const outcome = await client.wallet.waitForConsent(request.requestId);
+if (outcome.status !== 'approved') throw new Error(`consent ${outcome.status}`);
 
 // Sign a message via the PDS. Returns an EIP-191 hex signature.
 const { signature } = await client.wallet.sign({
@@ -997,6 +1006,14 @@ const { signature } = await client.wallet.sign({
 });
 ```
 
+> **The user approves every consent.** `wallet.grantConsent` no longer grants
+> anything (it returns `UserApprovalRequired`): a script holding the session
+> token could give itself signing permission without the user ever seeing it.
+> A consent also states what it covers. Transactions are signed only to the
+> `allowedContracts` it names (Solana: the programs), value only up to its
+> limits, and `wallet.sign` refuses a sign-in message (SIWE/SIWOF) for any
+> domain but the consenting dApp's (`OutsideConsentScope`).
+
 > **Tier 1 consent and signing are browser-only.**
 >
 > A consent grant authorizes exactly one dApp origin. That origin used to be
@@ -1004,7 +1021,7 @@ const { signature } = await client.wallet.sign({
 > could declare another app's origin and sign under its consent — or simply
 > mint a consent for any origin and sign under that.
 >
-> `grantConsent`, `wallet.sign` and `wallet.signTransaction` now require the
+> `requestConsent`, `wallet.sign` and `wallet.signTransaction` require the
 > browser's `Origin` header to match the `dappOrigin` you send. Browsers set
 > `Origin` and page script cannot forge it cross-origin, so it is the one
 > origin signal the PDS can trust from an untrusted client.

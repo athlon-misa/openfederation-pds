@@ -93,6 +93,7 @@ export type AuditAction =
   | 'community.delegation.set'
   | 'community.delegation.revoke'
   | 'session.revoke'
+  | 'session.reuseDetected'
   | 'admin.verification.create'
   | 'admin.verification.failed'
   | 'admin.verification.success'
@@ -106,6 +107,8 @@ export type AuditAction =
   | 'wallet.sign'
   | 'wallet.signTransaction'
   | 'wallet.consent.grant'
+  | 'wallet.consent.request'
+  | 'wallet.consent.deny'
   | 'wallet.consent.revoke'
   // Refused because the declared dApp origin did not match the Origin the
   // request came from — the attempted impersonation is the thing worth keeping.
@@ -144,12 +147,20 @@ export async function auditLog(
   try {
     // Pseudonym rule: no audit trail for pseudonyms, ever. Enforced here so
     // no call site can forget. One statement, no extra round trip.
+    //
+    // The entry is dropped when a pseudonym is the actor, the target, or is
+    // named by a top-level string in the metadata. That last case matters:
+    // community actions record the community as the target and the member in
+    // the metadata (`memberDid`, `subjectDid`, ...), which wrote a pseudonym's
+    // DID next to a timestamp just as surely as naming it as the target would.
     await query(
       `INSERT INTO audit_log (action, actor_id, target_id, meta)
        SELECT $1, $2::varchar, $3::varchar, $4
        WHERE NOT EXISTS (
          SELECT 1 FROM users u WHERE u.auth_type = 'pseudonym'
-           AND (u.id = $2::varchar OR u.id = $3::varchar OR u.did = $3::varchar)
+           AND (u.id = $2::varchar OR u.id = $3::varchar OR u.did = $3::varchar
+                OR u.did IN (SELECT e.value FROM jsonb_each_text(
+                     CASE WHEN jsonb_typeof($4::jsonb) = 'object' THEN $4::jsonb ELSE '{}'::jsonb END) AS e))
        )`,
       [action, actorId, targetId, meta ? JSON.stringify(meta) : null],
     );

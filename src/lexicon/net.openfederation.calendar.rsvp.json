@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.rsvp",
-  "revision": 3,
+  "revision": 5,
   "description": "RSVP to a community event. Writes a community.lexicon.calendar.rsvp record to the caller's repo.",
   "defs": {
     "main": {
@@ -73,6 +73,18 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "InvalidRequest",
+          "description": "The request is malformed."
         }
       ]
     }

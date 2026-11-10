@@ -6,6 +6,7 @@ import { isStrongPassword, passwordValidationMessage } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { sendEmail } from '../email/email-service.js';
 import { passwordChangedEmail } from '../email/templates.js';
+import { revokeOAuthGrants } from '../auth/revoke-grants.js';
 
 export default async function completeRecovery(req: Request, res: Response): Promise<void> {
   try {
@@ -48,6 +49,7 @@ export default async function completeRecovery(req: Request, res: Response): Pro
       await client.query('UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL, token_version = token_version + 1 WHERE id = $2', [newHash, user.id]);
       await client.query(`UPDATE recovery_attempts SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1`, [attempt.id]);
       const sessions = await client.query(`UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL`, [user.id]);
+      await revokeOAuthGrants(attempt.user_did, client);
       return { attempt, user, sessionsRevoked: sessions.rowCount || 0 };
     });
 

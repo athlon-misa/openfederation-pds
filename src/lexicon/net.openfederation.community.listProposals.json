@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listProposals",
-  "revision": 4,
+  "revision": 5,
   "description": "List governance proposals for a community.",
   "defs": {
     "main": {
@@ -41,6 +41,10 @@
         {
           "name": "NotFound",
           "description": "Community not found or not readable."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     },

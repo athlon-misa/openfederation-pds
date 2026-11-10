@@ -5,6 +5,8 @@ import { verifyPassword, hashPassword } from '../auth/password.js';
 import { isStrongPassword, passwordValidationMessage } from '../auth/utils.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { revokeOAuthGrants } from '../auth/revoke-grants.js';
+import { checkPasswordWithLockout } from '../auth/password-check.js';
 
 interface ChangePasswordInput {
   currentPassword?: string;
@@ -61,8 +63,15 @@ export default async function changePassword(req: AuthRequest, res: Response): P
   }
 
   // Verify current password
-  const valid = await verifyPassword(currentPassword, user.password_hash);
-  if (!valid) {
+  const check = await checkPasswordWithLockout(req.auth.userId, user.password_hash, currentPassword);
+  if (!check.ok && check.reason === 'locked') {
+    res.status(429).json({
+      error: 'AccountLocked',
+      message: `Too many failed attempts. Try again in ${check.retryAfterSeconds} seconds.`,
+    });
+    return;
+  }
+  if (!check.ok) {
     res.status(400).json({
       error: 'InvalidPassword',
       message: 'Current password is incorrect',
@@ -89,6 +98,13 @@ export default async function changePassword(req: AuthRequest, res: Response): P
 
   // Invalidate all existing sessions (force re-login)
   await query('DELETE FROM sessions WHERE user_id = $1', [req.auth.userId]);
+  // ...and every client authorised through OAuth, and any reset link still in the post.
+  await revokeOAuthGrants(req.auth.did);
+  await query(
+    `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
+     WHERE user_id = $1 AND purpose = 'password-reset' AND used_at IS NULL`,
+    [req.auth.userId],
+  );
 
   // Audit log
   await auditLog('account.password.change', req.auth.userId, req.auth.userId, {

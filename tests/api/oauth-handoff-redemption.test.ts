@@ -132,11 +132,11 @@ describe('external login handoff redemption (#146)', () => {
   });
 
   describe('SDK redirect flow', () => {
-    it('still redeems without a verifier, since consumers validate their own state', async () => {
-      const code = seed({ challenge: null, requiresVerifier: false });
-      const res = await complete({ code });
-      expect(res.status).toBe(200);
-      expect(res.body.accessJwt).toBe('access-jwt');
+    it('cannot start without a challenge, so no unbound code is ever issued', async () => {
+      const res = await request(app).get('/auth/atproto')
+        .query({ handle: 'alice.example.com', redirect_uri: 'https://app.example/callback' });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/code_challenge/);
     });
 
     it('enforces the verifier anyway when the consumer supplied a challenge', async () => {

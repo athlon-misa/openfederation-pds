@@ -5,6 +5,8 @@ import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { enforceGovernance } from '../governance/enforcement.js';
+import { auditLog } from '../db/audit.js';
+import { placeMemberContentForVisibility } from '../forum/member-content.js';
 
 /**
  * net.openfederation.community.update
@@ -85,7 +87,17 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
         ...(visibility !== undefined ? { visibility } : {}),
         ...(joinPolicy !== undefined ? { joinPolicy } : {}),
       });
+      // Who can see a community and who can walk into it: recorded, with the
+      // values it had before.
+      await auditLog('community.update', req.auth!.userId, did, {
+        ...(visibility !== undefined ? { visibility: { from: settings.visibility ?? 'public', to: visibility } } : {}),
+        ...(joinPolicy !== undefined ? { joinPolicy: { from: settings.joinPolicy ?? 'open', to: joinPolicy } } : {}),
+      });
     }
+
+    // A community that has just become private takes what its members already
+    // wrote out of their public repositories.
+    if (visibility !== undefined) await placeMemberContentForVisibility(did);
 
     res.status(200).json({ success: true });
   } catch (error) {

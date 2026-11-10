@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
 import { resolveDidToPds, fetchRemoteRecord } from '../federation/remote-verify.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 
@@ -23,6 +24,11 @@ export default async function verifyAttestation(req: AuthRequest, res: Response)
       [communityDid]
     );
     const communityHandle = communityResult.rows[0]?.handle;
+
+    // For a community hosted here, the same gate as listAttestations: without
+    // it this endpoint confirms a private community exists, names its handle,
+    // and returns attestations (subject, claim) to anyone.
+    if (communityResult.rows.length > 0 && !(await requireCommunityReadable(req, res, communityDid))) return;
 
     const result = await query<{ record: any }>(
       `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,

@@ -33,11 +33,13 @@ export default async function createVerificationChallenge(req: Request, res: Res
   const nonce = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-  // Store nonce (reuse password_reset_tokens table with a special prefix)
+  // Stored alongside password-reset tokens, but marked with its own purpose:
+  // the user reads this code to an administrator, so it must never be
+  // redeemable for anything except `verifyChallenge`.
   const nonceHash = crypto.createHash('sha256').update(`verify:${nonce}`).digest('hex');
   await query(
-    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
+    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, purpose)
+     VALUES ($1, $2, $3, 'identity-verification')`,
     [user.id, nonceHash, expiresAt.toISOString()]
   );
 

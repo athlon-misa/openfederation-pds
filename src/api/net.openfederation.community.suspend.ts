@@ -54,7 +54,7 @@ export default async function suspendCommunity(req: AuthRequest, res: Response):
 
     await query(
       `UPDATE communities
-       SET status = 'suspended', status_changed_at = CURRENT_TIMESTAMP,
+       SET prior_status = status, status = 'suspended', status_changed_at = CURRENT_TIMESTAMP,
            status_changed_by = $1, status_reason = $2
        WHERE did = $3`,
       [req.auth!.userId, reason || null, did]

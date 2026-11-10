@@ -4,7 +4,7 @@ import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { currentPlcState } from '../identity/account-migration.js';
-import { CommunityMoveError, homeOf } from '../community/migration.js';
+import { CommunityMoveError, homeOf, markCommunityMoved } from '../community/migration.js';
 
 /** The owner marks the copy left behind by a move as moved (#267); it becomes read-only. */
 export default async function markMoved(req: AuthRequest, res: Response): Promise<void> {
@@ -17,8 +17,11 @@ export default async function markMoved(req: AuthRequest, res: Response): Promis
     const state = await currentPlcState(did);
     const home = state ? homeOf(state) : null;
     if (!home) throw new CommunityMoveError(400, 'NotMoved', 'The DID still points to this PDS');
-    if (c.status !== 'moved') {
-      await query(`UPDATE communities SET status = 'moved', status_changed_at = CURRENT_TIMESTAMP, status_reason = $2 WHERE did = $1`, [did, `moved to ${home}`]);
+    if (c.status === 'suspended' || c.status === 'takendown') {
+      throw new CommunityMoveError(403, c.status === 'suspended' ? 'CommunitySuspended' : 'CommunityTakenDown',
+        'This copy is under moderation and keeps that status; the community itself is free to live elsewhere.');
+    }
+    if (c.status === 'active' && await markCommunityMoved(did, home)) {
       await auditLog('community.moved', req.auth.authMethod === 'service-auth' ? null : req.auth.userId, did, { to: home });
     }
     res.status(200).json({ did, status: 'moved', home });

@@ -4,7 +4,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { query } from '../db/client.js';
 import type { AuthRequest } from '../auth/types.js';
-import { requireApprovedUser } from '../auth/guards.js';
+import { requireApprovedUser, requireLocalAccount } from '../auth/guards.js';
 import { isValidHandle } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { getDefaultRoleRecords, ROLE_COLLECTION } from '../auth/permissions.js';
@@ -29,6 +29,10 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
     if (!requireApprovedUser(req, res)) {
       return;
     }
+    // Creating a community registers a DID before anything is stored. A caller
+    // from another PDS has no account row for the community to belong to, so
+    // it is refused here, before that registration, not by the insert after it.
+    if (!requireLocalAccount(req, res)) return;
 
     const input: CreateCommunityInput = req.body;
 
@@ -38,6 +42,15 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
         error: 'InvalidRequest',
         message: 'Missing required fields: handle and didMethod',
       });
+      return;
+    }
+
+    if (input.visibility !== undefined && !['public', 'private'].includes(input.visibility)) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'visibility must be "public" or "private"' });
+      return;
+    }
+    if (input.joinPolicy !== undefined && !['open', 'approval'].includes(input.joinPolicy)) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'joinPolicy must be "open" or "approval"' });
       return;
     }
 
@@ -129,7 +142,10 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
     const displayName = input.displayName || input.handle;
     const description = input.description || '';
     const visibility = input.visibility || 'public';
-    const joinPolicy = input.joinPolicy || 'open';
+    // A private community that anyone may join on sight is not private: its
+    // DID is all it would take. Unless the creator says otherwise, joining a
+    // private community needs approval.
+    const joinPolicy = input.joinPolicy || (visibility === 'private' ? 'approval' : 'open');
 
     const memberRkey = RepoEngine.generateTid();
     const defaultRoles = getDefaultRoleRecords();

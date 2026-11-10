@@ -9,6 +9,7 @@ import { enforceGovernance, isCommunityDid, type GovernanceResult } from '../gov
 import { resolveGovernanceContext, runGovernedMutation } from '../governance/request-authority.js';
 import { FORUM_THREAD, FORUM_POST, CALENDAR_EVENT, CALENDAR_RSVP } from '../forum/forum-index.js';
 import { renderXrpcError } from '../xrpc/errors.js';
+import { placeMemberContentForVisibility } from '../forum/member-content.js';
 
 const NSID = 'com.atproto.repo.createRecord';
 
@@ -93,6 +94,9 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
       record,
       mutate: () => engine.putRecord(keypair, collection, recordKey, record),
     });
+
+    // A settings write may have made the community private.
+    if (collection === 'net.openfederation.community.settings') await placeMemberContentForVisibility(repo);
 
     res.status(200).json({
       uri: result.uri,

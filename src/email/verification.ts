@@ -116,5 +116,19 @@ export async function confirmEmailToken(email: string, token: string): Promise<C
   if (updated.rows.length === 0) return { ok: false, error: 'InvalidEmail' };
 
   await auditLog('account.email.verified', null, row.user_id, { email: normalized });
+
+  // An account a browser-only partner key created waits for exactly this:
+  // proof that someone holds the address. Nothing else was holding it back,
+  // so it is approved now. (Accounts pending for any other reason, such as
+  // invite sign-ups awaiting a moderator, are untouched.)
+  const approved = await query(
+    `UPDATE users SET status = 'approved', approved_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND status = 'pending' AND created_by_partner IS NOT NULL`,
+    [row.user_id],
+  );
+  if (approved.rowCount === 1) {
+    await auditLog('account.approve', null, row.user_id, { via: 'email-verification' });
+  }
+
   return { ok: true, userId: row.user_id };
 }

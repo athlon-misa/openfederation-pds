@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listMembers",
-  "revision": 3,
+  "revision": 4,
   "description": "List members of a community. Requires auth. Private communities restrict access to members, owner, or admin. Each member may carry optional semantic `kind`, `tags`, and `attributes` fields orthogonal to `role` — see issue #50.",
   "defs": {
     "main": {
@@ -50,6 +50,10 @@
         {
           "name": "Forbidden",
           "description": "Private community access restricted to members, owner, or admin."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     },

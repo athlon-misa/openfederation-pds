@@ -17,6 +17,39 @@ import { verifyRepoImport, storeRepoImport, MAX_CAR_SIZE, RepoImportError } from
 import { rebuildCommunityProjections, refreshMemberDisplay } from './projections.js';
 import { listReferencedBlobs } from '../repo/blob-refs.js';
 import { unwrapDEK, wrapDEK } from '../attestation/encryption.js';
+import { CID } from 'multiformats/cid';
+import { sha256 } from 'multiformats/hashes/sha2';
+import { assertPublicHttpsUrl, readLimitedBytes, OutboundFetchError } from '../security/outbound-fetch.js';
+
+const PEER_FETCH_TIMEOUT_MS = 60_000;
+const MAX_MOVED_KEYS_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Fetch from the PDS a community is moving from. That address comes out of the
+ * community's DID document, which its owner writes, so it is treated as
+ * untrusted: in production it must be a public HTTPS host, redirects are
+ * refused, and the request cannot hang. Outside production a local PDS on
+ * plain HTTP is allowed, which is what development and the test suite use.
+ */
+async function fetchFromPeer(rawUrl: string): Promise<Response> {
+  let url: URL;
+  try {
+    url = config.env.isProduction ? await assertPublicHttpsUrl(rawUrl) : new URL(rawUrl);
+  } catch (err) {
+    const why = err instanceof OutboundFetchError ? err.message : 'address is invalid';
+    throw new CommunityMoveError(400, 'IncompatibleDidDoc', `The community's current PDS cannot be reached from here: ${why}`);
+  }
+  return fetch(url, { redirect: 'error', signal: AbortSignal.timeout(PEER_FETCH_TIMEOUT_MS) });
+}
+
+async function readPeerBody(res: Response, maxBytes: number, what: string): Promise<Buffer> {
+  try {
+    return Buffer.from(await readLimitedBytes(res, maxBytes));
+  } catch (err) {
+    if (err instanceof OutboundFetchError) throw new CommunityMoveError(413, 'PayloadTooLarge', `${what} is too large (limit ${maxBytes} bytes)`);
+    throw err;
+  }
+}
 import { encryptToDidKey, decryptWithPrivateKey } from '../crypto/ecies.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 
@@ -27,8 +60,12 @@ export class CommunityMoveError extends Error {
 /** Where the DID says the community lives now; null when it is here. */
 export function homeOf(state: PlcState): string | null {
   const endpoint = state.services.atproto_pds?.endpoint;
-  if (!endpoint || endpoint === config.pds.serviceUrl) return null;
-  return endpoint.replace(/\/+$/, '');
+  if (!endpoint) return null;
+  // Compared without trailing slashes, so "https://pds.example/" in the DID
+  // document and "https://pds.example" in the config are the same place.
+  const here = (config.pds.serviceUrl || '').replace(/\/+$/, '');
+  const there = endpoint.replace(/\/+$/, '');
+  return there === here ? null : there;
 }
 
 /** Fresh signing and recovery keys for a community arriving here. */
@@ -52,10 +89,10 @@ export async function provisionCommunityKeys(client: PoolClient, did: string): P
 
 /** Pull the repository from the community's current home and store it, replacing what is here. */
 export async function pullCommunityRepo(did: string, fromPds: string): Promise<{ root: string; records: number; members: number; attestations: number }> {
-  const res = await fetch(`${fromPds}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(did)}`);
+  const res = await fetchFromPeer(`${fromPds}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(did)}`);
   if (!res.ok) throw new CommunityMoveError(502, 'UpstreamFailure', `The community's current PDS did not export the repository (${res.status})`);
-  const car = Buffer.from(await res.arrayBuffer());
-  if (car.length > MAX_CAR_SIZE) throw new CommunityMoveError(413, 'PayloadTooLarge', 'The repository exceeds 100 MB');
+  // Read with the limit applied as the bytes arrive, not after buffering them all.
+  const car = await readPeerBody(res, MAX_CAR_SIZE, 'The repository');
   let verified;
   try {
     verified = await verifyRepoImport(did, car, () => atprotoKeyFor(did));
@@ -82,11 +119,21 @@ export async function pullCommunityBlobs(did: string, fromPds: string): Promise<
       expected++;
       const owned = await query('SELECT 1 FROM blob_owners WHERE cid = $1 AND did = $2', [cid, did]);
       if (owned.rows.length > 0) continue;
-      const res = await fetch(`${fromPds}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(cid)}`);
+      const res = await fetchFromPeer(`${fromPds}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(did)}&cid=${encodeURIComponent(cid)}`);
       if (!res.ok) throw new CommunityMoveError(502, 'UpstreamFailure', `The community's current PDS did not serve blob ${cid} (${res.status})`);
-      const bytes = Buffer.from(await res.arrayBuffer());
-      const mime = res.headers.get('content-type') ?? 'application/octet-stream';
-      await store.put(cid, bytes, mime);
+      const bytes = await readPeerBody(res, config.blob.maxSize, `Blob ${cid}`);
+      // The store is content-addressed and shared by every repo here. Bytes go
+      // in under a CID only if they hash to it; otherwise a repo could name the
+      // CID of someone else's blob and have its old PDS supply different bytes.
+      if (!(await bytesMatchCid(cid, bytes))) {
+        throw new CommunityMoveError(502, 'UpstreamFailure', `Blob ${cid} from the community's current PDS does not match its CID`);
+      }
+      // The remote content type is only a claim; anything this PDS would not
+      // accept on upload is stored as opaque bytes.
+      const claimed = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+      const mime = config.blob.allowedMimeTypes.includes(claimed) ? claimed : 'application/octet-stream';
+      // Same CID means same bytes, so a blob already held is left as it is.
+      if (!(await store.exists(cid))) await store.put(cid, bytes, mime);
       await query('INSERT INTO blobs (cid, did, mime_type, size) VALUES ($1, $2, $3, $4) ON CONFLICT (cid) DO NOTHING', [cid, did, mime, bytes.length]);
       await query('INSERT INTO blob_owners (cid, did) VALUES ($1, $2) ON CONFLICT (cid, did) DO NOTHING', [cid, did]);
       copied++;
@@ -192,13 +239,60 @@ export async function missingAttestationKeys(did: string): Promise<number> {
   return Number(row.n);
 }
 
-/** Fetch and import the keys from the old home; returns how many arrived, or null when the old PDS did not answer. */
+/** True when `bytes` hash to `cid` (sha-256 CIDs only, which is what blobs use). */
+async function bytesMatchCid(cid: string, bytes: Uint8Array): Promise<boolean> {
+  let parsed: CID;
+  try {
+    parsed = CID.parse(cid);
+  } catch {
+    return false;
+  }
+  if (parsed.multihash.code !== sha256.code) return false;
+  const digest = await sha256.digest(bytes);
+  return Buffer.from(digest.digest).equals(Buffer.from(parsed.multihash.digest));
+}
+
+/**
+ * Fetch and import the keys from the old home. Returns how many arrived, or
+ * null when the old PDS did not answer or what it sent could not be used.
+ *
+ * Never throws for a bad answer: the old home is not in a position to block
+ * the community's activation here by returning junk. The keys stay missing and
+ * the call can be repeated.
+ */
 export async function fetchMovedKeys(did: string, fromPds: string): Promise<number | null> {
-  const res = await fetch(`${fromPds}/xrpc/net.openfederation.community.getMovedKeys?did=${encodeURIComponent(did)}`).catch(() => null);
-  if (!res || !res.ok) return null;
-  const body = await res.json().catch(() => null) as { sealed?: string } | null;
-  if (!body?.sealed) return null;
-  return importMovedKeys(did, body.sealed);
+  try {
+    const res = await fetchFromPeer(`${fromPds}/xrpc/net.openfederation.community.getMovedKeys?did=${encodeURIComponent(did)}`);
+    if (!res.ok) return null;
+    const body = JSON.parse((await readPeerBody(res, MAX_MOVED_KEYS_BYTES, 'The key bundle')).toString('utf-8')) as { sealed?: string } | null;
+    if (!body?.sealed || typeof body.sealed !== 'string') return null;
+    return await importMovedKeys(did, body.sealed);
+  } catch (err) {
+    console.warn(`community ${did}: moved keys could not be imported from ${fromPds}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 export { currentPlcState, storeSigningKey };
+
+/**
+ * Mark the copy here as moved to `home`. Returns whether it is now (or already
+ * was) marked moved.
+ *
+ * A suspended or taken-down community is left as it is. Its owner is still
+ * free to take it elsewhere, but the copy here stays under moderation: if a
+ * move could overwrite that status, moving away and straight back would be a
+ * way to lift a suspension or takedown without an administrator.
+ */
+export async function markCommunityMoved(did: string, home: string): Promise<boolean> {
+  const result = await query<{ changed: boolean }>(
+    `UPDATE communities
+     SET status = 'moved', status_changed_at = CURRENT_TIMESTAMP, status_reason = $2
+     WHERE did = $1 AND status = 'active'
+     RETURNING true AS changed`,
+    [did, `moved to ${home}`],
+  );
+  if (result.rows.length > 0) return true;
+  const current = await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [did]);
+  return current.rows[0]?.status === 'moved';
+}

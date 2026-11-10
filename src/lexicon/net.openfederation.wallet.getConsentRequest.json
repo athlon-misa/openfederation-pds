@@ -1,0 +1,64 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.getConsentRequest",
+  "revision": 1,
+  "description": "Read a wallet consent request.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Where a consent request stands. Only the account it is for can read it.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "requestId"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "requestId",
+            "status",
+            "dappOrigin",
+            "expiresAt"
+          ],
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "pending",
+                "approved",
+                "denied",
+                "expired"
+              ]
+            },
+            "dappOrigin": {
+              "type": "string"
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "consentId": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotFound"
+        }
+      ]
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.listRoles",
-  "revision": 2,
+  "revision": 4,
   "description": "List all roles defined for a community.",
   "defs": {
     "main": {
@@ -32,6 +32,10 @@
         {
           "name": "NotFound",
           "description": "Community not found or not readable."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     },
@@ -58,6 +62,18 @@
         },
         "memberCount": {
           "type": "integer"
+        },
+        "attestationTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "knownValues": [
+              "membership",
+              "role",
+              "credential"
+            ]
+          },
+          "description": "Attestation types holders of this role may issue and revoke. Omit to allow every type."
         }
       },
       "required": [

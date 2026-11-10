@@ -26,7 +26,7 @@ export default async function importRepo(req: AuthRequest, res: Response): Promi
   }
   const did = req.auth.did;
   try {
-    const user = (await query<{ status: string }>('SELECT status FROM users WHERE did = $1', [did])).rows[0];
+    const user = (await query<{ status: string; migrating_in: boolean }>('SELECT status, migrating_in FROM users WHERE did = $1', [did])).rows[0];
     if (!user || user.status !== 'deactivated') {
       res.status(403).json({ error: 'Forbidden', message: 'Only a deactivated account can import a repository' });
       return;
@@ -34,6 +34,22 @@ export default async function importRepo(req: AuthRequest, res: Response): Promi
 
     const carBytes = await readCarBody(req);
     const verified = await verifyRepoImport(did, carBytes, () => atprotoKeyFor(did));
+
+    // An account arriving here replaces an empty placeholder. Any other
+    // deactivated account already has a repository with history, and an import
+    // may only move it forward: otherwise deactivating, importing an older
+    // export and reactivating would erase records (votes, for one) that cannot
+    // be deleted any other way.
+    if (!user.migrating_in) {
+      const current = (await query<{ rev: string }>('SELECT rev FROM repo_roots WHERE did = $1', [did])).rows[0];
+      if (current && verified.rev < current.rev) {
+        res.status(409).json({
+          error: 'RepoRollback',
+          message: 'The repository being imported is older than the one already here',
+        });
+        return;
+      }
+    }
     await withTransaction((client) => storeRepoImport(client, did, verified, { replace: true }));
     res.status(200).json({});
   } catch (error) {

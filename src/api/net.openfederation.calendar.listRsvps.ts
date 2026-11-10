@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { listRsvps } from '../forum/forum-index.js';
+import { listRsvps, InvalidCursorError } from '../forum/forum-index.js';
 import { requireCommunityReadable } from '../auth/guards.js';
 
 export default async function listRsvpsHandler(req: AuthRequest, res: Response): Promise<void> {
@@ -18,9 +18,14 @@ export default async function listRsvpsHandler(req: AuthRequest, res: Response):
       return;
     }
     if (!(await requireCommunityReadable(req, res, community))) return;
-    const { counts, rsvps } = await listRsvps(event);
-    res.status(200).json({ counts, rsvps });
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10) || 100, 1), 500);
+    const after = req.query.cursor ? String(req.query.cursor) : null;
+    res.status(200).json(await listRsvps(event, limit, after));
   } catch (error) {
+    if (error instanceof InvalidCursorError) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'cursor is not valid' });
+      return;
+    }
     console.error('Error in calendar.listRsvps:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to list RSVPs' });
   }

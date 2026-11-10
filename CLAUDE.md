@@ -31,6 +31,8 @@ npm run test:e2e          # E2E (needs PLC running + seeded DB; see tests/README
 npm run lexicon:validate  # Run before committing lexicon changes
 ```
 
+Migrations are applied once and recorded in `schema_migrations` (`src/db/migrate.ts`); never edit a migration that has shipped, add a new one.
+
 Always rebuild **and restart** after backend changes — stale `dist/` is the most common cause of "method not found".
 
 ## Required environment variables
@@ -60,13 +62,17 @@ See `.env.example` for the full list. Critical ones:
 | `MIGRATION_PSEUDONYMS` | No | `open` (default) / `token` / `closed`: whether pseudonyms may move here; never invite codes |
 | `MIGRATION_COMMUNITIES` | No | `open` / `invite` (default) / `closed`: whether communities may move here |
 | `MIGRATION_CLEANUP_DAYS` | No | Default 7; days between sweeps removing incoming copies that never activated and whose DID points elsewhere (two sweeps in a row); `0` disables |
+| `REFRESH_REUSE_GRACE_SECONDS` | No | Default 10; how long a just-rotated refresh token is still honoured (two tabs refreshing at once); after it, a rotated token revokes all sessions; `0` disables |
+| `SHUTDOWN_TIMEOUT_SECONDS` | No | Default 20; how long in-flight requests get to finish on SIGTERM/SIGINT before the pool is closed |
+| `ORACLE_TRUST_UNVERIFIED_PROOFS` | No | Default off; `true` accepts a governance proof for a chain with no adapter on the oracle's word |
 | `EMAIL_VERIFICATION_POLICY` | No | `off` / `advisory` (default) / `require-for-write` / `require-for-login` — what an unverified email blocks |
+| `WALLET_CONSENT_MAX_HOURS` | No | Default 24; longest a custodial signing consent may last (default consent 1h). Consents are approved by the user on `/wallet/consent/:id` |
 
 ## Security imperatives
 
 - **NEVER store the user's primary `did:plc` rotation key.** Return it on creation, then discard from memory.
 - Recovery + signing keys are encrypted at rest with AES-256-GCM (PBKDF2 100k iter, SHA-512) keyed off `KEY_ENCRYPTION_SECRET`.
-- Refresh token rotation has reuse detection — replaying a rotated token revokes ALL sessions for that user.
+- Refresh token rotation has reuse detection — replaying a rotated token revokes ALL sessions for that user, at any depth (`session_rotated_tokens`); OAuth grants are revoked with them.
 - Rate limiting is applied globally and per-endpoint; never weaken the auth/registration limits.
 - Failed logins use exponential lockout: 5/10/15/20 failures → 1m/5m/30m/2h.
 - All admin and security-relevant actions log to `audit_log` (actor, target, action, metadata). **Deliberate exception: no audit for pseudonyms** — `auditLog()` drops entries whose actor or target is a pseudonym, and pseudonym endpoints never audit.

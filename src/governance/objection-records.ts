@@ -20,6 +20,7 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 export { OBJECTION_COLLECTION } from './decision-rules.js';
 import { OBJECTION_COLLECTION, PROPOSAL_COLLECTION, proposalUri } from './decision-rules.js';
 import type { StrongRef } from './vote-records.js';
+import { isPrivateCommunity, writeMemberContent } from '../forum/member-content.js';
 
 export interface ObjectionRecordInput {
   /** Repo the record is written to, and whose key signs it. */
@@ -78,6 +79,16 @@ export async function writeObjectionRecord(input: ObjectionRecordInput): Promise
     ...(input.reason ? { reason: input.reason } : {}),
     createdAt,
   };
+
+  // As for votes: a private community keeps the objector-signed record in its
+  // own member-only repository, not in the objector's public one.
+  if (await isPrivateCommunity(input.communityDid)) {
+    const stored = await writeMemberContent({
+      communityDid: input.communityDid, authorDid: input.objectorDid, collection: OBJECTION_COLLECTION,
+      record, rkey, private: true,
+    });
+    return { objectorDid: input.objectorDid, uri: stored.uri, cid: stored.cid, rkey, createdAt };
+  }
 
   const { uri, cid } = await engine.putRecord(keypair, OBJECTION_COLLECTION, rkey, record);
   return { objectorDid: input.objectorDid, uri, cid, rkey, createdAt };

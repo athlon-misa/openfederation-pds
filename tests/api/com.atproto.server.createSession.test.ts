@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { xrpcAuthGet, xrpcAuthPost, xrpcPost, getAdminHandle, getAdminPassword } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import { hashToken } from '../../src/auth/tokens.js';
+import { config } from '../../src/config.js';
 
 describe('com.atproto.server.createSession', () => {
   // Uses the bootstrap admin account — no PLC directory required.
@@ -54,7 +55,11 @@ describe('com.atproto.server.createSession', () => {
     expect(fresh.status).toBe(200);
   });
 
-  it('allows exactly one concurrent refresh-token rotation', async () => {
+  it('allows exactly one concurrent refresh-token rotation when the reuse grace window is off', async () => {
+    // With the window on (the default) the second request is given a session
+    // of its own; see refresh-token-reuse.security.test.ts.
+    const originalGrace = config.auth.refreshReuseGraceMs;
+    config.auth.refreshReuseGraceMs = 0;
     const login = await xrpcPost('com.atproto.server.createSession', {
       identifier: handle,
       password,
@@ -88,6 +93,7 @@ describe('com.atproto.server.createSession', () => {
       expect(results.filter((result) => result.status === 200)).toHaveLength(1);
       expect(results.filter((result) => result.status === 401)).toHaveLength(1);
     } finally {
+      config.auth.refreshReuseGraceMs = originalGrace;
       await query('DROP TRIGGER IF EXISTS test_refresh_rotation_pause ON sessions');
       await query('DROP FUNCTION IF EXISTS test_refresh_rotation_pause()');
     }

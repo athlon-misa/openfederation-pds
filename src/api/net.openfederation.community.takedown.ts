@@ -64,7 +64,8 @@ export default async function takedownCommunity(req: AuthRequest, res: Response)
 
     await query(
       `UPDATE communities
-       SET status = 'takendown', status_changed_at = CURRENT_TIMESTAMP,
+       SET prior_status = CASE WHEN status = 'suspended' THEN prior_status ELSE status END,
+           status = 'takendown', status_changed_at = CURRENT_TIMESTAMP,
            status_changed_by = $1, status_reason = $2
        WHERE did = $3`,
       [req.auth!.userId, reason || null, did]

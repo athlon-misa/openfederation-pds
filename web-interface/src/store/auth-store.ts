@@ -85,6 +85,26 @@ async function resolveSessionState(
   return deriveSessionState(sessionResult.data.roles, sessionResult.data.status);
 }
 
+const PERSIST_KEY = 'openfed-auth';
+
+/** The refresh token as last persisted by any tab, or null if there is none to read. */
+function readPersistedRefreshToken(): string | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(PERSIST_KEY) : null;
+    if (!raw) return null;
+    const token = (JSON.parse(raw) as { state?: { refreshToken?: unknown } }).state?.refreshToken;
+    return typeof token === 'string' && token.length > 0 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One refresh at a time across tabs, where the browser offers a cross-tab lock. */
+function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  return locks ? (locks.request('openfed-auth-refresh', fn) as Promise<T>) : fn();
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => {
@@ -166,14 +186,24 @@ export const useAuthStore = create<AuthState>()(
           }
         },
 
-        refresh: async () => {
-          const { refreshToken } = get();
+        refresh: async () => withRefreshLock(async () => {
+          // Tabs share the persisted refresh token but each keeps its own copy
+          // in memory. The server rotates the token on use, so a tab that
+          // refreshes with its stale copy is presenting a token that has
+          // already been rotated away. Take the persisted one, which is
+          // whatever the most recent refresh in any tab wrote.
+          const refreshToken = readPersistedRefreshToken() ?? get().refreshToken;
           if (!refreshToken) return false;
 
           const result = await refreshSession(refreshToken);
           if (!result.ok) {
-            // If refresh fails, log out
-            await get().logout();
+            // Only a refusal of the token ends the session. A network error,
+            // a rate limit or a server error says nothing about the token;
+            // logging out on those turned a blip into a sign-out everywhere
+            // (logout also deletes the session on the server).
+            if (result.status === 400 || result.status === 401 || result.status === 403 || result.status === 410) {
+              await get().logout();
+            }
             return false;
           }
 
@@ -190,7 +220,7 @@ export const useAuthStore = create<AuthState>()(
           if (sessionState) set(sessionState);
 
           return true;
-        },
+        }),
 
         hydrate: async () => {
           const { refreshToken } = get();
@@ -202,7 +232,7 @@ export const useAuthStore = create<AuthState>()(
       };
     },
     {
-      name: 'openfed-auth',
+      name: PERSIST_KEY,
       partialize: (state) => ({
         refreshToken: state.refreshToken,
         did: state.did,

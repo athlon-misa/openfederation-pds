@@ -1,5 +1,5 @@
 import dns from 'dns/promises';
-import { readLimitedText } from '../security/outbound-fetch.js';
+import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
 
 type CacheEntry =
   | { kind: 'hit'; did: string; expiresAt: number }
@@ -64,10 +64,27 @@ async function tryDnsTxt(handle: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Whether `handle` is a plain domain name: dot-separated labels of letters,
+ * digits and hyphens, with a non-numeric last label. The handle is placed
+ * straight into a URL and fetched, so anything else is refused here: a port,
+ * a path, credentials, or an IP address would turn handle resolution into a
+ * way to make this server call hosts of the caller's choosing.
+ */
+export function isDomainHandle(handle: string): boolean {
+  if (handle.length > 253) return false;
+  const labels = handle.split('.');
+  if (labels.length < 2) return false;
+  if (!labels.every((label) => /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))) return false;
+  return !/^\d+$/.test(labels[labels.length - 1]);
+}
+
 async function tryWellKnown(handle: string, signal: AbortSignal): Promise<string | null> {
   try {
-    const url = `https://${handle}/.well-known/atproto-did`;
-    const res = await fetch(url, { signal });
+    // Must resolve to public addresses only, and is not allowed to redirect:
+    // a redirect could point anywhere, including at internal services.
+    const url = await assertPublicHttpsUrl(`https://${handle}/.well-known/atproto-did`);
+    const res = await fetch(url, { signal, redirect: 'error' });
     if (!res.ok) return null;
     const text = (await readLimitedText(res, MAX_WELL_KNOWN_BYTES)).trim();
     return text.startsWith('did:') ? text : null;
@@ -91,8 +108,8 @@ export async function resolveExternalHandle(handle: string): Promise<string | nu
   const hit = cached(handle);
   if (hit.hit) return hit.did;
 
-  // Skip obviously local-looking handles (no dot = bare handle, not a domain)
-  if (!handle.includes('.')) return null;
+  // Only real domain names are resolved (which also skips bare local handles).
+  if (!isDomainHandle(handle)) return null;
 
   const controller = new AbortController();
   const overallTimer = setTimeout(() => controller.abort(), TIMEOUT_MS);

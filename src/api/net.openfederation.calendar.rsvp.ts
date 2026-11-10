@@ -1,10 +1,10 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
-import { RepoEngine } from '../repo/repo-engine.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
-import { indexRsvp, CALENDAR_RSVP } from '../forum/forum-index.js';
+import { indexRsvp, CALENDAR_RSVP, CALENDAR_EVENT } from '../forum/forum-index.js';
+import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { writeMemberContent, deleteMemberContent, isPrivateCommunity } from '../forum/member-content.js';
 
 const STATUSES = ['going', 'interested', 'notgoing'];
 
@@ -27,13 +27,42 @@ export default async function rsvp(req: AuthRequest, res: Response): Promise<voi
     );
     if (!hasPermission) return;
 
+    // The permission above was checked against `community`, so the event must
+    // be one of that community's: otherwise membership of any community would
+    // let you put yourself on the attendee list of any other.
+    const eventPrefix = `at://${community}/${CALENDAR_EVENT}/`;
+    const eventRkey = event.uri.startsWith(eventPrefix) ? event.uri.slice(eventPrefix.length) : '';
+    const eventExists = eventRkey !== '' && (await query(
+      'SELECT 1 FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
+      [community, CALENDAR_EVENT, eventRkey],
+    )).rows.length > 0;
+    if (!eventExists) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'event is not an event of this community' });
+      return;
+    }
+
     const attendeeDid = req.auth!.did;
-    const engine = new RepoEngine(attendeeDid); // RSVP lives in the ATTENDEE's repo
-    const keypair = await getKeypairForDid(attendeeDid);
-    const rkey = RepoEngine.generateTid();
     const createdAt = new Date().toISOString();
     const record = { subject: event, status, createdAt };
-    const result = await engine.putRecord(keypair, CALENDAR_RSVP, rkey, record);
+
+    // Changing your mind replaces your RSVP; it does not add another. (Each
+    // call used to leave one more record behind in the repository.)
+    const previous = await query<{ uri: string }>(
+      'SELECT uri FROM event_rsvps WHERE event_uri = $1 AND attendee_did = $2',
+      [event.uri, attendeeDid],
+    );
+    const wantPrivate = await isPrivateCommunity(community);
+    const previousUri = previous.rows[0]?.uri;
+    const previousInPlace = previousUri
+      && previousUri.startsWith(`at://${wantPrivate ? community : attendeeDid}/${CALENDAR_RSVP}/`);
+    if (previousUri && !previousInPlace) await deleteMemberContent(previousUri).catch(() => undefined);
+
+    const result = await writeMemberContent({
+      communityDid: community, authorDid: attendeeDid, collection: CALENDAR_RSVP, record,
+      private: wantPrivate,
+      ...(previousInPlace ? { rkey: previousUri!.split('/').pop() } : {}),
+    });
+    const rkey = result.rkey;
 
     await indexRsvp({ uri: result.uri, eventUri: event.uri, attendeeDid, status, createdAt });
     await auditLog('calendar.rsvp', req.auth!.userId, community, { uri: result.uri, event: event.uri, status });

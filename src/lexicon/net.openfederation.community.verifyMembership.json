@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.verifyMembership",
-  "revision": 2,
+  "revision": 3,
   "description": "Check if a DID is a member of a community.",
   "defs": {
     "main": {
@@ -51,6 +51,10 @@
         {
           "name": "NotFound",
           "description": "Community not found or not readable."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     }

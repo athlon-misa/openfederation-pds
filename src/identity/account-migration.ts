@@ -45,6 +45,29 @@ export function pointsHere(state: PlcState, serviceUrl: string, signingKey: stri
 }
 
 /**
+ * Every atproto signing key the DID has had, oldest first. Empty for a DID
+ * that is unknown or tombstoned (a deleted identity vouches for nothing). For
+ * other DID methods only the current key is known.
+ *
+ * Used to check signatures on records written before a key rotation: those
+ * were made with the key the DID had at the time.
+ */
+export async function atprotoKeyHistory(did: string): Promise<string[]> {
+  if (!did.startsWith('did:plc:')) {
+    const current = await atprotoKeyFor(did);
+    return current ? [current] : [];
+  }
+  const log = await getPlcLog(did);
+  if (!log || log.length === 0 || log[log.length - 1]?.type !== 'plc_operation') return [];
+  const keys: string[] = [];
+  for (const op of log) {
+    const key = (op.verificationMethods as Record<string, unknown> | undefined)?.atproto;
+    if (op.type === 'plc_operation' && typeof key === 'string' && !keys.includes(key)) keys.push(key);
+  }
+  return keys;
+}
+
+/**
  * The DID's current atproto signing key. For did:plc it is read from the PLC
  * log, uncached, so it reflects a move made seconds ago.
  */

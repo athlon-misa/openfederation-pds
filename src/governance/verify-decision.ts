@@ -150,6 +150,7 @@ import {
   voteOrderKey,
   type VoteChoice,
 } from './decision-rules.js';
+import { authorSignatureValid, recordAuthor } from './author-signature.js';
 
 /**
  * Why a decision did not verify.
@@ -368,6 +369,8 @@ export interface LoadedRepo {
 
 interface EligibleVote {
   voter: string;
+  /** The repo the record is in: the voter's own, or the community's (private community). */
+  repo: string;
   rkey: string;
   cid: string;
   vote: VoteChoice;
@@ -603,6 +606,28 @@ async function checkMembershipEvidence(
     };
   }
   return { code: 'ok' };
+}
+
+/**
+ * Who a governance record in this repo speaks for. In a voter's own repo,
+ * the repo owner: the repo's commit signature is theirs. In the community's
+ * repo (where a private community keeps its members' votes and objections),
+ * the record's `author`, and only if `authorSig` is that author's signature
+ * by the key in the DID document the caller supplied; otherwise nobody.
+ */
+export async function governanceRecordAuthor(
+  repoDid: string,
+  community: string,
+  record: Record<string, unknown>,
+  didDocs: Map<string, DidDocumentLike>,
+): Promise<string | null> {
+  if (repoDid !== community) return repoDid;
+  const author = recordAuthor(record);
+  if (!author || author === community) return null;
+  const doc = didDocs.get(author);
+  const key = doc ? getKey(doc as never) : null;
+  if (!key) return null;
+  return (await authorSignatureValid(record, [key])) ? author : null;
 }
 
 export async function locateRecord(loaded: LoadedRepo, collection: string, rkey: string): Promise<Located> {
@@ -847,11 +872,14 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
       if (record?.community !== community || record?.proposalRkey !== proposalRkey) continue;
       const result = checkVoteRecord(record, eligibility);
       if (!result.countable) continue;
+      const voter = await governanceRecordAuthor(loaded.did, community, record, didDocs);
+      if (!voter) continue;
       const key = voteOrderKey(result.createdAt, entry.rkey);
-      const previous = eligible.get(loaded.did);
+      const previous = eligible.get(voter);
       if (previous !== undefined && previous.orderKey <= key) continue;
-      eligible.set(loaded.did, {
-        voter: loaded.did,
+      eligible.set(voter, {
+        voter,
+        repo: loaded.did,
         rkey: entry.rkey,
         cid: entry.cid.toString(),
         vote: result.vote,
@@ -891,12 +919,15 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
     citedVoters.add(voter);
 
     const voteLoc = parseAtUri(refUri);
-    if (!voteLoc || voteLoc.repo !== voter || voteLoc.collection !== VOTE_COLLECTION) {
-      problems.push({ code: 'malformed-decision', message: `cited vote uri ${refUri} is not a ${VOTE_COLLECTION} record in ${voter}'s repo`, voter, uri: refUri });
+    // A vote is in the voter's own repo, or (private community) in the
+    // community's repo carrying the voter's signature, checked below.
+    const inCommunityRepo = voteLoc?.repo === community;
+    if (!voteLoc || (voteLoc.repo !== voter && !inCommunityRepo) || voteLoc.collection !== VOTE_COLLECTION) {
+      problems.push({ code: 'malformed-decision', message: `cited vote uri ${refUri} is not a ${VOTE_COLLECTION} record in ${voter}'s repo or the community's`, voter, uri: refUri });
       continue;
     }
 
-    const loaded = repos.get(voter);
+    const loaded = repos.get(voteLoc.repo);
     if (!loaded) {
       problems.push({ code: 'missing-evidence', message: `no repo export supplied for voter ${voter}`, voter, uri: refUri });
       continue;
@@ -923,6 +954,22 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
     }
 
     const record = located.value as Record<string, any>;
+    if (inCommunityRepo) {
+      // The community's commit signature says only that the community holds
+      // this record. That the voter cast it rests on their own signature.
+      if (recordAuthor(record) !== voter) {
+        problems.push({ code: 'tampered-vote', message: `cited vote ${refUri} is attributed to ${String(record.author)}, not ${voter}`, voter, uri: refUri });
+        continue;
+      }
+      if (!didDocs.has(voter)) {
+        problems.push({ code: 'missing-evidence', message: `no DID document supplied for voter ${voter}; their signature on ${refUri} cannot be checked`, voter, uri: refUri });
+        continue;
+      }
+      if ((await governanceRecordAuthor(community, community, record, didDocs)) !== voter) {
+        problems.push({ code: 'forged-signature', message: `vote ${refUri} is not signed by ${voter}'s atproto key`, voter, uri: refUri });
+        continue;
+      }
+    }
     if (record.vote !== choice) {
       problems.push({ code: 'tampered-vote', message: `decision reports ${voter} voting "${choice}" but the signed record says "${String(record.vote)}"`, voter, uri: refUri });
       continue;
@@ -941,7 +988,7 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
     if (winner && winner.rkey !== voteLoc.rkey) {
       problems.push({
         code: 'ineligible-vote',
-        message: `counted vote from ${voter} is not that voter's earliest eligible record (at://${voter}/${VOTE_COLLECTION}/${winner.rkey} is)`,
+        message: `counted vote from ${voter} is not that voter's earliest eligible record (at://${winner.repo}/${VOTE_COLLECTION}/${winner.rkey} is)`,
         voter,
         uri: refUri,
       });
@@ -976,7 +1023,7 @@ export async function verifyDecision(input: VerifyDecisionInput): Promise<Decisi
       code: 'uncounted-vote',
       message: `${voter} has an eligible "${vote.vote}" vote record that this decision does not count`,
       voter,
-      uri: `at://${voter}/${VOTE_COLLECTION}/${vote.rkey}`,
+      uri: `at://${vote.repo}/${VOTE_COLLECTION}/${vote.rkey}`,
     });
   }
 

@@ -4,7 +4,7 @@ import { requireRole } from '../auth/guards.js';
 import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
-import { deleteAccountData } from '../identity/delete-account.js';
+import { deleteAccountData, removeBlobFiles } from '../identity/delete-account.js';
 
 /**
  * com.atproto.admin.deleteAccount
@@ -56,7 +56,21 @@ export default async function adminDeleteAccount(req: AuthRequest, res: Response
     });
 
     // Delete all associated data in a transaction
-    await withTransaction((client) => deleteAccountData(client, user));
+    try {
+      const orphanedBlobs = await withTransaction((client) => deleteAccountData(client, user));
+      await removeBlobFiles(orphanedBlobs);
+    } catch (err) {
+      // The entry above was written first so it could still name the account.
+      // The deletion rolled back, so say so: otherwise the log claims an
+      // account was deleted that is still here.
+      await auditLog('account.delete', req.auth!.userId, user.id, {
+        did: user.did,
+        handle: user.handle,
+        failed: true,
+        error: err instanceof Error ? err.message.slice(0, 200) : 'unknown error',
+      });
+      throw err;
+    }
 
     invalidateAuthContext(user.did);
 

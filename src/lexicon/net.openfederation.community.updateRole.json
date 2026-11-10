@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.updateRole",
-  "revision": 3,
+  "revision": 6,
   "description": "Update a community role's name, description, or permissions.",
   "defs": {
     "main": {
@@ -30,6 +30,18 @@
               "items": {
                 "type": "string"
               }
+            },
+            "attestationTypes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "knownValues": [
+                  "membership",
+                  "role",
+                  "credential"
+                ]
+              },
+              "description": "Attestation types holders of this role may issue and revoke. Omit to allow every type."
             }
           },
           "required": [
@@ -80,6 +92,18 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "GovernanceDenied",
+          "description": "Governance policy denied this operation."
         }
       ]
     }

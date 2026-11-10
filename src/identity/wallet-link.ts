@@ -112,6 +112,7 @@ export async function verifyAndLink(
       }>(
         `SELECT id, (expires_at < NOW()) AS expired FROM wallet_link_challenges
          WHERE user_did = $1 AND chain = $2 AND wallet_address = $3 AND challenge = $4
+           AND purpose = 'link'
          FOR UPDATE`,
         [userDid, chain, normalizedAddress, challenge]
       );

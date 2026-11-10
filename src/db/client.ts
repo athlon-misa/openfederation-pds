@@ -64,8 +64,46 @@ export async function withAdvisoryLock<T>(key: string, operation: () => Promise<
     await client.query('SELECT pg_advisory_lock(hashtext($1))', [key]);
     return await operation();
   } finally {
-    await client.query('SELECT pg_advisory_unlock(hashtext($1))', [key]).catch(() => undefined);
-    client.release();
+    try {
+      await client.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
+      client.release();
+    } catch (err) {
+      // A session lock belongs to the connection. If the unlock failed, drop
+      // the connection so it cannot return to the pool still holding the lock.
+      client.release(err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+}
+
+/**
+ * Like `withAdvisoryLock`, but does not wait: if someone else holds the lock,
+ * `operation` is not run and `{ ran: false }` comes back at once. For
+ * background jobs, where a second runner should step aside, not queue up.
+ */
+export async function tryWithAdvisoryLock<T>(
+  key: string,
+  operation: () => Promise<T>,
+): Promise<{ ran: true; result: T } | { ran: false }> {
+  const client = await getClient();
+  let locked = false;
+  try {
+    const got = await client.query<{ locked: boolean }>('SELECT pg_try_advisory_lock(hashtext($1)) AS locked', [key]);
+    locked = got.rows[0]?.locked === true;
+    if (!locked) return { ran: false };
+    return { ran: true, result: await operation() };
+  } finally {
+    if (locked) {
+      try {
+        await client.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
+        client.release();
+      } catch (err) {
+        // The lock is tied to this connection. If it could not be released,
+        // the connection must not go back into the pool still holding it.
+        client.release(err instanceof Error ? err : new Error(String(err)));
+      }
+    } else {
+      client.release();
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.post",
-  "revision": 1,
+  "revision": 2,
   "description": "A forum post or reply. Lives in the author's user repo; references its thread via strongRef.",
   "defs": {
     "main": {
@@ -10,7 +10,12 @@
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["community", "root", "text", "createdAt"],
+        "required": [
+          "community",
+          "root",
+          "text",
+          "createdAt"
+        ],
         "properties": {
           "community": {
             "type": "string",
@@ -37,7 +42,9 @@
             "maxLength": 4,
             "items": {
               "type": "blob",
-              "accept": ["image/*"],
+              "accept": [
+                "image/*"
+              ],
               "maxSize": 1000000
             },
             "description": "Optional media attachments stored as blobs (see blob config)."
@@ -45,7 +52,34 @@
           "createdAt": {
             "type": "string",
             "format": "datetime"
+          },
+          "author": {
+            "type": "string",
+            "format": "did",
+            "description": "The member who wrote this record. Present when the record is stored in the community's repository (a private community) and not in the author's own."
+          },
+          "authorSig": {
+            "type": "ref",
+            "ref": "#authorSig"
           }
+        }
+      }
+    },
+    "authorSig": {
+      "type": "object",
+      "description": "The author's signature over this record without `authorSig`. Present together with `author`.",
+      "required": [
+        "key",
+        "sig"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "did:key of the author's atproto signing key."
+        },
+        "sig": {
+          "type": "string",
+          "description": "base64url signature over the CID of the record without `authorSig`."
         }
       }
     }

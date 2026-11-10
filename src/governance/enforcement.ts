@@ -11,7 +11,12 @@ const DEFAULT_PROTECTED = [
   ...MANDATORY_PROTECTED,
   'net.openfederation.community.member',
   'net.openfederation.community.profile',
-  'net.openfederation.community.attestation',
+  // Attestations are not on this list. What the community decides is the
+  // issuance *policy*: which role may issue which kind (`attestationTypes` on
+  // the role record, and roles are always protected). Issuing one within
+  // that policy is day-to-day work, like admitting a member. A community
+  // that wants a vote on every single attestation can still say so by
+  // naming the collection in `governanceConfig.protectedCollections`.
 ];
 
 /** Member operations exempt from governance (operational, not policy) */

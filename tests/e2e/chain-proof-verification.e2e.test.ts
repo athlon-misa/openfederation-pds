@@ -90,7 +90,7 @@ describe('Chain Proof Verification', () => {
     expect(res.body.verificationMethod).toBe('cache');
   });
 
-  it('step 3: unregistered chain (no adapter) -> oracle-trust', async () => {
+  it('step 3: unregistered chain (no adapter) -> not verified', async () => {
     if (!plcAvailable) return;
 
     const res = await api
@@ -101,9 +101,11 @@ describe('Chain Proof Verification', () => {
         transactionHash: '0xabc123unique',
       });
 
+    // Nothing can look at this chain, so nothing is claimed about the proof.
+    // (Trusting the oracle here is an operator opt-in: ORACLE_TRUST_UNVERIFIED_PROOFS.)
     expect(res.status).toBe(200);
-    expect(res.body.verified).toBe(true);
+    expect(res.body.verified).toBe(false);
     expect(res.body.cached).toBe(false);
-    expect(res.body.verificationMethod).toBe('oracle-trust');
+    expect(res.body.verificationMethod).toBe('none');
   });
 });

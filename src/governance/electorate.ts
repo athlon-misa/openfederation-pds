@@ -57,3 +57,35 @@ export async function countEligibleVoters(communityDid: string): Promise<number>
   }
   return eligible;
 }
+
+/**
+ * Whether `memberDid` is, right now, a member of `communityDid` whose role
+ * carries `community.governance.write`. Resolved exactly as
+ * `countEligibleVoters` resolves it.
+ *
+ * Used for delegators: a delegation is a standing instruction, and it stops
+ * meaning anything the moment the person who gave it leaves, is removed, or
+ * loses the right to vote.
+ */
+export async function isEligibleVoter(communityDid: string, memberDid: string): Promise<boolean> {
+  const result = await query<{ role: string | null; role_rkey: string | null; role_record: any }>(
+    `SELECT mr.record->>'role'     AS role,
+            mr.record->>'roleRkey' AS role_rkey,
+            rr.record              AS role_record
+     FROM members_unique mu
+     JOIN records_index mr
+       ON mr.community_did = mu.community_did AND mr.collection = $3 AND mr.rkey = mu.record_rkey
+     LEFT JOIN records_index rr
+       ON rr.community_did = mr.community_did
+      AND rr.collection = $4
+      AND rr.rkey = mr.record->>'roleRkey'
+     WHERE mu.community_did = $1 AND mu.member_did = $2`,
+    [communityDid, memberDid, MEMBER_COLLECTION, ROLE_COLLECTION],
+  );
+  const row = result.rows[0];
+  if (!row) return false;
+  const permissions = row.role_rkey
+    ? (Array.isArray(row.role_record?.permissions) ? row.role_record.permissions : [])
+    : (LEGACY_ROLE_PERMISSIONS[row.role || 'member'] || []);
+  return permissions.includes(GOVERNANCE_WRITE_PERMISSION);
+}

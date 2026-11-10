@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.partner.register",
-  "revision": 1,
+  "revision": 2,
   "description": "Register a new account using a verified partner key. Partner-created accounts are auto-approved and receive session tokens.",
   "defs": {
     "main": {
@@ -23,6 +23,10 @@
             "password": {
               "type": "string",
               "description": "Initial account password."
+            },
+            "ticket": {
+              "type": "string",
+              "description": "Registration ticket (ES256K/ES256 JWT) signed by the partner's backend. Required when the partner key has a ticket key; see createPartnerTicket in @open-federation/sdk."
             }
           },
           "required": [
@@ -60,6 +64,10 @@
             },
             "active": {
               "type": "boolean"
+            },
+            "emailVerificationRequired": {
+              "type": "boolean",
+              "description": "True when the key has no ticket key: the account is pending, no session is returned, and it is approved when its email address is verified."
             }
           },
           "required": [
@@ -68,8 +76,6 @@
             "did",
             "email",
             "status",
-            "accessJwt",
-            "refreshJwt",
             "active"
           ]
         }
@@ -110,6 +116,14 @@
         {
           "name": "IdentityCreationFailed",
           "description": "Failed to create account identity material."
+        },
+        {
+          "name": "TicketRequired",
+          "description": "The partner key has a ticket key and no ticket was sent."
+        },
+        {
+          "name": "TicketInvalid",
+          "description": "The ticket is not signed by the partner's ticket key, is expired, was already used, or was issued for another account, partner key or server."
         }
       ]
     }

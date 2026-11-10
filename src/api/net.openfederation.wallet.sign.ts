@@ -10,6 +10,8 @@ import {
   WalletEligibilityRejection,
   assertDappOriginBinding,
   DappOriginBindingRejection,
+  assertMessageInScope,
+  ConsentScopeRejection,
 } from '../wallet/index.js';
 
 /**
@@ -94,6 +96,7 @@ export default async function walletSign(req: AuthRequest, res: Response): Promi
     const normalizedAddress = chain === 'ethereum' ? walletAddress.toLowerCase() : walletAddress;
 
     try {
+      assertMessageInScope(message, origin);
       await assertCustodialSigningEligible({
         userDid,
         chain,
@@ -101,7 +104,7 @@ export default async function walletSign(req: AuthRequest, res: Response): Promi
         dappOrigin: origin,
       });
     } catch (err) {
-      if (err instanceof WalletEligibilityRejection) {
+      if (err instanceof WalletEligibilityRejection || err instanceof ConsentScopeRejection) {
         res.status(err.status).json({ error: err.code, message: err.message });
         return;
       }

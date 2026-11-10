@@ -11,6 +11,11 @@ import {
   signTransactionWithCustodialKey,
   WalletEligibilityRejection,
   type EvmTransactionRequest,
+  assertEvmTransactionInScope,
+  assertSolanaTransactionInScope,
+  chargeConsent,
+  refundConsent,
+  ConsentScopeRejection,
 } from '../wallet/index.js';
 
 const NSID = 'net.openfederation.wallet.signTransaction';
@@ -121,15 +126,30 @@ export default async function walletSignTransaction(req: AuthRequest, res: Respo
     const userId = req.auth!.userId;
     const normalizedAddress = chain === 'ethereum' ? walletAddress.toLowerCase() : walletAddress;
 
+    // The consent must cover this transaction: a contract it names and, for
+    // Ethereum, value within its limits. The value is counted against the
+    // consent's total before signing and given back if no signature results.
+    let consentId: string;
+    let charged = 0n;
     try {
-      await assertCustodialSigningEligible({
+      const consent = await assertCustodialSigningEligible({
         userDid,
         chain,
         walletAddress: normalizedAddress,
         dappOrigin: origin,
       });
+      consentId = consent.id;
+      if (chain === 'ethereum') {
+        const value = assertEvmTransactionInScope(evmTx!, consent.scope);
+        if (!(await chargeConsent(consent.id, value))) {
+          throw new ConsentScopeRejection('This transaction would take the consent over its total value limit');
+        }
+        charged = value;
+      } else {
+        assertSolanaTransactionInScope(solMessageBytes!, consent.scope);
+      }
     } catch (err) {
-      if (err instanceof WalletEligibilityRejection) {
+      if (err instanceof WalletEligibilityRejection || err instanceof ConsentScopeRejection) {
         res.status(err.status).json({ error: err.code, message: err.message });
         return;
       }
@@ -148,6 +168,7 @@ export default async function walletSignTransaction(req: AuthRequest, res: Respo
       });
     }
     if (!result) {
+      await refundConsent(consentId, charged);
       res.status(500).json({ error: 'SigningFailed', message: 'Custodial key material is missing' });
       return;
     }
@@ -157,6 +178,9 @@ export default async function walletSignTransaction(req: AuthRequest, res: Respo
       walletAddress: normalizedAddress,
       dappOrigin: origin,
       chainId: chain === 'ethereum' ? String(evmTx!.chainId) : null,
+      to: chain === 'ethereum' ? (typeof evmTx!.to === 'string' ? evmTx!.to.toLowerCase() : null) : null,
+      value: chain === 'ethereum' ? charged.toString() : null,
+      consentId,
       messageLength: chain === 'solana' ? (solMessageBytes?.length ?? 0) : null,
     });
 

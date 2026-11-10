@@ -3,7 +3,7 @@ import type { AuthContext } from '../../auth/types.js';
 import { query } from '../../db/client.js';
 import { throwXrpc } from '../../xrpc/errors.js';
 import {
-  ensureCommunityExists,
+  ensureCommunityWritable,
   ensureNotAlreadyMember,
   getJoinPolicy,
   createMemberRecord,
@@ -77,7 +77,7 @@ export async function joinCommunityLifecycle(
 ): Promise<JoinCommunityResult> {
   const { did, kind, tags, attributes } = validateJoinInput(input);
 
-  await ensureCommunityExists(did);
+  await ensureCommunityWritable(did, 'net.openfederation.community.join');
   await ensureNotAlreadyMember(did, caller.did);
 
   const joinPolicy = await getJoinPolicy(did);

@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
-import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
+import { requireAuth, requireCommunityPermission, requireAttestationType } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
@@ -28,8 +28,8 @@ export default async function deleteAttestation(req: AuthRequest, res: Response)
     );
     if (!hasPermission) return;
 
-    const existing = await query(
-      `SELECT 1 FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
+    const existing = await query<{ type: string | null }>(
+      `SELECT record->>'type' AS type FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
       [communityDid, ATTESTATION_COLLECTION, rkey]
     );
 
@@ -40,6 +40,11 @@ export default async function deleteAttestation(req: AuthRequest, res: Response)
       });
       return;
     }
+
+    // Revoking follows the same per-type policy as issuing.
+    if (!(await requireAttestationType(
+      req as AuthRequest & { auth: AuthContext }, res, communityDid, existing.rows[0].type ?? '',
+    ))) return;
 
     const engine = new RepoEngine(communityDid);
     const keypair = await getKeypairForDid(communityDid);

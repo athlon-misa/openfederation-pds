@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { config } from '../config.js';
-import { testConnection } from '../db/client.js';
+import { testConnection, closePool } from '../db/client.js';
 import { authMiddleware, setOAuthVerifier } from '../auth/middleware.js';
 import { ensureBootstrapAdmin, validateBootstrapAdminConfig } from '../auth/bootstrap.js';
 import { query } from '../db/client.js';
@@ -12,8 +12,8 @@ import { createExternalOAuthClient } from '../oauth/external-client.js';
 import { createExternalOAuthRouter } from '../oauth/external-routes.js';
 import { registerAttestor } from '../governance/attestor.js';
 import { createEvmAdapter, installChainModule } from '../modules/chain/index.js';
-import { startExportScheduler } from '../scheduler/export-scheduler.js';
-import { startMigrationCleanup } from '../scheduler/migration-cleanup.js';
+import { startExportScheduler, stopExportScheduler } from '../scheduler/export-scheduler.js';
+import { startMigrationCleanup, stopMigrationCleanup } from '../scheduler/migration-cleanup.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { setSecurityHeaders } from './security-headers.js';
 import { isAllowedStaticOrigin } from './cors-config.js';
@@ -27,6 +27,10 @@ import { confirmEmailToken } from '../email/verification.js';
 import { createXrpcRouter } from './xrpc-router.js';
 import { createWellKnownRouter } from './well-known-routes.js';
 import { SERVER_VERSION } from './server-version.js';
+import { applyMigrations } from '../db/migrate.js';
+import type { Server } from 'http';
+import { createAccountPagesRouter } from './account-pages.js';
+import { createWalletConsentRouter } from './wallet-consent-page.js';
 
 export type { XRPCHandler } from './handler-registry.js';
 
@@ -45,9 +49,23 @@ app.set('trust proxy', config.trustProxy);
  */
 let emailTransportError: string | null | undefined;
 
+/**
+ * /health is unauthenticated and sits ahead of the rate limiter (platform
+ * health checks must never be throttled), so it must not run a query per
+ * request. The database check is shared for a few seconds.
+ */
+const DB_STATUS_TTL_MS = 5_000;
+let dbStatusCache: { at: number; value: Promise<Awaited<ReturnType<typeof testConnection>>> } | null = null;
+function cachedDbStatus(): Promise<Awaited<ReturnType<typeof testConnection>>> {
+  if (!dbStatusCache || Date.now() - dbStatusCache.at > DB_STATUS_TTL_MS) {
+    dbStatusCache = { at: Date.now(), value: testConnection() };
+  }
+  return dbStatusCache.value;
+}
+
 app.get('/health', async (_req, res) => {
   setSecurityHeaders(res);
-  const dbStatus = await testConnection();
+  const dbStatus = await cachedDbStatus();
   const email = !config.email.enabled
     ? 'not-configured'
     : emailTransportError === undefined ? 'unknown'
@@ -102,6 +120,13 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// The global rate limiter runs before anything that costs something per
+// request. Authentication can mean a database read, a partner-key lookup or a
+// DID resolution against the PLC directory for an issuer the caller chose;
+// done ahead of the limiter, a client already over its limit still got all of
+// that work out of the server on every request.
+app.use(globalLimiter);
+
 // Body parsing — only needed for methods with request bodies
 app.use((req, res, next) => {
   if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
@@ -110,16 +135,13 @@ app.use((req, res, next) => {
     next();
   }
 });
-app.use(authMiddleware);
-
 // Request logging middleware (redact query string to prevent leaking sensitive data)
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
 
-// Apply global rate limiter
-app.use(globalLimiter);
+app.use(authMiddleware);
 
 // Root endpoint — service discovery. Receives full middleware chain
 // (security headers, CORS, rate limiting) like any other request.
@@ -224,6 +246,11 @@ app.get('/verify-email', async (req: Request, res: Response) => {
   }
 });
 
+// The pages the password-reset and recovery emails link to.
+app.use(createAccountPagesRouter());
+// The page where a user approves a dApp's request to sign with their wallet.
+app.use(createWalletConsentRouter());
+
 app.use('/xrpc', createXrpcRouter());
 
 // /.well-known/did.json and /.well-known/webfinger — DID documents + AT
@@ -285,7 +312,7 @@ async function ensureSchema(): Promise<void> {
     console.log('Database schema initialized');
   }
 
-  // Apply all incremental migrations (idempotent by design).
+  // Apply the incremental migrations this database has not had yet.
   const migrationCandidates = [
     join(process.cwd(), 'scripts'),
     join(process.cwd(), 'dist', 'scripts'),
@@ -295,24 +322,10 @@ async function ensureSchema(): Promise<void> {
     console.warn('No scripts/ directory found — skipping incremental migrations.');
     return;
   }
-  const files = readdirSync(migrationsDir)
-    .filter((f) => /^migrate-\d+.*\.sql$/.test(f))
-    .sort();
-  if (files.length === 0) return;
-
-  let applied = 0;
-  for (const f of files) {
-    try {
-      await query(readFileSync(join(migrationsDir, f), 'utf-8'));
-      applied++;
-    } catch (err) {
-      // Migrations should all be idempotent — report any failure loudly.
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Migration ${f} failed: ${msg}`);
-      throw err;
-    }
-  }
-  console.log(`Applied ${applied} migrations (${files[0]}..${files[files.length - 1]}).`);
+  const { applied, skipped } = await applyMigrations(migrationsDir);
+  console.log(applied.length > 0
+    ? `Applied ${applied.length} migration(s): ${applied[0]}..${applied[applied.length - 1]} (${skipped} already applied).`
+    : `Database schema is up to date (${skipped} migrations already applied).`);
 }
 
 // Periodic cleanup of expired and revoked sessions
@@ -343,7 +356,7 @@ export async function cleanupExpiredSessions(): Promise<void> {
 }
 
 // Start the server
-export async function startServer(): Promise<void> {
+export async function startServer(): Promise<Server> {
   // Bootstrap credentials are startup security configuration, so reject an
   // invalid or partial set even when the database is currently unavailable.
   validateBootstrapAdminConfig();
@@ -461,7 +474,7 @@ export async function startServer(): Promise<void> {
   }
 
   return new Promise((resolve) => {
-    app.listen(config.port, () => {
+    const server = app.listen(config.port, () => {
       console.log(`Server listening on port ${config.port}`);
       if (!dbConnected) {
         console.log('WARNING: Running without database connection');
@@ -469,9 +482,20 @@ export async function startServer(): Promise<void> {
       // Start export scheduler after server is listening
       startExportScheduler();
       startMigrationCleanup();
-      resolve();
+      resolve(server);
     });
   });
+}
+
+/** Stop the background work and release the database: the cleanup half of a shutdown. */
+export async function releaseServerResources(): Promise<void> {
+  stopExportScheduler();
+  stopMigrationCleanup();
+  if (sessionCleanupTimer) {
+    clearInterval(sessionCleanupTimer);
+    sessionCleanupTimer = null;
+  }
+  await closePool();
 }
 
 export { app };

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.migrateIn",
-  "revision": 1,
+  "revision": 2,
   "description": "A community arrives from another PDS (#267, ADR-002).",
   "defs": {
     "main": {
@@ -80,28 +80,9 @@
               "type": "integer"
             },
             "recommended": {
-              "type": "object",
-              "description": "What the owner should put in the DID to bring the community here.",
-              "properties": {
-                "rotationKeys": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "alsoKnownAs": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "verificationMethods": {
-                  "type": "unknown"
-                },
-                "services": {
-                  "type": "unknown"
-                }
-              }
+              "type": "ref",
+              "ref": "#recommendedCredentials",
+              "description": "What the owner should put in the DID to bring the community here."
             }
           }
         }
@@ -172,6 +153,30 @@
           "description": "The community's current PDS did not answer."
         }
       ]
+    },
+    "recommendedCredentials": {
+      "type": "object",
+      "properties": {
+        "rotationKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "alsoKnownAs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verificationMethods": {
+          "type": "unknown"
+        },
+        "services": {
+          "type": "unknown"
+        }
+      },
+      "description": "What the owner should put in the DID to bring the community here."
     }
   }
 }

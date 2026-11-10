@@ -4,7 +4,8 @@ import { requireRole } from '../auth/guards.js';
 import { hashToken } from '../auth/tokens.js';
 import { auditLog } from '../db/audit.js';
 import { isPrivateHost } from '../federation/remote-verify.js';
-import { readLimitedText } from '../security/outbound-fetch.js';
+import { assertPublicHttpsUrl, readLimitedText, OutboundFetchError } from '../security/outbound-fetch.js';
+import { config } from '../config.js';
 import type { AuthRequest } from '../auth/types.js';
 
 interface VerifyKeyInput {
@@ -26,7 +27,12 @@ interface OriginCheckResult {
  * the `token` field's SHA-256 hash matches `expectedTokenHash`. Network and
  * parse failures become `{ok: false, reason}` — no throws.
  */
-async function checkOrigin(origin: string, expectedTokenHash: string): Promise<OriginCheckResult> {
+export async function checkOrigin(
+  origin: string,
+  expectedTokenHash: string,
+  opts: { production?: boolean } = {},
+): Promise<OriginCheckResult> {
+  const production = opts.production ?? config.env.isProduction;
   let url: URL;
   try {
     url = new URL(WELL_KNOWN_PATH, origin);
@@ -35,6 +41,19 @@ async function checkOrigin(origin: string, expectedTokenHash: string): Promise<O
   }
   if (isPrivateHost(url.hostname)) {
     return { origin, ok: false, reason: 'origin resolves to a private/internal host' };
+  }
+  // The origin is something a partner manager typed, and this server is
+  // about to fetch it. Looking at the hostname's spelling is not enough: a
+  // public name can resolve to an internal address. In production the origin
+  // must be HTTPS and every address it resolves to must be public. (Outside
+  // production, plain-http origins on a developer's machine are allowed.)
+  if (production) {
+    try {
+      url = await assertPublicHttpsUrl(url.toString());
+    } catch (err) {
+      const why = err instanceof OutboundFetchError ? err.message : 'origin is not reachable';
+      return { origin, ok: false, reason: why };
+    }
   }
 
   try {
@@ -71,8 +90,10 @@ async function checkOrigin(origin: string, expectedTokenHash: string): Promise<O
     }
     return { origin, ok: true };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { origin, ok: false, reason: `fetch failed: ${msg}` };
+    // The low-level error names hosts, ports and refusal codes: enough to map
+    // a network from the outside. It goes to the server log, not the caller.
+    console.warn(`partner.verifyKey: fetch of ${url.origin} failed:`, err instanceof Error ? err.message : err);
+    return { origin, ok: false, reason: `could not fetch ${WELL_KNOWN_PATH} from the origin` };
   }
 }
 

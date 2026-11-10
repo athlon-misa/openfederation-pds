@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.disclosure.redeemGrant",
-  "revision": 1,
+  "revision": 2,
   "description": "Redeem a viewing grant to access a private attestation with watermarking and session-scoped re-encryption.",
   "defs": {
     "main": {
@@ -74,6 +74,10 @@
         "watermarkId": {
           "type": "string",
           "description": "Unique identifier embedded in the watermarked data."
+        },
+        "commitmentSalt": {
+          "type": "string",
+          "description": "Salt of the attestation's public commitment. Present only when the grant covers the whole claim; sha256(salt + ':' + canonical claim JSON) equals the hash from attestation.verifyCommitment."
         }
       },
       "required": [

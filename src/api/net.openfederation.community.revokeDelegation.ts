@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, writableStatus } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
@@ -18,6 +18,9 @@ export default async function revokeDelegation(req: AuthRequest, res: Response):
       res.status(400).json({ error: 'InvalidRequest', message: 'Missing: communityDid' });
       return;
     }
+
+    const community = await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [communityDid]);
+    if (community.rows[0] && !writableStatus(community.rows[0].status, res)) return;
 
     const existing = await query<{ rkey: string }>(
       `SELECT rkey FROM records_index

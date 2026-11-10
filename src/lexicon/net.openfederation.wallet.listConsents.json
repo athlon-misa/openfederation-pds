@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.wallet.listConsents",
-  "revision": 2,
+  "revision": 3,
   "description": "List the authenticated user's active (unrevoked, unexpired) Tier 1 signing consent grants.",
   "defs": {
     "main": {
@@ -10,7 +10,9 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["consents"],
+          "required": [
+            "consents"
+          ],
           "properties": {
             "consents": {
               "type": "array",
@@ -26,14 +28,50 @@
     "consentEntry": {
       "type": "object",
       "description": "Single active Tier 1 signing consent grant.",
-      "required": ["id", "dappOrigin", "grantedAt", "expiresAt"],
+      "required": [
+        "id",
+        "dappOrigin",
+        "grantedAt",
+        "expiresAt"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "dappOrigin": { "type": "string" },
-        "chain": { "type": "string" },
-        "walletAddress": { "type": "string" },
-        "grantedAt": { "type": "string" },
-        "expiresAt": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "dappOrigin": {
+          "type": "string"
+        },
+        "chain": {
+          "type": "string"
+        },
+        "walletAddress": {
+          "type": "string"
+        },
+        "grantedAt": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string"
+        },
+        "allowedContracts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Contracts (or Solana programs) transactions may go to. Absent: messages only."
+        },
+        "maxValuePerTx": {
+          "type": "string",
+          "description": "Most value one transaction may move (wei). Absent: none."
+        },
+        "maxTotalValue": {
+          "type": "string",
+          "description": "Most value all transactions together may move (wei)."
+        },
+        "spentValue": {
+          "type": "string",
+          "description": "Value moved so far under this consent (wei)."
+        }
       }
     }
   }

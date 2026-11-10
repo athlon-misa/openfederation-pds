@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.hideThread",
-  "revision": 2,
+  "revision": 3,
   "description": "Moderator overlay: hide or unhide a forum thread from the community view. Does not delete the underlying record in the author's repo. Requires the community.forum.moderate permission.",
   "defs": {
     "main": {
@@ -59,6 +59,14 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     }

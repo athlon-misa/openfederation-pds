@@ -23,6 +23,8 @@ import {
 } from './utils.js';
 import { storeUserSigningKey } from '../identity/user-identity.js';
 import { RepoEngine } from '../repo/repo-engine.js';
+import type { RowReader } from './invites.js';
+import { query } from '../db/client.js';
 
 export class RegistrationValidationError extends Error {
   constructor(
@@ -82,11 +84,11 @@ type QueryRunner = Pick<PoolClient, 'query'> | { query: PoolClient['query'] };
  * transaction client so the check is consistent with the subsequent insert.
  */
 export async function ensureHandleEmailAvailable(
-  client: QueryRunner,
+  client: RowReader,
   handle: string,
   email: string,
 ): Promise<void> {
-  const existing = await client.query<{ id: string }>(
+  const existing: { rows: { id: string }[] } = await client.query(
     'SELECT id FROM users WHERE handle = $1 OR email = $2',
     [handle, email],
   );
@@ -137,12 +139,30 @@ export async function insertUserWithRole(client: PoolClient, params: InsertUserP
 }
 
 /**
+ * Remove an account that was inserted but could not be finished. Used when
+ * the signing key or the repository could not be created: an account in that
+ * state can sign nothing and write nothing, and there is no later step that
+ * would complete it, so it is not left behind looking like a real one.
+ */
+async function discardUnfinishedAccount(did: string): Promise<void> {
+  await query('DELETE FROM users WHERE did = $1', [did]);
+  await query('DELETE FROM user_signing_keys WHERE user_did = $1', [did]);
+  await query('DELETE FROM vault_shares WHERE user_did = $1', [did]);
+  await query('DELETE FROM records_index WHERE community_did = $1', [did]);
+  await query('DELETE FROM repo_blocks WHERE community_did = $1', [did]);
+  await query('DELETE FROM repo_roots WHERE did = $1', [did]);
+}
+
+/**
  * Store the user's signing key and create their initial repo with a
  * `app.bsky.actor.profile` record. Runs *outside* the user-insert
- * transaction — the PLC identity is already registered at this point,
- * and failures here don't invalidate the account (they're logged and
- * left for retry). Imports the keypair directly from raw bytes to skip
- * the PBKDF2 encrypt/decrypt round-trip.
+ * transaction (the PLC identity is already registered at this point).
+ *
+ * If either step fails the account is removed again and the error is thrown:
+ * the caller reports a failed registration and the person can retry. The key
+ * is in memory only, so there is no "retry later" for an account whose key
+ * was never stored. Imports the keypair directly from raw bytes to skip the
+ * PBKDF2 encrypt/decrypt round-trip.
  */
 export async function initializeUserRepoAsync(
   did: string,
@@ -163,6 +183,9 @@ export async function initializeUserRepoAsync(
       },
     ]);
   } catch (err) {
-    console.error(`Warning: failed to initialize user repo for ${did} (account still created):`, err);
+    console.error(`Failed to initialize keys and repo for ${did}; removing the unfinished account:`, err);
+    await discardUnfinishedAccount(did).catch((cleanupErr) =>
+      console.error(`Could not remove unfinished account ${did}:`, cleanupErr));
+    throw err;
   }
 }

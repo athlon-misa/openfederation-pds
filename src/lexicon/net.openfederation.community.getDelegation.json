@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.getDelegation",
-  "revision": 1,
+  "revision": 2,
   "description": "Check delegation status for a member.",
   "defs": {
     "main": {
@@ -43,7 +43,17 @@
             "memberDid"
           ]
         }
-      }
+      },
+      "errors": [
+        {
+          "name": "NotFound",
+          "description": "Community not found or not readable."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        }
+      ]
     }
   }
 }

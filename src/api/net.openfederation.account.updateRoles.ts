@@ -36,8 +36,8 @@ export default async function updateRoles(req: AuthRequest, res: Response): Prom
 
   try {
     // Find user
-    const userResult = await query<{ id: string; did: string; handle: string }>(
-      'SELECT id, did, handle FROM users WHERE did = $1',
+    const userResult = await query<{ id: string; did: string; handle: string; auth_type: string }>(
+      'SELECT id, did, handle, auth_type FROM users WHERE did = $1',
       [did]
     );
     if (userResult.rows.length === 0) {
@@ -45,6 +45,15 @@ export default async function updateRoles(req: AuthRequest, res: Response): Prom
       return;
     }
     const user = userResult.rows[0];
+
+    // Nothing done to a pseudonym is audited, by design. Instance roles are
+    // the one thing that must never be granted off the record, so a pseudonym
+    // cannot hold them: otherwise an admin could create an administrator that
+    // no log shows being made.
+    if (user.auth_type === 'pseudonym' && toAdd.length > 0) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'Instance roles cannot be granted to a pseudonym' });
+      return;
+    }
 
     // Prevent removing own admin role (lockout protection)
     if (toRemove.includes('admin') && user.id === req.auth!.userId) {

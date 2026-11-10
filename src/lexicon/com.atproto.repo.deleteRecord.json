@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.repo.deleteRecord",
-  "revision": 3,
+  "revision": 4,
   "description": "Generated XRPC contract for com.atproto.repo.deleteRecord.",
   "defs": {
     "main": {
@@ -27,6 +27,22 @@
         {
           "name": "UseDedicatedEndpoint",
           "description": "Records with a dedicated lifecycle must be deleted through their specialized endpoint."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
     }

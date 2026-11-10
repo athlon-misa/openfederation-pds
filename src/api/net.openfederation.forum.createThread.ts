@@ -2,8 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
-import { RepoEngine } from '../repo/repo-engine.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { writeMemberContent } from '../forum/member-content.js';
 import { indexThread, FORUM_THREAD } from '../forum/forum-index.js';
 import { auditLog } from '../db/audit.js';
 
@@ -25,14 +24,14 @@ export default async function createThread(req: AuthRequest, res: Response): Pro
     if (!(await enforcePseudonymProbation(req, res))) return;
 
     const authorDid = req.auth!.did;
-    const engine = new RepoEngine(authorDid);
-    const keypair = await getKeypairForDid(authorDid);
-    const rkey = RepoEngine.generateTid();
     const createdAt = new Date().toISOString();
     const tagList: string[] = Array.isArray(tags) ? tags.slice(0, 20).map(String) : [];
 
     const record = { $type: FORUM_THREAD, community, title: title.trim(), tags: tagList, createdAt };
-    const result = await engine.putRecord(keypair, FORUM_THREAD, rkey, record);
+    // The author's repo for a public community; the community's own (gated)
+    // repo, signed by the author, for a private one.
+    const result = await writeMemberContent({ communityDid: community, authorDid, collection: FORUM_THREAD, record });
+    const rkey = result.rkey;
 
     await indexThread({
       uri: result.uri, cid: result.cid, communityDid: community,

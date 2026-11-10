@@ -26,7 +26,8 @@ export default async function verifyChallenge(req: Request, res: Response): Prom
 
   const tokenResult = await query(
     `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
-     WHERE user_id = $1 AND token_hash = $2 AND used_at IS NULL AND expires_at > NOW()`,
+     WHERE user_id = $1 AND token_hash = $2 AND purpose = 'identity-verification'
+       AND used_at IS NULL AND expires_at > NOW()`,
     [userId, nonceHash]
   );
 

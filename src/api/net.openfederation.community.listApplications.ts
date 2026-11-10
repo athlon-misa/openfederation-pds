@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { query } from '../db/client.js';
+import { requireCommunityReadable } from '../auth/guards.js';
 
 const COLLECTION = 'net.openfederation.community.application';
 
@@ -36,6 +37,9 @@ export default async function listApplications(req: Request, res: Response): Pro
       res.status(404).json({ error: 'NotFound', message: 'Community not found' });
       return;
     }
+
+    // Linked applications (and who linked them) are part of a private community's data.
+    if (!(await requireCommunityReadable(req, res, did))) return;
 
     // Load application records from records_index
     const appResult = await query<{

@@ -48,6 +48,7 @@ export default async function listRoles(req: AuthRequest, res: Response): Promis
       name: row.record?.name,
       description: row.record?.description,
       permissions: row.record?.permissions || [],
+      ...(Array.isArray(row.record?.attestationTypes) ? { attestationTypes: row.record.attestationTypes } : {}),
       memberCount: (countMap.get(row.rkey) || 0) + (oldCountMap.get(row.record?.name) || 0),
     }));
 

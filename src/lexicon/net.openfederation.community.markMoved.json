@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.markMoved",
-  "revision": 1,
+  "revision": 2,
   "description": "Mark the copy left behind by a move as moved (#267).",
   "defs": {
     "main": {
@@ -53,6 +53,14 @@
         },
         {
           "name": "NotMoved"
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     }

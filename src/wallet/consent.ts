@@ -10,18 +10,28 @@
  * Tier 1 wallets. SDK-issued grants prefer per-wallet scope.
  */
 
+import type { PoolClient } from 'pg';
 import { query } from '../db/client.js';
+import { config } from '../config.js';
+import type { ConsentScope } from './consent-scope.js';
 import type { WalletChain } from './types.js';
 
-export const DEFAULT_CONSENT_TTL_SEC = 7 * 24 * 60 * 60;   // 7 days
-export const MAX_CONSENT_TTL_SEC = 30 * 24 * 60 * 60;      // 30 days
+export const DEFAULT_CONSENT_TTL_SEC = 60 * 60;             // 1 hour
+/** Longest a consent may last: WALLET_CONSENT_MAX_HOURS, default 24. */
+export const MAX_CONSENT_TTL_SEC = config.wallet.maxConsentHours * 60 * 60;
 export const MIN_CONSENT_TTL_SEC = 60;                      // 1 minute
+/** How long a consent request waits for the user before it lapses. */
+export const CONSENT_REQUEST_TTL_SEC = 10 * 60;
 
 export interface ConsentGrant {
   id: string;
   dappOrigin: string;
   chain: WalletChain | null;
   walletAddress: string | null;
+  allowedContracts: string[] | null;
+  maxValuePerTx: string | null;
+  maxTotalValue: string | null;
+  spentValue: string;
   grantedAt: string;
   expiresAt: string;
   revokedAt: string | null;
@@ -49,13 +59,21 @@ export function normalizeDappOrigin(raw: string): string {
   return `${url.protocol}//${url.host.toLowerCase()}`;
 }
 
+/**
+ * Record a consent. Only called once the user has approved a consent
+ * request on the PDS's own page (`approveConsentRequest`); there is no
+ * endpoint that lets a dApp create one directly.
+ */
 export async function grantConsent(opts: {
   userDid: string;
   dappOrigin: string;
   chain?: WalletChain;
   walletAddress?: string;
   ttlSeconds?: number;
+  scope?: ConsentScope;
+  client?: PoolClient;
 }): Promise<ConsentGrant> {
+  const run = opts.client ? opts.client.query.bind(opts.client) : query;
   const origin = normalizeDappOrigin(opts.dappOrigin);
   let ttl = opts.ttlSeconds ?? DEFAULT_CONSENT_TTL_SEC;
   if (ttl < MIN_CONSENT_TTL_SEC) ttl = MIN_CONSENT_TTL_SEC;
@@ -65,7 +83,7 @@ export async function grantConsent(opts: {
 
   // Mark any previous unexpired consent for the same (user, origin, wallet)
   // scope as revoked so the latest grant is the only active one.
-  await query(
+  await run(
     `UPDATE wallet_dapp_consents
        SET revoked_at = NOW()
      WHERE user_did = $1 AND dapp_origin = $2
@@ -75,15 +93,16 @@ export async function grantConsent(opts: {
     [opts.userDid, origin, opts.chain ?? null, opts.walletAddress ?? null]
   );
 
-  const result = await query<{
-    id: string; granted_at: Date; expires_at: Date;
-  }>(
+  const scope = opts.scope ?? { allowedContracts: null, maxValuePerTx: null, maxTotalValue: null };
+  const result = await run(
     `INSERT INTO wallet_dapp_consents
-       (user_did, dapp_origin, chain, wallet_address, expires_at)
-     VALUES ($1, $2, $3, $4, $5)
+       (user_did, dapp_origin, chain, wallet_address, expires_at, allowed_contracts, max_value_per_tx, max_total_value)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id, granted_at, expires_at`,
-    [opts.userDid, origin, opts.chain ?? null, opts.walletAddress ?? null, expiresAt]
-  );
+    [opts.userDid, origin, opts.chain ?? null, opts.walletAddress ?? null, expiresAt,
+     scope.allowedContracts ? JSON.stringify(scope.allowedContracts) : null,
+     scope.maxValuePerTx?.toString() ?? null, scope.maxTotalValue?.toString() ?? null]
+  ) as { rows: Array<{ id: string; granted_at: Date; expires_at: Date }> };
 
   const row = result.rows[0];
   return {
@@ -91,6 +110,10 @@ export async function grantConsent(opts: {
     dappOrigin: origin,
     chain: (opts.chain ?? null) as WalletChain | null,
     walletAddress: opts.walletAddress ?? null,
+    allowedContracts: scope.allowedContracts,
+    maxValuePerTx: scope.maxValuePerTx?.toString() ?? null,
+    maxTotalValue: scope.maxTotalValue?.toString() ?? null,
+    spentValue: '0',
     grantedAt: row.granted_at.toISOString(),
     expiresAt: row.expires_at.toISOString(),
     revokedAt: null,
@@ -138,15 +161,27 @@ export async function revokeConsent(opts: {
  * Matches an active grant that is scoped to this exact wallet OR a broader
  * grant that has `chain` and `wallet_address` both NULL (all-Tier-1 grant).
  */
-export async function hasActiveConsent(opts: {
+export interface ActiveConsent {
+  id: string;
+  scope: ConsentScope;
+}
+
+/**
+ * The consent that currently lets this dApp origin have this wallet sign,
+ * with its limits, or null. A consent scoped to this exact wallet is
+ * preferred over a broader all-wallets one.
+ */
+export async function findActiveConsent(opts: {
   userDid: string;
   dappOrigin: string;
   chain: WalletChain;
   walletAddress: string;
-}): Promise<boolean> {
+}): Promise<ActiveConsent | null> {
   const origin = normalizeDappOrigin(opts.dappOrigin);
-  const result = await query<{ id: string }>(
-    `SELECT id FROM wallet_dapp_consents
+  const result = await query<{
+    id: string; allowed_contracts: string[] | null; max_value_per_tx: string | null; max_total_value: string | null;
+  }>(
+    `SELECT id, allowed_contracts, max_value_per_tx, max_total_value FROM wallet_dapp_consents
      WHERE user_did = $1
        AND dapp_origin = $2
        AND revoked_at IS NULL
@@ -155,10 +190,52 @@ export async function hasActiveConsent(opts: {
          (chain IS NULL AND wallet_address IS NULL)
          OR (chain = $3 AND wallet_address = $4)
        )
+     ORDER BY (wallet_address IS NULL) ASC, granted_at DESC
      LIMIT 1`,
     [opts.userDid, origin, opts.chain, opts.walletAddress]
   );
-  return result.rows.length > 0;
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    scope: {
+      allowedContracts: Array.isArray(row.allowed_contracts) ? row.allowed_contracts : null,
+      maxValuePerTx: row.max_value_per_tx === null ? null : BigInt(row.max_value_per_tx),
+      maxTotalValue: row.max_total_value === null ? null : BigInt(row.max_total_value),
+    },
+  };
+}
+
+export async function hasActiveConsent(opts: {
+  userDid: string;
+  dappOrigin: string;
+  chain: WalletChain;
+  walletAddress: string;
+}): Promise<boolean> {
+  return (await findActiveConsent(opts)) !== null;
+}
+
+/**
+ * Count `value` against a consent's total limit, atomically. False when it
+ * would take the consent over its limit (nothing is recorded then). A
+ * consent without a total limit has nothing to count.
+ */
+export async function chargeConsent(consentId: string, value: bigint): Promise<boolean> {
+  if (value === 0n) return true;
+  const charged = await query(
+    `UPDATE wallet_dapp_consents SET spent_value = spent_value + $2::numeric
+     WHERE id = $1 AND revoked_at IS NULL AND expires_at > NOW()
+       AND (max_total_value IS NULL OR spent_value + $2::numeric <= max_total_value)`,
+    [consentId, value.toString()],
+  );
+  return charged.rowCount === 1;
+}
+
+/** Give back a charge whose signature was never produced. */
+export async function refundConsent(consentId: string, value: bigint): Promise<void> {
+  if (value === 0n) return;
+  await query('UPDATE wallet_dapp_consents SET spent_value = GREATEST(spent_value - $2::numeric, 0) WHERE id = $1',
+    [consentId, value.toString()]);
 }
 
 /**
@@ -173,8 +250,13 @@ export async function listConsents(userDid: string): Promise<ConsentGrant[]> {
     granted_at: Date;
     expires_at: Date;
     revoked_at: Date | null;
+    allowed_contracts: string[] | null;
+    max_value_per_tx: string | null;
+    max_total_value: string | null;
+    spent_value: string;
   }>(
-    `SELECT id, dapp_origin, chain, wallet_address, granted_at, expires_at, revoked_at
+    `SELECT id, dapp_origin, chain, wallet_address, granted_at, expires_at, revoked_at,
+            allowed_contracts, max_value_per_tx, max_total_value, spent_value
      FROM wallet_dapp_consents
      WHERE user_did = $1 AND revoked_at IS NULL AND expires_at > NOW()
      ORDER BY granted_at DESC`,
@@ -185,6 +267,10 @@ export async function listConsents(userDid: string): Promise<ConsentGrant[]> {
     dappOrigin: r.dapp_origin,
     chain: r.chain as WalletChain | null,
     walletAddress: r.wallet_address,
+    allowedContracts: Array.isArray(r.allowed_contracts) ? r.allowed_contracts : null,
+    maxValuePerTx: r.max_value_per_tx,
+    maxTotalValue: r.max_total_value,
+    spentValue: String(r.spent_value),
     grantedAt: r.granted_at.toISOString(),
     expiresAt: r.expires_at.toISOString(),
     revokedAt: null,

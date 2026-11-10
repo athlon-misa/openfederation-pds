@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.amendProposal",
-  "revision": 2,
+  "revision": 3,
   "description": "Amend an open governance proposal. Resets votes and extends expiration.",
   "defs": {
     "main": {
@@ -40,6 +40,14 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     },

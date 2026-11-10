@@ -16,8 +16,9 @@ import { secp256k1 } from '@noble/curves/secp256k1';
  *   keccak256("\x19Ethereum Signed Message:\n" || len(message) || message)
  * encoded as 65 bytes: r || s || v  where v ∈ {27, 28}.
  */
-export function signEthereumMessage(message: string, privateKey: Uint8Array): string {
-  const msgBytes = new TextEncoder().encode(message);
+export function signEthereumMessage(message: string | Uint8Array, privateKey: Uint8Array): string {
+  // Text is signed as its UTF-8 bytes; bytes are signed as given.
+  const msgBytes = typeof message === 'string' ? new TextEncoder().encode(message) : message;
   const prefix = new TextEncoder().encode(`\x19Ethereum Signed Message:\n${msgBytes.length}`);
   const digestInput = new Uint8Array(prefix.length + msgBytes.length);
   digestInput.set(prefix, 0);
@@ -37,8 +38,8 @@ export function signEthereumMessage(message: string, privateKey: Uint8Array): st
 }
 
 /** Ed25519 detached signature, base58-encoded. Solana convention. */
-export function signSolanaMessage(message: string, secretKey: Uint8Array): string {
-  const msgBytes = new TextEncoder().encode(message);
+export function signSolanaMessage(message: string | Uint8Array, secretKey: Uint8Array): string {
+  const msgBytes = typeof message === 'string' ? new TextEncoder().encode(message) : message;
   // Accept either 64-byte Solana secretKey or 32-byte seed.
   const key = secretKey.length === 64 ? secretKey : nacl.sign.keyPair.fromSeed(secretKey).secretKey;
   const sig = nacl.sign.detached(msgBytes, key);
@@ -47,7 +48,7 @@ export function signSolanaMessage(message: string, secretKey: Uint8Array): strin
 
 export function signMessage(
   chain: 'ethereum' | 'solana',
-  message: string,
+  message: string | Uint8Array,
   privateKey: Uint8Array
 ): string {
   if (chain === 'ethereum') return signEthereumMessage(message, privateKey);

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.deleteAttestation",
-  "revision": 2,
+  "revision": 4,
   "description": "Revoke an attestation by deleting it from the community repo. ATProto-native revocation.",
   "defs": {
     "main": {
@@ -61,6 +61,18 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "AttestationTypeNotAllowed",
+          "description": "The caller's role does not allow issuing or revoking this type of attestation."
         }
       ]
     }

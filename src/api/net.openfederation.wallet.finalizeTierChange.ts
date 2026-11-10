@@ -6,6 +6,7 @@ import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { isWalletChain, isCustodyTier } from '../wallet/index.js';
 import { XrpcError, renderXrpcError } from '../xrpc/errors.js';
+import { checkPasswordWithLockout } from '../auth/password-check.js';
 
 const NSID = 'net.openfederation.wallet.finalizeTierChange';
 
@@ -94,8 +95,15 @@ export default async function finalizeTierChange(req: AuthRequest, res: Response
       });
       return;
     }
-    const passwordValid = await verifyPassword(currentPassword, userRow.rows[0].password_hash);
-    if (!passwordValid) {
+    const check = await checkPasswordWithLockout(req.auth!.userId, userRow.rows[0].password_hash, currentPassword);
+    if (!check.ok && check.reason === 'locked') {
+      res.status(429).json({
+        error: 'AccountLocked',
+        message: `Too many failed attempts. Try again in ${check.retryAfterSeconds} seconds.`,
+      });
+      return;
+    }
+    if (!check.ok) {
       res.status(401).json({ error: 'InvalidPassword', message: 'Current password is incorrect' });
       return;
     }
@@ -137,13 +145,11 @@ export default async function finalizeTierChange(req: AuthRequest, res: Response
           [userDid, chain, addr]
         );
       } else if (currentTier === 'user_encrypted' && newTier === 'self_custody') {
-        // Delete the custodial_secrets blob for this chain. Note:
-        // custodial_secrets has UNIQUE(user_did, chain) so this drops all
-        // blobs for the chain — acceptable since we model one wrapped
-        // master secret per chain.
+        // Delete this wallet's wrapped secret, and only this wallet's: other
+        // wallets on the same chain keep theirs.
         await client.query(
-          `DELETE FROM custodial_secrets WHERE user_did = $1 AND chain = $2`,
-          [userDid, chain]
+          `DELETE FROM custodial_secrets WHERE user_did = $1 AND chain = $2 AND wallet_address = $3`,
+          [userDid, chain, addr]
         );
       }
 
@@ -152,10 +158,9 @@ export default async function finalizeTierChange(req: AuthRequest, res: Response
         await client.query(
           `INSERT INTO custodial_secrets (user_did, chain, secret_type, encrypted_blob, wallet_address)
            VALUES ($1, $2, 'bip39-mnemonic-wrapped', $3, $4)
-           ON CONFLICT (user_did, chain) DO UPDATE SET
+           ON CONFLICT (user_did, chain, wallet_address) DO UPDATE SET
              secret_type = EXCLUDED.secret_type,
              encrypted_blob = EXCLUDED.encrypted_blob,
-             wallet_address = EXCLUDED.wallet_address,
              updated_at = NOW()`,
           [userDid, chain, newEncryptedBlob, addr]
         );
