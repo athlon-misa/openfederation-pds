@@ -18,7 +18,7 @@
  * four error codes used here.
  */
 
-import { hasActiveConsent } from './consent.js';
+import { findActiveConsent, type ActiveConsent } from './consent.js';
 import { getWalletTier } from './linking.js';
 import type { WalletChain } from './types.js';
 
@@ -52,7 +52,7 @@ export interface SigningEligibilityInput {
  */
 export async function assertCustodialSigningEligible(
   opts: SigningEligibilityInput,
-): Promise<void> {
+): Promise<ActiveConsent> {
   const tierInfo = await getWalletTier(opts.userDid, opts.chain, opts.walletAddress);
   if (!tierInfo) {
     throw new WalletEligibilityRejection('WalletNotFound', 404, 'No such wallet for this DID');
@@ -73,7 +73,7 @@ export async function assertCustodialSigningEligible(
         : 'Tier 3 wallets are self-custodial — use your own wallet software to sign',
     );
   }
-  const consented = await hasActiveConsent({
+  const consented = await findActiveConsent({
     userDid: opts.userDid,
     dappOrigin: opts.dappOrigin,
     chain: opts.chain,
@@ -86,4 +86,5 @@ export async function assertCustodialSigningEligible(
       'No active consent grants this dApp permission to sign with this wallet',
     );
   }
+  return consented;
 }

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.unlinkWallet",
-  "revision": 1,
+  "revision": 2,
   "description": "Remove a linked wallet from the authenticated user's DID.",
   "defs": {
     "main": {
@@ -44,6 +44,10 @@
         {
           "name": "NotFound",
           "description": "No wallet link found with that label."
+        },
+        {
+          "name": "CustodialWallet",
+          "description": "The wallet's key is held only by this server; take custody of it before unlinking."
         }
       ]
     }

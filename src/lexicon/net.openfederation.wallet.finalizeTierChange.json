@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.wallet.finalizeTierChange",
-  "revision": 2,
+  "revision": 3,
   "description": "Atomically transition a wallet between custody tiers. Supports Tier 1 → 2, Tier 1 → 3, and Tier 2 → 3 (one-way upgrades). Deletes the prior custody record, optionally stores a new Tier 2 encrypted blob, revokes active dApp consent grants, and updates the tier. Wallet address stays the same.",
   "defs": {
     "main": {
@@ -91,6 +91,10 @@
         {
           "name": "NotFound",
           "description": "Referenced resource was not found."
+        },
+        {
+          "name": "AccountLocked",
+          "description": "Too many failed password attempts; the account is temporarily locked."
         }
       ]
     }

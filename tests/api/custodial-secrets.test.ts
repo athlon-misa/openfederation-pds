@@ -48,13 +48,16 @@ describe('Custodial Secrets', () => {
       expect(res.body.secretId).toBeTruthy();
     });
 
-    it('should be idempotent (upsert on same chain)', async () => {
+    // Storing again for the same wallet replaces that wallet's secret. (A
+    // different wallet on the same chain gets its own row; see
+    // wallet-key-loss.security.test.ts.)
+    it('should be idempotent (upsert for the same wallet)', async () => {
       if (!plcAvailable) return;
       const res = await xrpcAuthPost('net.openfederation.vault.storeCustodialSecret', user.accessJwt, {
         secretType: 'wallet-mnemonic',
         chain: 'solana',
         encryptedBlob: 'dXBkYXRlZGJsb2I=',
-        walletAddress: 'SolAddr456',
+        walletAddress: 'SolAddr123',
       });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

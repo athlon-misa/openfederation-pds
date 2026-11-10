@@ -6,13 +6,14 @@
  * Tier 3, nothing extra for Tier 2). Wallet address is preserved across
  * transitions — same on-chain identity, stricter custody.
  *
- * We deliberately do NOT decrypt Tier 2 blobs inside this module: Tier 2 →
- * Tier 3 upgrades require the USER's passphrase, which they give directly
- * to the SDK via `unwrapMnemonic` (exposed separately). That keeps the
- * upgrade API narrow and focused on tier-state mechanics.
+ * Tier 2 → Tier 3 deletes the only copy of the wrapped secret the server
+ * holds. Before asking for that, this module unwraps it with the user's
+ * passphrase and returns the secret: if the passphrase is wrong or missing,
+ * nothing is deleted, and when it succeeds the caller is holding the key.
  */
 
 import { wrapMnemonic } from './wrap.js';
+import { unwrapSecret, type WrappedSecretKind } from './unlock.js';
 
 export interface UpgradeDependencies {
   retrieveForUpgrade: (opts: {
@@ -27,6 +28,11 @@ export interface UpgradeDependencies {
     newEncryptedBlob?: string;
     currentPassword: string;
   }) => Promise<{ previousTier: string; newTier: string }>;
+  /** Reads this wallet's wrapped secret. Needed for Tier 2 → Tier 3. */
+  getCustodialSecret?: (opts: {
+    chain: 'ethereum' | 'solana';
+    walletAddress: string;
+  }) => Promise<{ encryptedBlob: string; walletAddress: string }>;
 }
 
 export interface UpgradeToTierOptions {
@@ -52,6 +58,14 @@ export interface UpgradeResult {
   newTier: 'user_encrypted' | 'self_custody';
   /** Present only for custodial → self_custody — the raw private key bytes. */
   exportedPrivateKeyBase64?: string;
+  /**
+   * Present only for user_encrypted → self_custody: the unwrapped secret the
+   * server copy protected. From here on this is the only copy; the caller
+   * must hand it to the user to keep.
+   */
+  exportedSecret?: string;
+  /** What `exportedSecret` is: a BIP-39 mnemonic, or a base64 raw private key. */
+  exportedSecretKind?: WrappedSecretKind;
 }
 
 export async function upgradeToTier(
@@ -68,13 +82,11 @@ export async function upgradeToTier(
       // 1. Pull plaintext from the PDS under password re-auth.
       const { privateKeyBase64 } = await deps.retrieveForUpgrade({ chain, walletAddress, currentPassword });
 
-      // Tier 2's wrapped blob is expected to contain a BIP-39 mnemonic (the
-      // shape `unlockTier2` / `provisionTier2` use). For a Tier 1 wallet we
-      // never had a mnemonic — the PDS generated a raw key. We store the
-      // raw key itself under a distinct "v1-raw-pk" mnemonic-substitute so
-      // future unlock-and-sign still works; the SDK knows how to interpret
-      // both shapes via the `secretType` field on custodial_secrets.
-      const rawWrapped = await wrapMnemonic(privateKeyBase64, opts.newPassphrase);
+      // A Tier 1 wallet never had a mnemonic: the PDS generated a raw key.
+      // That key is wrapped as it is, and the blob is tagged so `unlockTier2`
+      // builds a signing session from a key instead of trying to read a
+      // mnemonic out of it (untagged, the wallet could not be unlocked at all).
+      const rawWrapped = { ...(await wrapMnemonic(privateKeyBase64, opts.newPassphrase)), kind: 'raw-private-key' as const };
 
       // 2. Atomic swap: drop server-held plaintext, stash new blob, bump tier.
       const final = await deps.finalizeTierChange({
@@ -116,9 +128,19 @@ export async function upgradeToTier(
   }
 
   if (currentTier === 'user_encrypted' && newTier === 'self_custody') {
-    // The user already holds the passphrase; they can unwrap their blob
-    // locally using `client.wallet.unlockTier2`. This call just drops the
-    // server-held encrypted blob so nothing remains on the PDS.
+    // This step deletes the server's copy of the wrapped secret, which for a
+    // Tier 2 wallet is the only copy there is. So first prove the user can
+    // still open it, and get the secret into the caller's hands.
+    if (!opts.tier2Passphrase) {
+      throw new Error('tier2Passphrase is required for Tier 2 → Tier 3: the wallet\'s secret is unwrapped and returned before the server copy is deleted');
+    }
+    if (!deps.getCustodialSecret) {
+      throw new Error('getCustodialSecret is required for Tier 2 → Tier 3');
+    }
+    const stored = await deps.getCustodialSecret({ chain, walletAddress });
+    // Throws if the passphrase does not open the blob; nothing has been deleted yet.
+    const { secret, kind } = await unwrapSecret(stored.encryptedBlob, opts.tier2Passphrase);
+
     const final = await deps.finalizeTierChange({
       chain,
       walletAddress,
@@ -130,6 +152,8 @@ export async function upgradeToTier(
       walletAddress,
       previousTier: final.previousTier,
       newTier: 'self_custody',
+      exportedSecret: secret,
+      exportedSecretKind: kind,
     };
   }
 

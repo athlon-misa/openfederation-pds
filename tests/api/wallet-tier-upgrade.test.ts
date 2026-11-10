@@ -5,8 +5,7 @@ import { Wallet as EthWallet } from 'ethers';
 import {
   xrpcAuthGet, xrpcAuthPost, xrpcPost,
   getAdminToken, isPLCAvailable, uniqueHandle,
-  xrpcAuthPostFromOrigin,
-} from './helpers.js';
+  xrpcAuthPostFromOrigin, grantWalletConsent} from './helpers.js';
 import { query } from '../../src/db/client.js';
 import {
   wrapMnemonic, unwrapMnemonic,
@@ -107,7 +106,7 @@ describe('Tier upgrades', () => {
       if (!plcAvailable) return;
 
       // 1. Caller sets up a consent grant so we can verify it's revoked on upgrade.
-      await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://upgrade-dapp.example.com', {
+      await grantWalletConsent(user.accessJwt, 'https://upgrade-dapp.example.com', {
         dappOrigin: 'https://upgrade-dapp.example.com',
         chain: 'ethereum', walletAddress: ethAddress1,
       });
@@ -167,7 +166,7 @@ describe('Tier upgrades', () => {
       expect(consent.rows.length).toBe(0);
 
       // 6. The Tier 1 sign endpoint now refuses — wallet is Tier 2.
-      await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://upgrade-dapp.example.com', {
+      await grantWalletConsent(user.accessJwt, 'https://upgrade-dapp.example.com', {
         dappOrigin: 'https://upgrade-dapp.example.com',
         chain: 'ethereum', walletAddress: ethAddress1,
       });

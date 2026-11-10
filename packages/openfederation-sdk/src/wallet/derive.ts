@@ -66,6 +66,30 @@ export function deriveSolanaWallet(seed: Uint8Array, path: string = SOL_PATH): D
   };
 }
 
+/**
+ * A wallet from a raw private key (no mnemonic, no derivation path). This is
+ * what a Tier 1 wallet is: the server generated a bare key. Ethereum takes the
+ * 32-byte secp256k1 key; Solana takes the 64-byte secret key or its 32-byte seed.
+ */
+export function walletFromPrivateKey(chain: 'ethereum' | 'solana', privateKey: Uint8Array): DerivedWallet {
+  if (chain === 'ethereum') {
+    if (privateKey.length !== 32) throw new Error('An Ethereum private key must be 32 bytes');
+    const uncompressed = secp256k1.getPublicKey(privateKey, false);
+    const address = '0x' + bytesToHex(keccak_256(uncompressed.slice(1)).slice(-20));
+    return { chain, address, privateKey, derivationPath: '' };
+  }
+  if (chain === 'solana') {
+    const kp = privateKey.length === 64
+      ? nacl.sign.keyPair.fromSecretKey(privateKey)
+      : privateKey.length === 32
+        ? nacl.sign.keyPair.fromSeed(privateKey)
+        : null;
+    if (!kp) throw new Error('A Solana private key must be 64 bytes (secret key) or 32 bytes (seed)');
+    return { chain, address: bs58.encode(kp.publicKey), privateKey: kp.secretKey, derivationPath: '' };
+  }
+  throw new Error(`Unsupported chain: ${chain}`);
+}
+
 export function deriveWallet(
   chain: 'ethereum' | 'solana',
   seed: Uint8Array,

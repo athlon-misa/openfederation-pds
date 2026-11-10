@@ -1,0 +1,81 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.wallet.approveConsentRequest",
+  "revision": 1,
+  "description": "Settle a wallet consent request.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Approve or deny a consent request. Used by the PDS's own approval page: the request must come from the PDS origin, and approval needs the account password.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "requestId",
+            "approve"
+          ],
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            },
+            "approve": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "knownValues": [
+                "approved",
+                "denied"
+              ]
+            },
+            "consentId": {
+              "type": "string"
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest"
+        },
+        {
+          "name": "Forbidden"
+        },
+        {
+          "name": "NotFound"
+        },
+        {
+          "name": "InvalidPassword"
+        },
+        {
+          "name": "AccountLocked"
+        },
+        {
+          "name": "AlreadySettled"
+        },
+        {
+          "name": "Expired"
+        }
+      ]
+    }
+  }
+}

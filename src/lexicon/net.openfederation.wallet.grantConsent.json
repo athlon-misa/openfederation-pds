@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.wallet.grantConsent",
-  "revision": 2,
+  "revision": 3,
   "description": "Grant time-bounded consent for a dApp origin to sign with a Tier 1 wallet. Scope can target a single wallet (chain + walletAddress) or all Tier 1 wallets (omit both).",
   "defs": {
     "main": {
@@ -84,6 +84,10 @@
         {
           "name": "OriginMismatch",
           "description": "dappOrigin did not match the Origin the request was sent from. A consent grant authorizes one origin and only that origin may use it."
+        },
+        {
+          "name": "UserApprovalRequired",
+          "description": "Consent is approved by the user through wallet.requestConsent; this endpoint no longer grants it."
         }
       ]
     }

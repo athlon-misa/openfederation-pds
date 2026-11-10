@@ -17,8 +17,7 @@ import {
   xrpcPost,
   getAdminToken,
   isPLCAvailable,
-  uniqueHandle,
-} from './helpers.js';
+  uniqueHandle, grantWalletConsent} from './helpers.js';
 import { query } from '../../src/db/client.js';
 
 const VICTIM_APP = 'https://game.example.com';
@@ -57,7 +56,7 @@ describe('wallet consent origin binding (#101)', () => {
     });
     ethWallet = prov.body.walletAddress;
     // The victim app holds a legitimate consent, granted from its own origin.
-    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, VICTIM_APP, {
+    await grantWalletConsent(user.accessJwt, VICTIM_APP, {
       dappOrigin: VICTIM_APP,
       chain: 'ethereum',
       walletAddress: ethWallet,
@@ -115,10 +114,10 @@ describe('wallet consent origin binding (#101)', () => {
   });
 
   describe('the mint path the issue does not mention', () => {
-    it('refuses to grant a consent for an origin the request did not come from', async () => {
+    it('refuses to request a consent for an origin the request did not come from', async () => {
       if (!plcAvailable) return;
       const res = await xrpcAuthPostFromOrigin(
-        'net.openfederation.wallet.grantConsent',
+        'net.openfederation.wallet.requestConsent',
         user.accessJwt,
         ATTACKER_APP,
         { dappOrigin: VICTIM_APP, chain: 'ethereum', walletAddress: ethWallet },
@@ -129,9 +128,8 @@ describe('wallet consent origin binding (#101)', () => {
 
     it('grants only for the calling origin, so a minted consent cannot unlock another app', async () => {
       if (!plcAvailable) return;
-      // Attacker legitimately grants consent to itself...
-      const grant = await xrpcAuthPostFromOrigin(
-        'net.openfederation.wallet.grantConsent',
+      // The user approves a consent for the attacker's own app...
+      const grant = await grantWalletConsent(
         user.accessJwt,
         ATTACKER_APP,
         { dappOrigin: ATTACKER_APP, chain: 'ethereum', walletAddress: ethWallet },
@@ -176,9 +174,9 @@ describe('wallet consent origin binding (#101)', () => {
       expect(res.body.error).toBe('OriginRequired');
     });
 
-    it('refuses to grant consent without an Origin header', async () => {
+    it('refuses to request consent without an Origin header', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcAuthPost('net.openfederation.wallet.grantConsent', user.accessJwt, {
+      const res = await xrpcAuthPost('net.openfederation.wallet.requestConsent', user.accessJwt, {
         dappOrigin: VICTIM_APP,
       });
       expect(res.status).toBe(403);

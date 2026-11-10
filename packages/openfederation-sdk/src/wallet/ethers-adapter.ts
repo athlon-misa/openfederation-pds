@@ -44,9 +44,26 @@ export async function createEthersSigner(
     }
 
     async signMessage(message: string | Uint8Array): Promise<string> {
-      const msgStr = typeof message === 'string' ? message : new TextDecoder().decode(message);
+      // With an unlocked session the key is here, so bytes are signed as bytes.
       if (session) {
-        return session.signMessage(msgStr, 'ethereum');
+        return session.signMessage(message, 'ethereum');
+      }
+      // Otherwise the PDS signs, and it signs text. Bytes that are text go
+      // through as that text. Bytes that are not (a hash, say) cannot be
+      // carried that way without being changed, and a signature over changed
+      // bytes verifies against nothing, so that is refused outright.
+      let msgStr: string;
+      if (typeof message === 'string') {
+        msgStr = message;
+      } else {
+        try {
+          msgStr = new TextDecoder('utf-8', { fatal: true }).decode(message);
+        } catch {
+          throw new Error(
+            'This wallet signs through the PDS, which signs text only: these bytes are not valid UTF-8 and cannot be signed as given. '
+            + 'Unlock the wallet (Tier 2) and pass the session to sign raw bytes.',
+          );
+        }
       }
       const res = await client.wallet.sign({
         chain: 'ethereum',

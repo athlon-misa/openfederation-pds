@@ -6,8 +6,7 @@ import {
   getAdminToken,
   isPLCAvailable,
   uniqueHandle,
-  xrpcAuthPostFromOrigin,
-} from './helpers.js';
+  xrpcAuthPostFromOrigin, grantWalletConsent} from './helpers.js';
 import { verifySignInAssertion } from '../../packages/openfederation-sdk/src/siwof/verify.js';
 import { query } from '../../src/db/client.js';
 import { decryptKeyBytes } from '../../src/auth/encryption.js';
@@ -77,12 +76,12 @@ describe('Sign-In With OpenFederation', () => {
     expect(solRes.status).toBe(200);
     solAddress = solRes.body.walletAddress;
 
-    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://siwof-test.example.com', {
+    await grantWalletConsent(user.accessJwt, 'https://siwof-test.example.com', {
       dappOrigin: 'https://siwof-test.example.com',
       chain: 'ethereum',
       walletAddress: ethAddress,
     });
-    await xrpcAuthPostFromOrigin('net.openfederation.wallet.grantConsent', user.accessJwt, 'https://siwof-test.example.com', {
+    await grantWalletConsent(user.accessJwt, 'https://siwof-test.example.com', {
       dappOrigin: 'https://siwof-test.example.com',
       chain: 'solana',
       walletAddress: solAddress,
