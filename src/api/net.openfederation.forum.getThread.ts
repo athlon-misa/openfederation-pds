@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { getThread, getThreadPosts } from '../forum/forum-index.js';
+import { getThread, getThreadPosts, InvalidCursorError } from '../forum/forum-index.js';
 import { callerCanModerateForum } from '../community/visibility.js';
 import { requireCommunityReadable } from '../auth/guards.js';
 
@@ -36,7 +36,7 @@ export default async function getThreadHandler(req: AuthRequest, res: Response):
       uri: p.uri, cid: p.cid, authorDid: p.author_did, parentUri: p.parent_uri,
       record: p.record, hidden: Boolean(p.hidden), createdAt: p.created_at,
     }));
-    const cursor = posts.length === limit ? String(postRows[postRows.length - 1].created_at) : undefined;
+    const cursor = posts.length === limit ? String(postRows[postRows.length - 1].page_cursor) : undefined;
     res.status(200).json({
       thread: {
         uri: thread.uri, authorDid: thread.author_did, title: thread.title,
@@ -46,6 +46,10 @@ export default async function getThreadHandler(req: AuthRequest, res: Response):
       posts, cursor,
     });
   } catch (error) {
+    if (error instanceof InvalidCursorError) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'cursor is not valid' });
+      return;
+    }
     console.error('Error in forum.getThread:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to get thread' });
   }

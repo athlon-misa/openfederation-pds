@@ -77,6 +77,39 @@ export async function indexRsvp(r: {
   );
 }
 
+/**
+ * A keyset cursor: the sort timestamp at full precision plus a tie-breaker,
+ * as `<timestamp>|<key>`. The timestamp is produced by Postgres as text, so it
+ * round-trips exactly. (The old cursor was a JavaScript `Date` turned into a
+ * string: it dropped sub-second precision, could not be parsed back by
+ * Postgres outside UTC, and with no tie-breaker lost every other row that
+ * shared the boundary's timestamp.)
+ */
+export function parseKeysetCursor(cursor: string | null): { ts: string; key: string | null } | null {
+  if (!cursor) return null;
+  const sep = cursor.indexOf('|');
+  const ts = sep === -1 ? cursor : cursor.slice(0, sep);
+  const key = sep === -1 ? null : cursor.slice(sep + 1);
+  // Accept only what Postgres will certainly read as a timestamp.
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$/.test(ts)) return null;
+  return { ts, key };
+}
+
+/** Thrown for a cursor this server did not hand out. */
+export class InvalidCursorError extends Error {
+  constructor() {
+    super('cursor is not valid');
+    this.name = 'InvalidCursorError';
+  }
+}
+
+function requireCursor(cursor: string | null): { ts: string; key: string | null } | null {
+  if (!cursor) return null;
+  const parsed = parseKeysetCursor(cursor);
+  if (!parsed) throw new InvalidCursorError();
+  return parsed;
+}
+
 export async function listThreads(
   communityDid: string,
   limit: number,
@@ -86,13 +119,18 @@ export async function listThreads(
   const params: unknown[] = [communityDid, limit];
   let where = 'community_did = $1';
   if (!opts.includeHidden) where += ' AND hidden = false';
-  if (before) {
-    params.push(before);
-    where += ` AND last_activity < $3`;
+  const cursor = requireCursor(before);
+  if (cursor) {
+    params.push(cursor.ts, cursor.key ?? '');
+    // Newest first, so the next page is what sorts below the cursor row.
+    where += cursor.key === null
+      ? ' AND last_activity < $3::timestamptz AND $4 = $4'
+      : ' AND (last_activity, uri) < ($3::timestamptz, $4)';
   }
   const res = await query<Record<string, unknown>>(
-    `SELECT uri, cid, community_did, author_did, title, tags, post_count, last_activity, created_at, hidden
-     FROM forum_threads WHERE ${where} ORDER BY last_activity DESC LIMIT $2`,
+    `SELECT uri, cid, community_did, author_did, title, tags, post_count, last_activity, created_at, hidden,
+            to_char(last_activity AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || '|' || uri AS page_cursor
+     FROM forum_threads WHERE ${where} ORDER BY last_activity DESC, uri DESC LIMIT $2`,
     params
   );
   return res.rows;
@@ -116,32 +154,58 @@ export async function getThreadPosts(
   const params: unknown[] = [threadUri, limit];
   let where = 'thread_root_uri = $1';
   if (!opts.includeHidden) where += ' AND hidden = false';
-  if (after) {
-    params.push(after);
-    where += ` AND created_at > $3`;
+  const cursor = requireCursor(after);
+  if (cursor) {
+    params.push(cursor.ts, cursor.key ?? '');
+    // Oldest first, so the next page is what sorts above the cursor row.
+    where += cursor.key === null
+      ? ' AND created_at > $3::timestamptz AND $4 = $4'
+      : ' AND (created_at, uri) > ($3::timestamptz, $4)';
   }
   const res = await query<Record<string, unknown>>(
-    `SELECT uri, cid, community_did, author_did, thread_root_uri, parent_uri, record, created_at, hidden
-     FROM forum_posts WHERE ${where} ORDER BY created_at ASC LIMIT $2`,
+    `SELECT uri, cid, community_did, author_did, thread_root_uri, parent_uri, record, created_at, hidden,
+            to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || '|' || uri AS page_cursor
+     FROM forum_posts WHERE ${where} ORDER BY created_at ASC, uri ASC LIMIT $2`,
     params
   );
   return res.rows;
 }
 
-export async function listRsvps(eventUri: string): Promise<{
+export async function listRsvps(
+  eventUri: string,
+  limit = 100,
+  after: string | null = null,
+): Promise<{
   counts: Record<string, number>;
   rsvps: Array<{ attendeeDid: string; status: string; createdAt: string }>;
+  cursor?: string;
 }> {
-  const res = await query<{ attendee_did: string; status: string; created_at: string }>(
-    'SELECT attendee_did, status, created_at FROM event_rsvps WHERE event_uri = $1 ORDER BY created_at ASC',
+  // Counts cover every RSVP; the list itself is a page of them.
+  const tally = await query<{ status: string; n: string }>(
+    'SELECT status, COUNT(*) AS n FROM event_rsvps WHERE event_uri = $1 GROUP BY status',
     [eventUri]
   );
   const counts: Record<string, number> = { going: 0, interested: 0, notgoing: 0 };
-  for (const row of res.rows) {
-    counts[row.status] = (counts[row.status] ?? 0) + 1;
+  for (const row of tally.rows) counts[row.status] = Number(row.n);
+
+  const params: unknown[] = [eventUri, limit + 1];
+  let where = 'event_uri = $1';
+  const cursor = requireCursor(after);
+  if (cursor) {
+    params.push(cursor.ts, cursor.key ?? '');
+    where += ' AND (created_at, attendee_did) > ($3::timestamptz, $4)';
   }
+  const res = await query<{ attendee_did: string; status: string; created_at: string; page_cursor: string }>(
+    `SELECT attendee_did, status, created_at,
+            to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || '|' || attendee_did AS page_cursor
+     FROM event_rsvps WHERE ${where} ORDER BY created_at ASC, attendee_did ASC LIMIT $2`,
+    params
+  );
+  const page = res.rows.slice(0, limit);
+  const next = res.rows.length > limit ? page[page.length - 1].page_cursor : undefined;
   return {
     counts,
-    rsvps: res.rows.map(r => ({ attendeeDid: r.attendee_did, status: r.status, createdAt: r.created_at })),
+    rsvps: page.map(r => ({ attendeeDid: r.attendee_did, status: r.status, createdAt: r.created_at })),
+    ...(next ? { cursor: next } : {}),
   };
 }

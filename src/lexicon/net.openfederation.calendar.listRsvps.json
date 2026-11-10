@@ -1,26 +1,49 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.listRsvps",
-  "revision": 3,
+  "revision": 5,
   "description": "List RSVPs for an event with status counts.",
   "defs": {
     "main": {
       "type": "query",
       "parameters": {
         "type": "params",
-        "required": ["event"],
+        "required": [
+          "event"
+        ],
         "properties": {
-          "event": { "type": "string" }
+          "event": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          },
+          "cursor": {
+            "type": "string"
+          }
         }
       },
       "errors": [
-        { "name": "NotFound", "description": "Community not found or not readable." }
+        {
+          "name": "NotFound",
+          "description": "Community not found or not readable."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        }
       ],
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["counts", "rsvps"],
+          "required": [
+            "counts",
+            "rsvps"
+          ],
           "properties": {
             "counts": {
               "type": "ref",
@@ -28,7 +51,13 @@
             },
             "rsvps": {
               "type": "array",
-              "items": { "type": "unknown" }
+              "items": {
+                "type": "unknown"
+              }
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Pass back to fetch the next page. Absent on the last page."
             }
           }
         }
@@ -37,11 +66,21 @@
     "rsvpCounts": {
       "type": "object",
       "description": "RSVP totals by status.",
-      "required": ["going", "interested", "notgoing"],
+      "required": [
+        "going",
+        "interested",
+        "notgoing"
+      ],
       "properties": {
-        "going": { "type": "integer" },
-        "interested": { "type": "integer" },
-        "notgoing": { "type": "integer" }
+        "going": {
+          "type": "integer"
+        },
+        "interested": {
+          "type": "integer"
+        },
+        "notgoing": {
+          "type": "integer"
+        }
       }
     }
   }

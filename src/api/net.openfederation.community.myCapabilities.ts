@@ -21,7 +21,11 @@ export default async function myCapabilities(req: AuthRequest, res: Response): P
     }
 
     const caps = await getCallerCommunityCapabilities({ communityDid, caller: req.auth! });
-    if (!caps.exists) {
+    // Someone with no standing in a private community (not a member, no join
+    // request on file) gets the answer they would get for a DID that does not exist.
+    const hiddenFromCaller = caps.visibility === 'private'
+      && !caps.isAdmin && !caps.isOwner && !caps.membership;
+    if (!caps.exists || hiddenFromCaller) {
       res.status(404).json({ error: 'NotFound', message: 'Community not found' });
       return;
     }

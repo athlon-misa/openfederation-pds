@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { listThreads } from '../forum/forum-index.js';
+import { listThreads, InvalidCursorError } from '../forum/forum-index.js';
 import { callerCanModerateForum } from '../community/visibility.js';
 import { requireCommunityReadable } from '../auth/guards.js';
 
@@ -25,9 +25,13 @@ export default async function listThreadsHandler(req: AuthRequest, res: Response
       tags: t.tags, postCount: t.post_count, lastActivity: t.last_activity,
       hidden: Boolean(t.hidden), createdAt: t.created_at,
     }));
-    const cursor = threads.length === limit ? String(rows[rows.length - 1].last_activity) : undefined;
+    const cursor = threads.length === limit ? String(rows[rows.length - 1].page_cursor) : undefined;
     res.status(200).json({ threads, cursor });
   } catch (error) {
+    if (error instanceof InvalidCursorError) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'cursor is not valid' });
+      return;
+    }
     console.error('Error in forum.listThreads:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to list threads' });
   }

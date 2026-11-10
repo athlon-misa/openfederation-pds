@@ -2,8 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
-import { RepoEngine } from '../repo/repo-engine.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { writeMemberContent } from '../forum/member-content.js';
 import { indexPost, getThread, FORUM_POST } from '../forum/forum-index.js';
 import { auditLog } from '../db/audit.js';
 
@@ -46,16 +45,14 @@ export default async function createPost(req: AuthRequest, res: Response): Promi
     if (!(await enforcePseudonymProbation(req, res))) return;
 
     const authorDid = req.auth!.did;
-    const engine = new RepoEngine(authorDid);
-    const keypair = await getKeypairForDid(authorDid);
-    const rkey = RepoEngine.generateTid();
     const createdAt = new Date().toISOString();
 
-    const record: Record<string, unknown> = {
+    const unsigned: Record<string, unknown> = {
       $type: FORUM_POST, community, root, text: text.trim(), createdAt,
       ...(parent ? { parent } : {}),
     };
-    const result = await engine.putRecord(keypair, FORUM_POST, rkey, record);
+    const result = await writeMemberContent({ communityDid: community, authorDid, collection: FORUM_POST, record: unsigned });
+    const { rkey, record } = result;
 
     await indexPost({
       uri: result.uri, cid: result.cid, communityDid: community, authorDid,

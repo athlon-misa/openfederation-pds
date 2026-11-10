@@ -25,8 +25,14 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
       return;
     }
 
+    // 404, not 403: a different answer for "exists but private" would tell an
+    // outsider that the community exists.
     if (access.visibility === 'private' && !canViewPrivateCommunity(access)) {
-      res.status(403).json({ error: 'Forbidden', message: 'You cannot view members of this private community' });
+      res.status(404).json({ error: 'NotFound', message: 'Community not found' });
+      return;
+    }
+    if (access.status === 'takendown' && !access.isAdmin) {
+      res.status(410).json({ error: 'CommunityTakenDown', message: 'This community has been taken down.' });
       return;
     }
 
