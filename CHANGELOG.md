@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Build pinning**: GitHub Actions are pinned by commit SHA (Dependabot proposes security fixes for them); Railway installs with `npm ci` from the lockfile instead of `npm install`.
 - **Repository integrity**: writes to one repository are serialised, a commit only lands if the root it was built on is still current, and `records_index` is updated in the commit's own transaction. Two parallel writes could previously leave the tree pointing at deleted blocks.
 - **Admin identity-verification codes** can no longer be redeemed as password-reset tokens (`password_reset_tokens.purpose`, migration 046).
 - **Community roles**: a member with `community.member.write` cannot assign a role whose permissions they do not hold, nor the owner role by `roleRkey`; owner checks use `communities.owner_did` everywhere (membership endpoints still read `created_by`, which is NULL for a community that moved here).
