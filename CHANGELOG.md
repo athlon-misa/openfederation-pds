@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Vulnerability reporting**: `SECURITY.md` names the maintainer (Resonator Foundation), both reporting channels (private GitHub advisory form, now enabled, and security@openfederation.net), response and fix timelines, the support period (1.x until at least 11 November 2031) and scope including dependencies. Each PDS serves `/.well-known/security.txt` (RFC 9116); `SECURITY_CONTACT` adds the operator's own contacts.
 - **No recipient addresses in failure logs**: a failed or retried send is logged by purpose and the SMTP error, with any email address in the error text replaced by `<redacted>`; the recipient stays in the deliveries table only.
 - **No personal data or live links in logs**: with no SMTP configured in production (`ALLOW_NO_EMAIL=true`), an unsent email is logged by purpose only, not recipient, subject and the start of its body (which could hold a working reset or verification link); development still prints the message. OAuth sign-in is logged by account DID only, without the IP address.
 - **Production start-up checks**: with OAuth on, production refuses to start without `OAUTH_SIGNING_KEY` (a generated key changed on every restart, invalidating every OAuth token and differing between instances); it warns when `REDIS_URL` is unset (OAuth replay protection per process) and when `DB_SSL` is off for a database that is not local or on a private `*.internal` network. The error prints a command that generates the key.

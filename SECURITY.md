@@ -1,48 +1,49 @@
 # Security Policy
 
-## Reporting a Vulnerability
+OpenFederation PDS is maintained by the **Resonator Foundation**.
 
-**Please do not open a public GitHub issue for security vulnerabilities.**
+## Reporting a vulnerability
 
-If you discover a security vulnerability in OpenFederation PDS, please report it responsibly by emailing:
+Please do not open a public issue.
 
-**security@openfederation.net**
+- Use **"Report a vulnerability"** on this repository's [Security tab](https://github.com/athlon-misa/openfederation-pds/security/advisories/new) (private to the maintainers), or
+- email **security@openfederation.net**.
 
-Include as much of the following as possible:
+Include what you found, how to reproduce it, the affected version or commit, and the impact you expect.
 
-- Description of the vulnerability
-- Steps to reproduce or proof of concept
-- Affected versions or components
-- Potential impact assessment
+## What to expect
 
-## What to Expect
+| Step | When |
+| --- | --- |
+| Acknowledgement | Within 48 hours |
+| First assessment | Within 7 days |
+| Fix or mitigation, critical or actively exploited | Within 7 days |
+| Fix or mitigation, high | Within 30 days |
+| Fix or mitigation, moderate | Within 90 days |
+| Public advisory | With the fix, or 90 days after the report at the latest, coordinated with you |
 
-- **Acknowledgment** within 48 hours of your report
-- **Status update** within 7 days with an initial assessment
-- **Resolution timeline** communicated once the issue is confirmed
+We credit reporters unless you prefer otherwise. We will not take legal action against research carried out in good faith within this policy.
 
-We will coordinate disclosure with you once a fix is available. Credit will be given to reporters unless anonymity is requested.
+## Supported versions
+
+| Version | Security updates until |
+| --- | --- |
+| 1.x (latest release) | At least 11 November 2031 |
+
+Security fixes go into a new release of the current major version and are marked **Security** in [`CHANGELOG.md`](CHANGELOG.md). Older releases stay available for download. There are no backport branches; upgrade to the latest release.
 
 ## Scope
 
-The following are in scope for security reports:
+In scope: the PDS server, the admin dashboard (`web-interface/`), the PLC directory wrapper (`plc-server/`), the CLI, the Matrix bridge, the `@open-federation/*` npm packages, and vulnerabilities in third-party dependencies as they affect any of these. For a dependency issue, please also report it upstream.
 
-- Authentication and session management (JWT, refresh tokens, token rotation)
-- Key management (signing keys, recovery keys, encryption at rest)
-- Authorization bypass (role checks, community permissions)
-- Injection vulnerabilities (SQL injection, XSS, command injection)
-- Cryptographic weaknesses
-- Partner API key security
-- Data exposure (audit logs, user data, community data)
-- AT Protocol compliance issues with security implications
+Out of scope: social engineering, attacks needing physical access to a server, and volumetric denial of service.
 
-## Out of Scope
+## Advisories
 
-- Denial of service via rate limiting exhaustion (rate limits are configurable)
-- Issues in third-party dependencies (report these upstream, but let us know)
-- Social engineering attacks
-- Issues requiring physical access to the server
+Fixed vulnerabilities are published as [GitHub Security Advisories](https://github.com/athlon-misa/openfederation-pds/security/advisories) for this repository. Each release carries a CycloneDX SBOM per component.
 
-## Supported Versions
+## For operators
 
-Security fixes are applied to the latest release on `main`. We do not maintain backport branches at this time.
+Actively exploited vulnerabilities and severe incidents are reported to the EU authorities as the Cyber Resilience Act requires. We also publish a notice here and in the release notes saying what to do.
+
+A running PDS serves its own contact details at `/.well-known/security.txt` (RFC 9116); set `SECURITY_CONTACT` to point it at your instance's security contact.
