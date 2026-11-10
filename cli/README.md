@@ -107,7 +107,6 @@ Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc c
 | `community suspend <did> [--reason TEXT]` | PDS Admin | Suspend community |
 | `community unsuspend <did>` | PDS Admin | Unsuspend community |
 | `community takedown <did> [--reason TEXT]` | PDS Admin | Take down (requires prior export) |
-| `community transfer <did>` | Owner | Generate transfer package |
 
 ### `ofc record` — Repository Records
 

@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_by_partner VARCHAR(36),
     status_changed_at TIMESTAMP WITH TIME ZONE,
     status_changed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    -- status before a suspension or takedown, restored when it is lifted
+    prior_status VARCHAR(32),
     status_reason TEXT,
     exported_at TIMESTAMP WITH TIME ZONE,
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
@@ -82,6 +84,15 @@ CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX idx_sessions_previous_hash ON sessions(previous_token_hash);
 CREATE INDEX idx_sessions_refresh_hash ON sessions(refresh_token_hash);
 
+-- Every refresh token a session has rotated away, for reuse detection at any depth.
+CREATE TABLE IF NOT EXISTS session_rotated_tokens (
+    token_hash VARCHAR(255) PRIMARY KEY,
+    session_id VARCHAR(36) NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    -- NULL for pseudonym sessions, which never record when they were used
+    rotated_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_session_rotated_tokens_session ON session_rotated_tokens(session_id);
+
 -- Communities table: stores basic community information
 CREATE TABLE IF NOT EXISTS communities (
     did VARCHAR(255) PRIMARY KEY,
@@ -92,6 +103,8 @@ CREATE TABLE IF NOT EXISTS communities (
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'takendown', 'importing', 'moved')),
     status_changed_at TIMESTAMP WITH TIME ZONE,
     status_changed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    -- status before a suspension or takedown, restored when it is lifted
+    prior_status VARCHAR(32),
     status_reason TEXT,
     exported_at TIMESTAMP WITH TIME ZONE,
     -- Ownership by DID (#267): the owner may live on any PDS. created_by is history.
@@ -265,8 +278,20 @@ CREATE TABLE IF NOT EXISTS partner_keys (
     verification_state TEXT NOT NULL DEFAULT 'verified' CHECK (verification_state IN ('pending', 'verified')),
     verification_token_hash TEXT,
     verified_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    -- did:key of the key the partner's backend signs registration tickets with;
+    -- NULL for a browser-only partner, whose sign-ups need email verification
+    ticket_public_key TEXT
 );
+
+-- Registration tickets already spent (single use), until they would have expired.
+CREATE TABLE IF NOT EXISTS partner_ticket_uses (
+    partner_key_id VARCHAR(36) NOT NULL REFERENCES partner_keys(id) ON DELETE CASCADE,
+    jti VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (partner_key_id, jti)
+);
+CREATE INDEX IF NOT EXISTS idx_partner_ticket_uses_expiry ON partner_ticket_uses(expires_at);
 
 CREATE INDEX idx_partner_keys_status ON partner_keys(status);
 CREATE INDEX idx_partner_keys_hash ON partner_keys(key_hash);
@@ -326,7 +351,10 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
     token_hash VARCHAR(255) NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     used_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    -- 'password-reset' or 'identity-verification'; a token is only accepted
+    -- by the flow it was issued for.
+    purpose VARCHAR(32) NOT NULL DEFAULT 'password-reset'
 );
 
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
@@ -442,8 +470,30 @@ CREATE TABLE IF NOT EXISTS wallet_dapp_consents (
     wallet_address VARCHAR(255),
     granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMPTZ NOT NULL,
-    revoked_at TIMESTAMPTZ
+    revoked_at TIMESTAMPTZ,
+    -- what the consent covers (see src/wallet/consent-scope.ts)
+    allowed_contracts JSONB,
+    max_value_per_tx NUMERIC(78, 0),
+    max_total_value NUMERIC(78, 0),
+    spent_value NUMERIC(78, 0) NOT NULL DEFAULT 0
 );
+-- Consents waiting for the user to approve them on the PDS's own page.
+CREATE TABLE IF NOT EXISTS wallet_consent_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_did VARCHAR(255) NOT NULL REFERENCES users(did) ON DELETE CASCADE,
+    dapp_origin TEXT NOT NULL,
+    chain VARCHAR(32),
+    wallet_address VARCHAR(255),
+    allowed_contracts JSONB,
+    max_value_per_tx NUMERIC(78, 0),
+    max_total_value NUMERIC(78, 0),
+    ttl_seconds INTEGER NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'denied')),
+    consent_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_consent_requests_user ON wallet_consent_requests(user_did, created_at);
 CREATE INDEX IF NOT EXISTS idx_wallet_consents_lookup
   ON wallet_dapp_consents(user_did, dapp_origin)
   WHERE revoked_at IS NULL;
@@ -719,4 +769,10 @@ CREATE TABLE IF NOT EXISTS pseudonym_tokens_spent (
   epoch CHAR(7) NOT NULL,
   token_hash CHAR(64) NOT NULL,
   PRIMARY KEY (epoch, token_hash)
+);
+
+-- When each periodic background job last ran (shared across processes and restarts).
+CREATE TABLE IF NOT EXISTS scheduler_runs (
+    name VARCHAR(128) PRIMARY KEY,
+    last_run_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

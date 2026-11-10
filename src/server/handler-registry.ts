@@ -105,6 +105,9 @@ import getDidAugmentation from '../api/net.openfederation.identity.getDidAugment
 import walletRetrieveForUpgrade from '../api/net.openfederation.wallet.retrieveForUpgrade.js';
 import walletFinalizeTierChange from '../api/net.openfederation.wallet.finalizeTierChange.js';
 import walletGrantConsent from '../api/net.openfederation.wallet.grantConsent.js';
+import walletRequestConsent from '../api/net.openfederation.wallet.requestConsent.js';
+import walletGetConsentRequest from '../api/net.openfederation.wallet.getConsentRequest.js';
+import walletApproveConsentRequest from '../api/net.openfederation.wallet.approveConsentRequest.js';
 import walletRevokeConsent from '../api/net.openfederation.wallet.revokeConsent.js';
 import walletListConsents from '../api/net.openfederation.wallet.listConsents.js';
 import updateMember from '../api/net.openfederation.community.updateMember.js';
@@ -299,7 +302,10 @@ const handlers = Object.freeze({
   'net.openfederation.wallet.retrieveForUpgrade': { handler: walletRetrieveForUpgrade, limiter: authLimiter },
   'net.openfederation.wallet.finalizeTierChange': { handler: walletFinalizeTierChange, limiter: authLimiter },
 
-  'net.openfederation.wallet.grantConsent': { handler: walletGrantConsent, limiter: createLimiter },
+  'net.openfederation.wallet.grantConsent': { handler: walletGrantConsent },
+  'net.openfederation.wallet.requestConsent': { handler: walletRequestConsent, limiter: createLimiter },
+  'net.openfederation.wallet.getConsentRequest': { handler: walletGetConsentRequest },
+  'net.openfederation.wallet.approveConsentRequest': { handler: walletApproveConsentRequest, limiter: authLimiter },
   'net.openfederation.wallet.revokeConsent': { handler: walletRevokeConsent },
   'net.openfederation.wallet.listConsents': { handler: walletListConsents },
 
@@ -449,7 +455,7 @@ const handlers = Object.freeze({
   'com.atproto.repo.importRepo': { handler: importRepoForAccount, limiter: createLimiter, whileDeactivated: true },
   'com.atproto.repo.listMissingBlobs': { handler: listMissingBlobs, whileDeactivated: true },
   'net.openfederation.community.migrateIn': { handler: communityMigrateIn, limiter: createLimiter },
-  'net.openfederation.community.checkMigration': { handler: communityCheckMigration },
+  'net.openfederation.community.checkMigration': { handler: communityCheckMigration, limiter: discoveryLimiter },
   'net.openfederation.community.activate': { handler: communityActivate, limiter: createLimiter },
   'net.openfederation.community.getMovedKeys': { handler: communityGetMovedKeys, limiter: createLimiter },
   'net.openfederation.community.markMoved': { handler: communityMarkMoved },

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.thread",
-  "revision": 1,
+  "revision": 2,
   "description": "A forum thread root. Lives in the author's user repo; aggregated per-community by the forum index.",
   "defs": {
     "main": {
@@ -10,7 +10,11 @@
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["community", "title", "createdAt"],
+        "required": [
+          "community",
+          "title",
+          "createdAt"
+        ],
         "properties": {
           "community": {
             "type": "string",
@@ -33,7 +37,34 @@
           "createdAt": {
             "type": "string",
             "format": "datetime"
+          },
+          "author": {
+            "type": "string",
+            "format": "did",
+            "description": "The member who wrote this record. Present when the record is stored in the community's repository (a private community) and not in the author's own."
+          },
+          "authorSig": {
+            "type": "ref",
+            "ref": "#authorSig"
           }
+        }
+      }
+    },
+    "authorSig": {
+      "type": "object",
+      "description": "The author's signature over this record without `authorSig`. Present together with `author`.",
+      "required": [
+        "key",
+        "sig"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "did:key of the author's atproto signing key."
+        },
+        "sig": {
+          "type": "string",
+          "description": "base64url signature over the CID of the record without `authorSig`."
         }
       }
     }

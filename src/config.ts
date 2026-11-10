@@ -73,6 +73,11 @@ export const config = {
     jwtSecretIsInsecure: INSECURE_JWT_DEFAULTS.includes(jwtSecret) || jwtSecret.length < 32,
     accessTokenTtl: process.env.ACCESS_TOKEN_TTL || '15m',
     refreshTokenTtl: process.env.REFRESH_TOKEN_TTL || '30d',
+    // How long the token a session has just rotated away is still honoured.
+    // Two tabs (or a retried request) presenting the same current token within
+    // this window both continue; after it, presenting a rotated token is
+    // treated as theft and revokes every session. 0 disables the window.
+    refreshReuseGraceMs: Math.max(0, parseInt(process.env.REFRESH_REUSE_GRACE_SECONDS || '10', 10) || 0) * 1000,
     inviteRequired: process.env.INVITE_REQUIRED !== 'false',
     bootstrapAdminEmail: process.env.BOOTSTRAP_ADMIN_EMAIL || '',
     bootstrapAdminHandle: process.env.BOOTSTRAP_ADMIN_HANDLE || '',
@@ -179,8 +184,18 @@ export const config = {
   },
 
   // Chain adapter configuration for on-chain proof verification
+  wallet: {
+    // Longest a custodial signing consent may last. The default is an hour;
+    // a dApp may ask for longer, up to this.
+    maxConsentHours: (v => Number.isFinite(v) && v >= 1 ? v : 24)(parseInt(process.env.WALLET_CONSENT_MAX_HOURS ?? '24', 10)),
+  },
   chains: {
     adapters: parseChainAdapters(process.env.CHAIN_ADAPTERS || ''),
+    // Whether a proof for a chain with no configured adapter is accepted on
+    // the oracle's word. Off by default: nothing was checked, so the honest
+    // answer is "not verified". An operator who wants the old behaviour (a
+    // trusted oracle, no RPC endpoint) sets ORACLE_TRUST_UNVERIFIED_PROOFS=true.
+    trustUnverifiedProofs: process.env.ORACLE_TRUST_UNVERIFIED_PROOFS === 'true',
   },
 
   // Express trust proxy configuration (for rate limiting and req.ip with proxies)

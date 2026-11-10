@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.createEvent",
-  "revision": 4,
+  "revision": 5,
   "description": "Create a community event. Writes a community.lexicon.calendar.event record to the community repo. Requires community.calendar.write.",
   "defs": {
     "main": {
@@ -100,6 +100,14 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     }

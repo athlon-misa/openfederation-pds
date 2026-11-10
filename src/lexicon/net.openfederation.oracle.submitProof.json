@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.oracle.submitProof",
-  "revision": 1,
+  "revision": 2,
   "description": "Submit and verify a governance proof against a blockchain. Oracle-authenticated.",
   "defs": {
     "main": {
@@ -71,7 +71,7 @@
             },
             "verificationMethod": {
               "type": "string",
-              "description": "How the proof was verified: 'on-chain', 'cache', or 'oracle-trust'."
+              "description": "How the proof was judged: 'on-chain', 'cache', 'oracle-trust' (accepted on the oracle's word because the operator opted in), or 'none' (no verifier is configured for the chain, so it was not verified)."
             }
           }
         }

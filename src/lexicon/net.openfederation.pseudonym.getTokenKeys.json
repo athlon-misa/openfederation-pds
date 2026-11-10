@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.pseudonym.getTokenKeys",
-  "revision": 1,
+  "revision": 2,
   "description": "Public, unauthenticated epoch public keys for blind pseudonym creation tokens.",
   "defs": {
     "main": {
@@ -15,19 +15,34 @@
             "keys": {
               "type": "array",
               "items": {
-                "type": "object",
-                "properties": {
-                  "epoch": { "type": "string", "description": "UTC month, YYYY-MM." },
-                  "publicKey": { "type": "string", "description": "base64url SPKI of the RSA-PSS 2048-bit epoch key." }
-                },
-                "required": ["epoch", "publicKey"]
+                "type": "ref",
+                "ref": "#tokenKey"
               }
             }
           },
-          "required": ["keys"]
+          "required": [
+            "keys"
+          ]
         }
       },
       "errors": []
+    },
+    "tokenKey": {
+      "type": "object",
+      "properties": {
+        "epoch": {
+          "type": "string",
+          "description": "UTC month, YYYY-MM."
+        },
+        "publicKey": {
+          "type": "string",
+          "description": "base64url SPKI of the RSA-PSS 2048-bit epoch key."
+        }
+      },
+      "required": [
+        "epoch",
+        "publicKey"
+      ]
     }
   }
 }

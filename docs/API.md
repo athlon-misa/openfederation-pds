@@ -142,7 +142,10 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.wallet.provision` | Yes | Tier 1 only: PDS generates a wallet, encrypts the key at rest, links the address to the caller's DID |
 | POST | `net.openfederation.wallet.sign` | Yes | Tier 1 only: sign a message with a custodial wallet; requires `X-dApp-Origin` header or body `dappOrigin` and an active consent grant |
 | POST | `net.openfederation.wallet.signTransaction` | Yes | Tier 1 only: sign an EVM transaction (returns signed RLP) or Solana message bytes (returns base58 signature); same consent + tier gate as `wallet.sign` |
-| POST | `net.openfederation.wallet.grantConsent` | Yes | Grant a dApp origin time-bounded permission to sign with Tier 1 wallet(s); default 7-day TTL, max 30-day |
+| POST | `net.openfederation.wallet.grantConsent` | Yes | Removed: returns 403 `UserApprovalRequired`; use `requestConsent` |
+| POST | `net.openfederation.wallet.requestConsent` | Yes | Ask the user for signing consent (wallet, `allowedContracts`, value limits, TTL default 1h, max `WALLET_CONSENT_MAX_HOURS`); returns `approveUrl` on the PDS |
+| GET | `net.openfederation.wallet.getConsentRequest` | Yes | Status of a consent request: pending / approved / denied / expired |
+| POST | `net.openfederation.wallet.approveConsentRequest` | No (password) | Used by the PDS approval page only; Origin must be the PDS; password checked with login lockout |
 | POST | `net.openfederation.wallet.revokeConsent` | Yes | Revoke consent by id or by (dappOrigin, chain?, walletAddress?) scope |
 | GET  | `net.openfederation.wallet.listConsents` | Yes | List the caller's active (unrevoked, unexpired) Tier 1 signing consents |
 

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.contact.sendRequest",
-  "revision": 2,
+  "revision": 3,
   "description": "Send a contact request to another user. Creates a request record on the caller's repo.",
   "defs": {
     "main": {
@@ -11,7 +11,9 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["subject"],
+          "required": [
+            "subject"
+          ],
           "properties": {
             "subject": {
               "type": "string",
@@ -29,7 +31,10 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["rkey", "uri"],
+          "required": [
+            "rkey",
+            "uri"
+          ],
           "properties": {
             "rkey": {
               "type": "string"
@@ -55,6 +60,10 @@
         {
           "name": "Blocked",
           "description": "One party has blocked the other."
+        },
+        {
+          "name": "NotFound",
+          "description": "No account with that DID on this server."
         }
       ]
     }

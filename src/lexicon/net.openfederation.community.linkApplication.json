@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.linkApplication",
-  "revision": 2,
+  "revision": 3,
   "description": "Link an external application to a community. Creates a repo record for the linked app.",
   "defs": {
     "main": {
@@ -100,6 +100,14 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
         }
       ]
     }

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.sync.listBlobs",
-  "revision": 1,
+  "revision": 2,
   "description": "AT Protocol listBlobs: the blob CIDs a repository references.",
   "defs": {
     "main": {
@@ -58,6 +58,10 @@
       "errors": [
         {
           "name": "RepoNotFound"
+        },
+        {
+          "name": "RepoTakendown",
+          "description": "The repository has been taken down."
         }
       ]
     }

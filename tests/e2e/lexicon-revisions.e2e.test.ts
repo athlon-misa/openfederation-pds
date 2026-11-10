@@ -32,11 +32,14 @@ describe('Lexicon Revisions', () => {
     }
   });
 
-  it('step 3: issueAttestation has revision 4', () => {
+  it('step 3: a lexicon that has changed since it was written carries a higher revision', () => {
     const content = JSON.parse(
       readFileSync(join(LEXICON_DIR, 'net.openfederation.community.issueAttestation.json'), 'utf-8')
     );
-    expect(content.revision).toBe(4);
+    // issueAttestation has gained inputs and errors several times. The exact
+    // number is not the point (pinning it only made this test fail on every
+    // legitimate bump); that it has moved past 1 is.
+    expect(content.revision).toBeGreaterThanOrEqual(4);
   });
 
   it('step 4: revision appears after id in key order', () => {

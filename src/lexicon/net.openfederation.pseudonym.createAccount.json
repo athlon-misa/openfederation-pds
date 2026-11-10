@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.pseudonym.createAccount",
-  "revision": 1,
+  "revision": 2,
   "description": "Anonymously create a pseudonym account for a did:plc whose genesis operation is already in PLC.",
   "defs": {
     "main": {
@@ -12,19 +12,19 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string", "description": "The pseudonym's did:plc." },
+            "did": {
+              "type": "string",
+              "description": "The pseudonym's did:plc."
+            },
             "token": {
-              "type": "object",
-              "description": "A finalized blind creation token.",
-              "properties": {
-                "epoch": { "type": "string" },
-                "prepared": { "type": "string" },
-                "signature": { "type": "string" }
-              },
-              "required": ["epoch", "prepared", "signature"]
+              "type": "ref",
+              "ref": "#creationToken",
+              "description": "A finalized blind creation token."
             }
           },
-          "required": ["did"]
+          "required": [
+            "did"
+          ]
         }
       },
       "output": {
@@ -32,21 +32,69 @@
         "schema": {
           "type": "object",
           "properties": {
-            "did": { "type": "string" },
-            "handle": { "type": "string" },
-            "status": { "type": "string" }
+            "did": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
           },
-          "required": ["did", "handle", "status"]
+          "required": [
+            "did",
+            "handle",
+            "status"
+          ]
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "The DID is malformed." },
-        { "name": "InvalidGenesis", "description": "The PLC genesis operation is missing or not acceptable to this PDS." },
-        { "name": "SigningKeyNotReserved", "description": "The signing key was not reserved at this PDS." },
-        { "name": "InvalidToken", "description": "The creation token is missing or invalid." },
-        { "name": "TokenSpent", "description": "The creation token was already used." },
-        { "name": "AlreadyExists", "description": "An account with this DID or handle already exists." }
+        {
+          "name": "InvalidRequest",
+          "description": "The DID is malformed."
+        },
+        {
+          "name": "InvalidGenesis",
+          "description": "The PLC genesis operation is missing or not acceptable to this PDS."
+        },
+        {
+          "name": "SigningKeyNotReserved",
+          "description": "The signing key was not reserved at this PDS."
+        },
+        {
+          "name": "InvalidToken",
+          "description": "The creation token is missing or invalid."
+        },
+        {
+          "name": "TokenSpent",
+          "description": "The creation token was already used."
+        },
+        {
+          "name": "AlreadyExists",
+          "description": "An account with this DID or handle already exists."
+        }
       ]
+    },
+    "creationToken": {
+      "type": "object",
+      "properties": {
+        "epoch": {
+          "type": "string"
+        },
+        "prepared": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "epoch",
+        "prepared",
+        "signature"
+      ],
+      "description": "A finalized blind creation token."
     }
   }
 }
