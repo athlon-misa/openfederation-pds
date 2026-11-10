@@ -29,7 +29,9 @@ Documentation/
 .pds-cli/
 
 # Railway
-.railway/
+# Railway CLI state stays local; the infrastructure file is committed
+.railway/*
+!.railway/railway.ts
 railway.json.backup
 
 # GoToSocial local testing
