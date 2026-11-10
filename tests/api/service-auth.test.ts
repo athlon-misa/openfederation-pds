@@ -166,6 +166,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
       if (!plcAvailable) return;
       const nowSec = Math.floor(Date.now() / 1000);
       const jwt = await signServiceAuthJwt({
+        lxm: 'net.openfederation.community.listMine',
         keypair: userKeypair,
         iss: user.did,
         aud: getServiceDid(),
@@ -181,6 +182,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
       if (!plcAvailable) return;
       const nowSec = Math.floor(Date.now() / 1000);
       const jwt = await signServiceAuthJwt({
+        lxm: 'net.openfederation.community.listMine',
         keypair: userKeypair,
         iss: user.did,
         aud: getServiceDid(),
@@ -196,6 +198,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
       if (!plcAvailable) return;
       const nowSec = Math.floor(Date.now() / 1000);
       const jwt = await signServiceAuthJwt({
+        lxm: 'net.openfederation.community.listMine',
         keypair: userKeypair,
         iss: user.did,
         aud: 'did:web:some-other-service.example.com',
@@ -211,6 +214,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
       if (!plcAvailable) return;
       const nowSec = Math.floor(Date.now() / 1000);
       const jwt = await signServiceAuthJwt({
+        lxm: 'net.openfederation.community.listMine',
         keypair: userKeypair,
         iss: user.did,
         aud: getServiceDid(),
@@ -229,6 +233,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
       if (!plcAvailable) return;
       const nowSec = Math.floor(Date.now() / 1000);
       const jwt = await signServiceAuthJwt({
+        lxm: 'net.openfederation.community.listMine',
         keypair: userKeypair,
         iss: user.did,
         aud: getServiceDid(),
@@ -237,7 +242,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
 
       const [h, , s] = jwt.split('.');
       const forged = Buffer.from(
-        JSON.stringify({ iss: user.did, aud: getServiceDid(), exp: nowSec + 60, evil: true })
+        JSON.stringify({ iss: user.did, aud: getServiceDid(), exp: nowSec + 60, lxm: 'net.openfederation.community.listMine', evil: true })
       ).toString('base64url');
       const badJwt = `${h}.${forged}.${s}`;
 
@@ -251,6 +256,7 @@ describe('service-auth (cross-PDS identity proofs)', () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const otherKey = await Secp256k1Keypair.create({ exportable: true });
       const jwt = await signServiceAuthJwt({
+        lxm: 'net.openfederation.community.listMine',
         keypair: otherKey, // not the user's real key
         iss: user.did,
         aud: getServiceDid(),

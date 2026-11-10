@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireApprovedUser } from '../auth/guards.js';
+import { requireApprovedUser, isRemoteCaller } from '../auth/guards.js';
 import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
@@ -21,6 +21,21 @@ export default async function uploadBlob(req: AuthRequest, res: Response): Promi
     // An account moving here uploads its blobs before it is activated (#264).
     const migrating = isDeactivated(req);
     if (!migrating && !requireApprovedUser(req, res)) return;
+
+    // A DID hosted on another PDS may upload only where it has standing here:
+    // a community it owns or belongs to. Otherwise anyone able to register a
+    // DID could use this server as public file hosting.
+    if (isRemoteCaller(req)) {
+      const standing = await query(
+        `SELECT 1 FROM communities WHERE owner_did = $1
+         UNION ALL SELECT 1 FROM members_unique WHERE member_did = $1 LIMIT 1`,
+        [req.auth!.did],
+      );
+      if (standing.rows.length === 0) {
+        res.status(403).json({ error: 'Forbidden', message: 'This action requires an account or a community membership on this PDS' });
+        return;
+      }
+    }
 
     const contentType = req.headers['content-type'];
 

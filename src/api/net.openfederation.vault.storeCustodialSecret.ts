@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, requireLocalAccount } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { logVaultAudit } from '../vault/vault-store.js';
 
@@ -15,6 +15,7 @@ import { logVaultAudit } from '../vault/vault-store.js';
 export default async function storeCustodialSecret(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireAuth(req, res)) return;
+    if (!requireLocalAccount(req, res)) return;
 
     const { secretType, chain, encryptedBlob, walletAddress } = req.body as Record<string, unknown>;
 
@@ -38,10 +39,9 @@ export default async function storeCustodialSecret(req: AuthRequest, res: Respon
     const result = await query<{ id: string }>(
       `INSERT INTO custodial_secrets (user_did, chain, secret_type, encrypted_blob, wallet_address)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (user_did, chain) DO UPDATE
+       ON CONFLICT (user_did, chain, wallet_address) DO UPDATE
          SET secret_type = EXCLUDED.secret_type,
              encrypted_blob = EXCLUDED.encrypted_blob,
-             wallet_address = EXCLUDED.wallet_address,
              updated_at = NOW()
        RETURNING id`,
       [req.auth.did, chain, secretType, encryptedBlob, walletAddress],

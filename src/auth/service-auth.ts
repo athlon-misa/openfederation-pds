@@ -17,7 +17,7 @@
  * so our local users can authenticate outbound to other PDSes.
  */
 
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import type { Keypair } from '@atproto/crypto';
 import { verifySignature } from '@atproto/crypto';
 import { getDidResolver } from '../identity/did-resolver.js';
@@ -36,8 +36,19 @@ export type ServiceAuthClaims = {
 export type ServiceAuthVerifyOptions = {
   /** Expected audience (service DID). If set, aud must exactly match. */
   expectedAud?: string;
-  /** Expected lexicon method. If set AND the JWT has an lxm, must match. */
+  /**
+   * The lexicon method the token is being presented to. If set, the token must
+   * name it in `lxm`: a token with no `lxm` would otherwise be good for every
+   * method, which is more than any caller needs and exactly what a captured
+   * token is worth.
+   */
   expectedLxm?: string;
+  /**
+   * Longest validity accepted, in seconds from now (default 3600). Bounds how
+   * long a captured token is useful and how long the replay cache must
+   * remember it.
+   */
+  maxLifetimeSec?: number;
   /** Clock skew tolerance in seconds (default 30). */
   clockSkewSec?: number;
   /** Override DID → atproto signing-key resolution. Used by tests. */
@@ -63,6 +74,7 @@ export class ServiceAuthError extends Error {
 }
 
 const SUPPORTED_ALGS = new Set(['ES256K', 'ES256']);
+const DEFAULT_MAX_LIFETIME_SEC = 3600;
 
 /** Return true if the given Authorization token's header alg is a service-auth alg. */
 export function looksLikeServiceAuthJwt(token: string): boolean {
@@ -132,6 +144,10 @@ export async function verifyServiceAuthJwt(
   if (exp + skew < nowSec) {
     throw new ServiceAuthError('ExpiredToken', 'JWT has expired');
   }
+  const maxLifetime = opts.maxLifetimeSec ?? DEFAULT_MAX_LIFETIME_SEC;
+  if (exp > nowSec + maxLifetime + skew) {
+    throw new ServiceAuthError('InvalidToken', `JWT expires too far in the future (maximum lifetime is ${maxLifetime} seconds)`);
+  }
   if (typeof payload.nbf === 'number' && payload.nbf - skew > nowSec) {
     throw new ServiceAuthError('TokenNotYetValid', 'JWT not yet valid (nbf)');
   }
@@ -139,8 +155,13 @@ export async function verifyServiceAuthJwt(
     throw new ServiceAuthError('InvalidToken', 'JWT iat is in the future');
   }
 
-  if (opts.expectedLxm && typeof payload.lxm === 'string' && payload.lxm !== opts.expectedLxm) {
-    throw new ServiceAuthError('BadLexiconMethod', `Token lxm "${payload.lxm}" does not match method "${opts.expectedLxm}"`, 403);
+  if (opts.expectedLxm) {
+    if (typeof payload.lxm !== 'string' || payload.lxm.length === 0) {
+      throw new ServiceAuthError('BadLexiconMethod', `Token must name the method it is for (lxm: "${opts.expectedLxm}")`, 403);
+    }
+    if (payload.lxm !== opts.expectedLxm) {
+      throw new ServiceAuthError('BadLexiconMethod', `Token lxm "${payload.lxm}" does not match method "${opts.expectedLxm}"`, 403);
+    }
   }
 
   // @atproto/identity resolves did:web by fetching the untrusted authority
@@ -177,9 +198,13 @@ export async function verifyServiceAuthJwt(
     throw new ServiceAuthError('InvalidSignature', 'JWT signature did not verify');
   }
 
-  // Replay protection: reject if this exact signature was already accepted
-  // within its validity window.
-  if (isReplay(sigB64, exp)) {
+  // Replay protection: reject a token already accepted within its validity
+  // window. Keyed on a hash of what was signed (header and claims), not on
+  // the text of the signature segment: base64 decoding is lenient, so the same
+  // signature bytes can be spelled many ways, and a cache keyed on the
+  // spelling let one captured token be replayed without limit.
+  const replayKey = createHash('sha256').update(`${headerB64}.${payloadB64}`).digest('hex');
+  if (isReplay(replayKey, exp)) {
     throw new ServiceAuthError('ReplayedToken', 'Token has already been used', 401);
   }
 
