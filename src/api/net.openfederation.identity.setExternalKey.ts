@@ -81,6 +81,9 @@ export default async function setExternalKey(req: AuthRequest, res: Response): P
       type,
       purpose,
       publicKey,
+      // Kept so the claim stays checkable wherever the repository goes
+      // (an import indexes only claims whose proof verifies).
+      proof,
       ...(label ? { label } : {}),
       createdAt: new Date().toISOString(),
     };
