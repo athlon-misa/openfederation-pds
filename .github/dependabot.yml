@@ -48,3 +48,13 @@ updates:
     commit-message: { prefix: "chore(deps)" }
     groups:
       security: { applies-to: security-updates, patterns: ["*"] }
+
+  # Workflow actions are pinned by commit SHA; this proposes a PR only when an
+  # action has a security advisory.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
+    commit-message: { prefix: "chore(ci)" }
+    groups:
+      security: { applies-to: security-updates, patterns: ["*"] }
