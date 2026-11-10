@@ -181,11 +181,19 @@ export async function sendEmail(
 
   const t = getTransporter();
   if (!t) {
-    // Dev mode — log to console. Recorded too, so the deliveries table is an
+    // No mail system. Recorded either way, so the deliveries table is an
     // honest history even before an operator configures SMTP.
-    console.log(`[EMAIL] To: ${to}`);
-    console.log(`[EMAIL] Subject: ${subject}`);
-    console.log(`[EMAIL] Body: ${html.replace(/<[^>]+>/g, '').substring(0, 200)}...`);
+    if (config.env.isProduction) {
+      // Production with ALLOW_NO_EMAIL=true: say that a message was dropped
+      // and what kind, nothing more. The recipient is personal data, and the
+      // body of a reset or verification email carries a link that works.
+      console.log(`[EMAIL] not sent (no SMTP configured): ${purpose}`);
+    } else {
+      // Development: print it, so a developer can follow the link.
+      console.log(`[EMAIL] To: ${to}`);
+      console.log(`[EMAIL] Subject: ${subject}`);
+      console.log(`[EMAIL] Body: ${html.replace(/<[^>]+>/g, '').substring(0, 200)}...`);
+    }
     await recordDelivery({ recipient: to, purpose, status: 'not-configured', attempts: 0 });
     return { outcome: 'not-configured' };
   }

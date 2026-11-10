@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **No personal data or live links in logs**: with no SMTP configured in production (`ALLOW_NO_EMAIL=true`), an unsent email is logged by purpose only, not recipient, subject and the start of its body (which could hold a working reset or verification link); development still prints the message. OAuth sign-in is logged by account DID only, without the IP address.
 - **Production start-up checks**: with OAuth on, production refuses to start without `OAUTH_SIGNING_KEY` (a generated key changed on every restart, invalidating every OAuth token and differing between instances); it warns when `REDIS_URL` is unset (OAuth replay protection per process) and when `DB_SSL` is off for a database that is not local or on a private `*.internal` network. The error prints a command that generates the key.
 - **Repository integrity**: writes to one repository are serialised, a commit only lands if the root it was built on is still current, and `records_index` is updated in the commit's own transaction. Two parallel writes could previously leave the tree pointing at deleted blocks.
 - **Admin identity-verification codes** can no longer be redeemed as password-reset tokens (`password_reset_tokens.purpose`, migration 046).

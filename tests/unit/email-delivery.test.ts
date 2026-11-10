@@ -134,3 +134,37 @@ describe('sendEmail without SMTP configured', () => {
     expect((await deliveryRows('nobody@example.test'))[0]).toMatchObject({ status: 'not-configured', attempts: 0 });
   });
 });
+
+describe('sendEmail without SMTP: what reaches the logs', () => {
+  const RESET_LINK = 'https://pds.example.test/reset-password?token=s3cr3t-reset-token';
+  async function logsOf(production: boolean): Promise<string> {
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => { lines.push(args.join(' ')); });
+    const wasProduction = config.env.isProduction;
+    config.email.enabled = false;
+    config.env.isProduction = production;
+    try {
+      await sendEmail('reader@example.test', 'Reset your password', `<p>Click <a href="${RESET_LINK}">${RESET_LINK}</a></p>`, 'password-reset');
+    } finally {
+      config.email.enabled = true;
+      config.env.isProduction = wasProduction;
+      spy.mockRestore();
+    }
+    return lines.join('\n');
+  }
+
+  it('in production logs only that an email was not sent and why, nothing personal or secret', async () => {
+    const logged = await logsOf(true);
+    expect(logged).toContain('password-reset');
+    expect(logged).not.toContain('reader@example.test');
+    expect(logged).not.toContain('Reset your password');
+    expect(logged).not.toContain('s3cr3t-reset-token');
+  });
+
+  it('in development still prints the message, so a developer can follow the link', async () => {
+    const logged = await logsOf(false);
+    expect(logged).toContain('reader@example.test');
+    expect(logged).toContain('s3cr3t-reset-token');
+  });
+});
+
