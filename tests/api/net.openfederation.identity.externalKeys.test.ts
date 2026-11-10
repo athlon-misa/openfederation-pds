@@ -11,9 +11,11 @@ import {
 } from './helpers.js';
 
 const EXTERNAL_KEY_PROOF_DOMAIN = 'OpenFederation External Key Claim v1';
-const ed25519Keypair = nacl.sign.keyPair.fromSeed(new Uint8Array(32).fill(1));
-const ed25519Keypair2 = nacl.sign.keyPair.fromSeed(new Uint8Array(32).fill(2));
-const ed25519Keypair3 = nacl.sign.keyPair.fromSeed(new Uint8Array(32).fill(3));
+// Fresh keys every run: a public key can be claimed by one DID only, and the
+// rows from earlier runs stay in a reused test database (#270).
+const ed25519Keypair = nacl.sign.keyPair();
+const ed25519Keypair2 = nacl.sign.keyPair();
+const ed25519Keypair3 = nacl.sign.keyPair();
 
 function publicKeyFor(keypair: nacl.SignKeyPair): string {
   return base58btc.encode(new Uint8Array([0xed, 0x01, ...keypair.publicKey]));
