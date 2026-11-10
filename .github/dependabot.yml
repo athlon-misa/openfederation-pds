@@ -1,116 +1,50 @@
-# Dependabot: one grouped PR per folder per run instead of one PR per package.
+# Dependabot: security updates only, one grouped PR per folder.
 #
-# Security updates (opened when GitHub flags a vulnerable dependency) are not
-# scheduled: they still arrive as soon as an alert is raised, but are grouped
-# per folder the same way.
+# open-pull-requests-limit: 0 turns off routine version-bump PRs. Dependabot
+# still opens a PR when GitHub raises a security alert for a dependency in that
+# folder, and the `security` group puts all of a folder's fixes in one PR.
+# Version upgrades are done deliberately, by hand.
 #
 # Workspace packages (packages/*) share the root lockfile, so "/" covers them.
 version: 2
 
 updates:
-  # PDS server, SDK, React bindings, lexicon and pseudonym packages.
   - package-ecosystem: npm
     directory: /
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
+    commit-message: { prefix: "chore(deps)" }
     groups:
-      security:
-        applies-to: security-updates
-        patterns: ["*"]
-      minor-and-patch:
-        applies-to: version-updates
-        update-types: [minor, patch]
-        patterns: ["*"]
-      # Major versions each get their own PR (not grouped), so a breaking
-      # upgrade can be reviewed and reverted on its own.
+      security: { applies-to: security-updates, patterns: ["*"] }
 
-  # Admin dashboard (Next.js).
   - package-ecosystem: npm
     directory: /web-interface
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "chore(deps)"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
+    commit-message: { prefix: "chore(deps)" }
     groups:
-      security:
-        applies-to: security-updates
-        patterns: ["*"]
-      minor-and-patch:
-        applies-to: version-updates
-        update-types: [minor, patch]
-        patterns: ["*"]
+      security: { applies-to: security-updates, patterns: ["*"] }
 
-  # PLC directory service.
   - package-ecosystem: npm
     directory: /plc-server
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "chore(deps)"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
+    commit-message: { prefix: "chore(deps)" }
     groups:
-      security:
-        applies-to: security-updates
-        patterns: ["*"]
-      minor-and-patch:
-        applies-to: version-updates
-        update-types: [minor, patch]
-        patterns: ["*"]
+      security: { applies-to: security-updates, patterns: ["*"] }
 
-  # Matrix bridge and the SIWOF demo are not deployed: monthly, one PR each.
-  # CI does not build the demo, so check it builds before merging.
   - package-ecosystem: npm
     directory: /bridges/matrix
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 1
-    commit-message:
-      prefix: "chore(deps)"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
+    commit-message: { prefix: "chore(deps)" }
     groups:
-      all:
-        applies-to: version-updates
-        patterns: ["*"]
-      security:
-        applies-to: security-updates
-        patterns: ["*"]
+      security: { applies-to: security-updates, patterns: ["*"] }
 
   - package-ecosystem: npm
     directory: /demos/siwof-dapp
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 1
-    commit-message:
-      prefix: "chore(deps)"
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 0
+    commit-message: { prefix: "chore(deps)" }
     groups:
-      all:
-        applies-to: version-updates
-        patterns: ["*"]
-      security:
-        applies-to: security-updates
-        patterns: ["*"]
-
-  # CI workflow actions (several still target the deprecated Node 20 runtime).
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: monthly
-    commit-message:
-      prefix: "chore(ci)"
-    groups:
-      actions:
-        patterns: ["*"]
-
-  # Base image in the Dockerfile (node:24-alpine).
-  - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: monthly
-    commit-message:
-      prefix: "chore(docker)"
+      security: { applies-to: security-updates, patterns: ["*"] }
