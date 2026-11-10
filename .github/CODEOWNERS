@@ -1,2 +1,10 @@
 # Default: maintainer reviews all PRs
 * @athlon-misa
+
+# Dependency manifests and lockfiles have no owner, so a PR that only changes
+# them (Dependabot's security updates) does not request a review. A pattern
+# with no owners clears the owner for matching files. Later lines win.
+package.json
+package-lock.json
+**/package.json
+**/package-lock.json
