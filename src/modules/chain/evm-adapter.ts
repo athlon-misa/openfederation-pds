@@ -17,8 +17,37 @@ const MIN_CONFIRMATIONS = 6;
  * @param name     Human-readable chain name (e.g., "Polygon Mainnet")
  * @param rpcUrl   JSON-RPC endpoint URL
  */
-export function createEvmAdapter(chainId: string, name: string, rpcUrl: string): GovernanceAttestor {
-  const provider = new JsonRpcProvider(rpcUrl);
+/**
+ * An RPC error, made safe to store and return. Provider errors embed the
+ * request URL, and the URL is where the API key lives; this text goes into
+ * API responses, `proof_verifications` and the audit log. So the provider's
+ * short error code is used when there is one, and anything URL-shaped, plus
+ * the configured endpoint itself, is removed from whatever remains.
+ */
+function describeRpcError(err: unknown, rpcUrl: string): string {
+  const e = err as { code?: unknown; shortMessage?: unknown; message?: unknown } | null;
+  const raw = typeof e?.shortMessage === 'string'
+    ? e.shortMessage
+    : typeof e?.message === 'string' ? e.message : String(err);
+  let text = raw.split(rpcUrl).join('[rpc]').replace(/[a-z][a-z0-9+.-]*:\/\/[^\s"'<>)}\]]+/gi, '[url]');
+  try {
+    const host = new URL(rpcUrl).host;
+    if (host) text = text.split(host).join('[rpc]');
+  } catch { /* not a URL; nothing more to strip */ }
+  const code = typeof e?.code === 'string' ? `${e.code}: ` : '';
+  return `${code}${text}`.substring(0, 200);
+}
+
+/** The provider calls the adapter makes; injectable so the adapter can be tested without a chain. */
+type EvmProvider = Pick<JsonRpcProvider, 'getTransactionReceipt' | 'getBlock' | 'getBlockNumber'>;
+
+export function createEvmAdapter(
+  chainId: string,
+  name: string,
+  rpcUrl: string,
+  providerOverride?: EvmProvider,
+): GovernanceAttestor {
+  const provider: EvmProvider = providerOverride ?? new JsonRpcProvider(rpcUrl);
 
   return {
     chainId,
@@ -77,8 +106,16 @@ export function createEvmAdapter(chainId: string, name: string, rpcUrl: string):
               confirmations,
             };
           }
-        } catch {
-          // Non-fatal: we still verified the tx, just can't get extras
+        } catch (err) {
+          // The confirmation depth is part of the verification, not an extra:
+          // a transaction in a block that may still be reorganised away is
+          // exactly what the minimum is there to exclude. If the depth could
+          // not be read, the proof is not verified. The caller can retry.
+          return {
+            verified: false,
+            error: `Could not confirm the transaction's depth: ${describeRpcError(err, rpcUrl)}`,
+            blockTimestamp,
+          };
         }
 
         return {
@@ -88,10 +125,9 @@ export function createEvmAdapter(chainId: string, name: string, rpcUrl: string):
         };
       } catch (err: any) {
         // Catch RPC errors gracefully
-        const message = err?.message || String(err);
         return {
           verified: false,
-          error: `RPC error: ${message.substring(0, 200)}`,
+          error: `RPC error: ${describeRpcError(err, rpcUrl)}`,
         };
       }
     },

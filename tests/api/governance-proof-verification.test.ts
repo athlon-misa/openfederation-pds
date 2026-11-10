@@ -6,7 +6,7 @@ import {
   clearAttestors,
 } from '../../src/governance/attestor.js';
 import type { GovernanceAttestor, GovernanceProof, VerificationResult } from '../../src/governance/attestor.js';
-import { setChainModuleEnabledForTests } from '../../src/config.js';
+import { config, setChainModuleEnabledForTests } from '../../src/config.js';
 import {
   xrpcPost,
   getAdminToken,
@@ -15,6 +15,7 @@ import {
   isPLCAvailable,
   uniqueHandle,
 } from './helpers.js';
+import { setTestGovernanceContract } from '../e2e/helpers.js';
 
 // These tests exercise the net.openfederation.oracle.* endpoints, which are
 // gated behind chain-module activation (#191). Force the module on for this
@@ -325,10 +326,29 @@ describe('submitProof Endpoint', () => {
         name: 'Test Proof Oracle',
       });
       oracleKey = credRes.body.key;
+      // Proofs are checked against the community's governance contract.
+      await setTestGovernanceContract(communityDid);
     });
 
-    it('should fall back to oracle-trust when no adapter registered', async () => {
+    it('does not call a proof verified when no adapter is registered', async () => {
       if (!plcAvailable) return;
+      clearAttestors();
+      config.chains.trustUnverifiedProofs = false;
+
+      const res = await xrpcPost('net.openfederation.oracle.submitProof', {
+        chainId: 'eip155:99999',
+        transactionHash: '0xfeedface',
+      }).set('X-Oracle-Key', oracleKey);
+
+      expect(res.status).toBe(200);
+      expect(res.body.verified).toBe(false);
+      expect(res.body.verificationMethod).toBe('none');
+      expect(res.body.error).toMatch(/No verifier/);
+    });
+
+    it('falls back to oracle-trust when no adapter is registered and the operator opted in', async () => {
+      if (!plcAvailable) return;
+      config.chains.trustUnverifiedProofs = true;
 
       // Clear adapters to ensure no adapter is available
       clearAttestors();
@@ -346,6 +366,7 @@ describe('submitProof Endpoint', () => {
 
     it('should not cache oracle-trust results', async () => {
       if (!plcAvailable) return;
+      config.chains.trustUnverifiedProofs = true;
 
       // Oracle-trust must remain uncached so registering an adapter later can
       // verify this same transaction on-chain.
