@@ -4,6 +4,7 @@ import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
+import { revokeOAuthGrants } from '../auth/revoke-grants.js';
 
 /**
  * com.atproto.admin.updateSubjectStatus
@@ -67,6 +68,17 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
       return;
     }
 
+    for (const [name, action] of [['takedown', takedown], ['deactivated', deactivated]] as const) {
+      if (action !== undefined && (action === null || typeof action !== 'object' || typeof action.applied !== 'boolean')) {
+        res.status(400).json({ error: 'InvalidRequest', message: `${name} must be an object with a boolean "applied"` });
+        return;
+      }
+    }
+    if (takedown !== undefined && deactivated !== undefined) {
+      res.status(400).json({ error: 'InvalidRequest', message: 'Send takedown or deactivated, not both' });
+      return;
+    }
+
     // Handle takedown
     if (takedown !== undefined) {
       if (takedown.applied) {
@@ -86,7 +98,8 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'takendown', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
+           SET prior_status = CASE WHEN status = 'suspended' THEN prior_status ELSE status END,
+               status = 'takendown', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = $2
            WHERE id = $3`,
           [req.auth!.userId, takedown.ref || null, user.id]
@@ -97,6 +110,7 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
           'UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
           [user.id]
         );
+        await revokeOAuthGrants(user.did);
 
         await auditLog('account.takedown', req.auth!.userId, user.id, {
           did,
@@ -112,7 +126,8 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'approved', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
+           SET status = COALESCE(prior_status, 'approved'), prior_status = NULL,
+               token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = NULL
            WHERE id = $2`,
           [req.auth!.userId, user.id]
@@ -141,7 +156,8 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'suspended', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
+           SET prior_status = status,
+               status = 'suspended', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = $2
            WHERE id = $3`,
           [req.auth!.userId, deactivated.ref || null, user.id]
@@ -152,6 +168,7 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
           'UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
           [user.id]
         );
+        await revokeOAuthGrants(user.did);
 
         await auditLog('account.suspend', req.auth!.userId, user.id, {
           did,
@@ -167,7 +184,8 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
 
         await query(
           `UPDATE users
-           SET status = 'approved', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
+           SET status = COALESCE(prior_status, 'approved'), prior_status = NULL,
+               token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
                status_changed_by = $1, status_reason = NULL
            WHERE id = $2`,
           [req.auth!.userId, user.id]

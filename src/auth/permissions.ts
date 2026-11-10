@@ -34,6 +34,33 @@ export interface RoleRecord {
   name: string;
   description?: string;
   permissions: string[];
+  /**
+   * Which kinds of attestation holders of this role may issue and revoke,
+   * given they hold the attestation permissions at all. Absent means every
+   * kind. This is the community's issuance policy: it lives on the role, so
+   * it changes the way roles change (by proposal, in a community that
+   * decides by vote), while issuing within it is routine.
+   */
+  attestationTypes?: string[];
+}
+
+/** The kinds of attestation a community can issue. */
+export const ATTESTATION_TYPES = ['membership', 'role', 'credential'] as const;
+
+/**
+ * Check an `attestationTypes` value from a request. Returns an error message,
+ * or null when it is acceptable (`undefined` / `null` mean "no restriction").
+ */
+export function invalidAttestationTypes(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value) || value.length === 0) {
+    return 'attestationTypes must be a non-empty list, or omitted to allow every type';
+  }
+  const unknown = value.filter((t) => !(ATTESTATION_TYPES as readonly unknown[]).includes(t));
+  if (unknown.length > 0) {
+    return `attestationTypes may only contain: ${ATTESTATION_TYPES.join(', ')}`;
+  }
+  return null;
 }
 
 export const ROLE_COLLECTION = 'net.openfederation.community.role';

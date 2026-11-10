@@ -2,7 +2,9 @@ import type { AuthContext } from '../../auth/types.js';
 import { query } from '../../db/client.js';
 import { throwXrpc } from '../../xrpc/errors.js';
 import { auditLog } from '../../db/audit.js';
-import { requireString, getCommunityOwner, createMemberRecordForDid, getUserHandle } from './utils.js';
+import {
+  requireString, getCommunityOwner, ensureCommunityWritable, createMemberRecordForDid, getUserHandle, getMemberRkey,
+} from './utils.js';
 
 const RESOLVE_JOIN_REQUEST_NSID = 'net.openfederation.community.resolveJoinRequest';
 
@@ -48,8 +50,9 @@ export async function resolveJoinRequestLifecycle(
     throwXrpc(RESOLVE_JOIN_REQUEST_NSID, 'AlreadyResolved', 400, 'This join request has already been resolved');
   }
 
+  await ensureCommunityWritable(request.community_did, RESOLVE_JOIN_REQUEST_NSID);
   const community = await getCommunityOwner(request.community_did, RESOLVE_JOIN_REQUEST_NSID);
-  const isOwner = community.created_by === caller.userId;
+  const isOwner = community.ownerDid === caller.did;
   const isAdmin = caller.roles.includes('admin');
   if (!isOwner && !isAdmin) {
     throwXrpc(
@@ -61,14 +64,38 @@ export async function resolveJoinRequestLifecycle(
   }
 
   const newStatus = action === 'approve' ? 'approved' : 'rejected';
-  await query(
-    `UPDATE join_requests SET status = $1, resolved_by = $2, resolved_at = CURRENT_TIMESTAMP WHERE id = $3`,
-    [newStatus, caller.userId, requestId],
+  // resolved_by references a local account. An owner acting from another PDS
+  // has none, so the column is left empty for them (the audit entry names them).
+  const resolverId = caller.authMethod === 'service-auth' && caller.userId === caller.did ? null : caller.userId;
+  // Claim the request in one statement. The check above read 'pending' a
+  // moment ago; of several resolutions arriving together, only the one whose
+  // update still finds it pending goes on.
+  const claimed = await query(
+    `UPDATE join_requests SET status = $1, resolved_by = $2, resolved_at = CURRENT_TIMESTAMP
+     WHERE id = $3 AND status = 'pending'`,
+    [newStatus, resolverId, requestId],
   );
+  if (claimed.rowCount !== 1) {
+    throwXrpc(RESOLVE_JOIN_REQUEST_NSID, 'AlreadyResolved', 400, 'This join request has already been resolved');
+  }
 
   if (action === 'approve') {
-    const handle = await getUserHandle(request.user_id);
-    await createMemberRecordForDid(request.community_did, request.user_did, handle || 'unknown', {});
+    try {
+      // Someone who became a member another way in the meantime needs no second record.
+      if (!(await getMemberRkey(request.community_did, request.user_did))) {
+        const handle = await getUserHandle(request.user_id);
+        await createMemberRecordForDid(request.community_did, request.user_did, handle || 'unknown', {});
+      }
+    } catch (err) {
+      // The membership was not created, so the request is not approved. Put
+      // it back to pending: left as 'approved' it could be neither resolved
+      // again nor re-submitted, and the person would be locked out for good.
+      await query(
+        `UPDATE join_requests SET status = 'pending', resolved_by = NULL, resolved_at = NULL WHERE id = $1`,
+        [requestId],
+      );
+      throw err;
+    }
   }
 
   const auditAction = action === 'approve' ? 'join_request.approve' as const : 'join_request.reject' as const;

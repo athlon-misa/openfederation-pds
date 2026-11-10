@@ -4,10 +4,9 @@ import { throwXrpc } from '../../xrpc/errors.js';
 import { auditLog } from '../../db/audit.js';
 import {
   requireString,
-  getCommunityOwner,
+  getCommunityOwner, ensureCommunityWritable,
   getMemberRkey,
   deleteMemberRecord,
-  getUserDid,
   getUserIdByDid,
 } from './utils.js';
 
@@ -24,16 +23,16 @@ export async function removeMemberLifecycle(
 ): Promise<{ success: true }> {
   const communityDid = requireString(input.did, REMOVE_NSID, 'Missing required fields: did, memberDid');
   const memberDid = requireString(input.memberDid, REMOVE_NSID, 'Missing required fields: did, memberDid');
+  await ensureCommunityWritable(communityDid, REMOVE_NSID);
   const community = await getCommunityOwner(communityDid, REMOVE_NSID);
 
-  const isOwner = community.created_by === caller.userId;
+  const isOwner = community.ownerDid === caller.did;
   const isAdmin = caller.roles.includes('admin');
   if (!isOwner && !isAdmin) {
     throwXrpc(REMOVE_NSID, 'Forbidden', 403, 'Only the community owner or PDS admin can remove members');
   }
 
-  const ownerDid = await getUserDid(community.created_by);
-  if (ownerDid === memberDid) {
+  if (community.ownerDid === memberDid) {
     throwXrpc(REMOVE_NSID, 'Forbidden', 403, 'Cannot remove the community owner');
   }
 

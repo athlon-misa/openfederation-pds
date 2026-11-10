@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.createRole",
-  "revision": 3,
+  "revision": 6,
   "description": "Create a custom role for a community.",
   "defs": {
     "main": {
@@ -30,6 +30,18 @@
                 "type": "string"
               },
               "description": "Array of permission strings."
+            },
+            "attestationTypes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "knownValues": [
+                  "membership",
+                  "role",
+                  "credential"
+                ]
+              },
+              "description": "Attestation types holders of this role may issue and revoke. Omit to allow every type."
             }
           },
           "required": [
@@ -81,6 +93,18 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "GovernanceDenied",
+          "description": "Governance policy denied this operation."
         }
       ]
     }

@@ -5,8 +5,9 @@ import { RepoEngine } from '../../repo/repo-engine.js';
 import { getKeypairForDid } from '../../repo/keypair-utils.js';
 import { throwXrpc } from '../../xrpc/errors.js';
 import { auditLog } from '../../db/audit.js';
-import { getCallerCommunityCapabilities } from '../visibility.js';
-import { requireString } from './utils.js';
+import { getCallerCommunityCapabilities, LEGACY_ROLE_PERMISSIONS } from '../visibility.js';
+import { requireString, getCommunityOwner } from './utils.js';
+import { communityWriteRefusal } from '../../auth/guards.js';
 
 const UPDATE_MEMBER_NSID = 'net.openfederation.community.updateMember';
 const MAX_KIND_LENGTH = 64;
@@ -96,7 +97,7 @@ function validateUpdateMemberInput(input: UpdateMemberInput): {
           UPDATE_MEMBER_NSID,
           'InvalidRequest',
           400,
-          "Cannot assign role 'owner' via updateMember; use community.transfer.",
+          "The owner role cannot be assigned via updateMember.",
         );
       }
     }
@@ -199,12 +200,16 @@ export async function updateMemberLifecycle(
   if (!capabilities.exists) {
     throwXrpc(UPDATE_MEMBER_NSID, 'NotFound', 404, 'Community not found');
   }
+  const refusal = communityWriteRefusal(capabilities.status);
+  if (refusal) throwXrpc(UPDATE_MEMBER_NSID, refusal.error, refusal.status, refusal.message);
   if (!capabilities.hasAllPermissions && !capabilities.permissions.includes('community.member.write')) {
     if (capabilities.membership?.status !== 'member') {
       throwXrpc(UPDATE_MEMBER_NSID, 'NotMember', 403, 'You must be a member of this community');
     }
     throwXrpc(UPDATE_MEMBER_NSID, 'Forbidden', 403, 'Insufficient community privileges');
   }
+
+  const owner = await getCommunityOwner(communityDid, UPDATE_MEMBER_NSID);
 
   let resolvedRoleName: string | undefined;
   if (hasRoleRkey && roleRkey) {
@@ -216,6 +221,12 @@ export async function updateMemberLifecycle(
       throwXrpc(UPDATE_MEMBER_NSID, 'RoleNotFound', 404, 'Target role not found');
     }
     resolvedRoleName = roleResult.rows[0].record?.name;
+    // The same rule as `role: 'owner'` above, for the route that names the
+    // role by key: the owner role is whichever role the owner holds, whatever
+    // it is called today.
+    if (resolvedRoleName === 'owner' || roleRkey === owner.ownerRoleRkey) {
+      throwXrpc(UPDATE_MEMBER_NSID, 'Forbidden', 403, 'The owner role cannot be assigned via updateMember.');
+    }
   }
 
   const memberResult = await query<{ record_rkey: string }>(
@@ -227,14 +238,7 @@ export async function updateMemberLifecycle(
   }
 
   const memberRkey = memberResult.rows[0].record_rkey;
-  const ownerResult = await query<{ owner_did: string }>(
-    `SELECT u.did AS owner_did
-     FROM communities c
-     JOIN users u ON u.id = c.created_by
-     WHERE c.did = $1`,
-    [communityDid],
-  );
-  if (ownerResult.rows[0]?.owner_did === memberDid && (hasRole || hasRoleRkey)) {
+  if (owner.ownerDid === memberDid && (hasRole || hasRoleRkey)) {
     throwXrpc(UPDATE_MEMBER_NSID, 'CannotChangeOwner', 403, "Cannot change the owner's role.");
   }
   const engine = new RepoEngine(communityDid);
@@ -274,6 +278,21 @@ export async function updateMemberLifecycle(
     else next.attributes = attributes;
   }
 
+  // Managing members is not a licence to mint power. Someone who is not the
+  // owner or a PDS admin may only move a member between roles whose
+  // permissions they hold themselves: they can neither hand out more than they
+  // have, nor demote someone who holds more than they do.
+  if ((hasRole || hasRoleRkey) && !capabilities.hasAllPermissions) {
+    const held = new Set(capabilities.permissions);
+    const exceeds = (permissions: string[]) => permissions.some(p => !held.has(p));
+    if (exceeds(await permissionsOfMember(communityDid, prev))) {
+      throwXrpc(UPDATE_MEMBER_NSID, 'Forbidden', 403, 'Cannot change the role of a member who holds permissions you do not hold');
+    }
+    if (exceeds(await permissionsOfMember(communityDid, next))) {
+      throwXrpc(UPDATE_MEMBER_NSID, 'Forbidden', 403, 'Cannot assign a role with permissions you do not hold');
+    }
+  }
+
   const keypair = await getKeypairForDid(communityDid);
   const result = await engine.putRecord(keypair, MEMBER_COLLECTION, memberRkey, next);
 
@@ -301,4 +320,23 @@ export async function updateMemberLifecycle(
     tags: next.tags,
     attributes: next.attributes,
   };
+}
+
+/**
+ * The permissions a member record confers, resolved the way
+ * `getCallerCommunityCapabilities` resolves them: the role record it points
+ * at, else the legacy role name, else plain member.
+ */
+async function permissionsOfMember(
+  communityDid: string,
+  record: { role?: string; roleRkey?: string },
+): Promise<string[]> {
+  if (record.roleRkey) {
+    const roleResult = await query<{ record: { permissions?: string[] } }>(
+      `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
+      [communityDid, ROLE_COLLECTION, record.roleRkey],
+    );
+    return roleResult.rows[0]?.record?.permissions || [];
+  }
+  return LEGACY_ROLE_PERMISSIONS[record.role || 'member'] || [];
 }

@@ -5,6 +5,7 @@ import { RepoEngine } from '../../repo/repo-engine.js';
 import { getKeypairForDid } from '../../repo/keypair-utils.js';
 import { throwXrpc } from '../../xrpc/errors.js';
 import { resolveDisplayFields } from '../display-projection.js';
+import { communityWriteRefusal } from '../../auth/guards.js';
 
 export function requireString(value: unknown, nsid: string, message: string): string {
   if (typeof value !== 'string' || value.length === 0) {
@@ -13,26 +14,52 @@ export function requireString(value: unknown, nsid: string, message: string): st
   return value;
 }
 
-export async function ensureCommunityExists(communityDid: string): Promise<void> {
-  const JOIN_NSID = 'net.openfederation.community.join';
-  const communityResult = await query<{ did: string }>(
-    'SELECT did FROM communities WHERE did = $1',
-    [communityDid],
-  );
-  if (communityResult.rows.length === 0) {
-    throwXrpc(JOIN_NSID, 'NotFound', 404, 'Community not found');
-  }
-}
-
-export async function getCommunityOwner(communityDid: string, nsid: string): Promise<{ created_by: string }> {
-  const communityResult = await query<{ created_by: string }>(
-    'SELECT created_by FROM communities WHERE did = $1',
+/**
+ * The community must exist and accept writes. Membership changes are commits
+ * to the community's repo, so they stop when it is suspended or taken down,
+ * and on a copy that moved away or has not finished arriving.
+ */
+export async function ensureCommunityWritable(communityDid: string, nsid: string): Promise<void> {
+  const communityResult = await query<{ status: string }>(
+    'SELECT status FROM communities WHERE did = $1',
     [communityDid],
   );
   if (communityResult.rows.length === 0) {
     throwXrpc(nsid, 'NotFound', 404, 'Community not found');
   }
-  return communityResult.rows[0];
+  const refusal = communityWriteRefusal(communityResult.rows[0].status);
+  if (refusal) throwXrpc(nsid, refusal.error, refusal.status, refusal.message);
+}
+
+/**
+ * Who owns the community, by DID. `owner_did` is the record of ownership: the
+ * owner may live on another PDS, and a community that moved here has no local
+ * creator (`created_by` is NULL). `created_by` is only a fallback for rows
+ * written before `owner_did` existed.
+ *
+ * `ownerRoleRkey` is the role the owner's member record points at, which is
+ * what makes a role "the owner role" whatever it is currently named.
+ */
+export async function getCommunityOwner(
+  communityDid: string,
+  nsid: string,
+): Promise<{ ownerDid: string | null; ownerRoleRkey: string | null }> {
+  const communityResult = await query<{ owner_did: string | null; owner_role_rkey: string | null }>(
+    `SELECT COALESCE(c.owner_did, u.did) AS owner_did,
+            (SELECT m.role_rkey FROM members_unique m
+              WHERE m.community_did = c.did AND m.member_did = COALESCE(c.owner_did, u.did)) AS owner_role_rkey
+     FROM communities c
+     LEFT JOIN users u ON u.id = c.created_by
+     WHERE c.did = $1`,
+    [communityDid],
+  );
+  if (communityResult.rows.length === 0) {
+    throwXrpc(nsid, 'NotFound', 404, 'Community not found');
+  }
+  return {
+    ownerDid: communityResult.rows[0].owner_did,
+    ownerRoleRkey: communityResult.rows[0].owner_role_rkey,
+  };
 }
 
 export async function ensureNotAlreadyMember(communityDid: string, memberDid: string): Promise<void> {

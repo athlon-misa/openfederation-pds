@@ -40,17 +40,22 @@ export default async function unsuspendCommunity(req: AuthRequest, res: Response
       return;
     }
 
-    await query(
+    // Back to what it was before the suspension, not unconditionally to
+    // 'active': a copy that had moved away must not come back writable.
+    const restored = await query<{ status: string }>(
       `UPDATE communities
-       SET status = 'active', status_changed_at = CURRENT_TIMESTAMP,
+       SET status = COALESCE(prior_status, 'active'), prior_status = NULL,
+           status_changed_at = CURRENT_TIMESTAMP,
            status_changed_by = $1, status_reason = NULL
-       WHERE did = $2`,
+       WHERE did = $2
+       RETURNING status`,
       [req.auth!.userId, did]
     );
+    const status = restored.rows[0]?.status || 'active';
 
-    await auditLog('community.unsuspend', req.auth!.userId, did, {});
+    await auditLog('community.unsuspend', req.auth!.userId, did, { restoredStatus: status });
 
-    res.status(200).json({ did, status: 'active' });
+    res.status(200).json({ did, status });
   } catch (error) {
     console.error('Error unsuspending community:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to unsuspend community' });

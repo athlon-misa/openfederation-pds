@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.deleteRole",
-  "revision": 2,
+  "revision": 4,
   "description": "Delete a community role. Fails if any members are assigned to it.",
   "defs": {
     "main": {
@@ -54,6 +54,18 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "GovernanceDenied",
+          "description": "Governance policy denied this operation."
         }
       ]
     }
