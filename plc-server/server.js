@@ -31,13 +31,20 @@ const run = async () => {
 
   // Wrap with CORS so browsers can resolve DIDs
   const app = express();
+  app.disable('x-powered-by');
   app.use((req, res, next) => {
+    // A JSON API: never framed, never sniffed, always over HTTPS.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Accept');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
+  // The PLC library's own Express app adds the header too.
+  if (typeof plc.app.disable === 'function') plc.app.disable('x-powered-by');
   app.use(plc.app);
 
   app.listen(port, () => {

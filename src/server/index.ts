@@ -38,6 +38,8 @@ import type { AuthRequest } from '../auth/types.js';
 export type { XRPCHandler } from './handler-registry.js';
 
 const app = express();
+// Do not advertise the framework (X-Powered-By: Express).
+app.disable('x-powered-by');
 
 // Trust the first proxy (Railway, Render, etc.) so req.ip uses X-Forwarded-For
 // and express-rate-limit identifies clients correctly.

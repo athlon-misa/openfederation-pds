@@ -86,6 +86,9 @@ export const config = {
 
   // Key encryption secret for encrypting recovery keys at rest
   keyEncryptionSecret: process.env.KEY_ENCRYPTION_SECRET || '',
+  // During a rotation only: keys still wrapped under the old secret decrypt with
+  // it; scripts/rotate-key-encryption-secret.ts re-wraps them under the new one.
+  keyEncryptionSecretPrevious: process.env.KEY_ENCRYPTION_SECRET_PREVIOUS || '',
 
   // Partner API configuration
   partners: {
