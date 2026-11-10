@@ -13,8 +13,13 @@ jobs:
       PLC_DIRECTORY_URL: http://127.0.0.1:2582
 
     strategy:
+      # Integration tests are split across three runners per Node version
+      # (vitest --shard splits by test file; each file runs exactly once per
+      # Node version). Every shard has its own Postgres service and PLC.
+      fail-fast: false
       matrix:
         node-version: [22, 24]
+        shard: [1, 2, 3]
 
     services:
       postgres:
@@ -106,8 +111,8 @@ jobs:
           cat "$RUNNER_TEMP/plc.log"
           exit 1
 
-      - name: Run integration tests
-        run: npm run test:api
+      - name: Run integration tests (shard ${{ matrix.shard }} of 3)
+        run: npm run test:api -- --shard=${{ matrix.shard }}/3
         env:
           DB_HOST: localhost
           DB_PORT: "5432"
@@ -142,3 +147,12 @@ jobs:
             done
             kill -KILL "$plc_pid" 2>/dev/null || true
           fi
+
+  # One stable check for branch protection: passes only if every shard passed.
+  ci:
+    if: always()
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: All build shards passed
+        run: test "${{ needs.build.result }}" = success
