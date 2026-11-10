@@ -50,8 +50,9 @@ export async function createOAuthProvider(): Promise<OAuthProvider> {
     // Load from env (production)
     signingKey = await JoseKey.fromJWK(config.oauth.signingKey);
   } else {
-    // Auto-generate for development
-    console.log('OAuth: Auto-generating ES256 signing key (set OAUTH_SIGNING_KEY for production)');
+    // Development only: production refuses to start without OAUTH_SIGNING_KEY
+    // (src/server/production-checks.ts).
+    console.log('OAuth: generated a temporary ES256 signing key for this run (set OAUTH_SIGNING_KEY to keep tokens across restarts)');
     signingKey = await JoseKey.generate(['ES256'], 'oauth-signing-key');
   }
 

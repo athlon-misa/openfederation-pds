@@ -4,10 +4,15 @@ import { config } from '../config.js';
 import type { AuthContext, UserRole, UserStatus } from './types.js';
 import { query } from '../db/client.js';
 
+/**
+ * What a bearer token carries. No email address: that is personal data, and
+ * every request already reads the account row (for the token version), which
+ * is where `AuthContext.email` comes from, current even after a change.
+ * Tokens issued before the claim was dropped still carry `email`; it is ignored.
+ */
 interface AccessTokenPayload extends JWTPayload {
   sub: string;
   handle: string;
-  email: string;
   did: string;
   roles: UserRole[];
   status: UserStatus;
@@ -23,7 +28,6 @@ export async function signAccessToken(context: AuthContext): Promise<string> {
   }
   return new SignJWT({
     handle: context.handle,
-    email: context.email,
     did: context.did,
     roles: context.roles,
     status: context.status,
@@ -35,13 +39,15 @@ export async function signAccessToken(context: AuthContext): Promise<string> {
     .sign(encodedSecret);
 }
 
-type TokenVersionResolver = (userId: string) => Promise<number | null>;
+/** The account's current token version and email address, or null if it no longer exists. */
+type TokenVersionResolver = (userId: string) => Promise<{ tokenVersion: number; email: string | null } | null>;
 
 const databaseTokenVersionResolver: TokenVersionResolver = async (userId) => {
-  const current = await query<{ token_version: number }>(
-    'SELECT token_version FROM users WHERE id = $1', [userId],
+  const current = await query<{ token_version: number; email: string | null }>(
+    'SELECT token_version, email FROM users WHERE id = $1', [userId],
   );
-  return current.rows[0]?.token_version ?? null;
+  const row = current.rows[0];
+  return row ? { tokenVersion: row.token_version, email: row.email } : null;
 };
 
 let resolveTokenVersion: TokenVersionResolver = databaseTokenVersionResolver;
@@ -58,15 +64,16 @@ export async function verifyAccessToken(token: string): Promise<AuthContext | nu
     });
 
     const p = payload as AccessTokenPayload;
-    if (!p?.sub || !p.handle || p.email == null || !p.did || !p.roles || !Number.isInteger(p.tokenVersion)) {
+    if (!p?.sub || !p.handle || !p.did || !p.roles || !Number.isInteger(p.tokenVersion)) {
       return null;
     }
-    if (await resolveTokenVersion(p.sub) !== p.tokenVersion) return null;
+    const account = await resolveTokenVersion(p.sub);
+    if (!account || account.tokenVersion !== p.tokenVersion) return null;
 
     return {
       userId: p.sub,
       handle: p.handle,
-      email: p.email,
+      email: account.email ?? '',
       did: p.did,
       roles: p.roles,
       status: p.status,

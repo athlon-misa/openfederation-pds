@@ -22,6 +22,7 @@ import {
   hashToken,
 } from '../src/auth/tokens.js';
 import type { AuthContext } from '../src/auth/types.js';
+import { config } from '../src/config.js';
 
 const testContext: AuthContext = {
   userId: 'user-123',
@@ -33,7 +34,8 @@ const testContext: AuthContext = {
   tokenVersion: 0,
 };
 
-setTokenVersionResolverForTests(async () => 0);
+const resolveCurrent = async () => ({ tokenVersion: 0, email: 'current@example.com' });
+setTokenVersionResolverForTests(resolveCurrent);
 
 /** Decode a JWT header without verifying (base64url parse) */
 function decodeHeader(token: string): Record<string, unknown> {
@@ -79,7 +81,8 @@ describe('Access token signing', () => {
     const decoded = decodePayload(token);
     assert.equal(decoded.sub, testContext.userId);
     assert.equal(decoded.handle, testContext.handle);
-    assert.equal(decoded.email, testContext.email);
+    // The email address is personal data; it is not put in a bearer token.
+    assert.equal(decoded.email, undefined);
     assert.equal(decoded.did, testContext.did);
     assert.deepEqual(decoded.roles, testContext.roles);
     assert.equal(decoded.status, testContext.status);
@@ -101,7 +104,8 @@ describe('Access token verification', () => {
     assert.ok(result);
     assert.equal(result.userId, testContext.userId);
     assert.equal(result.handle, testContext.handle);
-    assert.equal(result.email, testContext.email);
+    // The email comes from the account as it is now, not from the token.
+    assert.equal(result.email, 'current@example.com');
     assert.equal(result.did, testContext.did);
     assert.deepEqual(result.roles, testContext.roles);
     assert.equal(result.status, testContext.status);
@@ -110,7 +114,7 @@ describe('Access token verification', () => {
   it('returns null for an expired token', async () => {
     const token = await signWith(
       { sub: 'user', handle: 'h', email: 'e', did: 'd', roles: ['user'], status: 'approved' },
-      process.env.AUTH_JWT_SECRET!,
+      config.auth.jwtSecret,
       { algorithm: 'HS256', expiresIn: '0s' }
     );
     const result = await verifyAccessToken(token);
@@ -136,7 +140,7 @@ describe('Access token verification', () => {
   it('returns null for a token missing required fields', async () => {
     const token = await signWith(
       { sub: 'user' }, // missing handle, email, did, roles
-      process.env.AUTH_JWT_SECRET!,
+      config.auth.jwtSecret,
       { algorithm: 'HS256', expiresIn: '1h' }
     );
     const result = await verifyAccessToken(token);
@@ -145,9 +149,29 @@ describe('Access token verification', () => {
 
   it('rejects a token whose version has been invalidated', async () => {
     const token = await signAccessToken(testContext);
-    setTokenVersionResolverForTests(async () => 1);
+    setTokenVersionResolverForTests(async () => ({ tokenVersion: 1, email: 'current@example.com' }));
     assert.equal(await verifyAccessToken(token), null);
-    setTokenVersionResolverForTests(async () => 0);
+    setTokenVersionResolverForTests(resolveCurrent);
+  });
+
+  it('accepts a token issued before the email claim was dropped', async () => {
+    const token = await signWith(
+      { sub: 'user-123', handle: 'testuser', email: 'old@example.com', did: 'did:plc:abc123', roles: ['user'], status: 'approved', tokenVersion: 0 },
+      // The secret the server signs with. (Imports run before this file sets
+      // process.env.AUTH_JWT_SECRET, so the two can differ.)
+      config.auth.jwtSecret,
+      { algorithm: 'HS256', expiresIn: '1h' }
+    );
+    const result = await verifyAccessToken(token);
+    assert.ok(result);
+    assert.equal(result.email, 'current@example.com');
+  });
+
+  it('rejects a token for an account that no longer exists', async () => {
+    const token = await signAccessToken(testContext);
+    setTokenVersionResolverForTests(async () => null);
+    assert.equal(await verifyAccessToken(token), null);
+    setTokenVersionResolverForTests(resolveCurrent);
   });
 
   it('rejects tokens signed with algorithm "none"', async () => {
@@ -171,7 +195,7 @@ describe('Access token verification', () => {
   it('rejects tokens signed with HS384 (wrong algorithm)', async () => {
     const token = await signWith(
       { sub: 'user', handle: 'h', email: 'e', did: 'd', roles: ['user'], status: 'approved' },
-      process.env.AUTH_JWT_SECRET!,
+      config.auth.jwtSecret,
       { algorithm: 'HS384', expiresIn: '1h' }
     );
     const result = await verifyAccessToken(token);
