@@ -7,6 +7,6 @@
   },
   "dependencies": {
     "@did-plc/server": "^0.0.1",
-    "express": "^4.22.1"
+    "express": "^4.22.3"
   }
 }
