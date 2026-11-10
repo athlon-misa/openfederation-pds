@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.amendProposal",
-  "revision": 3,
+  "revision": 4,
   "description": "Amend an open governance proposal. Resets votes and extends expiration.",
   "defs": {
     "main": {
@@ -48,6 +48,10 @@
         {
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
+        },
+        {
+          "name": "NotProposer",
+          "description": "Only the member who made the proposal can amend it."
         }
       ]
     },
