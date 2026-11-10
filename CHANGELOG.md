@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Production start-up checks**: with OAuth on, production refuses to start without `OAUTH_SIGNING_KEY` (a generated key changed on every restart, invalidating every OAuth token and differing between instances); it warns when `REDIS_URL` is unset (OAuth replay protection per process) and when `DB_SSL` is off for a database that is not local or on a private `*.internal` network. The error prints a command that generates the key.
 - **Repository integrity**: writes to one repository are serialised, a commit only lands if the root it was built on is still current, and `records_index` is updated in the commit's own transaction. Two parallel writes could previously leave the tree pointing at deleted blocks.
 - **Admin identity-verification codes** can no longer be redeemed as password-reset tokens (`password_reset_tokens.purpose`, migration 046).
 - **Community roles**: a member with `community.member.write` cannot assign a role whose permissions they do not hold, nor the owner role by `roleRkey`; owner checks use `communities.owner_did` everywhere (membership endpoints still read `created_by`, which is NULL for a community that moved here).
