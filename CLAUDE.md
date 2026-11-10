@@ -43,6 +43,7 @@ See `.env.example` for the full list. Critical ones:
 |----------|:---:|-------|
 | `AUTH_JWT_SECRET` | Production | ≥32 random chars; server refuses to start in production without it |
 | `KEY_ENCRYPTION_SECRET` | Production | Required before creating communities; encrypts recovery + signing keys at rest |
+| `KEY_ENCRYPTION_SECRET_PREVIOUS` | No | Only while rotating: the old secret; `scripts/rotate-key-encryption-secret.ts --apply` re-encrypts, then remove it (`docs/HARDENING.md`) |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Yes | Postgres connection |
 | `DB_SSL` | Production | Set to `true`; production warns when off unless the host is local or `*.internal` |
 | `OAUTH_SIGNING_KEY` | Production | ES256 JWK (one line); production refuses to start without it while OAuth is on. Generate: see `.env.example` |
