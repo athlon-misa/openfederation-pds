@@ -6,11 +6,14 @@ import { hashToken } from '../auth/tokens.js';
 import { auditLog } from '../db/audit.js';
 import type { AuthRequest } from '../auth/types.js';
 import crypto from 'crypto';
+import { invalidTicketPublicKey } from '../auth/partner-ticket.js';
 
 interface CreateKeyInput {
   name: string;
   partnerName: string;
   allowedOrigins: string[];
+  /** did:key the partner's backend signs registration tickets with. */
+  ticketPublicKey?: string;
   rateLimitPerHour?: number;
   permissions?: string[];
 }
@@ -66,6 +69,14 @@ export default async function createPartnerKey(req: Request, res: Response): Pro
     }
   }
 
+  if (input.ticketPublicKey !== undefined && input.ticketPublicKey !== null) {
+    const problem = invalidTicketPublicKey(input.ticketPublicKey);
+    if (problem) {
+      res.status(400).json({ error: 'InvalidRequest', message: problem });
+      return;
+    }
+  }
+
   const permissions = input.permissions || ['register'];
   const allowedOrigins = input.allowedOrigins;
   const rateLimitPerHour = input.rateLimitPerHour || 100;
@@ -92,8 +103,8 @@ export default async function createPartnerKey(req: Request, res: Response): Pro
       `INSERT INTO partner_keys
          (id, key_hash, key_prefix, name, partner_name, created_by,
           permissions, allowed_origins, rate_limit_per_hour,
-          verification_state, verification_token_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10)`,
+          verification_state, verification_token_hash, ticket_public_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, $11)`,
       [
         id,
         keyHash,
@@ -105,6 +116,7 @@ export default async function createPartnerKey(req: Request, res: Response): Pro
         JSON.stringify(allowedOrigins),
         rateLimitPerHour,
         verificationTokenHash,
+        input.ticketPublicKey ?? null,
       ],
     );
 
@@ -112,6 +124,8 @@ export default async function createPartnerKey(req: Request, res: Response): Pro
       name: input.name,
       partnerName: input.partnerName,
       allowedOrigins,
+      permissions,
+      registrationMode: input.ticketPublicKey ? 'ticket' : 'email-verification',
       verificationRequired: true,
     }).catch(() => {});
 

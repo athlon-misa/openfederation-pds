@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.partner.createKey",
-  "revision": 1,
-  "description": "Generated XRPC contract for net.openfederation.partner.createKey.",
+  "revision": 2,
+  "description": "Create a partner API key (admin or partner-manager).",
   "defs": {
     "main": {
       "type": "procedure",
@@ -11,7 +11,48 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "properties": {}
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 255,
+              "description": "A label for this key."
+            },
+            "partnerName": {
+              "type": "string",
+              "maxLength": 255,
+              "description": "The partner the key is issued to."
+            },
+            "allowedOrigins": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Origins the key may be used from. Each must publish the verification token before the key is usable."
+            },
+            "permissions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "What the key may do. Default ['register']."
+            },
+            "rateLimitPerHour": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 100,
+              "description": "Registrations allowed per hour with this key."
+            },
+            "ticketPublicKey": {
+              "type": "string",
+              "description": "did:key (secp256k1 or P-256) the partner's backend signs registration tickets with. With it, registrations require a ticket and produce approved, signed-in accounts. Without it, registrations produce pending accounts that are approved once their email is verified."
+            }
+          },
+          "required": [
+            "name",
+            "partnerName",
+            "allowedOrigins"
+          ]
         }
       },
       "output": {

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { config } from '../config.js';
-import { withTransaction } from '../db/client.js';
+import { query, withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
-import { claimInvite, InviteError } from '../auth/invites.js';
+import { claimInvite, assertInviteUsable, InviteError } from '../auth/invites.js';
 import { issueEmailVerification } from '../email/verification.js';
 import { createUserIdentity } from '../identity/user-identity.js';
 import {
@@ -48,6 +48,21 @@ export default async function registerAccount(req: Request, res: Response): Prom
     // Identity creation talks to the PLC directory and password hashing is
     // CPU-bound. Neither may run while the invite row is locked, otherwise a
     // slow external call can block every contender for that invite.
+    // Registering an identity writes to the PLC directory and cannot be taken
+    // back. So the checks that would refuse this request anyway run first,
+    // without locks: a taken handle or email, a bad invite. The transaction
+    // below repeats them for real; this only stops every refused request
+    // from leaving a registered DID behind.
+    await ensureHandleEmailAvailable({ query }, handle, email);
+    if (config.auth.inviteRequired) {
+      try {
+        await assertInviteUsable({ query }, input.inviteCode!, input.email);
+      } catch (err) {
+        if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
+        throw err;
+      }
+    }
+
     let identity;
     let passwordHash: string;
     try {
