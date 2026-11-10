@@ -1,34 +1,76 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.getDidAugmentation",
-  "revision": 1,
+  "revision": 2,
   "description": "W3C DID Core verificationMethod + assertionMethod entries derived from the DID's active wallet links. The sidecar path for did:plc users (where the PLC doc cannot carry blockchainAccountId entries). For did:web users we inject the same data into /.well-known/did.json.",
   "defs": {
     "main": {
       "type": "query",
       "parameters": {
         "type": "params",
-        "required": ["did"],
+        "required": [
+          "did"
+        ],
         "properties": {
-          "did": { "type": "string" }
+          "did": {
+            "type": "string"
+          }
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["did", "verificationMethod", "assertionMethod", "authentication"],
+          "required": [
+            "did",
+            "verificationMethod",
+            "assertionMethod",
+            "authentication"
+          ],
           "properties": {
-            "@context": { "type": "array", "items": { "type": "string" } },
-            "did": { "type": "string" },
-            "verificationMethod": { "type": "array", "items": { "type": "unknown" } },
-            "assertionMethod": { "type": "array", "items": { "type": "string" } },
-            "authentication": { "type": "array", "items": { "type": "string" } }
+            "@context": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "did": {
+              "type": "string"
+            },
+            "verificationMethod": {
+              "type": "array",
+              "items": {
+                "type": "unknown"
+              }
+            },
+            "assertionMethod": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "authentication": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing did." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing did."
+        },
+        {
+          "name": "RepoTakendown",
+          "description": "The account or community has been taken down."
+        },
+        {
+          "name": "RepoNotFound",
+          "description": "No such repository, or a private community the caller cannot see."
+        }
       ]
     }
   }

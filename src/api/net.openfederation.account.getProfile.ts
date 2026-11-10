@@ -1,3 +1,4 @@
+import { requireRepoReadable } from '../auth/guards.js';
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
@@ -15,6 +16,8 @@ export default async function getProfile(req: AuthRequest, res: Response): Promi
       });
       return;
     }
+    // A taken-down account (or a private community) is not served to the public.
+    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
 
     const userResult = await query<{ handle: string }>(
       'SELECT handle FROM users WHERE did = $1',

@@ -48,6 +48,14 @@ export default async function amendProposal(req: AuthRequest, res: Response): Pr
       return;
     }
 
+    // Only the proposer may amend. An amendment replaces the content, clears
+    // the votes and restarts the clock: from anyone else it would rewrite a
+    // proposal under the proposer's name, or stall the vote indefinitely.
+    if (proposal.proposedBy !== req.auth!.did) {
+      res.status(403).json({ error: 'NotProposer', message: 'Only the member who made the proposal can amend it' });
+      return;
+    }
+
     const settingsResult = await query<{ record: any }>(
       `SELECT record FROM records_index
        WHERE community_did = $1 AND collection = 'net.openfederation.community.settings' AND rkey = 'self'`,

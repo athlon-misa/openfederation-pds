@@ -32,6 +32,8 @@ import type { Server } from 'http';
 import { createAccountPagesRouter } from './account-pages.js';
 import { createWalletConsentRouter } from './wallet-consent-page.js';
 import { productionConfigProblems } from './production-checks.js';
+import { requireRepoReadable } from '../auth/guards.js';
+import type { AuthRequest } from '../auth/types.js';
 
 export type { XRPCHandler } from './handler-registry.js';
 
@@ -162,6 +164,9 @@ app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
     if (!did || !cid) {
       return res.status(400).json({ error: 'InvalidRequest', message: 'Missing did or cid' });
     }
+    // Same rule as com.atproto.sync.getBlob: nothing from a taken-down
+    // account, nor from a private community to outsiders.
+    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
 
     // Public blob URLs are CID-addressed and bound to the owning DID. Never
     // pass arbitrary storage keys (for example scheduled export paths) to the
