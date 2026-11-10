@@ -2,6 +2,13 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
+# The workspace manifests must be in place before `npm ci`, or the dependencies
+# declared inside packages/* (e.g. @scure/bip39 for the pseudonym package, whose
+# source the server compiles in) are never installed and the build fails.
+COPY packages/openfederation-sdk/package.json packages/openfederation-sdk/
+COPY packages/openfederation-react/package.json packages/openfederation-react/
+COPY packages/openfederation-lexicon/package.json packages/openfederation-lexicon/
+COPY packages/openfederation-pseudonym/package.json packages/openfederation-pseudonym/
 RUN npm ci
 COPY tsconfig.json tsconfig.production.json ./
 COPY src/ ./src/
