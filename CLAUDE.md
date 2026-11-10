@@ -44,7 +44,9 @@ See `.env.example` for the full list. Critical ones:
 | `AUTH_JWT_SECRET` | Production | ≥32 random chars; server refuses to start in production without it |
 | `KEY_ENCRYPTION_SECRET` | Production | Required before creating communities; encrypts recovery + signing keys at rest |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Yes | Postgres connection |
-| `DB_SSL` | Production | Set to `true` |
+| `DB_SSL` | Production | Set to `true`; production warns when off unless the host is local or `*.internal` |
+| `OAUTH_SIGNING_KEY` | Production | ES256 JWK (one line); production refuses to start without it while OAuth is on. Generate: see `.env.example` |
+| `REDIS_URL` | No | OAuth replay protection across instances; production warns when unset |
 | `PLC_DIRECTORY_URL` | No | Default `http://localhost:2582` (dev). Production: `https://plc.openfederation.net` |
 | `PDS_SERVICE_DID` | No | Inbound service-auth `aud` claim; default `did:web:{PDS_HOSTNAME}` |
 | `CHAIN_ADAPTERS` | No | Treat as secret — contains RPC API keys. Format: `eip155:137=https://rpc.example.com` |
