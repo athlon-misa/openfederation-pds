@@ -31,6 +31,7 @@ import { applyMigrations } from '../db/migrate.js';
 import type { Server } from 'http';
 import { createAccountPagesRouter } from './account-pages.js';
 import { createWalletConsentRouter } from './wallet-consent-page.js';
+import { productionConfigProblems } from './production-checks.js';
 
 export type { XRPCHandler } from './handler-registry.js';
 
@@ -414,6 +415,19 @@ export async function startServer(): Promise<Server> {
     } else {
       console.warn('WARNING: KEY_ENCRYPTION_SECRET is not set. Community creation with did:plc will fail.');
     }
+  }
+
+  // Production rules that otherwise fail silently: a per-restart OAuth key,
+  // per-instance OAuth replay protection, a clear-text database connection.
+  const productionProblems = productionConfigProblems({
+    isProduction: config.env.isProduction,
+    oauth: { enabled: config.oauth.enabled, signingKey: config.oauth.signingKey, redisUrl: config.oauth.redisUrl },
+    database: { ssl: config.database.ssl, host: config.database.host },
+  });
+  for (const warning of productionProblems.warnings) console.warn(`WARNING: ${warning}`);
+  if (productionProblems.fatal.length > 0) {
+    for (const problem of productionProblems.fatal) console.error(`FATAL: ${problem}`);
+    process.exit(1);
   }
 
   // Test database connection before starting
