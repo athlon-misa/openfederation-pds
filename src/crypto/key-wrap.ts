@@ -55,11 +55,31 @@ export async function wrapKeyBytes(plaintext: Buffer, purpose: KeyWrapPurpose): 
 
 export async function unwrapKeyBytes(cipherBundle: Buffer, purpose: KeyWrapPurpose): Promise<Buffer> {
   const secret = getKeyEncryptionSecret('decrypt');
+  try {
+    return await unwrapWithSecret(cipherBundle, secret, purpose);
+  } catch (err) {
+    // Mid-rotation: a key not yet re-wrapped opens with the previous secret.
+    const previous = config.keyEncryptionSecretPrevious;
+    if (!previous || previous === secret) throw err;
+    return unwrapWithSecret(cipherBundle, previous, purpose);
+  }
+}
 
+/** Whether this bundle needs re-wrapping: true unless it opens with `secret` in the purpose-bound format. */
+export async function needsRewrap(cipherBundle: Buffer, purpose: KeyWrapPurpose, secret: string): Promise<boolean> {
+  if (!cipherBundle.subarray(0, ENVELOPE_MAGIC.length).equals(ENVELOPE_MAGIC)) return true;
+  try {
+    await unwrapPurposeBound(cipherBundle.subarray(ENVELOPE_MAGIC.length), secret, purpose);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+async function unwrapWithSecret(cipherBundle: Buffer, secret: string, purpose: KeyWrapPurpose): Promise<Buffer> {
   if (cipherBundle.subarray(0, ENVELOPE_MAGIC.length).equals(ENVELOPE_MAGIC)) {
     return unwrapPurposeBound(cipherBundle.subarray(ENVELOPE_MAGIC.length), secret, purpose);
   }
-
   return unwrapLegacy(cipherBundle, secret);
 }
 

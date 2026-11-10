@@ -1,3 +1,4 @@
+import { requireRepoReadable } from '../auth/guards.js';
 /**
  * com.atproto.sync.getBlob — the ATProto-standard blob read path (#82).
  *
@@ -30,6 +31,8 @@ export default async function getBlob(req: AuthRequest, res: Response): Promise<
       res.status(400).json({ error: 'InvalidRequest', message: 'did and cid parameters are required' });
       return;
     }
+    // A taken-down account (or a private community) is not served to the public.
+    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
 
     // Only canonical CIDs reach the store — the same rule the serve route
     // applies, so an alias for a path can never become a storage key.
