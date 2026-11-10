@@ -1,5 +1,5 @@
 import type {
-  ClientConfig, User, Session, RegisterOptions, LoginOptions, FetchOptions,
+  ClientConfig, User, Session, RegisterOptions, RegisterResult, LoginOptions, FetchOptions,
   SessionResponse, AuthProvider, ATProtoLoginOptions,
   WalletChallenge, WalletLink, WalletResolution, LinkWalletOptions,
   SecurityLevel, VaultAuditEntry, RegisterEscrowOptions,
@@ -9,7 +9,7 @@ import type {
   GrantRedemption, GrantStatus, DisclosureAuditEntry,
   StoreCustodialSecretOptions, CustodialSecret,
   WalletChain, ProvisionTier1Options, ProvisionTier2Options, ProvisionTier3Options,
-  ProvisionResult, GrantConsentOptions, ConsentGrant, WalletSignOptions,
+  ProvisionResult, GrantConsentOptions, ConsentGrant, ConsentRequest, ConsentRequestStatus, WalletSignOptions,
   WalletSignTransactionOptions, WalletSignTransactionResult,
   SiwofChallengeResponse, SiwofAssertResponse, SignInWithOpenFederationOptions,
   UpgradeTierOptions, UpgradeTierResult,
@@ -19,11 +19,16 @@ import { createStorage } from './storage.js';
 import { displayHandle as displayHandleUtil, xrpcUrl } from './utils.js';
 import { errorFromResponse, AuthenticationError } from './errors.js';
 import { provisionTier2, provisionTier3 } from './wallet/provision.js';
-import { unwrapMnemonic, type WrappedBlob } from './wallet/wrap.js';
+import { sessionFromWrappedSecret } from './wallet/unlock.js';
 import { WalletSession } from './wallet/wallet-session.js';
 import { createSolanaSigner } from './wallet/solana-adapter.js';
 import { normalizeEvmTxForWire } from './wallet/tx-normalize.js';
 import { upgradeToTier as upgradeToTierFlow } from './wallet/upgrade.js';
+import { coordinatedRefresh } from './refresh.js';
+import { newLoginVerifier, takeLoginVerifier } from './login-binding.js';
+
+/** How long to wait before retrying a refresh that failed for a transient reason. */
+const REFRESH_RETRY_MS = 30_000;
 
 export class OpenFederationClient implements AuthProvider {
   private serverUrl: string;
@@ -57,10 +62,14 @@ export class OpenFederationClient implements AuthProvider {
   }
 
   /**
-   * Register a new user via the partner API.
-   * No invite code needed — user is auto-approved and logged in.
+   * Register a new user via the partner API. No invite code needed.
+   *
+   * With a `ticket` from your backend the user is approved and signed in.
+   * Without one (a partner key with no ticket key) the account is created but
+   * not signed in: `emailVerificationRequired` is true, and the user signs in
+   * with `login()` after opening the link emailed to them.
    */
-  async register(opts: RegisterOptions): Promise<User> {
+  async register(opts: RegisterOptions): Promise<RegisterResult> {
     const url = xrpcUrl(this.serverUrl, 'net.openfederation.partner.register');
 
     const res = await fetch(url, {
@@ -73,6 +82,7 @@ export class OpenFederationClient implements AuthProvider {
         handle: opts.handle,
         email: opts.email,
         password: opts.password,
+        ...(opts.ticket ? { ticket: opts.ticket } : {}),
       }),
     });
 
@@ -81,7 +91,14 @@ export class OpenFederationClient implements AuthProvider {
       throw errorFromResponse(res.status, body);
     }
 
-    const data: SessionResponse = await res.json();
+    const data: Partial<SessionResponse> & { did: string; handle: string; email: string; emailVerificationRequired?: boolean } = await res.json();
+
+    // No session came back: the account exists but has to verify its email
+    // first. Nothing is stored and nobody is signed in.
+    if (!data.accessJwt || !data.refreshJwt) {
+      return { did: data.did, handle: data.handle, email: data.email, active: false, emailVerificationRequired: true };
+    }
+
     const user: User = {
       did: data.did,
       handle: data.handle,
@@ -91,7 +108,7 @@ export class OpenFederationClient implements AuthProvider {
 
     this.tokens.setTokens(data.accessJwt, data.refreshJwt, user);
     this.notifyAuthChange(user);
-    return user;
+    return { ...user, emailVerificationRequired: false };
   }
 
   /**
@@ -218,6 +235,15 @@ export class OpenFederationClient implements AuthProvider {
       url.searchParams.set('state', opts.state);
     }
 
+    // Bind this login to this tab. A random secret stays here; only its hash
+    // goes to the PDS, which ties it to the one-time code it issues at the
+    // end. The code is then useless to anyone who does not hold the secret,
+    // in particular to a victim who is sent someone else's callback link.
+    const verifier = newLoginVerifier();
+    if (verifier) {
+      url.searchParams.set('code_challenge', verifier.challenge);
+    }
+
     window.location.href = url.toString();
   }
 
@@ -259,12 +285,20 @@ export class OpenFederationClient implements AuthProvider {
       throw new AuthenticationError('No authorization code in callback URL');
     }
 
+    // Only finish a login this tab started. Without its verifier the code in
+    // the URL is somebody else's: redeeming it would sign this browser in as
+    // whoever sent the link.
+    const codeVerifier = takeLoginVerifier();
+    if (!codeVerifier) {
+      throw new AuthenticationError('This login was not started in this tab. Please sign in again.');
+    }
+
     const url = `${this.serverUrl}/oauth/external/complete`;
 
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, codeVerifier }),
     });
 
     if (!res.ok) {
@@ -389,10 +423,14 @@ export class OpenFederationClient implements AuthProvider {
    * Public endpoint — no authentication required.
    */
   async resolveWallet(chain: string, walletAddress: string): Promise<WalletResolution> {
-    return this.fetch('net.openfederation.identity.resolveWallet', {
-      method: 'GET',
-      params: { chain, walletAddress },
-    }) as Promise<WalletResolution>;
+    // A plain request, not `this.fetch`: that one refuses to run without a
+    // session, and this lookup is for anyone, signed in or not.
+    const res = await fetch(xrpcUrl(this.serverUrl, 'net.openfederation.identity.resolveWallet', { chain, walletAddress }));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw errorFromResponse(res.status, body);
+    }
+    return res.json() as Promise<WalletResolution>;
   }
 
   // ── Vault & Recovery ────────────────────────────────
@@ -567,9 +605,10 @@ export class OpenFederationClient implements AuthProvider {
   // ── Custodial Secrets ───────────────────────────────
 
   /**
-   * Store (upsert) an encrypted custodial secret for a given chain.
+   * Store (upsert) an encrypted custodial secret for one wallet.
    * The blob is opaque — the PDS never decrypts it.
-   * Idempotent: calling again with the same chain overwrites the previous entry.
+   * Idempotent per wallet: calling again with the same chain and wallet address
+   * replaces that wallet's entry. Other wallets on the chain are untouched.
    */
   async storeCustodialSecret(opts: StoreCustodialSecretOptions): Promise<{ success: boolean; secretId: string }> {
     return this.fetch('net.openfederation.vault.storeCustodialSecret', {
@@ -579,13 +618,15 @@ export class OpenFederationClient implements AuthProvider {
   }
 
   /**
-   * Retrieve the encrypted custodial secret for a given chain.
-   * Throws a 404 error if no secret exists for that chain.
+   * Retrieve the encrypted custodial secret for a wallet.
+   * Pass `walletAddress` to say which wallet; it is required when the account
+   * has more than one wallet with a stored secret on the chain.
+   * Throws a 404 error if no secret exists.
    */
-  async getCustodialSecret(chain: string): Promise<CustodialSecret> {
+  async getCustodialSecret(chain: string, walletAddress?: string): Promise<CustodialSecret> {
     return this.fetch('net.openfederation.vault.getCustodialSecret', {
       method: 'GET',
-      params: { chain },
+      params: walletAddress ? { chain, walletAddress } : { chain },
     }) as Promise<CustodialSecret>;
   }
 
@@ -648,19 +689,19 @@ export class OpenFederationClient implements AuthProvider {
 
     /**
      * Unlock a Tier 2 wallet with its passphrase. Returns an in-memory
-     * `WalletSession` that can sign client-side for any chain derived from
-     * the same master mnemonic.
+     * `WalletSession` that signs client-side. A wallet created at Tier 2
+     * holds a mnemonic and can sign for any chain derived from it; a wallet
+     * upgraded from Tier 1 holds a single key and signs for its own chain.
+     * Pass `walletAddress` when the account has several wallets on the chain.
      */
-    unlockTier2: async (opts: { chain: WalletChain; passphrase: string }): Promise<WalletSession> => {
-      const secret = await this.getCustodialSecret(opts.chain);
-      const blob = JSON.parse(secret.encryptedBlob) as WrappedBlob;
-      const mnemonic = await unwrapMnemonic(blob, opts.passphrase);
-      return new WalletSession(mnemonic);
+    unlockTier2: async (opts: { chain: WalletChain; passphrase: string; walletAddress?: string }): Promise<WalletSession> => {
+      const secret = await this.getCustodialSecret(opts.chain, opts.walletAddress);
+      return sessionFromWrappedSecret(secret.encryptedBlob, opts.passphrase, opts.chain);
     },
 
     /**
      * Sign a message with a Tier 1 wallet via the PDS. Requires an active
-     * consent grant from `grantConsent()`. Returns a chain-native signature.
+     * consent the user approved (`requestConsent()`). Returns a chain-native signature.
      */
     sign: async (opts: WalletSignOptions): Promise<{ signature: string; chain: string; walletAddress: string; dappOrigin: string }> => {
       const dappOrigin = opts.dappOrigin
@@ -681,12 +722,39 @@ export class OpenFederationClient implements AuthProvider {
       }) as Promise<{ signature: string; chain: string; walletAddress: string; dappOrigin: string }>;
     },
 
-    /** Grant a dApp origin time-bounded permission to sign with Tier 1 wallet(s). */
-    grantConsent: async (opts: GrantConsentOptions): Promise<ConsentGrant> => {
-      return this.fetch('net.openfederation.wallet.grantConsent', {
+    /**
+     * Ask the user to let this dApp have the PDS sign with a Tier 1 wallet.
+     * Nothing is granted yet: open `approveUrl` (a page on the PDS) for the
+     * user, then `waitForConsent(requestId)`. The consent names what it
+     * covers: give `allowedContracts` (and value limits) to sign transactions.
+     */
+    requestConsent: async (opts: GrantConsentOptions): Promise<ConsentRequest> => {
+      return this.fetch('net.openfederation.wallet.requestConsent', {
         method: 'POST',
         body: opts as unknown as Record<string, unknown>,
-      }) as Promise<ConsentGrant>;
+      }) as Promise<ConsentRequest>;
+    },
+
+    /** Where a consent request stands. */
+    getConsentRequest: async (requestId: string): Promise<ConsentRequestStatus> => {
+      return this.fetch('net.openfederation.wallet.getConsentRequest', {
+        method: 'GET',
+        params: { requestId },
+      }) as Promise<ConsentRequestStatus>;
+    },
+
+    /**
+     * Poll a consent request until the user approves or declines it, or it
+     * lapses. Resolves with the final status.
+     */
+    waitForConsent: async (requestId: string, opts: { intervalMs?: number; timeoutMs?: number } = {}): Promise<ConsentRequestStatus> => {
+      const interval = opts.intervalMs ?? 2000;
+      const deadline = Date.now() + (opts.timeoutMs ?? 10 * 60 * 1000);
+      for (;;) {
+        const status = await this.wallet.getConsentRequest(requestId);
+        if (status.status !== 'pending' || Date.now() >= deadline) return status;
+        await new Promise((resolve) => setTimeout(resolve, interval));
+      }
     },
 
     /** Revoke a consent grant by id, or by origin + optional wallet scope. */
@@ -726,6 +794,7 @@ export class OpenFederationClient implements AuthProvider {
               method: 'POST',
               body: o as unknown as Record<string, unknown>,
             }) as Promise<{ previousTier: string; newTier: string }>,
+          getCustodialSecret: (o) => this.getCustodialSecret(o.chain, o.walletAddress),
         },
         {
           chain: opts.chain,
@@ -733,6 +802,7 @@ export class OpenFederationClient implements AuthProvider {
           newTier: opts.newTier,
           currentPassword: opts.currentPassword,
           newPassphrase: opts.newPassphrase,
+          tier2Passphrase: opts.tier2Passphrase,
           currentTier: opts.currentTier,
         }
       );
@@ -742,6 +812,8 @@ export class OpenFederationClient implements AuthProvider {
         previousTier: res.previousTier,
         newTier: res.newTier,
         exportedPrivateKeyBase64: res.exportedPrivateKeyBase64,
+        exportedSecret: res.exportedSecret,
+        exportedSecretKind: res.exportedSecretKind,
       };
     },
 
@@ -976,37 +1048,20 @@ export class OpenFederationClient implements AuthProvider {
   }
 
   private async executeRefresh(): Promise<void> {
-    const refreshJwt = this.tokens.getRefreshJwt();
-    if (!refreshJwt) {
-      this.tokens.clear();
-      this.notifyAuthChange(null);
-      return;
-    }
-
-    try {
-      const url = xrpcUrl(this.serverUrl, 'com.atproto.server.refreshSession');
-      const res = await fetch(url, {
+    const outcome = await coordinatedRefresh({
+      tokens: this.tokens,
+      lockName: `openfederation-sdk-refresh:${this.serverUrl}`,
+      doFetch: (refreshJwt) => fetch(xrpcUrl(this.serverUrl, 'com.atproto.server.refreshSession'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${refreshJwt}` },
-      });
+      }),
+    });
 
-      if (!res.ok) {
-        this.tokens.clear();
-        this.notifyAuthChange(null);
-        return;
-      }
-
-      const data: SessionResponse = await res.json();
-      const user: User = {
-        did: data.did,
-        handle: data.handle,
-        email: data.email,
-        active: data.active ?? true,
-      };
-
-      this.tokens.setTokens(data.accessJwt, data.refreshJwt, user);
-    } catch {
-      // Network error during refresh — don't clear tokens, let the next request retry
+    if (outcome === 'signed-out') {
+      this.notifyAuthChange(null);
+    } else if (outcome === 'retry-later') {
+      // The session is intact; the server or the network was not. Try again shortly.
+      this.tokens.scheduleRetry(REFRESH_RETRY_MS);
     }
   }
 }

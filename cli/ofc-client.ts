@@ -8,7 +8,7 @@
  *   - --password-stdin support for scripted use
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, renameSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { createInterface } from 'readline';
@@ -49,13 +49,25 @@ export function loadSession(serverUrl: string): StoredSession | null {
 export function saveSession(session: StoredSession): void {
   const dir = configDir();
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
-  writeFileSync(sessionFile(), JSON.stringify(session, null, 2), { mode: 0o600 });
+  // Written to a private temporary file and moved into place. `mode` on
+  // writeFileSync only applies when the file is created, so a session file
+  // that already existed with looser permissions used to keep them; and a
+  // rename means another `ofc` running at the same moment never reads a
+  // half-written file.
+  const target = sessionFile();
+  const tmp = `${target}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(session, null, 2), { mode: 0o600 });
+  chmodSync(tmp, 0o600);
+  renameSync(tmp, target);
 }
 
 export function clearSession(): void {
   try {
     const f = sessionFile();
-    if (existsSync(f)) writeFileSync(f, '{}', { mode: 0o600 });
+    if (existsSync(f)) {
+      writeFileSync(f, '{}', { mode: 0o600 });
+      chmodSync(f, 0o600);
+    }
   } catch {
     // ignore
   }
@@ -273,6 +285,13 @@ export class OFCClient {
   // ── Internals ───────────────────────────────────────────────────
 
   private async tryRefresh(session: StoredSession): Promise<StoredSession | null> {
+    // Another `ofc` may have refreshed since this one read the file. The
+    // server rotates the refresh token on use, so presenting ours again would
+    // be replaying a rotated token. Use what is on disk now.
+    const onDisk = loadSession(this.serverUrl);
+    if (onDisk && onDisk.refreshJwt && onDisk.refreshJwt !== session.refreshJwt) {
+      return onDisk;
+    }
     try {
       const url = new URL('/xrpc/com.atproto.server.refreshSession', this.serverUrl);
       const resp = await this.rawFetch(url.toString(), {
@@ -284,7 +303,11 @@ export class OFCClient {
         },
       });
       if (!resp.ok) {
-        clearSession();
+        // Only a refusal of the token ends the stored session. A rate limit
+        // or a server error leaves it in place for the next command.
+        if (resp.status === 400 || resp.status === 401 || resp.status === 403 || resp.status === 410) {
+          clearSession();
+        }
         return null;
       }
       const data = await resp.json();
@@ -298,7 +321,8 @@ export class OFCClient {
       saveSession(refreshed);
       return refreshed;
     } catch {
-      clearSession();
+      // Timeout or network error: the session may be perfectly good (the
+      // refresh may even have succeeded with the reply lost). Keep it.
       return null;
     }
   }

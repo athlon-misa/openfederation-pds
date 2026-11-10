@@ -50,6 +50,24 @@ export class TokenManager {
     this.scheduleRefresh(accessJwt);
   }
 
+  /**
+   * Tokens in storage were replaced by another tab: re-arm this tab's refresh
+   * timer for the access token that is there now.
+   */
+  rescheduleFromStorage(): void {
+    const jwt = this.getAccessJwt();
+    if (jwt) this.scheduleRefresh(jwt);
+  }
+
+  /** Try the refresh again after `delayMs` (used after a transient failure). */
+  scheduleRetry(delayMs: number): void {
+    this.cancelRefresh();
+    if (!this.onRefreshNeeded) return;
+    this.refreshTimer = setTimeout(() => {
+      this.onRefreshNeeded?.();
+    }, delayMs);
+  }
+
   clear(): void {
     this.cancelRefresh();
     this.storage.remove(this.key(KEYS.accessJwt));

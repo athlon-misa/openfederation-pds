@@ -24,6 +24,23 @@ export interface RegisterOptions {
   handle: string;
   email: string;
   password: string;
+  /**
+   * A registration ticket minted by your backend with `createPartnerTicket`.
+   * Required when your partner key has a ticket key registered; the account
+   * is then approved and signed in at once. Without a ticket key, leave this
+   * out: the account is created but must verify its email before it can
+   * sign in (see `RegisterResult.emailVerificationRequired`).
+   */
+  ticket?: string;
+}
+
+/** What `register()` returns: the new user, and whether they still have to verify their email. */
+export interface RegisterResult extends User {
+  /**
+   * True when the account was created without a session: the user must open
+   * the link emailed to them, then sign in with `login()`.
+   */
+  emailVerificationRequired: boolean;
 }
 
 export interface LoginOptions {
@@ -142,7 +159,30 @@ export interface GrantConsentOptions {
   dappOrigin: string;
   chain?: WalletChain;
   walletAddress?: string;
+  /** How long the consent lasts once approved. Default 3600 (1 hour); the server caps it. */
   ttlSeconds?: number;
+  /** Addresses (Solana: program ids) transactions may go to. Without it the consent signs messages only. */
+  allowedContracts?: string[];
+  /** Most value one transaction may move, in wei, as a decimal string. Without it no value may move. */
+  maxValuePerTx?: string;
+  /** Most value all transactions under the consent may move together, in wei. */
+  maxTotalValue?: string;
+}
+
+export interface ConsentRequest {
+  requestId: string;
+  /** Page on the PDS where the user approves the request. Open it in a new window or tab. */
+  approveUrl: string;
+  /** When the request lapses if the user does not approve it. */
+  expiresAt: string;
+}
+
+export interface ConsentRequestStatus {
+  requestId: string;
+  status: 'pending' | 'approved' | 'denied' | 'expired';
+  dappOrigin: string;
+  expiresAt: string;
+  consentId?: string;
 }
 
 export interface ConsentGrant {
@@ -150,6 +190,10 @@ export interface ConsentGrant {
   dappOrigin: string;
   chain?: WalletChain | null;
   walletAddress?: string | null;
+  allowedContracts?: string[];
+  maxValuePerTx?: string;
+  maxTotalValue?: string;
+  spentValue?: string;
   grantedAt: string;
   expiresAt: string;
 }
@@ -219,6 +263,11 @@ export interface UpgradeTierOptions {
   currentPassword: string;
   /** New passphrase for wrapping the mnemonic at Tier 2. Required when newTier = 'user_encrypted'. */
   newPassphrase?: string;
+  /**
+   * The wallet's current Tier 2 passphrase. Required for Tier 2 → Tier 3: the
+   * secret is unwrapped with it and returned before the server copy is deleted.
+   */
+  tier2Passphrase?: string;
   /** Current tier of the wallet, known by the client. SDK reads this from list endpoints. */
   currentTier: CustodyTier;
 }
@@ -230,6 +279,13 @@ export interface UpgradeTierResult {
   newTier: 'user_encrypted' | 'self_custody';
   /** Present ONLY for custodial → self_custody. Raw private key bytes as base64. */
   exportedPrivateKeyBase64?: string;
+  /**
+   * Present ONLY for user_encrypted → self_custody: the unwrapped secret. After
+   * this call it exists nowhere else; show it to the user to keep.
+   */
+  exportedSecret?: string;
+  /** What `exportedSecret` is: a BIP-39 mnemonic, or a base64 raw private key. */
+  exportedSecretKind?: 'mnemonic' | 'raw-private-key';
 }
 
 export interface SignInWithOpenFederationOptions {
@@ -314,7 +370,8 @@ export interface AttestationResult {
 }
 
 export interface CommitmentVerification {
-  commitment: { hash: string; schemaHash?: string; salt?: string; version?: string };
+  /** The salt is not public; it comes with a full disclosure (`redeemGrant().commitmentSalt`). */
+  commitment: { hash: string; schemaHash?: string; version?: string };
   issuerDid: string;
   visibility: string;
   issuedAt?: string;
@@ -348,6 +405,12 @@ export interface GrantRedemption {
   sessionKey: string;
   expiresAt: string;
   watermarkId: string;
+  /**
+   * Salt of the attestation's public commitment; present only when the grant
+   * covers the whole claim. sha256(`${salt}:${canonical claim JSON}`) equals
+   * `verifyCommitment().commitment.hash`.
+   */
+  commitmentSalt?: string;
 }
 
 export interface GrantStatus {
