@@ -2,11 +2,19 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
+import { getCommunityAccess, canViewPrivateCommunity } from '../community/visibility.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { currentPlcState, pointsHere } from '../identity/account-migration.js';
 import { communityBlobCounts, missingAttestationKeys, recommendedCommunityCredentials } from '../community/migration.js';
 
-/** How far a community's move here has come (#267). Public: nothing here is secret. */
+/**
+ * How far a community's move here has come (#267).
+ *
+ * While the copy is still arriving this is open, because the owner checks it
+ * before they have any standing here. Once the community is live it answers
+ * only to those who may read the community: the counts below would otherwise
+ * confirm a private community exists and how large it is.
+ */
 export default async function checkMigration(req: AuthRequest, res: Response): Promise<void> {
   const did = String(req.query.did || '');
   try {
@@ -15,6 +23,15 @@ export default async function checkMigration(req: AuthRequest, res: Response): P
     if (!c || !root) {
       res.status(404).json({ error: 'NotFound', message: 'No copy of this community here' });
       return;
+    }
+    if (c.status !== 'importing') {
+      const access = await getCommunityAccess({ communityDid: did, caller: req.auth });
+      const hidden = (access.visibility === 'private' && !canViewPrivateCommunity(access))
+        || (access.status === 'takendown' && !access.isAdmin);
+      if (hidden) {
+        res.status(404).json({ error: 'NotFound', message: 'No copy of this community here' });
+        return;
+      }
     }
     const [records, members, attestations, blobs, missingKeys] = await Promise.all([
       query<{ n: string }>('SELECT COUNT(*) AS n FROM records_index WHERE community_did = $1', [did]),

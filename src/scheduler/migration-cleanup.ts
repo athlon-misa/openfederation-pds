@@ -15,7 +15,10 @@
 import { config } from '../config.js';
 import { query, withTransaction } from '../db/client.js';
 import { currentPlcState } from '../identity/account-migration.js';
-import { deleteAccountData } from '../identity/delete-account.js';
+import { auditLog } from '../db/audit.js';
+import { runIfDue } from './schedule.js';
+import { homeOf, markCommunityMoved } from '../community/migration.js';
+import { deleteAccountData, removeBlobFiles } from '../identity/delete-account.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 
 /** Communities whose DID now names another PDS are marked moved (#267); nothing is deleted. */
@@ -29,10 +32,12 @@ export async function sweepMovedCommunities(): Promise<number> {
     } catch {
       return marked;
     }
-    const endpoint = state?.services.atproto_pds?.endpoint;
-    if (!state || !endpoint || endpoint === config.pds.serviceUrl) continue;
-    await query(`UPDATE communities SET status = 'moved', status_changed_at = CURRENT_TIMESTAMP, status_reason = $2 WHERE did = $1 AND status = 'active'`, [did, `moved to ${endpoint}`]);
-    marked++;
+    const endpoint = state ? homeOf(state) : null;
+    if (!endpoint) continue;
+    if (await markCommunityMoved(did, endpoint)) {
+      await auditLog('community.moved', null, did, { to: endpoint, by: 'sweep' });
+      marked++;
+    }
   }
   return marked;
 }
@@ -58,7 +63,8 @@ export async function sweepUnfinishedMigrations(): Promise<{ flagged: number; de
       result.flagged++;
       continue;
     }
-    await withTransaction((client) => deleteAccountData(client, user));
+    const orphanedBlobs = await withTransaction((client) => deleteAccountData(client, user));
+    await removeBlobFiles(orphanedBlobs);
     invalidateAuthContext(user.did);
     result.deleted++;
   }
@@ -67,16 +73,35 @@ export async function sweepUnfinishedMigrations(): Promise<{ flagged: number; de
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
-export function startMigrationCleanup(): void {
+/** How often each process checks whether the sweep is due. The sweep's own interval is `MIGRATION_CLEANUP_DAYS`. */
+const CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Run the clean-up sweeps if `MIGRATION_CLEANUP_DAYS` have passed since they
+ * last ran on any server. The "two sweeps in a row, days apart" rule that
+ * protects a move still in progress depends on that spacing being real: it is
+ * kept in the database (see `runIfDue`), not in a per-process timer that
+ * restarts with every deploy and exists once per replica.
+ */
+export async function runMigrationCleanupIfDue(): Promise<void> {
   const days = config.migration.cleanupDays;
-  if (days <= 0 || timer) return;
-  timer = setInterval(() => {
-    sweepUnfinishedMigrations()
-      .then((r) => { if (r.deleted) console.log(`[migration] removed ${r.deleted} unfinished incoming account(s)`); })
-      .then(() => sweepMovedCommunities())
-      .then((n) => { if (n) console.log(`[migration] marked ${n} community(ies) as moved`); })
+  if (days <= 0) return;
+  await runIfDue('migration-cleanup', days * 24 * 60 * 60 * 1000, async () => {
+    const r = await sweepUnfinishedMigrations();
+    if (r.deleted) console.log(`[migration] removed ${r.deleted} unfinished incoming account(s)`);
+    const n = await sweepMovedCommunities();
+    if (n) console.log(`[migration] marked ${n} community(ies) as moved`);
+  });
+}
+
+export function startMigrationCleanup(): void {
+  if (config.migration.cleanupDays <= 0 || timer) return;
+  const check = () => {
+    runMigrationCleanupIfDue()
       .catch((err) => console.error('[migration] clean-up sweep failed:', err instanceof Error ? err.message : err));
-  }, days * 24 * 60 * 60 * 1000);
+  };
+  check();
+  timer = setInterval(check, CHECK_INTERVAL_MS);
   timer.unref();
 }
 

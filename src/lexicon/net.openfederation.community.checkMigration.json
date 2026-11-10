@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.checkMigration",
-  "revision": 1,
+  "revision": 2,
   "description": "Progress of a community's move here (#267).",
   "defs": {
     "main": {
@@ -67,28 +67,9 @@
               "type": "integer"
             },
             "recommended": {
-              "type": "object",
-              "description": "What the owner should put in the DID to bring the community here.",
-              "properties": {
-                "rotationKeys": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "alsoKnownAs": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "verificationMethods": {
-                  "type": "unknown"
-                },
-                "services": {
-                  "type": "unknown"
-                }
-              }
+              "type": "ref",
+              "ref": "#recommendedCredentials",
+              "description": "What the owner should put in the DID to bring the community here."
             }
           }
         }
@@ -98,6 +79,30 @@
           "name": "NotFound"
         }
       ]
+    },
+    "recommendedCredentials": {
+      "type": "object",
+      "properties": {
+        "rotationKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "alsoKnownAs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verificationMethods": {
+          "type": "unknown"
+        },
+        "services": {
+          "type": "unknown"
+        }
+      },
+      "description": "What the owner should put in the DID to bring the community here."
     }
   }
 }

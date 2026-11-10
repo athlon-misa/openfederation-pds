@@ -3,7 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { currentPlcState } from '../identity/account-migration.js';
-import { CommunityMoveError, homeOf, sealMovedKeys } from '../community/migration.js';
+import { CommunityMoveError, homeOf, sealMovedKeys, markCommunityMoved } from '../community/migration.js';
 
 /**
  * The old home hands over a moved community's attestation keys (#267),
@@ -23,8 +23,9 @@ export default async function getMovedKeys(req: AuthRequest, res: Response): Pro
     const recipient = state.verificationMethods.atproto;
     if (!recipient) throw new CommunityMoveError(400, 'IncompatibleDidDoc', 'The DID names no atproto signing key');
 
-    if (c.status !== 'moved') {
-      await query(`UPDATE communities SET status = 'moved', status_changed_at = CURRENT_TIMESTAMP, status_reason = $2 WHERE did = $1`, [did, `moved to ${home}`]);
+    // Suspended and taken-down copies keep their status (see markCommunityMoved);
+    // the keys are still handed over, since the owner is free to leave.
+    if (c.status === 'active' && await markCommunityMoved(did, home)) {
       await auditLog('community.moved', null, did, { to: home });
     }
     const { count, sealed } = await sealMovedKeys(did, recipient);
