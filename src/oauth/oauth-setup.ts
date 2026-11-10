@@ -27,6 +27,22 @@ class MemoryLexiconStore implements LexiconStore {
 
 let oauthProvider: OAuthProvider | null = null;
 
+type ProviderOptions = ConstructorParameters<typeof OAuthProvider>[0];
+
+/**
+ * What the OAuth provider logs. The account's DID identifies the event; the
+ * IP address and user agent are left out, because they are personal data the
+ * log has no retention rule for.
+ */
+export const oauthLogHooks: Required<Pick<ProviderOptions, 'onSignedIn' | 'onAuthorized'>> = {
+  onSignedIn: async ({ account }) => {
+    console.log(`OAuth sign-in: ${account.sub}`);
+  },
+  onAuthorized: async ({ client, account }) => {
+    console.log(`OAuth authorized: ${account.sub} for client ${client.id}`);
+  },
+};
+
 export async function createOAuthProvider(): Promise<OAuthProvider> {
   // Generate or load ES256 signing key for OAuth tokens
   let signingKey: JoseKey;
@@ -70,12 +86,7 @@ export async function createOAuthProvider(): Promise<OAuthProvider> {
     },
 
     // Hooks for audit logging
-    onSignedIn: async ({ account, deviceMetadata }) => {
-      console.log(`OAuth sign-in: ${account.sub} from ${deviceMetadata.ipAddress}`);
-    },
-    onAuthorized: async ({ client, account }) => {
-      console.log(`OAuth authorized: ${account.sub} for client ${client.id}`);
-    },
+    ...oauthLogHooks,
   };
 
   oauthProvider = new OAuthProvider(providerOptions);

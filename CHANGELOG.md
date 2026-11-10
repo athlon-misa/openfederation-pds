@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **No personal data or live links in logs**: with no SMTP configured in production (`ALLOW_NO_EMAIL=true`), an unsent email is logged by purpose only, not recipient, subject and the start of its body (which could hold a working reset or verification link); development still prints the message. OAuth sign-in is logged by account DID only, without the IP address.
 - **Build pinning**: GitHub Actions are pinned by commit SHA (Dependabot proposes security fixes for them); Railway installs with `npm ci` from the lockfile instead of `npm install`.
 - **Repository integrity**: writes to one repository are serialised, a commit only lands if the root it was built on is still current, and `records_index` is updated in the commit's own transaction. Two parallel writes could previously leave the tree pointing at deleted blocks.
 - **Admin identity-verification codes** can no longer be redeemed as password-reset tokens (`password_reset_tokens.purpose`, migration 046).
