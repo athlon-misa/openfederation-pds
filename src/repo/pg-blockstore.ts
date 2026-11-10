@@ -8,8 +8,22 @@
 
 import { CID } from 'multiformats/cid';
 import { ReadableBlockstore, RepoStorage, BlockMap, CommitData } from '@atproto/repo';
+import type { PoolClient } from 'pg';
 import { query, withTransaction } from '../db/client.js';
 import { blockCacheGet, blockCacheSet, blockCacheDelete } from './block-cache.js';
+
+/**
+ * A commit was built on a root that is no longer the repo's current root:
+ * another writer committed in between. Applying it anyway would replace the
+ * root with a tree that ignores the other writer's changes and may point at
+ * blocks that writer deleted. The caller reloads the repo and tries again.
+ */
+export class RepoConcurrentWriteError extends Error {
+  constructor(did: string) {
+    super(`Concurrent write to repo ${did}: commit was built on a stale root`);
+    this.name = 'RepoConcurrentWriteError';
+  }
+}
 
 export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
   constructor(private did: string) {
@@ -150,8 +164,42 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
     );
   }
 
-  async applyCommit(commit: CommitData): Promise<void> {
+  /**
+   * Apply a commit: move the root, store the new blocks and drop the replaced
+   * ones, in one transaction.
+   *
+   * The root moves only if it is still the root the commit was built on
+   * (`commit.prev`), and it moves first, so a stale commit fails before it has
+   * written or deleted anything. Two commits built on the same root therefore
+   * cannot both land, in this process or across replicas: the second waits on
+   * the row lock, re-checks, finds a different root and is refused.
+   *
+   * `inTransaction` runs inside the same transaction after the blocks are
+   * written. The engine uses it to update `records_index`, so the read cache
+   * and the signed tree change together or not at all.
+   */
+  async applyCommit(
+    commit: CommitData,
+    inTransaction?: (client: PoolClient) => Promise<void>,
+  ): Promise<void> {
     await withTransaction(async (client) => {
+      const cidStr = commit.cid.toString();
+      const moved = commit.prev
+        ? await client.query(
+            `UPDATE repo_roots SET root_cid = $2, rev = $3, updated_at = CURRENT_TIMESTAMP
+             WHERE did = $1 AND root_cid = $4`,
+            [this.did, cidStr, commit.rev, commit.prev.toString()],
+          )
+        : await client.query(
+            `INSERT INTO repo_roots (did, root_cid, rev, updated_at)
+             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+             ON CONFLICT (did) DO NOTHING`,
+            [this.did, cidStr, commit.rev],
+          );
+      if (moved.rowCount !== 1) {
+        throw new RepoConcurrentWriteError(this.did);
+      }
+
       // Batch-insert new blocks
       const newEntries = Array.from(commit.newBlocks);
       const BATCH_SIZE = 100;
@@ -186,14 +234,7 @@ export class PgBlockstore extends ReadableBlockstore implements RepoStorage {
         );
       }
 
-      // Update root
-      const cidStr = commit.cid.toString();
-      await client.query(
-        `INSERT INTO repo_roots (did, root_cid, rev, updated_at)
-         VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-         ON CONFLICT (did) DO UPDATE SET root_cid = $2, rev = $3, updated_at = CURRENT_TIMESTAMP`,
-        [this.did, cidStr, commit.rev]
-      );
+      if (inTransaction) await inTransaction(client);
     });
     // Populate cache for the new blocks so the next Repo.load() walks
     // the MST entirely from memory.
