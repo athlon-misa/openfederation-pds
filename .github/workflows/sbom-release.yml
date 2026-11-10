@@ -35,5 +35,8 @@ jobs:
         run: |
           name=$(echo "${{ matrix.dir }}" | tr '/' '-' | sed 's/^\.$/pds/')
           file="$RUNNER_TEMP/sbom-$name-${{ github.event.release.tag_name }}.cdx.json"
-          npm sbom --sbom-format cyclonedx --sbom-type application --omit dev > "$file"
+          # The CycloneDX tool (pinned), not `npm sbom`: npm refuses trees with peer
+          # mismatches (the dashboard's kbar -> react-virtual wants React 16/17) or
+          # local file: links (the demo); --ignore-npm-errors records them anyway.
+          npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --omit dev --ignore-npm-errors --output-format JSON --output-file "$file"
           gh release upload "${{ github.event.release.tag_name }}" "$file" --clobber

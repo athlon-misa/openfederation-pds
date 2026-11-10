@@ -204,7 +204,10 @@ jobs:
         working-directory: ${{ matrix.dir }}
         run: |
           name=$(echo "${{ matrix.dir }}" | tr '/' '-' | sed 's/^\.$/pds/')
-          npm sbom --sbom-format cyclonedx --sbom-type application --omit dev > "$RUNNER_TEMP/sbom-$name.cdx.json"
+          # The CycloneDX tool (pinned), not `npm sbom`: npm refuses trees with peer
+          # mismatches (the dashboard's kbar -> react-virtual wants React 16/17) or
+          # local file: links (the demo); --ignore-npm-errors records them anyway.
+          npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --omit dev --ignore-npm-errors --output-format JSON --output-file "$RUNNER_TEMP/sbom-$name.cdx.json"
           echo "SBOM_FILE=$RUNNER_TEMP/sbom-$name.cdx.json" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
