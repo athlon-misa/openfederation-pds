@@ -87,6 +87,25 @@ describe('sendEmail outcomes (#83)', () => {
     expect((await deliveryRows('retry@example.test'))[0]).toMatchObject({ status: 'sent', attempts: 2 });
   }, 20_000);
 
+  it('does not log the recipient on a failed send, even when the SMTP error repeats it', async () => {
+    const lines: string[] = [];
+    const capture = (...args: unknown[]) => { lines.push(args.map(String).join(' ')); };
+    const spies = [vi.spyOn(console, 'warn').mockImplementation(capture), vi.spyOn(console, 'error').mockImplementation(capture)];
+    sendMail
+      .mockRejectedValueOnce(smtpError(451, '4.2.0 <private.person@example.test>: try again later'))
+      .mockRejectedValueOnce(smtpError(550, '5.1.1 <private.person@example.test>: Recipient address rejected'));
+    try {
+      const result = await sendEmail('private.person@example.test', 'S', '<p>b</p>', 'password-reset');
+      expect(result.outcome).toBe('failed-permanent');
+    } finally {
+      for (const s of spies) s.mockRestore();
+    }
+    const logged = lines.join('\n');
+    expect(logged).toContain('password-reset');
+    expect(logged).toContain('Recipient address rejected');
+    expect(logged).not.toContain('private.person@example.test');
+  }, 20_000);
+
   it('exhausts retries on persistent connection failure and says so', async () => {
     // No responseCode at all — the server never answered. That is transient
     // by definition: it never got to express an opinion.
