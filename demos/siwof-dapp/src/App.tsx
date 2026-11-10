@@ -100,7 +100,8 @@ function SiwofPanel() {
 
   async function provisionAndReady(): Promise<string> {
     // If there's no wallet on the chain, provision a Tier 1 custodial wallet
-    // on demand. Grant consent for this dApp origin so wallet.sign works.
+    // on demand. Ask the user for consent for this dApp origin so wallet.sign
+    // works: they approve it on the PDS's own page, opened in a new tab.
     let addr = walletOnChain?.walletAddress;
     if (!addr) {
       const prov = (await client.fetch('net.openfederation.wallet.provision', {
@@ -110,11 +111,16 @@ function SiwofPanel() {
       addr = prov.walletAddress;
       await refresh();
     }
-    await client.wallet.grantConsent({
+    const request = await client.wallet.requestConsent({
       dappOrigin: window.location.origin,
       chain,
       walletAddress: addr,
     });
+    window.open(request.approveUrl, '_blank', 'noopener');
+    const outcome = await client.wallet.waitForConsent(request.requestId);
+    if (outcome.status !== 'approved') {
+      throw new Error(`Wallet consent was ${outcome.status}; approve it in the PDS tab to continue.`);
+    }
     return addr;
   }
 

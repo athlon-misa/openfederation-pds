@@ -36,7 +36,7 @@ const ADMIN_PASSWORD = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'AdminPass1234';
 
 type Response<T = any> = { status: number; body: T };
 
-async function xrpc<T>(method: 'GET' | 'POST', nsid: string, opts: { token?: string; body?: unknown; params?: Record<string, string> } = {}): Promise<Response<T>> {
+async function xrpc<T>(method: 'GET' | 'POST', nsid: string, opts: { token?: string; body?: unknown; params?: Record<string, string>; origin?: string } = {}): Promise<Response<T>> {
   const qs = opts.params ? '?' + new URLSearchParams(opts.params).toString() : '';
   const url = `${PDS}/xrpc/${nsid}${qs}`;
   const res = await fetch(url, {
@@ -44,11 +44,31 @@ async function xrpc<T>(method: 'GET' | 'POST', nsid: string, opts: { token?: str
     headers: {
       ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
       ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+      // Custodial signing is bound to the browser Origin; the demo plays the browser.
+      ...(opts.origin ? { Origin: opts.origin } : {}),
     },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const body = await res.json().catch(() => ({}));
   return { status: res.status, body: body as T };
+}
+
+/**
+ * Get Tier 1 signing consent the way a dApp now must: request it from the
+ * dApp's origin, then approve it as the user would on the PDS's own page
+ * (password, sent from the PDS origin).
+ */
+async function obtainConsent(token: string, password: string, body: Record<string, unknown>): Promise<{ id: string; expiresAt: string }> {
+  const origin = new URL(String(body.dappOrigin)).origin;
+  const requested = await xrpc<{ requestId: string; approveUrl: string }>('POST', 'net.openfederation.wallet.requestConsent', { token, body, origin });
+  if (requested.status !== 200) throw new Error(`consent request failed: ${requested.status} ${JSON.stringify(requested.body)}`);
+  console.log(`  ✓ consent requested; the user would approve at ${requested.body.approveUrl}`);
+  const approved = await xrpc<{ consentId: string; expiresAt: string }>('POST', 'net.openfederation.wallet.approveConsentRequest', {
+    body: { requestId: requested.body.requestId, password, approve: true },
+    origin: new URL(PDS).origin,
+  });
+  if (approved.status !== 200) throw new Error(`consent approval failed: ${approved.status} ${JSON.stringify(approved.body)}`);
+  return { id: approved.body.consentId, expiresAt: approved.body.expiresAt };
 }
 
 function log(stage: string, ...rest: unknown[]) {
@@ -103,16 +123,20 @@ async function main() {
   console.log(`  ✓ custody tier: ${t1.body.custodyTier}`);
 
   const dappOrigin = 'https://demo-game.example.com';
-  const grant = await xrpc<{ id: string; expiresAt: string }>('POST', 'net.openfederation.wallet.grantConsent', {
-    token,
-    body: { dappOrigin, chain: 'ethereum', walletAddress: t1.body.walletAddress },
+  const grant = await obtainConsent(token, 'DemoPassword123!', {
+    dappOrigin,
+    chain: 'ethereum',
+    walletAddress: t1.body.walletAddress,
+    // A consent names what it covers: the contract below and up to 0.001 ETH a transaction.
+    allowedContracts: ['0x000000000000000000000000000000000000bEEF'],
+    maxValuePerTx: '1000000000000000',
   });
-  if (grant.status !== 200) throw new Error(`t1 consent failed: ${grant.status}`);
-  console.log(`  ✓ consent granted to ${dappOrigin} until ${grant.body.expiresAt}`);
+  console.log(`  ✓ consent approved for ${dappOrigin} until ${grant.expiresAt}`);
 
   const t1Msg = `Hello from ${handle} at Tier 1`;
   const t1Sign = await xrpc<{ signature: string }>('POST', 'net.openfederation.wallet.sign', {
     token,
+    origin: dappOrigin,
     body: { chain: 'ethereum', walletAddress: t1.body.walletAddress, message: t1Msg, dappOrigin },
   });
   if (t1Sign.status !== 200) throw new Error(`t1 sign failed: ${t1Sign.status}`);
@@ -122,6 +146,7 @@ async function main() {
   // Sign a real EIP-1559 transaction via the new signTransaction endpoint.
   const t1TxRes = await xrpc<{ signedTx: string }>('POST', 'net.openfederation.wallet.signTransaction', {
     token,
+    origin: dappOrigin,
     body: {
       chain: 'ethereum',
       walletAddress: t1.body.walletAddress,
@@ -251,9 +276,8 @@ async function main() {
   log('Sign-In With OpenFederation — dApp gets offline-verifiable tokens');
   const siwofAudience = 'https://siwof-demo.example.com/login';
   // Tier 1 signing requires a consent grant for the dApp origin.
-  await xrpc('POST', 'net.openfederation.wallet.grantConsent', {
-    token,
-    body: { dappOrigin: siwofAudience, chain: 'ethereum', walletAddress: t1.body.walletAddress },
+  await obtainConsent(token, 'DemoPassword123!', {
+    dappOrigin: new URL(siwofAudience).origin, chain: 'ethereum', walletAddress: t1.body.walletAddress,
   });
   const chRes = await xrpc<{ message: string; nonce: string; chainIdCaip2: string }>(
     'POST',
@@ -273,11 +297,12 @@ async function main() {
 
   const siwofSig = await xrpc<{ signature: string }>('POST', 'net.openfederation.wallet.sign', {
     token,
+    origin: new URL(siwofAudience).origin,
     body: {
       chain: 'ethereum',
       walletAddress: t1.body.walletAddress,
       message: chRes.body.message,
-      dappOrigin: siwofAudience,
+      dappOrigin: new URL(siwofAudience).origin,
     },
   });
   const assertRes = await xrpc<{ didToken: string; walletProof: any; did: string }>(
