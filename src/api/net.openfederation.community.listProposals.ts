@@ -37,7 +37,8 @@ export default async function listProposals(req: AuthRequest, res: Response): Pr
     }
 
     if (cursor) {
-      sql += ` AND rkey > $${paramIdx}`;
+      // The list runs newest first (rkey DESC), so the next page is what sorts below the cursor.
+      sql += ` AND rkey < $${paramIdx}`;
       params.push(cursor);
       paramIdx++;
     }

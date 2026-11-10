@@ -1,6 +1,16 @@
 import { query } from '../db/client.js';
 import type { AuthContext } from '../auth/types.js';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The cursor a caller sent is not one this list hands out. */
+export class InvalidCursorError extends Error {
+  constructor() {
+    super('cursor is not valid');
+    this.name = 'InvalidCursorError';
+  }
+}
+
 export async function createNotification(
   recipientDid: string,
   category: string,
@@ -34,11 +44,17 @@ export async function listNotifications(
     sql += ` AND read_at IS NULL`;
   }
   if (cursor) {
-    sql += ` AND id < $${idx++}::uuid`;
+    // The cursor is the id of the last notification on the previous page. Ids
+    // are random, so "id < cursor" is not "older than"; the page boundary is
+    // that row's position in the (created_at, id) ordering the list uses.
+    if (!UUID.test(cursor)) throw new InvalidCursorError();
+    sql += ` AND (created_at, id) < (
+               SELECT c.created_at, c.id FROM notifications c
+               WHERE c.id = $${idx++}::uuid AND c.recipient_did = $1)`;
     params.push(cursor);
   }
 
-  sql += ` ORDER BY created_at DESC LIMIT $${idx}`;
+  sql += ` ORDER BY created_at DESC, id DESC LIMIT $${idx}`;
   params.push(limit + 1);
 
   const result = await query<{

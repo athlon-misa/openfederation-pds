@@ -75,6 +75,13 @@ function getTransporter(): Transporter | null {
       host: config.email.host,
       port: config.email.port,
       secure: config.email.secure,
+      // Bounded waits. Several endpoints send mail after they have already
+      // committed their change (password reset, recovery, session revocation);
+      // with nodemailer's defaults an unreachable mail server left those
+      // requests hanging for minutes per attempt.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
       auth: config.email.user ? {
         user: config.email.user,
         pass: config.email.password,

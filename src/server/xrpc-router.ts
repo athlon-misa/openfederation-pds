@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { handlerRegistry } from './handler-registry.js';
 import type { AuthRequest } from '../auth/types.js';
 import { enforceXrpcErrorResponses, renderXrpcError } from '../xrpc/errors.js';
-import { validateXrpcInput } from '../lexicon/runtime.js';
+import { getMethodSchema, validateXrpcInput } from '../lexicon/runtime.js';
 
 export function createXrpcRouter(): Router {
   const router = Router();
@@ -19,7 +19,9 @@ export function createXrpcRouter(): Router {
     }
 
     try {
-      const entry = handlerRegistry[nsid];
+      // An own-property lookup: `handlerRegistry['constructor']` is truthy
+      // for any plain object and used to be "found", then fail as a 500.
+      const entry = Object.hasOwn(handlerRegistry, nsid) ? handlerRegistry[nsid] : undefined;
 
       if (!entry) {
         return res.status(404).json({
@@ -46,9 +48,36 @@ export function createXrpcRouter(): Router {
         });
       }
 
+      // A suspended or taken-down account gets nothing, whichever credential
+      // it presents. Local sessions are already dead by then (the status change
+      // bumps token_version); this is what stops an OAuth grant or a
+      // service-auth token signed with the account's key, neither of which the
+      // status change invalidates.
+      if (auth && (auth.status === 'suspended' || auth.status === 'takendown')) {
+        return auth.status === 'suspended'
+          ? res.status(403).json({ error: 'AccountSuspended', message: 'Your account has been suspended.' })
+          : res.status(410).json({ error: 'AccountTakenDown', message: 'Your account has been taken down.' });
+      }
+
+      // What the method is comes from its lexicon, not from the verb it was
+      // called with. A procedure changes state and is refused on GET (a link,
+      // a prefetch or a crawler must not be able to trigger one). A query's
+      // declared parameters live in the query string whichever verb carried
+      // them, so that is what gets validated.
+      const methodType = getMethodSchema(nsid)?.defs?.main?.type;
+      if (methodType === 'procedure' && req.method === 'GET') {
+        res.setHeader('Allow', 'POST');
+        return res.status(405).json({
+          error: 'InvalidRequest',
+          message: 'This method is a procedure and must be called with POST',
+        });
+      }
+
       enforceXrpcErrorResponses(nsid, res);
 
-      const validationTarget = req.method === 'GET' ? req.query : req.body ?? {};
+      const validationTarget = (methodType ? methodType === 'query' : req.method === 'GET')
+        ? req.query
+        : req.body ?? {};
       const validation = validateXrpcInput(nsid, validationTarget);
       if (!validation.ok) {
         return res.status(400).json({
