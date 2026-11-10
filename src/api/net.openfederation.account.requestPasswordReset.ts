@@ -77,13 +77,15 @@ export default async function requestPasswordReset(req: Request, res: Response):
 
     // Invalidate any existing reset tokens for this user
     await query(
-      'UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND used_at IS NULL',
+      `UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND purpose = 'password-reset' AND used_at IS NULL`,
       [user.id]
     );
 
     // Store new token
     await query(
-      'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, purpose)
+       VALUES ($1, $2, $3, 'password-reset')`,
       [user.id, tokenHash, expiresAt.toISOString()]
     );
 

@@ -5,6 +5,7 @@ import { verifyPassword } from '../auth/password.js';
 import { issueSession } from '../auth/session-issue.js';
 import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
+import { checkPasswordWithLockout } from '../auth/password-check.js';
 
 interface CreateSessionInput {
   identifier: string;
@@ -26,6 +27,12 @@ export default async function createSession(req: Request, res: Response): Promis
       ? normalizeEmail(input.identifier)
       : normalizeHandle(input.identifier);
 
+    // What goes into the audit log for a failed login. The raw field is
+    // whatever was typed, which is sometimes a password pasted into the wrong
+    // box and can be as large as the request body; the log gets the
+    // normalised, length-capped form only.
+    const auditIdentifier = identifier.slice(0, 254);
+
     const userResult = await query<{
       id: string;
       handle: string;
@@ -44,7 +51,7 @@ export default async function createSession(req: Request, res: Response): Promis
 
     if (userResult.rows.length === 0) {
       await auditLog('session.loginFailed', null, null, {
-        identifier: input.identifier, reason: 'user_not_found', ip: req.ip,
+        identifier: auditIdentifier, reason: 'user_not_found', ip: req.ip,
       });
       res.status(401).json({
         error: 'Unauthorized',
@@ -61,28 +68,10 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    // Check if account is locked
-    if (user.locked_until) {
-      const lockExpiry = new Date(user.locked_until);
-      if (lockExpiry > new Date()) {
-        const remainingSec = Math.ceil((lockExpiry.getTime() - Date.now()) / 1000);
-        await auditLog('session.loginFailed', null, user.id, {
-          identifier: input.identifier, reason: 'account_locked', ip: req.ip,
-          lockedUntil: user.locked_until,
-        });
-        res.status(429).json({
-          error: 'AccountLocked',
-          message: `Too many failed attempts. Try again in ${remainingSec} seconds.`,
-          retryAfter: remainingSec,
-        });
-        return;
-      }
-    }
-
     // External users cannot log in via password — they must use ATProto OAuth
     if (user.auth_type === 'external') {
       await auditLog('session.loginFailed', null, user.id, {
-        identifier: input.identifier, reason: 'external_account', ip: req.ip,
+        identifier: auditIdentifier, reason: 'external_account', ip: req.ip,
       });
       res.status(400).json({
         error: 'ExternalAccount',
@@ -93,7 +82,7 @@ export default async function createSession(req: Request, res: Response): Promis
 
     if (!user.password_hash) {
       await auditLog('session.loginFailed', null, user.id, {
-        identifier: input.identifier, reason: 'no_password_hash', ip: req.ip,
+        identifier: auditIdentifier, reason: 'no_password_hash', ip: req.ip,
       });
       res.status(401).json({
         error: 'Unauthorized',
@@ -102,43 +91,34 @@ export default async function createSession(req: Request, res: Response): Promis
       return;
     }
 
-    const passwordOk = await verifyPassword(input.password, user.password_hash);
-    if (!passwordOk) {
-      const failure = await query<{ failed_login_attempts: number }>(
-        `UPDATE users
-         SET failed_login_attempts = failed_login_attempts + 1,
-             locked_until = CASE
-               WHEN failed_login_attempts + 1 >= 20 THEN CURRENT_TIMESTAMP + INTERVAL '2 hours'
-               WHEN failed_login_attempts + 1 >= 15 THEN CURRENT_TIMESTAMP + INTERVAL '30 minutes'
-               WHEN failed_login_attempts + 1 >= 10 THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes'
-               WHEN failed_login_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '1 minute'
-               ELSE NULL
-             END
-         WHERE id = $1
-         RETURNING failed_login_attempts`,
-        [user.id],
-      );
-      const attempts = failure.rows[0].failed_login_attempts;
-
+    const check = await checkPasswordWithLockout(user.id, user.password_hash, input.password);
+    if (!check.ok && check.reason === 'locked') {
       await auditLog('session.loginFailed', null, user.id, {
-        identifier: input.identifier, reason: 'wrong_password', ip: req.ip,
-        attempts,
+        identifier: auditIdentifier, reason: 'account_locked', ip: req.ip,
+        lockedUntil: check.lockedUntil.toISOString(),
+      });
+      res.status(429).json({
+        error: 'AccountLocked',
+        message: `Too many failed attempts. Try again in ${check.retryAfterSeconds} seconds.`,
+        retryAfter: check.retryAfterSeconds,
+      });
+      return;
+    }
+    if (!check.ok) {
+      await auditLog('session.loginFailed', null, user.id, {
+        identifier: auditIdentifier, reason: 'wrong_password', ip: req.ip,
+        attempts: check.attempts,
       });
       res.status(401).json({
         error: 'Unauthorized',
         message: 'Invalid credentials',
       });
       return;
-    }
-
-    // Reset failed login counter
-    if (user.failed_login_attempts > 0) {
-      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
     }
 
     if (user.status === 'suspended') {
       await auditLog('session.loginFailed', null, user.id, {
-        identifier: input.identifier, reason: 'account_suspended', ip: req.ip,
+        identifier: auditIdentifier, reason: 'account_suspended', ip: req.ip,
       });
       res.status(403).json({
         error: 'AccountSuspended',
@@ -149,7 +129,7 @@ export default async function createSession(req: Request, res: Response): Promis
 
     if (user.status === 'takendown') {
       await auditLog('session.loginFailed', null, user.id, {
-        identifier: input.identifier, reason: 'account_takendown', ip: req.ip,
+        identifier: auditIdentifier, reason: 'account_takendown', ip: req.ip,
       });
       res.status(410).json({
         error: 'AccountTakenDown',
@@ -163,7 +143,7 @@ export default async function createSession(req: Request, res: Response): Promis
     const deactivated = user.status === 'deactivated';
     if (!deactivated && user.status !== 'approved') {
       await auditLog('session.loginFailed', null, user.id, {
-        identifier: input.identifier, reason: 'account_not_approved', ip: req.ip,
+        identifier: auditIdentifier, reason: 'account_not_approved', ip: req.ip,
       });
       res.status(403).json({
         error: 'AccountNotApproved',
@@ -182,7 +162,7 @@ export default async function createSession(req: Request, res: Response): Promis
       );
       if (!verified.rows[0]?.v) {
         await auditLog('session.loginFailed', null, user.id, {
-          identifier: input.identifier, reason: 'email_not_verified', ip: req.ip,
+          identifier: auditIdentifier, reason: 'email_not_verified', ip: req.ip,
         });
         res.status(403).json({
           error: 'EmailNotVerified',

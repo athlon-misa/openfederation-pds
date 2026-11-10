@@ -6,6 +6,7 @@ import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { verifyPassword } from '../auth/password.js';
 import { buildNextOp, holdsRotationKey, signWithCustodialKey, PlcOpError } from '../identity/plc-ops.js';
+import { checkPasswordWithLockout } from '../auth/password-check.js';
 
 /**
  * AT Protocol signPlcOperation (#266): the old PDS signs the user's move
@@ -32,7 +33,17 @@ export default async function signPlcOperation(req: AuthRequest, res: Response):
       res.status(400).json({ error: 'NotCustodial', message: 'This PDS holds no rotation key for this account' });
       return;
     }
-    if (typeof password !== 'string' || !(await verifyPassword(password, user.password_hash))) {
+    const check = typeof password === 'string'
+      ? await checkPasswordWithLockout(user.id, user.password_hash, password)
+      : { ok: false as const, reason: 'wrong' as const, attempts: 0 };
+    if (!check.ok && check.reason === 'locked') {
+      res.status(429).json({
+        error: 'AccountLocked',
+        message: `Too many failed attempts. Try again in ${check.retryAfterSeconds} seconds.`,
+      });
+      return;
+    }
+    if (!check.ok) {
       await auditLog('identity.plcSignature.refused', user.id, user.id, { did: req.auth.did, reason: 'password' });
       res.status(401).json({ error: 'AuthenticationRequired', message: 'Wrong password' });
       return;

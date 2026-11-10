@@ -1,9 +1,12 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
+import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { generateRefreshToken, hashToken, refreshTtlMs, signAccessToken } from '../auth/tokens.js';
 import { auditLog } from '../db/audit.js';
 import { pseudonymSessionExpiry } from '../auth/session-issue.js';
 import type { UserRole, UserStatus } from '../auth/types.js';
+import { revokeOAuthGrants } from '../auth/revoke-grants.js';
 
 interface RefreshSessionInput {
   refreshJwt?: string;
@@ -37,34 +40,31 @@ export default async function refreshSession(req: Request, res: Response): Promi
       [tokenHash]
     );
 
-    if (sessionResult.rows.length === 0) {
-      // Token not found: could be a reused (already-rotated) token.
-      // Check if this hash appears in the previous_token_hash column.
-      const reuseCheck = await query<{ user_id: string }>(
-        `SELECT user_id FROM sessions WHERE previous_token_hash = $1`,
-        [tokenHash]
-      );
+    let session: { id: string; user_id: string; expires_at: string; revoked_at: string | null };
+    // True when the token is the one this session has only just rotated away
+    // (a second tab, a retried request): the caller gets a session of its own
+    // instead of rotating this one again.
+    let withinGrace = false;
 
-      if (reuseCheck.rows.length > 0) {
-        // Token reuse detected! Revoke all sessions for this user as a precaution.
-        const compromisedUserId = reuseCheck.rows[0].user_id;
-        await query(
-          `UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP
-           WHERE user_id = $1 AND revoked_at IS NULL`,
-          [compromisedUserId]
-        );
-        await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [compromisedUserId]);
-        console.error(`SECURITY: Refresh token reuse detected for user ${compromisedUserId}. All sessions revoked.`);
+    if (sessionResult.rows.length > 0) {
+      session = sessionResult.rows[0];
+    } else {
+      // Not a current token. If any session ever rotated it away, this is a
+      // replay, however many rotations ago that was.
+      const rotated = await findRotatedToken(tokenHash);
+      if (!rotated) {
+        res.status(401).json({ error: 'Unauthorized', message: 'Invalid refresh token' });
+        return;
       }
-
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid refresh token',
-      });
-      return;
+      if (!rotated.benign) {
+        await revokeAllSessionsForReuse(rotated.user_id);
+        res.status(401).json({ error: 'Unauthorized', message: 'Invalid refresh token' });
+        return;
+      }
+      session = rotated;
+      withinGrace = true;
     }
 
-    const session = sessionResult.rows[0];
     if (session.revoked_at || new Date(session.expires_at).getTime() <= Date.now()) {
       res.status(401).json({
         error: 'Unauthorized',
@@ -145,37 +145,49 @@ export default async function refreshSession(req: Request, res: Response): Promi
     const isPseudonym = user.auth_type === 'pseudonym';
     const newExpiresAt = isPseudonym ? pseudonymSessionExpiry() : new Date(Date.now() + refreshTtlMs());
 
-    // Rotate token: store old hash for reuse detection, update to new hash
-    const rotation = await query(
-      `UPDATE sessions
-       SET refresh_token_hash = $1,
-           previous_token_hash = $4,
-           expires_at = $2,
-           last_used_at = ${isPseudonym ? 'NULL' : 'CURRENT_TIMESTAMP'}
-       WHERE id = $3
-         AND refresh_token_hash = $4
-         AND revoked_at IS NULL`,
-      [newHash, newExpiresAt.toISOString(), session.id, tokenHash]
-    );
-
-    // A concurrent request may have read the same predecessor token. The
-    // conditional update is the exclusive claim: only one request can rotate
-    // it and mint successors.
-    if (rotation.rowCount !== 1) {
-      const reuseCheck = await query<{ user_id: string }>(
-        'SELECT user_id FROM sessions WHERE previous_token_hash = $1',
-        [tokenHash],
+    if (!withinGrace) {
+      // Rotate: the session takes the new token, and the old one joins the
+      // list of tokens this session has rotated away, in one statement. The
+      // conditional update is the exclusive claim: of two requests holding the
+      // same token, only one rotates.
+      const rotation = await query(
+        `WITH rotated AS (
+           UPDATE sessions
+           SET refresh_token_hash = $1,
+               previous_token_hash = $4,
+               expires_at = $2,
+               last_used_at = ${isPseudonym ? 'NULL' : 'CURRENT_TIMESTAMP'}
+           WHERE id = $3
+             AND refresh_token_hash = $4
+             AND revoked_at IS NULL
+           RETURNING id
+         )
+         INSERT INTO session_rotated_tokens (token_hash, session_id, rotated_at)
+         SELECT $4, id, ${isPseudonym ? 'NULL' : 'CURRENT_TIMESTAMP'} FROM rotated
+         ON CONFLICT (token_hash) DO NOTHING
+         RETURNING session_id`,
+        [newHash, newExpiresAt.toISOString(), session.id, tokenHash]
       );
-      if (reuseCheck.rows.length > 0) {
-        await query(
-          `UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP
-           WHERE user_id = $1 AND revoked_at IS NULL`,
-          [reuseCheck.rows[0].user_id],
-        );
-        await query('UPDATE users SET token_version = token_version + 1 WHERE id = $1', [reuseCheck.rows[0].user_id]);
+
+      if (rotation.rowCount !== 1) {
+        // Lost the race to a concurrent request with the same token. That
+        // makes this token the one just rotated away; decide as for any other.
+        const rotated = await findRotatedToken(tokenHash);
+        if (!rotated?.benign) {
+          if (rotated) await revokeAllSessionsForReuse(rotated.user_id);
+          res.status(401).json({ error: 'Unauthorized', message: 'Invalid refresh token' });
+          return;
+        }
+        withinGrace = true;
       }
-      res.status(401).json({ error: 'Unauthorized', message: 'Invalid refresh token' });
-      return;
+    }
+
+    if (withinGrace) {
+      await query(
+        `INSERT INTO sessions (id, user_id, refresh_token_hash, expires_at${isPseudonym ? ', created_at' : ''})
+         VALUES ($1, $2, $3, $4${isPseudonym ? ', NULL' : ''})`,
+        [crypto.randomUUID(), user.id, newHash, newExpiresAt.toISOString()]
+      );
     }
 
     await auditLog('session.refresh', user.id, user.id);
@@ -196,4 +208,51 @@ export default async function refreshSession(req: Request, res: Response): Promi
       message: 'Failed to refresh session',
     });
   }
+}
+
+/**
+ * Look a token up among those a session has already rotated away.
+ *
+ * `benign` is true only for the token the session rotated away most recently,
+ * and only inside the grace window: that is what two tabs refreshing at the
+ * same moment look like. Anything older, or later, is a replay.
+ */
+async function findRotatedToken(tokenHash: string): Promise<{
+  id: string; user_id: string; expires_at: string; revoked_at: string | null; benign: boolean;
+} | null> {
+  const result = await query<{
+    id: string; user_id: string; expires_at: string; revoked_at: string | null;
+    is_latest: boolean; age_ms: string | null;
+  }>(
+    `SELECT s.id, s.user_id, s.expires_at, s.revoked_at,
+            (s.previous_token_hash = r.token_hash) AS is_latest,
+            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - r.rotated_at)) * 1000 AS age_ms
+     FROM session_rotated_tokens r
+     JOIN sessions s ON s.id = r.session_id
+     WHERE r.token_hash = $1`,
+    [tokenHash],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const grace = config.auth.refreshReuseGraceMs;
+  const benign = grace > 0
+    && row.is_latest === true
+    && row.age_ms !== null
+    && Number(row.age_ms) <= grace
+    && !row.revoked_at;
+  return { id: row.id, user_id: row.user_id, expires_at: row.expires_at, revoked_at: row.revoked_at, benign };
+}
+
+/** A rotated refresh token was replayed: end every session the account has. */
+async function revokeAllSessionsForReuse(userId: string): Promise<void> {
+  await query(
+    `UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP
+     WHERE user_id = $1 AND revoked_at IS NULL`,
+    [userId]
+  );
+  const account = await query<{ did: string }>(
+    'UPDATE users SET token_version = token_version + 1 WHERE id = $1 RETURNING did', [userId]);
+  if (account.rows[0]?.did) await revokeOAuthGrants(account.rows[0].did);
+  console.error(`SECURITY: Refresh token reuse detected for user ${userId}. All sessions revoked.`);
+  await auditLog('session.reuseDetected', null, userId);
 }

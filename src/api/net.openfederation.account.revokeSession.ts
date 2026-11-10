@@ -5,6 +5,7 @@ import { auditLog } from '../db/audit.js';
 import { sendEmail } from '../email/email-service.js';
 import { sessionsRevokedEmail } from '../email/templates.js';
 import type { AuthRequest } from '../auth/types.js';
+import { revokeOAuthGrants } from '../auth/revoke-grants.js';
 
 export default async function revokeSession(req: AuthRequest, res: Response): Promise<void> {
   if (!requireAuth(req, res)) return;
@@ -61,6 +62,12 @@ export default async function revokeSession(req: AuthRequest, res: Response): Pr
   }
 
   const revokedCount = result.rowCount ?? 0;
+
+  // "Revoke everything" has to include clients authorised through OAuth.
+  if (revokeAll) {
+    const target = await query<{ did: string }>('SELECT did FROM users WHERE id = $1', [targetUserId]);
+    if (target.rows[0]?.did) await revokeOAuthGrants(target.rows[0].did);
+  }
 
   // Local access JWTs are otherwise stateless. Bump the per-user version so
   // every currently issued access token is rejected along with the refresh
