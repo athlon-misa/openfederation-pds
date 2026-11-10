@@ -37,7 +37,7 @@ In Railway Dashboard:
 
 ## 3. Configure the PDS API Service
 
-Railway will auto-detect the root `railway.json` and create the first service. Click the service and set these **Variables**:
+The service configuration for all three services (build, start, health check, domains) lives in `.railway/railway.ts`; change it there and run `railway config plan` / `railway config apply`. The PDS builds from the root `Dockerfile`. Click the service and set these **Variables**:
 
 ### Required Variables
 
@@ -106,7 +106,7 @@ In Railway Dashboard:
 
 - **Root Directory:** `web-interface`
   *(Settings → General → Root Directory)*
-- Railway will detect `web-interface/railway.json` automatically
+- Root directory `/web-interface`; build and start settings come from `.railway/railway.ts`
 
 ### Variables
 
@@ -128,7 +128,7 @@ The PLC directory resolves `did:plc` identifiers. It needs its own service and d
 
 1. Click **"+ New"** → **"GitHub Repo"** → select the **same repository**
 2. Set **Root Directory:** `plc-server` *(Settings → General → Root Directory)*
-3. Railway detects `plc-server/railway.json` automatically
+3. Root directory `/plc-server`; build and start settings come from `.railway/railway.ts`
 
 ### Add PostgreSQL for PLC
 
