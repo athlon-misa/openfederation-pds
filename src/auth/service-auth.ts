@@ -348,17 +348,29 @@ function base64UrlToStandard(b64: string): string {
 }
 
 function base64UrlEncodeString(s: string): string {
-  return Buffer.from(s, 'utf-8')
+  return stripPadding(Buffer.from(s, 'utf-8')
     .toString('base64')
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    .replace(/\+/g, '-').replace(/\//g, '_'));
 }
 
 function base64UrlEncodeBytes(bytes: Uint8Array): string {
-  return Buffer.from(bytes)
+  return stripPadding(Buffer.from(bytes)
     .toString('base64')
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    .replace(/\+/g, '-').replace(/\//g, '_'));
 }
 
 function randomJti(): string {
   return base64UrlEncodeBytes(randomBytes(16));
+}
+
+/** Drop trailing '=' padding without a regex (`/=+$/` backtracks quadratically). */
+function stripPadding(s: string): string {
+  let end = s.length;
+  while (end > 0 && s.charCodeAt(end - 1) === 61) end--;
+  return s.slice(0, end);
+}
+
+/** Test seam for the base64url encoder. */
+export function base64UrlEncodeForTests(s: string): string {
+  return base64UrlEncodeString(s);
 }

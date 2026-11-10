@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
+import { DID_PLC_PATTERN } from '../identity/plc-client.js';
 
 interface RemoteRecord {
   uri: string;
@@ -92,11 +93,25 @@ export function isPrivateHost(hostname: string): boolean {
   return false;
 }
 
+/**
+ * The did.json URL for a did:web (W3C did:web method): the first segment is
+ * the host, with %3A for a port; further colon-separated segments are a path.
+ * Null for anything else (a path, credentials or fragment in the host part).
+ */
+export function didWebDocumentUrl(did: string): string | null {
+  const rest = did.slice('did:web:'.length);
+  if (!/^[A-Za-z0-9.-]+(%3A[0-9]{1,5})?(:[A-Za-z0-9._~-]+)*$/.test(rest)) return null;
+  const [hostPart, ...path] = rest.split(':');
+  const host = hostPart.replace('%3A', ':');
+  return path.length ? `https://${host}/${path.join('/')}/did.json` : `https://${host}/.well-known/did.json`;
+}
+
 export async function resolveDidToPds(did: string): Promise<string | null> {
   try {
     let didDoc: any;
 
     if (did.startsWith('did:plc:')) {
+      if (!DID_PLC_PATTERN.test(did)) return null;
       const plcUrl = config.plc.directoryUrl;
       const resp = await fetch(`${plcUrl}/${did}`, {
         signal: AbortSignal.timeout(5000),
@@ -104,8 +119,7 @@ export async function resolveDidToPds(did: string): Promise<string | null> {
       if (!resp.ok) return null;
       didDoc = await resp.json();
     } else if (did.startsWith('did:web:')) {
-      const domain = did.replace('did:web:', '');
-      const didUrl = await assertPublicHttpsUrl(`https://${domain}/.well-known/did.json`);
+      const didUrl = await assertPublicHttpsUrl(didWebDocumentUrl(did) ?? 'invalid:');
       const resp = await fetch(didUrl, {
         redirect: 'error',
         signal: AbortSignal.timeout(5000),
