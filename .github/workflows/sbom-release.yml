@@ -1,0 +1,42 @@
+name: Release SBOMs
+
+# Attach a CycloneDX SBOM per project to every published GitHub release, so
+# each release records exactly which production dependencies it shipped with.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # upload release assets
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [".", web-interface, plc-server, bridges/matrix, demos/siwof-dapp]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Install exactly the lockfile
+        working-directory: ${{ matrix.dir }}
+        run: npm ci --ignore-scripts
+      - name: Generate and attach the SBOM
+        working-directory: ${{ matrix.dir }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name=$(echo "${{ matrix.dir }}" | tr '/' '-' | sed 's/^\.$/pds/')
+          file="$RUNNER_TEMP/sbom-$name-${{ github.event.release.tag_name }}.cdx.json"
+          # The CycloneDX tool (pinned), not `npm sbom`: npm refuses trees with peer
+          # mismatches (the dashboard's kbar -> react-virtual wants React 16/17) or
+          # local file: links (the demo); --ignore-npm-errors records them anyway.
+          npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --omit dev --ignore-npm-errors --output-format JSON --output-file "$file"
+          gh release upload "${{ github.event.release.tag_name }}" "$file" --clobber
