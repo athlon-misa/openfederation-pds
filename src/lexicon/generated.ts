@@ -636,7 +636,7 @@ export type NetOpenfederationCommunityAmendProposalOutput = {
   "cid": string;
   "amendmentCount": number;
 };
-export type NetOpenfederationCommunityAmendProposalError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "InvalidRequest" | "ProposalClosed" | "ProposalNotFound";
+export type NetOpenfederationCommunityAmendProposalError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "InvalidRequest" | "NotProposer" | "ProposalClosed" | "ProposalNotFound";
 
 export type NetOpenfederationCommunityCheckMigrationInput = {
   "did": string;
@@ -3014,7 +3014,7 @@ export const lexiconContracts = {
   'net.openfederation.calendar.listRsvps': { revision: 5, errors: ["CommunityTakenDown", "NotFound"] as const },
   'net.openfederation.calendar.rsvp': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotMember"] as const },
   'net.openfederation.community.activate': { revision: 1, errors: ["Forbidden", "IncompatibleDidDoc", "InvalidStatus", "NotFound"] as const },
-  'net.openfederation.community.amendProposal': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "ProposalClosed", "ProposalNotFound"] as const },
+  'net.openfederation.community.amendProposal': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "NotProposer", "ProposalClosed", "ProposalNotFound"] as const },
   'net.openfederation.community.checkMigration': { revision: 2, errors: ["NotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
   'net.openfederation.community.createProposal': { revision: 7, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "GovernanceNotActive", "InvalidRequest", "NotMember"] as const },
