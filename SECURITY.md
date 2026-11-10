@@ -44,6 +44,6 @@ Fixed vulnerabilities are published as [GitHub Security Advisories](https://gith
 
 ## For operators
 
-Actively exploited vulnerabilities and severe incidents are reported to the EU authorities as the Cyber Resilience Act requires. We also publish a notice here and in the release notes saying what to do.
+Actively exploited vulnerabilities and severe incidents are reported to the EU authorities as the Cyber Resilience Act requires. We also publish a notice here and in the release notes saying what to do. Hardening, secret rotation and decommissioning are covered in [`docs/HARDENING.md`](docs/HARDENING.md).
 
 A running PDS serves its own contact details at `/.well-known/security.txt` (RFC 9116); set `SECURITY_CONTACT` to point it at your instance's security contact.
