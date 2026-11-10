@@ -30,6 +30,18 @@ let oauthProvider: OAuthProvider | null = null;
 type ProviderOptions = ConstructorParameters<typeof OAuthProvider>[0];
 
 /**
+ * Load OAUTH_SIGNING_KEY. A key generated with `"use": "sig"` (most JWK tools
+ * add it) makes the OAuth library warn that private JWKs with `use` will be
+ * rejected in the future. `use` only restates what `alg` already says, so it
+ * is dropped before loading: the key material is untouched, so nothing it
+ * signed stops verifying and no session is invalidated.
+ */
+export async function loadOAuthSigningKey(raw: string): Promise<JoseKey> {
+  const { use: _use, ...jwk } = JSON.parse(raw) as Record<string, unknown>;
+  return JoseKey.fromJWK(jwk as Parameters<typeof JoseKey.fromJWK>[0]);
+}
+
+/**
  * What the OAuth provider logs. The account's DID identifies the event; the
  * IP address and user agent are left out, because they are personal data the
  * log has no retention rule for.
@@ -48,7 +60,7 @@ export async function createOAuthProvider(): Promise<OAuthProvider> {
   let signingKey: JoseKey;
   if (config.oauth.signingKey) {
     // Load from env (production)
-    signingKey = await JoseKey.fromJWK(config.oauth.signingKey);
+    signingKey = await loadOAuthSigningKey(config.oauth.signingKey);
   } else {
     // Development only: production refuses to start without OAUTH_SIGNING_KEY
     // (src/server/production-checks.ts).

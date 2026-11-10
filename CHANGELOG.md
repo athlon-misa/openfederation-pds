@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed (review follow-up)
 
+- An `OAUTH_SIGNING_KEY` with a `"use": "sig"` member no longer triggers the OAuth library's "private JWK with a use property will be rejected" warning: `use` is dropped before the key is loaded. Same key, so no OAuth session is invalidated.
 - `wallet.listConsents` failed (500) for any user with a consent: it returned a `revokedAt` field its lexicon does not declare.
 - A second "Sign in with ATProto" account could not be created (`users.email` stored `''` under a UNIQUE constraint; now NULL, migration 049) (#274).
 - Password-reset and recovery emails linked to pages that did not exist; the PDS now serves `/reset-password` and `/recover` (#275). SMTP connections have timeouts.
