@@ -43,6 +43,8 @@ const run = async () => {
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
+  // The PLC library's own Express app adds the header too.
+  if (typeof plc.app.disable === 'function') plc.app.disable('x-powered-by');
   app.use(plc.app);
 
   app.listen(port, () => {
