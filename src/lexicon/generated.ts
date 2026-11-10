@@ -211,7 +211,7 @@ export type ComAtprotoSyncGetBlobInput = {
   "cid": string;
 };
 export type ComAtprotoSyncGetBlobOutput = undefined;
-export type ComAtprotoSyncGetBlobError = "BlobNotFound";
+export type ComAtprotoSyncGetBlobError = "BlobNotFound" | "RepoNotFound" | "RepoTakendown";
 
 export type ComAtprotoSyncGetRepoInput = JsonObject;
 export type ComAtprotoSyncGetRepoOutput = unknown;
@@ -287,7 +287,7 @@ export type NetOpenfederationAccountGetProfileOutput = {
   "profile": unknown;
   "customProfiles"?: unknown;
 };
-export type NetOpenfederationAccountGetProfileError = "InvalidRequest" | "ProfileNotFound";
+export type NetOpenfederationAccountGetProfileError = "InvalidRequest" | "ProfileNotFound" | "RepoNotFound" | "RepoTakendown";
 
 export type NetOpenfederationAccountGetSecurityLevelInput = undefined;
 export type NetOpenfederationAccountGetSecurityLevelOutput = {
@@ -1634,7 +1634,7 @@ export type NetOpenfederationIdentityGetDidAugmentationOutput = {
   "assertionMethod": Array<string>;
   "authentication": Array<string>;
 };
-export type NetOpenfederationIdentityGetDidAugmentationError = "InvalidRequest";
+export type NetOpenfederationIdentityGetDidAugmentationError = "InvalidRequest" | "RepoNotFound" | "RepoTakendown";
 
 export type NetOpenfederationIdentityGetExternalKeyInput = {
   "did": string;
@@ -1649,7 +1649,7 @@ export type NetOpenfederationIdentityGetExternalKeyOutput = {
   "label"?: string;
   "createdAt": string;
 };
-export type NetOpenfederationIdentityGetExternalKeyError = "InvalidRequest" | "KeyNotFound";
+export type NetOpenfederationIdentityGetExternalKeyError = "InvalidRequest" | "KeyNotFound" | "RepoNotFound" | "RepoTakendown";
 
 export type NetOpenfederationIdentityGetPrimaryWalletInput = {
   "did": string;
@@ -1667,7 +1667,7 @@ export type NetOpenfederationIdentityGetPrimaryWalletOutput = {
   "custodyTier": string;
   "proof"?: string;
 };
-export type NetOpenfederationIdentityGetPrimaryWalletError = "InvalidRequest" | "NoPrimaryWallet" | "UnsupportedChain";
+export type NetOpenfederationIdentityGetPrimaryWalletError = "InvalidRequest" | "NoPrimaryWallet" | "RepoNotFound" | "RepoTakendown" | "UnsupportedChain";
 
 export type NetOpenfederationIdentityGetWalletLinkChallengeInput = {
   "chain": string;
@@ -1712,7 +1712,7 @@ export type NetOpenfederationIdentityListExternalKeysOutput = {
 }>;
   "cursor"?: string;
 };
-export type NetOpenfederationIdentityListExternalKeysError = "InvalidRequest";
+export type NetOpenfederationIdentityListExternalKeysError = "InvalidRequest" | "RepoNotFound" | "RepoTakendown";
 
 export type NetOpenfederationIdentityListWalletLinksInput = undefined;
 export type NetOpenfederationIdentityListWalletLinksOutput = {
@@ -1740,7 +1740,7 @@ export type NetOpenfederationIdentityListWalletsPublicOutput = {
   "isPrimary": boolean;
 }>;
 };
-export type NetOpenfederationIdentityListWalletsPublicError = "InvalidRequest";
+export type NetOpenfederationIdentityListWalletsPublicError = "InvalidRequest" | "RepoNotFound" | "RepoTakendown";
 
 export type NetOpenfederationIdentityResolveByKeyInput = {
   "publicKey": string;
@@ -2974,7 +2974,7 @@ export const lexiconContracts = {
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
   'com.atproto.server.requestEmailConfirmation': { revision: 2, errors: ["AccountNotFound", "EmailDeliveryFailed", "NoEmail", "VerificationDisabled"] as const },
   'com.atproto.server.reserveSigningKey': { revision: 2, errors: [] as const },
-  'com.atproto.sync.getBlob': { revision: 1, errors: ["BlobNotFound"] as const },
+  'com.atproto.sync.getBlob': { revision: 2, errors: ["BlobNotFound", "RepoNotFound", "RepoTakendown"] as const },
   'com.atproto.sync.getRepo': { revision: 2, errors: ["RepoNotFound", "RepoTakendown"] as const },
   'com.atproto.sync.listBlobs': { revision: 2, errors: ["RepoNotFound", "RepoTakendown"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },
@@ -2984,7 +2984,7 @@ export const lexiconContracts = {
   'net.openfederation.account.completeRecovery': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
   'net.openfederation.account.confirmPasswordReset': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
   'net.openfederation.account.export': { revision: 4, errors: ["ExportTooLarge", "Forbidden", "NotFound"] as const },
-  'net.openfederation.account.getProfile': { revision: 1, errors: ["InvalidRequest", "ProfileNotFound"] as const },
+  'net.openfederation.account.getProfile': { revision: 2, errors: ["InvalidRequest", "ProfileNotFound", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.account.getSecurityLevel': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
   'net.openfederation.account.list': { revision: 2, errors: ["InvalidRequest"] as const },
@@ -3091,14 +3091,14 @@ export const lexiconContracts = {
   'net.openfederation.governance.objection': { revision: 2, errors: [] as const },
   'net.openfederation.governance.vote': { revision: 3, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
-  'net.openfederation.identity.getDidAugmentation': { revision: 1, errors: ["InvalidRequest"] as const },
-  'net.openfederation.identity.getExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
-  'net.openfederation.identity.getPrimaryWallet': { revision: 1, errors: ["InvalidRequest", "NoPrimaryWallet", "UnsupportedChain"] as const },
+  'net.openfederation.identity.getDidAugmentation': { revision: 2, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
+  'net.openfederation.identity.getExternalKey': { revision: 2, errors: ["InvalidRequest", "KeyNotFound", "RepoNotFound", "RepoTakendown"] as const },
+  'net.openfederation.identity.getPrimaryWallet': { revision: 2, errors: ["InvalidRequest", "NoPrimaryWallet", "RepoNotFound", "RepoTakendown", "UnsupportedChain"] as const },
   'net.openfederation.identity.getWalletLinkChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain"] as const },
   'net.openfederation.identity.linkWallet': { revision: 1, errors: ["InvalidRequest", "LinkFailed", "UnsupportedChain"] as const },
-  'net.openfederation.identity.listExternalKeys': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.identity.listExternalKeys': { revision: 2, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.listWalletLinks': { revision: 1, errors: ["AuthRequired"] as const },
-  'net.openfederation.identity.listWalletsPublic': { revision: 2, errors: ["InvalidRequest"] as const },
+  'net.openfederation.identity.listWalletsPublic': { revision: 3, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.resolveByKey': { revision: 2, errors: ["InvalidRequest", "KeyConflict", "KeyNotFound"] as const },
   'net.openfederation.identity.resolveWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.setExternalKey': { revision: 2, errors: ["InvalidProof", "InvalidPublicKey", "InvalidRequest", "KeyAlreadyClaimed"] as const },

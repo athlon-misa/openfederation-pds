@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Takedown covers blobs and public identity reads**: `sync.getBlob`, `/blob/:did/:cid`, `account.getProfile`, `identity.listExternalKeys`, `getExternalKey`, `listWalletsPublic`, `getPrimaryWallet` and `getDidAugmentation` refuse a taken-down account (`RepoTakendown`) to everyone but an admin, and hide private communities from outsiders.
 - **Security headers on the dashboard and PLC directory**: the admin dashboard sent none and could be framed (clickjacking); it now sends `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, a referrer policy, a permissions policy and HSTS. The PLC directory sends `nosniff`, `X-Frame-Options` and HSTS. Neither the PDS, the PLC directory nor the dashboard advertises its framework any more.
 - **Vulnerability reporting**: `SECURITY.md` names the maintainer (Resonator Foundation), both reporting channels (private GitHub advisory form, now enabled, and security@openfederation.net), response and fix timelines, the support period (1.x until at least 11 November 2031) and scope including dependencies. Each PDS serves `/.well-known/security.txt` (RFC 9116); `SECURITY_CONTACT` adds the operator's own contacts.
 - **Only the proposer can amend a proposal** (`NotProposer`). Any holder of `community.governance.write` could amend any open proposal, replacing its content under the proposer's name, clearing its votes and restarting its clock, as often as they liked.
