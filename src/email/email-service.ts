@@ -124,6 +124,16 @@ function classify(err: unknown): 'transient' | 'permanent' {
 
 const RETRY_DELAYS_MS = [1_000, 5_000];
 
+/**
+ * Logs name the purpose of a failed message, never its recipient: the address
+ * is personal data, and the deliveries table already records it. SMTP servers
+ * often repeat the address in their error text (`550 5.1.1 <a@b>: ...`), so
+ * that is scrubbed too.
+ */
+function withoutAddresses(text: string): string {
+  return text.replace(/[^\s<>"'(),;:]+@[^\s<>"'(),;:]+/g, '<redacted>');
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function isSuppressed(recipient: string): Promise<string | null> {
@@ -209,11 +219,11 @@ export async function sendEmail(
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       if (classify(err) === 'permanent') {
-        console.error(`[email] permanent failure to ${to} (${purpose}): ${lastError}`);
+        console.error(`[email] permanent failure (${purpose}): ${withoutAddresses(lastError)}`);
         await recordDelivery({ recipient: to, purpose, status: 'failed-permanent', error: lastError, attempts: attempt + 1 });
         return { outcome: 'failed-permanent', error: lastError };
       }
-      console.warn(`[email] transient failure to ${to} (${purpose}), attempt ${attempt + 1}: ${lastError}`);
+      console.warn(`[email] transient failure (${purpose}), attempt ${attempt + 1}: ${withoutAddresses(lastError)}`);
     }
   }
 
