@@ -1,26 +1,37 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.listWalletsPublic",
-  "revision": 2,
+  "revision": 3,
   "description": "Public list of a DID's active wallet links. Exposes only public fields — chain, address, label, linked_at, custody tier, primary flag.",
   "defs": {
     "main": {
       "type": "query",
       "parameters": {
         "type": "params",
-        "required": ["did"],
+        "required": [
+          "did"
+        ],
         "properties": {
-          "did": { "type": "string" }
+          "did": {
+            "type": "string"
+          }
         }
       },
       "output": {
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["did", "wallets"],
+          "required": [
+            "did",
+            "wallets"
+          ],
           "properties": {
-            "did": { "type": "string" },
-            "handle": { "type": "string" },
+            "did": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
             "wallets": {
               "type": "array",
               "items": {
@@ -32,20 +43,49 @@
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing did." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing did."
+        },
+        {
+          "name": "RepoTakendown",
+          "description": "The account or community has been taken down."
+        },
+        {
+          "name": "RepoNotFound",
+          "description": "No such repository, or a private community the caller cannot see."
+        }
       ]
     },
     "walletEntry": {
       "type": "object",
       "description": "One active wallet link for a DID.",
-      "required": ["chain", "walletAddress", "linkedAt", "custodyTier", "isPrimary"],
+      "required": [
+        "chain",
+        "walletAddress",
+        "linkedAt",
+        "custodyTier",
+        "isPrimary"
+      ],
       "properties": {
-        "chain": { "type": "string" },
-        "walletAddress": { "type": "string" },
-        "label": { "type": "string" },
-        "linkedAt": { "type": "string" },
-        "custodyTier": { "type": "string" },
-        "isPrimary": { "type": "boolean" }
+        "chain": {
+          "type": "string"
+        },
+        "walletAddress": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "linkedAt": {
+          "type": "string"
+        },
+        "custodyTier": {
+          "type": "string"
+        },
+        "isPrimary": {
+          "type": "boolean"
+        }
       }
     }
   }

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.listExternalKeys",
-  "revision": 1,
+  "revision": 2,
   "description": "List external identity keys for a DID. Public endpoint for bridge/discovery services.",
   "defs": {
     "main": {
@@ -45,6 +45,14 @@
         {
           "name": "InvalidRequest",
           "description": "Missing or invalid DID."
+        },
+        {
+          "name": "RepoTakendown",
+          "description": "The account or community has been taken down."
+        },
+        {
+          "name": "RepoNotFound",
+          "description": "No such repository, or a private community the caller cannot see."
         }
       ]
     },

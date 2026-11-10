@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.getExternalKey",
-  "revision": 1,
+  "revision": 2,
   "description": "Get a specific external identity key by DID and record key.",
   "defs": {
     "main": {
@@ -69,6 +69,14 @@
         {
           "name": "KeyNotFound",
           "description": "No external key found for the given DID and rkey."
+        },
+        {
+          "name": "RepoTakendown",
+          "description": "The account or community has been taken down."
+        },
+        {
+          "name": "RepoNotFound",
+          "description": "No such repository, or a private community the caller cannot see."
         }
       ]
     }
