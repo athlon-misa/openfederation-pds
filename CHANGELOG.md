@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Vulnerability reporting**: `SECURITY.md` names the maintainer (Resonator Foundation), both reporting channels (private GitHub advisory form, now enabled, and security@openfederation.net), response and fix timelines, the support period (1.x until at least 11 November 2031) and scope including dependencies. Each PDS serves `/.well-known/security.txt` (RFC 9116); `SECURITY_CONTACT` adds the operator's own contacts.
 - **OAuth tokens and account status**: OAuth tokens no longer carry the account's PDS roles (an admin signing in to a third-party app no longer gives it admin powers; admin work needs a direct session). Every credential is refused for `pending` and `rejected` accounts (`AccountNotApproved`), which an OAuth sign-up could previously use before approval, and the deactivation check now covers service-auth tokens of local accounts.
 - **No recipient addresses in failure logs**: a failed or retried send is logged by purpose and the SMTP error, with any email address in the error text replaced by `<redacted>`; the recipient stays in the deliveries table only.
 - **No personal data or live links in logs**: with no SMTP configured in production (`ALLOW_NO_EMAIL=true`), an unsent email is logged by purpose only, not recipient, subject and the start of its body (which could hold a working reset or verification link); development still prints the message. OAuth sign-in is logged by account DID only, without the IP address.
