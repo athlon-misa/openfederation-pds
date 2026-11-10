@@ -82,7 +82,7 @@ See `.env.example` for the full list. Critical ones:
 
 - **PLC client (`src/identity/plc-client.ts`):** implements the PLC protocol directly using `@ipld/dag-cbor` + `@atproto/crypto`. We do NOT use `@did-plc/lib` — incompatible `@atproto/crypto` (0.1.0 vs 0.4.5) and `multiformats` (9 vs 13) versions. `dag-cbor` is CJS-only, imported via `createRequire()`.
 - **TIDs / CIDs:** `TID.nextStr()` from `@atproto/common-web`, `cidForRecord()` from `@atproto/repo` — both ATProto-compliant.
-- **Real MST repos:** `RepoEngine` (`src/repo/repo-engine.ts`) wraps `@atproto/repo`'s `Repo` class; `PgBlockstore` implements `RepoStorage` on Postgres. `SimpleRepoEngine` is deprecated.
+- **Real MST repos:** `RepoEngine` (`src/repo/repo-engine.ts`) wraps `@atproto/repo`'s `Repo` class; `PgBlockstore` implements `RepoStorage` on Postgres.
 - **`getKeypairForDid()`** loads encrypted signing key → `Secp256k1Keypair`; checks `signing_keys` first, falls back to `user_signing_keys`.
 - **OAuth provider imports:** all types from `@atproto/oauth-provider` use the main package entry, NOT deep `dist/` paths.
 - **`createSession.ts`:** rejects `auth_type='external'` users with "Use ATProto OAuth" error.
