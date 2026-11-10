@@ -6,6 +6,7 @@ import { discoveryLimiter } from './rate-limits.js';
 import { communityFederationView } from '../federation/privacy.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { decryptKeyBytes } from '../auth/encryption.js';
+import { buildSecurityTxt, securityContactsFromEnv } from './security-txt.js';
 
 export function createWellKnownRouter(): Router {
   const router = Router();
@@ -142,6 +143,15 @@ export function createWellKnownRouter(): Router {
   });
 
   // /.well-known/webfinger — AT Protocol discovery for users and communities
+  // RFC 9116: where to report a vulnerability in this instance.
+  router.get('/security.txt', discoveryLimiter, (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.type('text/plain').send(buildSecurityTxt({
+      contacts: securityContactsFromEnv(process.env.SECURITY_CONTACT),
+      serviceUrl: config.pds.serviceUrl,
+    }));
+  });
+
   router.get('/webfinger', discoveryLimiter, async (req: Request, res: Response) => {
     try {
       const resource = req.query.resource as string;

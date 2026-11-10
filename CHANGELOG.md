@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Vulnerability reporting**: `SECURITY.md` names the maintainer (Resonator Foundation), both reporting channels (private GitHub advisory form, now enabled, and security@openfederation.net), response and fix timelines, the support period (1.x until at least 11 November 2031) and scope including dependencies. Each PDS serves `/.well-known/security.txt` (RFC 9116); `SECURITY_CONTACT` adds the operator's own contacts.
 - **Only the proposer can amend a proposal** (`NotProposer`). Any holder of `community.governance.write` could amend any open proposal, replacing its content under the proposer's name, clearing its votes and restarting its clock, as often as they liked.
 - **No recipient addresses in failure logs**: a failed or retried send is logged by purpose and the SMTP error, with any email address in the error text replaced by `<redacted>`; the recipient stays in the deliveries table only.
 - **No personal data or live links in logs**: with no SMTP configured in production (`ALLOW_NO_EMAIL=true`), an unsent email is logged by purpose only, not recipient, subject and the start of its body (which could hold a working reset or verification link); development still prints the message. OAuth sign-in is logged by account DID only, without the IP address.
