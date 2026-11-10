@@ -165,6 +165,12 @@ export async function authorizeCollectionMutation(input: {
     throw new HttpError(403, 'Forbidden', 'Cannot mutate another repository');
   }
 
+  // Key claims belong to accounts and are only written by setExternalKey,
+  // which checks the proof; a community repository never holds one.
+  if (SELF_REPO_VERIFIED_CLAIM_COLLECTIONS.has(input.collection)) {
+    throw new HttpError(400, 'UseDedicatedEndpoint', `Records in "${input.collection}" cannot be written to a community repository`);
+  }
+
   // A frozen, moved or still-arriving community takes no writes by this route
   // either; the dedicated endpoints refuse through the same rule.
   const refusal = communityWriteRefusal(capabilities.status);

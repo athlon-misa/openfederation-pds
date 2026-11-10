@@ -12,6 +12,7 @@ import { cborDecode } from '@atproto/common';
 import { lexToJson } from '@atproto/lexicon';
 import { authorSignatureValid, recordAuthor } from '../governance/author-signature.js';
 import { atprotoKeyHistory } from '../identity/account-migration.js';
+import { verifyExternalKeyProof } from '../identity/external-keys.js';
 
 export class RepoImportError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) { super(message); }
@@ -139,11 +140,32 @@ export async function communityGovernanceRecordsToKeep(
   return kept;
 }
 
+const EXTERNAL_KEY_COLLECTION = 'net.openfederation.identity.externalKey';
+
+/**
+ * Key claims (net.openfederation.identity.externalKey) are only indexed when
+ * the record carries the claimant's proof for this very DID, the same proof
+ * setExternalKey demands. Without this, a repository import could claim
+ * someone else's public key, and block its real owner from claiming it.
+ * Claims written before records kept their proof are dropped from the index;
+ * the owner claims them again.
+ */
+export function externalKeyClaimsToKeep(did: string, records: VerifiedImport['records']): VerifiedImport['records'] {
+  return records.filter((r) => {
+    if (r.collection !== EXTERNAL_KEY_COLLECTION) return true;
+    const rec = (r.record ?? {}) as Record<string, unknown>;
+    const { type, purpose, publicKey, proof } = rec;
+    if (typeof type !== 'string' || typeof purpose !== 'string' || typeof publicKey !== 'string' || typeof proof !== 'string') return false;
+    return verifyExternalKeyProof(did, r.rkey, type, purpose, publicKey, proof).valid === true;
+  });
+}
+
 async function indexableRecords(
   client: PoolClient,
   did: string,
-  records: VerifiedImport['records'],
+  allRecords: VerifiedImport['records'],
 ): Promise<VerifiedImport['records']> {
+  const records = externalKeyClaimsToKeep(did, allRecords);
   const governance = records.filter((r) =>
     r.collection === GOVERNANCE_VOTE || r.collection === GOVERNANCE_OBJECTION || r.collection === GOVERNANCE_DECISION);
   if (governance.length === 0) return records;
