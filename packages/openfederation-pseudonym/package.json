@@ -13,7 +13,7 @@
   "scripts": { "build": "tsup", "clean": "rm -rf dist" },
   "dependencies": {
     "@cloudflare/blindrsa-ts": "0.4.6",
-    "@ipld/dag-cbor": "^9.2.0",
+    "@ipld/dag-cbor": "^10.0.2",
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0",
     "@scure/bip32": "^1.7.0",
