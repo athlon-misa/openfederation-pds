@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireApprovedUser } from '../auth/guards.js';
+import { requireApprovedUser, requireLocalAccount } from '../auth/guards.js';
 import { auditLog } from '../db/audit.js';
 import {
   generateWallet,
@@ -23,6 +23,8 @@ import {
 export default async function walletProvision(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireApprovedUser(req, res)) return;
+    // Wallet rows hang off an account here; a DID hosted elsewhere has none.
+    if (!requireLocalAccount(req, res)) return;
 
     const { chain, label } = req.body ?? {};
 

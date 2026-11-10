@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.setPrimaryWallet",
-  "revision": 1,
+  "revision": 2,
   "description": "Mark one of the caller's active wallets as the primary for its chain. Public resolver (getPrimaryWallet) and DID document augmentation default to the primary wallet.",
   "defs": {
     "main": {
@@ -10,10 +10,17 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["chain", "walletAddress"],
+          "required": [
+            "chain",
+            "walletAddress"
+          ],
           "properties": {
-            "chain": { "type": "string" },
-            "walletAddress": { "type": "string" }
+            "chain": {
+              "type": "string"
+            },
+            "walletAddress": {
+              "type": "string"
+            }
           }
         }
       },
@@ -21,19 +28,45 @@
         "encoding": "application/json",
         "schema": {
           "type": "object",
-          "required": ["chain", "walletAddress", "isPrimary"],
+          "required": [
+            "chain",
+            "walletAddress",
+            "isPrimary"
+          ],
           "properties": {
-            "chain": { "type": "string" },
-            "walletAddress": { "type": "string" },
-            "isPrimary": { "type": "boolean" }
+            "chain": {
+              "type": "string"
+            },
+            "walletAddress": {
+              "type": "string"
+            },
+            "isPrimary": {
+              "type": "boolean"
+            }
           }
         }
       },
       "errors": [
-        { "name": "InvalidRequest", "description": "Missing required fields." },
-        { "name": "UnsupportedChain", "description": "chain must be ethereum or solana." },
-        { "name": "WalletNotFound", "description": "No such wallet for this DID." },
-        { "name": "WalletInactive", "description": "Wallet has been exported or superseded." }
+        {
+          "name": "InvalidRequest",
+          "description": "Missing required fields."
+        },
+        {
+          "name": "UnsupportedChain",
+          "description": "chain must be ethereum or solana."
+        },
+        {
+          "name": "WalletNotFound",
+          "description": "No such wallet for this DID."
+        },
+        {
+          "name": "WalletInactive",
+          "description": "Wallet has been exported or superseded."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The caller is not an account on this PDS."
+        }
       ]
     }
   }
