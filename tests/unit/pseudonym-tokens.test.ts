@@ -24,10 +24,24 @@ describe('blind creation tokens', () => {
 
   it('detects a server that signs with a different key than it published', async () => {
     const published = await serverKey();
-    const secret = await serverKey();
     const pub = await importTokenPublicKey(published.spki);
     const pending = await blindTokens(pub, '2026-10', 1);
-    const sig = base64UrlEncode(await suite.blindSign(secret.privateKey, base64UrlDecode(pending.blinded[0])));
+    // The blinded message is a number below the *published* modulus. Another
+    // key's modulus is smaller about half the time, and blindSign then refuses
+    // outright ("signature representative out of range") whenever the message
+    // exceeds it, which made this test fail ~7% of runs. Take a key that can
+    // sign it, so the test checks what it means to: finalizeTokens catching a
+    // signature from the wrong key.
+    let sig: string | undefined;
+    for (let attempt = 0; attempt < 20 && !sig; attempt++) {
+      const secret = await serverKey();
+      try {
+        sig = base64UrlEncode(await suite.blindSign(secret.privateKey, base64UrlDecode(pending.blinded[0])));
+      } catch (err) {
+        if (!/out of range/.test((err as Error).message)) throw err;
+      }
+    }
+    if (!sig) throw new Error('no other key could sign the blinded message');
     await expect(finalizeTokens(pub, pending, [sig])).rejects.toThrow('KeyMismatch');
-  });
+  }, 30_000); // generates two or more 2048-bit RSA keys
 });
