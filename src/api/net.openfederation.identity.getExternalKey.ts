@@ -1,3 +1,4 @@
+import { requireRepoReadable } from '../auth/guards.js';
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
@@ -15,6 +16,8 @@ export default async function getExternalKey(req: AuthRequest, res: Response): P
       });
       return;
     }
+    // A taken-down account (or a private community) is not served to the public.
+    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
 
     if (!rkey) {
       res.status(400).json({
