@@ -71,7 +71,11 @@ export default async function createProposal(req: AuthRequest, res: Response): P
     );
     if (!hasPermission) return;
 
-    const ttlDays = settings.governanceConfig?.proposalTtlDays || DEFAULT_TTL_DAYS;
+    // Settings written before proposalTtlDays was validated may hold anything.
+    const storedTtl = settings.governanceConfig?.proposalTtlDays;
+    const ttlDays = typeof storedTtl === 'number' && Number.isFinite(storedTtl) && storedTtl > 0 && storedTtl <= 365
+      ? storedTtl
+      : DEFAULT_TTL_DAYS;
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000);
 

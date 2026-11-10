@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import crypto from 'crypto';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
-import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
+import { requireAuth, requireCommunityPermission, requireAttestationType } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
@@ -13,10 +13,11 @@ import {
   wrapDEK,
 } from '../attestation/encryption.js';
 import { upsertAttestationIndex } from '../community/projections.js';
+import { ATTESTATION_TYPES } from '../auth/permissions.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 
-const VALID_TYPES = ['membership', 'role', 'credential'];
+const VALID_TYPES: readonly string[] = ATTESTATION_TYPES;
 const MAX_CLAIM_SIZE_BYTES = 4096;
 const MAX_CLAIM_DEPTH = 5;
 
@@ -102,6 +103,8 @@ export default async function issueAttestation(req: AuthRequest, res: Response):
       res, communityDid, 'community.attestation.write'
     );
     if (!hasPermission) return;
+    // Issuing is routine, within the policy the community set on the role.
+    if (!(await requireAttestationType(req as AuthRequest & { auth: AuthContext }, res, communityDid, type))) return;
 
     const memberResult = await query(
       'SELECT 1 FROM members_unique WHERE community_did = $1 AND member_did = $2',

@@ -24,6 +24,7 @@ import { auditLog } from '../db/audit.js';
 // collections without importing anything that reaches the database.
 export { VOTE_COLLECTION, PROPOSAL_COLLECTION } from './decision-rules.js';
 import { VOTE_COLLECTION, PROPOSAL_COLLECTION } from './decision-rules.js';
+import { isPrivateCommunity, writeMemberContent } from '../forum/member-content.js';
 
 export interface StrongRef {
   uri: string;
@@ -140,6 +141,18 @@ export async function writeVoteRecord(input: VoteRecordInput): Promise<VoteRecor
       eligibility,
       createdAt: new Date().toISOString(),
     };
+
+    // In a private community the record is the voter's, signed by the voter,
+    // but kept in the community's (member-only) repository: in the voter's own
+    // public repo it would show anyone which private community they belong
+    // to and how they voted.
+    if (await isPrivateCommunity(input.communityDid)) {
+      const stored = await writeMemberContent({
+        communityDid: input.communityDid, authorDid: input.voterDid, collection: VOTE_COLLECTION,
+        record, rkey, private: true,
+      });
+      return { voterDid: input.voterDid, uri: stored.uri, cid: stored.cid, rkey };
+    }
 
     const { uri, cid } = await engine.putRecord(keypair, VOTE_COLLECTION, rkey, record);
     return { voterDid: input.voterDid, uri, cid, rkey };

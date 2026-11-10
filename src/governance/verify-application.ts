@@ -51,6 +51,7 @@ import {
   proposalUri as buildProposalUri,
 } from './decision-rules.js';
 import {
+  governanceRecordAuthor,
   loadRepo,
   locateRecord,
   type CitedRecord,
@@ -428,6 +429,7 @@ export async function verifyApplication(input: VerifyApplicationInput): Promise<
   // ── Objections, from the objectors' own signed repos ──────────────
   const objections = decisionUri && decisionCid && resolvedAt && applyAt
     ? await countObjections({
+      didDocs,
       repos,
       community,
       proposalRkey: loc.rkey,
@@ -548,6 +550,7 @@ export async function verifyApplication(input: VerifyApplicationInput): Promise<
  */
 async function countObjections(input: {
   repos: Map<string, LoadedRepo>;
+  didDocs: Map<string, DidDocumentLike>;
   community: string;
   proposalRkey: string;
   ctx: Parameters<typeof checkObjectionRecord>[1];
@@ -564,10 +567,14 @@ async function countObjections(input: {
       const result = checkObjectionRecord(record, input.ctx);
       if (!result.countable) continue;
 
-      const existing = held.get(loaded.did);
+      // In the objector's own repo it is theirs; in the community's repo
+      // (private community) it is its `author`'s, if they signed it.
+      const objector = await governanceRecordAuthor(loaded.did, input.community, record, input.didDocs);
+      if (!objector) continue;
+      const existing = held.get(objector);
       if (existing && existing.createdAt <= result.createdAt) continue;
-      held.set(loaded.did, {
-        objector: loaded.did,
+      held.set(objector, {
+        objector,
         uri: `at://${loaded.did}/${OBJECTION_COLLECTION}/${entry.rkey}`,
         cid: entry.cid.toString(),
         createdAt: result.createdAt,

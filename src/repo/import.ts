@@ -10,6 +10,8 @@ import type { PoolClient } from 'pg';
 import { readCarWithRoot, verifyRepo, cborToLex, RepoVerificationError } from '@atproto/repo';
 import { cborDecode } from '@atproto/common';
 import { lexToJson } from '@atproto/lexicon';
+import { authorSignatureValid, recordAuthor } from '../governance/author-signature.js';
+import { atprotoKeyHistory } from '../identity/account-migration.js';
 
 export class RepoImportError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) { super(message); }
@@ -94,6 +96,78 @@ const BATCH = 500;
  * `replace`, the DID's existing blocks and index rows go first (an account
  * opened for migration has an empty placeholder repo).
  */
+const GOVERNANCE_VOTE = 'net.openfederation.governance.vote';
+const GOVERNANCE_OBJECTION = 'net.openfederation.governance.objection';
+const GOVERNANCE_DECISION = 'net.openfederation.governance.decision';
+
+/**
+ * Which imported records may enter `records_index`.
+ *
+ * Votes and objections are counted from `records_index` for the repo they sit
+ * in, and their standing comes from the endpoint that wrote them (it checks the
+ * voter is entitled to vote). An imported repository is signed by its owner and
+ * by nobody else, so a vote or objection inside it is only that owner's claim.
+ * Such a record is kept in the repository (the blocks are stored untouched) but
+ * is not indexed when it names a community hosted here that the importing DID
+ * is not a member of, and never when the importing repo is itself a community.
+ * A decision record belongs to the community repo that resolved the proposal
+ * and is likewise never indexed from an imported account repo.
+ */
+/**
+ * In a community repo, decisions are the community's own and are kept. Votes
+ * and objections there belong to a private community's members and count for
+ * their `author`, so one is kept only if that author signed it (checked
+ * against every key the author's DID has held). Anything else in those
+ * collections is dropped: it would be a vote or a hold nobody cast.
+ */
+export async function communityGovernanceRecordsToKeep(
+  records: VerifiedImport['records'],
+): Promise<VerifiedImport['records']> {
+  const keys = new Map<string, string[]>();
+  const kept: VerifiedImport['records'] = [];
+  for (const r of records) {
+    if (r.collection !== GOVERNANCE_VOTE && r.collection !== GOVERNANCE_OBJECTION) {
+      kept.push(r);
+      continue;
+    }
+    const record = (r.record ?? {}) as Record<string, unknown>;
+    const author = recordAuthor(record);
+    if (!author) continue;
+    if (!keys.has(author)) keys.set(author, await atprotoKeyHistory(author).catch(() => []));
+    if (await authorSignatureValid(record, keys.get(author)!)) kept.push(r);
+  }
+  return kept;
+}
+
+async function indexableRecords(
+  client: PoolClient,
+  did: string,
+  records: VerifiedImport['records'],
+): Promise<VerifiedImport['records']> {
+  const governance = records.filter((r) =>
+    r.collection === GOVERNANCE_VOTE || r.collection === GOVERNANCE_OBJECTION || r.collection === GOVERNANCE_DECISION);
+  if (governance.length === 0) return records;
+
+  const isCommunity = (await client.query('SELECT 1 FROM communities WHERE did = $1', [did])).rows.length > 0;
+  if (isCommunity) return communityGovernanceRecordsToKeep(records);
+
+  const named = [...new Set(governance
+    .map((r) => (r.record as { community?: unknown } | null)?.community)
+    .filter((c): c is string => typeof c === 'string'))];
+  const hostedHere = new Set((await client.query<{ did: string }>(
+    'SELECT did FROM communities WHERE did = ANY($1)', [named])).rows.map((r) => r.did));
+  const memberOf = new Set((await client.query<{ community_did: string }>(
+    'SELECT community_did FROM members_unique WHERE member_did = $1 AND community_did = ANY($2)', [did, named])).rows.map((r) => r.community_did));
+
+  return records.filter((r) => {
+    if (r.collection === GOVERNANCE_DECISION) return false;
+    if (r.collection !== GOVERNANCE_VOTE && r.collection !== GOVERNANCE_OBJECTION) return true;
+    const community = (r.record as { community?: unknown } | null)?.community;
+    if (typeof community !== 'string') return true;
+    return !hostedHere.has(community) || memberOf.has(community);
+  });
+}
+
 export async function storeRepoImport(client: PoolClient, did: string, data: VerifiedImport, opts: { replace: boolean }): Promise<void> {
   if (opts.replace) {
     await client.query('DELETE FROM records_index WHERE community_did = $1', [did]);
@@ -116,8 +190,9 @@ export async function storeRepoImport(client: PoolClient, did: string, data: Ver
     [did, data.root, data.rev],
   );
 
-  for (let i = 0; i < data.records.length; i += BATCH) {
-    const batch = data.records.slice(i, i + BATCH);
+  const records = await indexableRecords(client, did, data.records);
+  for (let i = 0; i < records.length; i += BATCH) {
+    const batch = records.slice(i, i + BATCH);
     await client.query(
       `INSERT INTO records_index (community_did, collection, rkey, record, cid)
        SELECT $1, collection, rkey, record::jsonb, cid

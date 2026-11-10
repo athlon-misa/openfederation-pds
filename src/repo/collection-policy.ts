@@ -2,6 +2,7 @@ import { PERMISSIONS } from '../auth/permissions.js';
 import type { AuthContext } from '../auth/types.js';
 import { getCallerCommunityCapabilities } from '../community/visibility.js';
 import { HttpError } from '../xrpc/errors.js';
+import { communityWriteRefusal } from '../auth/guards.js';
 
 type CollectionMutationOperation = 'create' | 'update' | 'delete';
 
@@ -109,6 +110,19 @@ const SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS = new Set<string>([
   'net.openfederation.governance.decision',
 ]);
 
+/**
+ * Collections in a user's own repo whose records are claims the PDS has
+ * checked, so they are written only by the endpoint that does the checking.
+ *
+ * An external key record says "this DID controls this key". `setExternalKey`
+ * requires a signature from the key and refuses a key another DID already
+ * holds; a record written directly would assert control of anyone's key, be
+ * returned by `resolveByKey`, and block the real holder from claiming it.
+ */
+const SELF_REPO_VERIFIED_CLAIM_COLLECTIONS = new Set<string>([
+  'net.openfederation.identity.externalKey',
+]);
+
 const FALLBACK_PERMISSIONS: OperationPermissions = {
   create: PERMISSIONS.MEMBER_WRITE,
   update: PERMISSIONS.MEMBER_WRITE,
@@ -136,7 +150,10 @@ export async function authorizeCollectionMutation(input: {
 
   if (!capabilities.exists) {
     if (input.repo === input.actor.did) {
-      if (SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS.has(input.collection)) {
+      if (
+        SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS.has(input.collection)
+        || SELF_REPO_VERIFIED_CLAIM_COLLECTIONS.has(input.collection)
+      ) {
         throw new HttpError(
           400,
           'UseDedicatedEndpoint',
@@ -146,6 +163,23 @@ export async function authorizeCollectionMutation(input: {
       return;
     }
     throw new HttpError(403, 'Forbidden', 'Cannot mutate another repository');
+  }
+
+  // A frozen, moved or still-arriving community takes no writes by this route
+  // either; the dedicated endpoints refuse through the same rule.
+  const refusal = communityWriteRefusal(capabilities.status);
+  if (refusal) throw new HttpError(refusal.status, refusal.error, refusal.message);
+
+  // Votes and objections count for the repo they sit in, and a decision is
+  // what the community's own resolution writes. None of them may be
+  // hand-written into a community repo: a member with write access could
+  // otherwise make the community itself an extra voter or objector.
+  if (SELF_REPO_DEDICATED_ENDPOINT_COLLECTIONS.has(input.collection)) {
+    throw new HttpError(
+      400,
+      'UseDedicatedEndpoint',
+      `Records in "${input.collection}" must be mutated through their dedicated endpoint`,
+    );
   }
 
   const policy = PROTECTED_COLLECTION_POLICIES[input.collection];

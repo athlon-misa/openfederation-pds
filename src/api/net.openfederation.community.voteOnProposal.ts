@@ -37,6 +37,8 @@ import {
   proposalLockKey,
 } from '../governance/timelock.js';
 import { decideOverride } from '../governance/decision-rules.js';
+import { isEligibleVoter } from '../governance/electorate.js';
+import { placeMemberContentForVisibility } from '../forum/member-content.js';
 
 const PROPOSAL_COLLECTION = 'net.openfederation.community.proposal';
 const DELEGATION_COLLECTION = 'net.openfederation.community.delegation';
@@ -194,6 +196,10 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       if (!delegatorDid) continue;
       // Skip if delegator already voted directly on this proposal
       if (updatedProposal.votesFor.includes(delegatorDid) || updatedProposal.votesAgainst.includes(delegatorDid)) continue;
+      // A delegation only carries a vote while the delegator could cast one
+      // themselves. Leaving, being removed or losing the permission does not
+      // delete the delegation record, so it is checked here.
+      if (!(await isEligibleVoter(communityDid, delegatorDid))) continue;
       // Same rule as for the direct voter: a delegator who cannot produce a
       // vote record is not counted. The delegate's own vote still stands, so
       // this is dropped and audited rather than raised.
@@ -397,6 +403,9 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
         await proposalWriteOp(communityDid, proposalRkey, updatedProposal),
         ...changeOps,
       ]);
+      if (changeOps.length > 0 && proposal.targetCollection === 'net.openfederation.community.settings') {
+        await placeMemberContentForVisibility(communityDid);
+      }
 
       if (overrideRound && outcome === 'approved') {
         await auditLog('community.proposal.overrideCarried', req.auth!.userId, communityDid, {
