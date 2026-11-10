@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **No personal data or live links in logs**: with no SMTP configured in production (`ALLOW_NO_EMAIL=true`), an unsent email is logged by purpose only, not recipient, subject and the start of its body (which could hold a working reset or verification link); development still prints the message. OAuth sign-in is logged by account DID only, without the IP address.
 - **Repository integrity**: writes to one repository are serialised, a commit only lands if the root it was built on is still current, and `records_index` is updated in the commit's own transaction. Two parallel writes could previously leave the tree pointing at deleted blocks.
 - **Admin identity-verification codes** can no longer be redeemed as password-reset tokens (`password_reset_tokens.purpose`, migration 046).
 - **Community roles**: a member with `community.member.write` cannot assign a role whose permissions they do not hold, nor the owner role by `roleRkey`; owner checks use `communities.owner_did` everywhere (membership endpoints still read `created_by`, which is NULL for a community that moved here).
