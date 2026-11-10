@@ -26,7 +26,7 @@ const testContext: AuthContext = {
   tokenVersion: 0,
 };
 
-setTokenVersionResolverForTests(async () => 0);
+setTokenVersionResolverForTests(async () => ({ tokenVersion: 0, email: 'test@example.com' }));
 
 function mockReq(headers: Record<string, string> = {}): AuthRequest {
   return { headers } as AuthRequest;
