@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only token for every job: CI checks code, it changes nothing.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
