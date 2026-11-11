@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-12
+
 ### Added
 
 - **Custody modes, step 5b: person-signed records** ([ADR-003](docs/adr/ADR-003-custody-modes.md), decision 11). A record can carry `ownerSig`, the person's owner-key signature over the record's CID (without `ownerSig`), DID and collection, which the PDS cannot produce. `net.openfederation.identity.verifyRecord` says whether a record hosted here is person-signed; the SDK signs (`signRecord`, `signRecordWithPasskey`) and verifies (`verifyOwnerRecord`); the server's check is written independently and tested against it, including records with file references. The authorship claim lexicon declares `ownerSig`. With this, all five steps of ADR-003 are built.
