@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `community.verifyAttestation` for a community on another PDS always failed with a 500 (its `remote` and `pdsUrl` fields were not declared). A DID that resolves nowhere now answers `NotFound`.
 
 - `community.export` always failed with a 500: its response carried a `$type` field its lexicon does not declare, so output validation rejected it.
+- **ActivityPub actors now pass Mastodon's checks.** `/ap/actor/:did` had no `inbox` or `outbox`; ActivityPub requires both, and Mastodon silently drops an actor without an inbox. The actor now names `/ap/actor/:did/inbox` and `/outbox`, which serve empty collections; deliveries to the inbox get `405`, since the PDS still processes no AP messages.
+- `/.well-known/webfinger` advertised an `application/activity+json` link for every DID, pointing at the bare service URL when there was no actor (every user, and communities without linked applications, or suspended). It now appears only when an actor exists.
+- `/nodeinfo/2.1` listed `atprotocol` in `protocols`, which the NodeInfo 2.1 schema does not allow; it now lists `activitypub` there, declares AT Protocol under `metadata.protocols`, and is served with the schema's profile content type.
+- `community.verifyMembership` answered `role: "member"` for owners and moderators: it read a `role` field that member records stopped carrying with RBAC. It now resolves the member's role record.
 
 ## [1.4.0] - 2026-11-11
 

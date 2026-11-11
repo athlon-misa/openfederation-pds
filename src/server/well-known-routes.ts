@@ -219,14 +219,19 @@ export function createWellKnownRouter(): Router {
         return res.status(404).json({ error: 'NotFound', message: 'Resource not found' });
       }
 
-      // Check if this DID is a community with linked AP applications
-      let apActorUrl = config.pds.serviceUrl; // default: generic PDS URL
+      // Check if this DID is a community with linked AP applications. Only
+      // then is there an ActivityPub actor to point at: advertising an
+      // activity+json `self` link for anything else sends an AP client
+      // (Mastodon resolves exactly this link) to a document that is not an
+      // actor. The conditions match the ones /ap/actor/:did serves under.
+      let apActorUrl: string | null = null;
       const links: Array<{ rel: string; type: string; href: string }> = [];
 
       if (config.activitypub.enabled) {
         const apAppResult = await query<{ count: string }>(
-          `SELECT COUNT(*) as count FROM records_index
-           WHERE community_did = $1 AND collection = 'net.openfederation.community.application'`,
+          `SELECT COUNT(*) as count FROM records_index r
+           JOIN communities c ON c.did = r.community_did AND c.status = 'active'
+           WHERE r.community_did = $1 AND r.collection = 'net.openfederation.community.application'`,
           [did]
         );
         if (parseInt(apAppResult.rows[0]?.count || '0', 10) > 0) {
@@ -248,11 +253,11 @@ export function createWellKnownRouter(): Router {
       }
 
       links.unshift(
-        {
+        ...(apActorUrl ? [{
           rel: 'self',
           type: 'application/activity+json',
           href: apActorUrl,
-        },
+        }] : []),
         {
           rel: 'self',
           type: 'application/json',

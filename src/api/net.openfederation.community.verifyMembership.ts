@@ -37,13 +37,22 @@ export default async function verifyMembership(req: AuthRequest, res: Response):
     }
 
     // Load member record for role info
-    const recordResult = await query<{ record: { role?: string } }>(
-      `SELECT record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.member' AND rkey = $2`,
+    // A member record names its role either directly (`role`, older records)
+    // or by reference to a role record (`roleRkey`, every record written
+    // since RBAC). Reading only `role` answered "member" for owners and
+    // moderators alike.
+    const recordResult = await query<{ role: string | null; role_name: string | null }>(
+      `SELECT m.record->>'role' AS role, r.record->>'name' AS role_name
+       FROM records_index m
+       LEFT JOIN records_index r
+         ON r.community_did = m.community_did
+        AND r.collection = 'net.openfederation.community.role'
+        AND r.rkey = m.record->>'roleRkey'
+       WHERE m.community_did = $1 AND m.collection = 'net.openfederation.community.member' AND m.rkey = $2`,
       [communityDid, memberResult.rows[0].record_rkey],
     );
 
-    const role = recordResult.rows[0]?.record?.role || 'member';
+    const role = recordResult.rows[0]?.role_name || recordResult.rows[0]?.role || 'member';
 
     res.status(200).json({
       isMember: true,

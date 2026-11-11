@@ -81,6 +81,74 @@ async function getOrCreateApKeys(did: string): Promise<{ publicKey: string; priv
   return keys;
 }
 
+type ActorLookup =
+  | { found: false; status: number; error: string; message: string }
+  | {
+    found: true;
+    community: { did: string; handle: string; created_at: string };
+    federationView: Awaited<ReturnType<typeof communityFederationView>>;
+    applications: ApplicationRecord[];
+  };
+
+/**
+ * An actor exists for an active community with at least one linked
+ * application. Shared by the actor document and its inbox/outbox, so the
+ * collections exist exactly when the actor does.
+ */
+async function lookupActorCommunity(did: string): Promise<ActorLookup> {
+  if (!did || !did.startsWith('did:')) {
+    return { found: false, status: 400, error: 'BadRequest', message: 'Invalid DID format' };
+  }
+
+  const communityResult = await query<{
+    did: string;
+    handle: string;
+    created_at: string;
+    status: string;
+  }>(
+    'SELECT did, handle, created_at, status FROM communities WHERE did = $1',
+    [did],
+  );
+
+  const communityRow = communityResult.rows[0];
+  if (!communityRow || communityRow.status !== 'active') {
+    return { found: false, status: 404, error: 'NotFound', message: 'Community not found' };
+  }
+
+  // A private community's actor exists — its DID and handle are in the
+  // public PLC directory regardless, and the owner deliberately linked AP
+  // applications that need to address and signature-verify it — but it is
+  // served STRIPPED: no display name, no description, no linked-instance
+  // attachments (#85, ADR-001). Existence is not the secret; content is.
+  const federationView = await communityFederationView(did);
+
+  // Load linked applications from records_index
+  const appResult = await query<{
+    rkey: string;
+    record: { appType: string; instanceUrl: string; displayName?: string };
+  }>(
+    `SELECT rkey, record FROM records_index
+     WHERE community_did = $1 AND collection = 'net.openfederation.community.application'
+     ORDER BY rkey ASC`,
+    [did],
+  );
+
+  if (appResult.rows.length === 0) {
+    return { found: false, status: 404, error: 'NotFound', message: 'No linked applications for this community' };
+  }
+
+  return {
+    found: true,
+    community: communityRow,
+    federationView,
+    applications: appResult.rows.map((row) => ({
+      appType: row.record.appType,
+      instanceUrl: row.record.instanceUrl,
+      displayName: row.record.displayName,
+    })),
+  };
+}
+
 /**
  * GET /ap/actor/:did
  * Returns an ActivityPub Group actor document for a community.
@@ -89,40 +157,12 @@ async function getOrCreateApKeys(did: string): Promise<{ publicKey: string; priv
 router.get('/ap/actor/:did', async (req: Request, res: Response) => {
   try {
     const did = req.params.did as string;
-    if (!did || !did.startsWith('did:')) {
-      res.status(400).json({ error: 'BadRequest', message: 'Invalid DID format' });
+    const lookup = await lookupActorCommunity(did);
+    if (!lookup.found) {
+      res.status(lookup.status).json({ error: lookup.error, message: lookup.message });
       return;
     }
-
-    // Look up community
-    const communityResult = await query<{
-      did: string;
-      handle: string;
-      created_at: string;
-      status: string;
-    }>(
-      'SELECT did, handle, created_at, status FROM communities WHERE did = $1',
-      [did],
-    );
-
-    if (communityResult.rows.length === 0) {
-      res.status(404).json({ error: 'NotFound', message: 'Community not found' });
-      return;
-    }
-
-    const communityRow = communityResult.rows[0];
-
-    if (communityRow.status !== 'active') {
-      res.status(404).json({ error: 'NotFound', message: 'Community not found' });
-      return;
-    }
-
-    // A private community's actor exists — its DID and handle are in the
-    // public PLC directory regardless, and the owner deliberately linked AP
-    // applications that need to address and signature-verify it — but it is
-    // served STRIPPED: no display name, no description, no linked-instance
-    // attachments (#85, ADR-001). Existence is not the secret; content is.
-    const federationView = await communityFederationView(did);
+    const { community: communityRow, federationView } = lookup;
 
     // Load profile from repo records (display name, description are stored as records, not DB columns)
     const profileResult = federationView === 'public'
@@ -136,31 +176,9 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
       : { rows: [] as Array<{ record: { displayName?: string; description?: string } }> };
     const profile = profileResult.rows[0]?.record || {};
 
-    // Load linked applications from records_index
-    const appResult = await query<{
-      rkey: string;
-      record: { appType: string; instanceUrl: string; displayName?: string };
-    }>(
-      `SELECT rkey, record FROM records_index
-       WHERE community_did = $1 AND collection = 'net.openfederation.community.application'
-       ORDER BY rkey ASC`,
-      [did],
-    );
-
-    if (appResult.rows.length === 0) {
-      res.status(404).json({ error: 'NotFound', message: 'No linked applications for this community' });
-      return;
-    }
-
     // Which AP instances back this community is content, not addressing:
     // stripped from a private community's actor along with the profile.
-    const applications: ApplicationRecord[] = federationView === 'public'
-      ? appResult.rows.map((row) => ({
-        appType: row.record.appType,
-        instanceUrl: row.record.instanceUrl,
-        displayName: row.record.displayName,
-      }))
-      : [];
+    const applications: ApplicationRecord[] = federationView === 'public' ? lookup.applications : [];
 
     // Load or create persisted RSA keys for AP compatibility
     // (AP ecosystem uses RSA for HTTP signatures; ATProto uses secp256k1)
@@ -188,6 +206,46 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /ap/actor/:did/inbox and /ap/actor/:did/outbox
+ *
+ * The actor is discovery-only, so both collections are always empty. They
+ * exist because ActivityPub requires an actor to name them and Mastodon drops
+ * an actor without an inbox. Deliveries are refused with 405: Mastodon treats
+ * a 4xx as final and does not retry.
+ */
+for (const box of ['inbox', 'outbox'] as const) {
+  router.get(`/ap/actor/:did/${box}`, async (req: Request, res: Response) => {
+    try {
+      const did = req.params.did as string;
+      const lookup = await lookupActorCommunity(did);
+      if (!lookup.found) {
+        res.status(lookup.status).json({ error: lookup.error, message: lookup.message });
+        return;
+      }
+      res.setHeader('Content-Type', 'application/activity+json');
+      res.json({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: `${config.pds.serviceUrl}/ap/actor/${did}/${box}`,
+        type: 'OrderedCollection',
+        totalItems: 0,
+        orderedItems: [],
+      });
+    } catch (err) {
+      console.error(`Error serving AP ${box}:`, err);
+      res.status(500).json({ error: 'InternalServerError', message: `Failed to serve ${box}` });
+    }
+  });
+}
+
+router.post('/ap/actor/:did/inbox', (_req: Request, res: Response) => {
+  res.setHeader('Allow', 'GET');
+  res.status(405).json({
+    error: 'MethodNotAllowed',
+    message: 'This actor is discovery-only; the PDS does not process ActivityPub deliveries',
+  });
+});
+
+/**
  * GET /.well-known/nodeinfo
  * NodeInfo discovery document.
  */
@@ -212,13 +270,17 @@ router.get('/nodeinfo/2.1', async (_req: Request, res: Response) => {
       "SELECT COUNT(*) as count FROM users WHERE status = 'approved'",
     );
 
-    res.json({
+    // The 2.1 schema's `protocols` is a closed list that has no entry for
+    // AT Protocol, and validating crawlers reject a document naming one, so
+    // AT Protocol is declared in `metadata`, which the schema leaves open.
+    res.setHeader('Content-Type', 'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"');
+    res.send(JSON.stringify({
       version: '2.1',
       software: {
         name: 'openfederation-pds',
         version: SERVER_VERSION,
       },
-      protocols: ['atprotocol', 'activitypub'],
+      protocols: ['activitypub'],
       services: { inbound: [], outbound: [] },
       openRegistrations: false,
       usage: {
@@ -227,8 +289,9 @@ router.get('/nodeinfo/2.1', async (_req: Request, res: Response) => {
       },
       metadata: {
         nodeName: 'OpenFederation PDS',
+        protocols: ['atprotocol', 'activitypub'],
       },
-    });
+    }));
   } catch (err) {
     console.error('Error serving nodeinfo:', err);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to serve NodeInfo' });

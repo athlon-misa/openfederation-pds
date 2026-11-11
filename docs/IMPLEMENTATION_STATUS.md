@@ -54,11 +54,12 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Attestations: issue, verify, list, delete-as-revoke (ATProto-native), encrypted variant with AES-256-GCM DEK + commitment hashes; `listAttestations` includes `subjectDisplayName`/`subjectAvatarUrl` from write-time projection
 - Write-time member display projection: `members_unique` stores denormalized `display_name`/`avatar_url`/`role`/`kind`/`tags`/`attributes`; `community_attestation_index` mirrors the same for attestations; `updateProfile` fans out display changes across all membership rows. `listMembers` and `listAttestations` are single-table reads (no N+1)
 
-## Disclosure proxy — **needs-validation** ([#81](https://github.com/athlon-misa/openfederation-pds/issues/81))
+## Disclosure proxy — **shipped** ([#81](https://github.com/athlon-misa/openfederation-pds/issues/81))
 
-- Code: `redeemGrant` handler registered; `viewing_grants` + `disclosure_sessions` tables in schema
-- Flow: issuer creates time-limited grant → subject redeems → session-scoped re-encryption + JSON watermarking + audit log
-- Not yet validated end-to-end in an integration test; expiry enforcement and audit trail unverified
+- Code: `src/attestation/lifecycle.ts`, `src/disclosure/`; `viewing_grants`, `disclosure_sessions`, `disclosure_audit_log` tables
+- Flow: subject grants a viewer time-limited access → viewer redeems → claim re-encrypted under a one-time session key, watermarked (v2 HMAC, format documented in the test) and audited
+- `tests/api/disclosure-redemption-e2e.test.ts` covers the round trip, the session and audit rows, expiry and the watermark MAC against an independent computation
+- The watermark MAC is keyed by `KEY_ENCRYPTION_SECRET`: the PDS operator can attribute a leak, third parties cannot verify it offline. `disclosure_sessions.expires_at` is recorded but nothing reads a session after redemption
 
 ## Contact Graph — **shipped**
 
@@ -92,11 +93,12 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 
 ## Vault & recovery — **needs-validation** ([#77](https://github.com/athlon-misa/openfederation-pds/issues/77))
 
-- Code: Shamir 2-of-3 threshold key splitting (`secrets.js-grempe`), encrypted share storage, vault audit log, escrow provider registration
-- XRPC endpoints registered: `splitKey`, `recoverKey`, `getVaultStatus`, `listVaultAuditLog`, `registerEscrowProvider`, `listEscrowProviders`
-- Recovery tiers: T1 email, T2 2-of-3 escrow, T3 self-custodial; security level endpoint
+- Code: registration splits the PLC rotation key 2-of-3 (`secrets.js-grempe`, `src/identity/user-identity.ts`); shares 2 and 3 encrypted in `vault_shares`; `vault_audit_log`; `escrow_providers`
+- XRPC endpoints registered: `vault.requestShareRelease`, `vault.exportRecoveryKey`, `vault.registerEscrow`, `vault.auditLog`, `account.getSecurityLevel`, plus `vault.storeCustodialSecret` / `getCustodialSecret`
+- Recovery tiers: T1 identity verification by emailed code, T2 escrow, T3 "self-custodial"; security level endpoint
 - Custodial Secret Storage: opaque encrypted blobs per user per chain, FK-cascaded on account delete
-- Full split → distribute shares → recover round-trip has never been exercised end-to-end
+- `tests/api/vault-recovery-e2e.test.ts`: shares 2 + 3 rebuild the rotation key the PLC directory lists; storage encryption and secret rotation; release, export, escrow, security level and audit rows. It also pins the custody gaps in [#239](https://github.com/athlon-misa/openfederation-pds/issues/239): share 1 never reaches a client, tier 3 deletes nothing, escrow only relabels share 3
+- Not exercised: the emailed code on staging, and a real escrow provider (there is no transfer to, or retrieval from, one)
 
 ## Federation & ATProto compliance — **shipped**
 
@@ -116,10 +118,10 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 
 ## ActivityPub identity layer — **needs-validation** ([#80](https://github.com/athlon-misa/openfederation-pds/issues/80))
 
-- Code: `src/activitypub/` — `Group` actor JSON-LD for communities, enhanced WebFinger, NodeInfo 2.1
+- Code: `src/activitypub/` — `Group` actor JSON-LD for communities (with always-empty `inbox`/`outbox`; inbox deliveries get 405), enhanced WebFinger, NodeInfo 2.1
 - XRPC endpoints registered: `linkApplication`, `unlinkApplication`, `listApplications`, `verifyMembership`
 - Controlled by `ACTIVITYPUB_ENABLED` (default: enabled)
-- Not validated against a real AP client (Mastodon etc.)
+- `tests/api/activitypub-discovery.test.ts` walks Mastodon's discovery checks (WebFinger → actor → WebFinger back) and NodeInfo 2.1 schema constraints locally; not yet fetched by a running Mastodon instance
 
 ## Lexicons — **shipped**
 
