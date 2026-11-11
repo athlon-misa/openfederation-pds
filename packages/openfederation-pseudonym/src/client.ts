@@ -4,13 +4,37 @@ import { buildPseudonymGenesisOp, signGenesisOp, didForSignedOp, type SignedPlcG
 import { buildLinkStatement, buildLoginMessage, buildPresenceMessage, currentEpoch } from './formats.js';
 import { importTokenPublicKey, blindTokens, finalizeTokens, type CreationToken } from './tokens.js';
 
-export interface RevealBundle {
+/** An owner signature: raw (secp256k1/P-256, compact) or a passkey assertion (ADR-003, decision 7). */
+export type OwnerSignature =
+  | { format: 'raw'; sig: string }
+  | { format: 'webauthn'; authenticatorData: string; clientDataJSON: string; signature: string; credentialId?: string };
+
+export interface RevealBundleV1 {
   version: 1;
   statement: string;
   pseudonym: { did: string; sig: string; genesisOp: SignedPlcGenesisOp };
   owner: { did: string; sig: string; signingKey: string };
   commitmentSalt: string;
 }
+
+/**
+ * v2 (ADR-003, decision 8): the owner side names the key that signed.
+ * `openfederation_owner`: the person's own key (an assisted or self account),
+ * so a verifier can say the person signed. `atproto`: the PDS-held key of a
+ * custodial owner, as in v1.
+ */
+export interface RevealBundleV2 {
+  version: 2;
+  statement: string;
+  pseudonym: { did: string; sig: string; genesisOp: SignedPlcGenesisOp };
+  owner: { did: string; keyRef: 'openfederation_owner' | 'atproto'; signingKey: string; signature: OwnerSignature };
+  commitmentSalt: string;
+}
+
+export type RevealBundle = RevealBundleV1 | RevealBundleV2;
+
+/** Signs the link statement with the owner's own key, e.g. `signOwnerRaw` or `signOwnerWithPasskey` from @open-federation/sdk/custody. */
+export type OwnerSigner = (statement: string) => Promise<{ signingKey: string; signature: OwnerSignature }>;
 
 async function xrpc<T>(pdsUrl: string, nsid: string, body?: unknown, jwt?: string): Promise<T> {
   const res = await fetch(`${pdsUrl}/xrpc/${nsid}`, body === undefined
@@ -74,27 +98,45 @@ export async function loginWithPhrase(p: { pdsUrl: string; phrase: string; expec
   return xrpc(p.pdsUrl, 'net.openfederation.pseudonym.createSession', { challengeId: ch.challengeId, signature });
 }
 
-export async function createRevealBundle(p: { pdsUrl: string; plcUrl: string; phrase: string; pseudonymDid: string; ownerDid: string; ownerAccessJwt: string }): Promise<RevealBundle> {
+/**
+ * Build a v2 reveal bundle. With `ownerSigner` (the owner holds their own key:
+ * an assisted or self account) the person signs; without it, the owner's PDS
+ * signs with the key it holds (net.openfederation.pseudonym.signLink).
+ */
+export async function createRevealBundle(p: {
+  pdsUrl: string; plcUrl: string; phrase: string; pseudonymDid: string; ownerDid: string; ownerAccessJwt: string; ownerSigner?: OwnerSigner;
+}): Promise<RevealBundleV2> {
   const keys = derivePseudonymKeys(p.phrase);
   const logRes = await fetch(`${p.plcUrl}/${p.pseudonymDid}/log`);
   if (!logRes.ok) throw new Error(`PLC log lookup failed (${logRes.status})`);
   const genesisOp = (await logRes.json() as SignedPlcGenesisOp[])[0];
   const statement = buildLinkStatement({ pseudonymDid: p.pseudonymDid, ownerDid: p.ownerDid, issuedAt: new Date().toISOString() });
-  const owner = await xrpc<{ ownerDid: string; sig: string; signingKey: string }>(
-    p.pdsUrl, 'net.openfederation.pseudonym.signLink', { statement }, p.ownerAccessJwt);
+  let owner: RevealBundleV2['owner'];
+  if (p.ownerSigner) {
+    const signed = await p.ownerSigner(statement);
+    owner = { did: p.ownerDid, keyRef: 'openfederation_owner', signingKey: signed.signingKey, signature: signed.signature };
+  } else {
+    const pds = await xrpc<{ ownerDid: string; sig: string; signingKey: string }>(
+      p.pdsUrl, 'net.openfederation.pseudonym.signLink', { statement }, p.ownerAccessJwt);
+    owner = { did: pds.ownerDid, keyRef: 'atproto', signingKey: pds.signingKey, signature: { format: 'raw', sig: pds.sig } };
+  }
   return {
-    version: 1, statement, commitmentSalt: keys.commitmentSaltHex,
+    version: 2, statement, commitmentSalt: keys.commitmentSaltHex,
     pseudonym: { did: p.pseudonymDid, sig: signText(keys.ownerPrivateKey, statement), genesisOp },
-    owner: { did: owner.ownerDid, sig: owner.sig, signingKey: owner.signingKey },
+    owner,
   };
 }
 
 export async function publishReveal(p: { pdsUrl: string; bundle: RevealBundle; pseudonymAccessJwt: string; ownerAccessJwt: string }): Promise<void> {
+  const b = p.bundle;
+  // ownerSig stays a string for readers of revision 1; v2 adds the key name and the full signature.
+  const ownerSig = b.version === 1 ? b.owner.sig : b.owner.signature.format === 'raw' ? b.owner.signature.sig : b.owner.signature.signature;
   const record = {
     $type: 'net.openfederation.pseudonym.link',
-    statement: p.bundle.statement, pseudonymSig: p.bundle.pseudonym.sig, ownerSig: p.bundle.owner.sig,
-    ownerSigningKey: p.bundle.owner.signingKey, commitmentSalt: p.bundle.commitmentSalt,
-    genesisOp: p.bundle.pseudonym.genesisOp, createdAt: new Date().toISOString(),
+    statement: b.statement, pseudonymSig: b.pseudonym.sig, ownerSig,
+    ownerSigningKey: b.owner.signingKey, commitmentSalt: b.commitmentSalt,
+    genesisOp: b.pseudonym.genesisOp, createdAt: new Date().toISOString(),
+    ...(b.version === 2 ? { ownerKeyRef: b.owner.keyRef, ownerSignature: b.owner.signature } : {}),
   };
   const targets: [string, string][] = [[p.bundle.pseudonym.did, p.pseudonymAccessJwt], [p.bundle.owner.did, p.ownerAccessJwt]];
   for (const [repo, jwt] of targets) {

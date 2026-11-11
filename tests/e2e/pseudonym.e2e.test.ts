@@ -63,6 +63,9 @@ describe('pseudonym lifecycle', () => {
     expect(online.checks.filter((c) => !c.ok)).toEqual([]);
     expect(online.valid).toBe(true);
     expect(online.ownerKeyBound).toBe('confirmed');
+    // A custodial owner: the PDS signed with the key it holds, and the verdict says so (ADR-003).
+    expect(bundle.version).toBe(2);
+    expect(online.ownerAttestation).toBe('pds-held-key');
 
     await publishReveal({ pdsUrl, bundle, pseudonymAccessJwt: session.accessJwt, ownerAccessJwt: ana.accessJwt });
 

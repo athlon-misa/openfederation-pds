@@ -3311,7 +3311,7 @@ export const lexiconContracts = {
   'net.openfederation.pseudonym.createSession': { revision: 2, errors: ["AccountNotActive", "Unauthorized"] as const },
   'net.openfederation.pseudonym.getLoginChallenge': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.pseudonym.getTokenKeys': { revision: 2, errors: [] as const },
-  'net.openfederation.pseudonym.link': { revision: 1, errors: [] as const },
+  'net.openfederation.pseudonym.link': { revision: 2, errors: [] as const },
   'net.openfederation.pseudonym.signLink': { revision: 2, errors: ["Forbidden", "InvalidStatement", "SelfCustodyAccount", "Unauthorized"] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 4, errors: [] as const },

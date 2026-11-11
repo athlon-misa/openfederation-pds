@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.pseudonym.link",
-  "revision": 1,
+  "revision": 2,
   "description": "A voluntary, dual-signed link between a pseudonym and its owner. Lives in a repo only if the owner chooses to publish it.",
   "defs": {
     "main": {
@@ -10,15 +10,55 @@
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["statement", "pseudonymSig", "ownerSig", "ownerSigningKey", "commitmentSalt", "genesisOp", "createdAt"],
+        "required": [
+          "statement",
+          "pseudonymSig",
+          "ownerSig",
+          "ownerSigningKey",
+          "commitmentSalt",
+          "genesisOp",
+          "createdAt"
+        ],
         "properties": {
-          "statement": { "type": "string", "maxLength": 2000 },
-          "pseudonymSig": { "type": "string", "maxLength": 200 },
-          "ownerSig": { "type": "string", "maxLength": 200 },
-          "ownerSigningKey": { "type": "string", "maxLength": 200 },
-          "commitmentSalt": { "type": "string", "maxLength": 200 },
-          "genesisOp": { "type": "unknown" },
-          "createdAt": { "type": "string", "format": "datetime" }
+          "statement": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "pseudonymSig": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "ownerSig": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "ownerSigningKey": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "commitmentSalt": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "genesisOp": {
+            "type": "unknown"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "ownerKeyRef": {
+            "type": "string",
+            "knownValues": [
+              "openfederation_owner",
+              "atproto"
+            ],
+            "description": "Reveal bundle v2: which of the owner's keys signed (ADR-003, decision 8)."
+          },
+          "ownerSignature": {
+            "type": "unknown",
+            "description": "Reveal bundle v2: the owner signature, { format: 'raw', sig } or a WebAuthn assertion { format: 'webauthn', authenticatorData, clientDataJSON, signature }."
+          }
         }
       }
     }

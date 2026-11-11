@@ -7,11 +7,12 @@ import { verifySignature, formatDidKey, SECP256K1_JWT_ALG } from '@atproto/crypt
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { base58btc } from 'multiformats/bases/base58';
 import { didForSignedOperation, encodeDagCbor, resolveFromPlc, getPlcLog } from '../plc-client.js';
+import { verifyOwnerSignature, type OwnerSignature } from '../owner-signature.js';
 import {
   parseLinkStatement, computeCommitment, commitmentsIn, buildPresenceMessage, base64UrlDecode,
 } from '../../../packages/openfederation-pseudonym/src/formats.js';
 
-export interface RevealBundle {
+export interface RevealBundleV1 {
   version: 1;
   statement: string;
   pseudonym: { did: string; sig: string; genesisOp: Record<string, unknown> };
@@ -19,11 +20,34 @@ export interface RevealBundle {
   commitmentSalt: string;
 }
 
+/**
+ * v2 (ADR-003, decision 8): the owner side names the key that signed.
+ * `openfederation_owner` is the person's own key (raw or passkey signature);
+ * `atproto` is the PDS-held repo key, as in v1.
+ */
+export interface RevealBundleV2 {
+  version: 2;
+  statement: string;
+  pseudonym: { did: string; sig: string; genesisOp: Record<string, unknown> };
+  owner: { did: string; keyRef: 'openfederation_owner' | 'atproto'; signingKey: string; signature: OwnerSignature };
+  commitmentSalt: string;
+}
+
+export type RevealBundle = RevealBundleV1 | RevealBundleV2;
+
 export interface VerifyResult {
   valid: boolean;
   checks: { name: string; ok: boolean; detail?: string }[];
   /** Whether owner.signingKey was confirmed to be owner.did's current key. Offline: always 'unchecked'. */
   ownerKeyBound: 'confirmed' | 'unchecked' | 'failed';
+  /** Which key the owner side claims (v1 bundles: always atproto). */
+  ownerKeyRef?: 'openfederation_owner' | 'atproto';
+  /**
+   * What the owner signature proves, once confirmed online: `person` (the
+   * person's own key, in their DID document as openfederation_owner) or
+   * `pds-held-key` (the repo key their PDS holds). Otherwise `unchecked`.
+   */
+  ownerAttestation?: 'person' | 'pds-held-key' | 'unchecked';
 }
 
 export interface VerifyOptions {
@@ -78,7 +102,8 @@ const FAIL_DETAIL: Record<string, string> = {
 function didKeyFromMultibase(mb: string): string | null {
   try {
     const bytes = base58btc.decode(mb);
-    if (bytes.length === 35 && bytes[0] === 0xe7 && bytes[1] === 0x01) return `did:key:${mb}`;
+    if (bytes.length === 35 && bytes[0] === 0xe7 && bytes[1] === 0x01) return `did:key:${mb}`; // secp256k1 Multikey
+    if (bytes.length === 35 && bytes[0] === 0x80 && bytes[1] === 0x24) return `did:key:${mb}`; // P-256 Multikey (passkey owner keys)
     if (bytes.length === 33 || bytes.length === 65) {
       return formatDidKey(SECP256K1_JWT_ALG, secp256k1.ProjectivePoint.fromHex(bytes).toRawBytes(true));
     }
@@ -112,10 +137,17 @@ async function sigOk(didKey: unknown, data: Uint8Array, sig: unknown): Promise<b
 }
 
 function isBundle(b: any): b is RevealBundle {
-  return !!b && b.version === 1 && typeof b.statement === 'string' && typeof b.commitmentSalt === 'string'
+  const common = !!b && typeof b.statement === 'string' && typeof b.commitmentSalt === 'string'
     && !!b.pseudonym && typeof b.pseudonym.did === 'string' && typeof b.pseudonym.sig === 'string'
     && !!b.pseudonym.genesisOp && typeof b.pseudonym.genesisOp === 'object'
-    && !!b.owner && typeof b.owner.did === 'string' && typeof b.owner.sig === 'string' && typeof b.owner.signingKey === 'string';
+    && !!b.owner && typeof b.owner.did === 'string' && typeof b.owner.signingKey === 'string';
+  if (!common) return false;
+  if (b.version === 1) return typeof b.owner.sig === 'string';
+  if (b.version === 2) {
+    return (b.owner.keyRef === 'openfederation_owner' || b.owner.keyRef === 'atproto')
+      && !!b.owner.signature && typeof b.owner.signature === 'object' && typeof b.owner.signature.format === 'string';
+  }
+  return false;
 }
 
 export async function verifyRevealBundle(bundle: unknown, opts: VerifyOptions = {}): Promise<VerifyResult> {
@@ -127,7 +159,8 @@ export async function verifyRevealBundle(bundle: unknown, opts: VerifyOptions = 
 }
 
 async function verifyInner(bundle: unknown, opts: VerifyOptions): Promise<VerifyResult> {
-  if (!isBundle(bundle)) return { valid: false, ownerKeyBound: 'unchecked', checks: [{ name: 'format', ok: false, detail: 'Not a version 1 reveal bundle' }] };
+  if (!isBundle(bundle)) return { valid: false, ownerKeyBound: 'unchecked', checks: [{ name: 'format', ok: false, detail: 'Not a version 1 or 2 reveal bundle' }] };
+  const keyRef = bundle.version === 2 ? bundle.owner.keyRef : 'atproto';
   const checks: VerifyResult['checks'] = [];
   const op = bundle.pseudonym.genesisOp;
   const rotationKey = genesisRotationKey(op);
@@ -155,21 +188,28 @@ async function verifyInner(bundle: unknown, opts: VerifyOptions): Promise<Verify
   } catch { commitOk = false; }
   checks.push({ name: 'commitment', ok: commitOk });
 
-  checks.push({ name: 'ownerSignature', ok: await sigOk(bundle.owner.signingKey, utf8(bundle.statement), bundle.owner.sig) });
+  const ownerSigOk = bundle.version === 2
+    ? verifyOwnerSignature(bundle.statement, bundle.owner.signature, bundle.owner.signingKey).ok
+    : await sigOk(bundle.owner.signingKey, utf8(bundle.statement), bundle.owner.sig);
+  checks.push({ name: 'ownerSignature', ok: ownerSigOk });
 
   let ownerKeyBound: VerifyResult['ownerKeyBound'] = 'unchecked';
   if (opts.online) {
     let current = false;
     try {
       const doc = await resolveDoc(bundle.owner.did, opts) as { verificationMethod?: { id: string; publicKeyMultibase?: string }[] } | null;
-      const vm = doc?.verificationMethod?.find((v) => v.id.endsWith('#atproto'));
+      const vm = doc?.verificationMethod?.find((v) => v.id.endsWith(`#${keyRef}`));
       current = !!vm?.publicKeyMultibase && didKeyFromMultibase(vm.publicKeyMultibase) === bundle.owner.signingKey;
     } catch { current = false; }
-    checks.push({ name: 'ownerKeyCurrent', ok: current, detail: current ? undefined : 'owner signing key is not the DID\'s current #atproto key (or lookup failed)' });
+    checks.push({ name: 'ownerKeyCurrent', ok: current, detail: current ? undefined : `owner signing key is not the DID's current #${keyRef} key (or lookup failed)` });
     ownerKeyBound = current ? 'confirmed' : 'failed';
   }
   for (const c of checks) if (!c.ok && !c.detail) c.detail = FAIL_DETAIL[c.name];
-  return { valid: checks.every((c) => c.ok), checks, ownerKeyBound };
+  const valid = checks.every((c) => c.ok);
+  const ownerAttestation: VerifyResult['ownerAttestation'] = valid && ownerKeyBound === 'confirmed'
+    ? (keyRef === 'openfederation_owner' ? 'person' : 'pds-held-key')
+    : 'unchecked';
+  return { valid, checks, ownerKeyBound, ownerKeyRef: keyRef, ownerAttestation };
 }
 
 /**
