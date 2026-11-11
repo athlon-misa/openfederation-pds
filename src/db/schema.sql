@@ -797,3 +797,6 @@ CREATE TABLE IF NOT EXISTS takedown_export_tokens (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_takedown_export_tokens_subject ON takedown_export_tokens(subject_did);
+
+-- Community import progress code (migrate-055)
+ALTER TABLE communities ADD COLUMN IF NOT EXISTS migration_code_hash CHAR(64);

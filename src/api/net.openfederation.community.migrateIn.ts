@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { createHash, randomBytes } from 'node:crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { config } from '../config.js';
 import { query, withTransaction } from '../db/client.js';
@@ -91,6 +92,11 @@ export default async function migrateIn(req: AuthRequest, res: Response): Promis
       }
     });
 
+    // A new progress code on every call; checkMigration opens to it while importing.
+    const progressCode = randomBytes(32).toString('base64url');
+    await query('UPDATE communities SET migration_code_hash = $2 WHERE did = $1',
+      [did, createHash('sha256').update(progressCode).digest('hex')]);
+
     const repo = await pullCommunityRepo(did, fromPds);
     const blobs = await pullCommunityBlobs(did, fromPds);
     await auditLog('community.migrateIn', null, did, { ownerDid, fromPds, records: repo.records, members: repo.members, attestations: repo.attestations, blobs: blobs.copied });
@@ -99,6 +105,7 @@ export default async function migrateIn(req: AuthRequest, res: Response): Promis
       repoCommit: repo.root, indexedRecords: repo.records, members: repo.members, attestations: repo.attestations,
       expectedBlobs: blobs.expected, importedBlobs: blobs.expected,
       recommended: await recommendedCommunityCredentials(did, state),
+      progressCode,
     });
   } catch (error) {
     if (error instanceof CommunityMoveError) {

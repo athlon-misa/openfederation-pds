@@ -667,6 +667,7 @@ export type NetOpenfederationCommunityAmendProposalError = "CommunityImporting" 
 
 export type NetOpenfederationCommunityCheckMigrationInput = {
   "did": string;
+  "code"?: string;
 };
 export type NetOpenfederationCommunityCheckMigrationOutput = {
   "status": string;
@@ -1122,6 +1123,7 @@ export type NetOpenfederationCommunityMigrateInOutput = {
   "verificationMethods"?: unknown;
   "services"?: unknown;
 };
+  "progressCode"?: string;
 };
 export type NetOpenfederationCommunityMigrateInError = "AlreadyExists" | "AuthRequired" | "DidMismatch" | "Forbidden" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidCar" | "InvalidHandle" | "InvalidInviteCode" | "InvalidRepo" | "InvalidSignature" | "InvalidToken" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteUsed" | "MigrationNotAllowed" | "PayloadTooLarge" | "UnresolvableDid" | "UpstreamFailure";
 
@@ -3053,7 +3055,7 @@ export const lexiconContracts = {
   'net.openfederation.calendar.rsvp': { revision: 6, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.activate': { revision: 1, errors: ["Forbidden", "IncompatibleDidDoc", "InvalidStatus", "NotFound"] as const },
   'net.openfederation.community.amendProposal': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "NotProposer", "ProposalClosed", "ProposalNotFound"] as const },
-  'net.openfederation.community.checkMigration': { revision: 2, errors: ["NotFound"] as const },
+  'net.openfederation.community.checkMigration': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.community.create': { revision: 1, errors: ["HandleTaken", "InvalidRequest"] as const },
   'net.openfederation.community.createProposal': { revision: 8, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceNotActive", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.createRole': { revision: 7, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound", "NotMember", "RoleNameTaken"] as const },
@@ -3078,7 +3080,7 @@ export const lexiconContracts = {
   'net.openfederation.community.listProposals': { revision: 5, errors: ["CommunityTakenDown", "NotFound"] as const },
   'net.openfederation.community.listRoles': { revision: 4, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.markMoved': { revision: 2, errors: ["CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMoved"] as const },
-  'net.openfederation.community.migrateIn': { revision: 2, errors: ["AlreadyExists", "AuthRequired", "DidMismatch", "Forbidden", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidCar", "InvalidHandle", "InvalidInviteCode", "InvalidRepo", "InvalidSignature", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "PayloadTooLarge", "UnresolvableDid", "UpstreamFailure"] as const },
+  'net.openfederation.community.migrateIn': { revision: 3, errors: ["AlreadyExists", "AuthRequired", "DidMismatch", "Forbidden", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidCar", "InvalidHandle", "InvalidInviteCode", "InvalidRepo", "InvalidSignature", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "PayloadTooLarge", "UnresolvableDid", "UpstreamFailure"] as const },
   'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.objectToProposal': { revision: 5, errors: ["AlreadyObjected", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "ObjectionNotRecordable", "ObjectionWindowClosed", "ProposalNotFound", "ProposalNotPending"] as const },
   'net.openfederation.community.removeMember': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
