@@ -804,3 +804,11 @@ ALTER TABLE communities ADD COLUMN IF NOT EXISTS migration_code_hash CHAR(64);
 -- Custody modes (migrate-056)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS custody_mode VARCHAR(16)
   CHECK (custody_mode IN ('custodial', 'assisted', 'self'));
+
+-- Reserved PDS rotation keys for assisted accounts (migrate-057)
+CREATE TABLE IF NOT EXISTS reserved_rotation_keys (
+  rotation_key TEXT PRIMARY KEY,
+  key_bytes BYTEA NOT NULL,
+  seq BIGSERIAL
+);
+CREATE INDEX IF NOT EXISTS idx_reserved_rotation_keys_seq ON reserved_rotation_keys(seq);

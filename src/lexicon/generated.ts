@@ -422,6 +422,24 @@ export type NetOpenfederationAccountRegisterOutput = {
 };
 export type NetOpenfederationAccountRegisterError = "AccountExists" | "CustodyModeNotAllowed" | "IdentityCreationFailed" | "InvalidRequest" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteRequired" | "InviteUsed";
 
+export type NetOpenfederationAccountRegisterSelfCustodyInput = {
+  "did": string;
+  "mode": string;
+  "handle": string;
+  "email": string;
+  "password": string;
+  "inviteCode"?: string;
+};
+export type NetOpenfederationAccountRegisterSelfCustodyOutput = {
+  "id": string;
+  "handle": string;
+  "did": string;
+  "email"?: string;
+  "status": string;
+  "custodyMode": string;
+};
+export type NetOpenfederationAccountRegisterSelfCustodyError = "AccountExists" | "CustodyModeNotAllowed" | "InvalidGenesis" | "InvalidRequest" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteRequired" | "InviteUsed" | "PdsKeyNotReserved" | "SigningKeyNotReserved";
+
 export type NetOpenfederationAccountRejectInput = {
   "userId"?: string;
   "handle"?: string;
@@ -442,6 +460,12 @@ export type NetOpenfederationAccountRequestPasswordResetOutput = {
   "success": boolean;
 };
 export type NetOpenfederationAccountRequestPasswordResetError = never;
+
+export type NetOpenfederationAccountReserveCustodyKeyInput = undefined;
+export type NetOpenfederationAccountReserveCustodyKeyOutput = {
+  "rotationKey": string;
+};
+export type NetOpenfederationAccountReserveCustodyKeyError = "CustodyModeNotAllowed";
 
 export type NetOpenfederationAccountResolveExternalInput = {
   "codeChallenge"?: string;
@@ -2454,8 +2478,10 @@ export interface LexiconInputMap {
   'net.openfederation.account.listPending': NetOpenfederationAccountListPendingInput;
   'net.openfederation.account.listSessions': NetOpenfederationAccountListSessionsInput;
   'net.openfederation.account.register': NetOpenfederationAccountRegisterInput;
+  'net.openfederation.account.registerSelfCustody': NetOpenfederationAccountRegisterSelfCustodyInput;
   'net.openfederation.account.reject': NetOpenfederationAccountRejectInput;
   'net.openfederation.account.requestPasswordReset': NetOpenfederationAccountRequestPasswordResetInput;
+  'net.openfederation.account.reserveCustodyKey': NetOpenfederationAccountReserveCustodyKeyInput;
   'net.openfederation.account.resolveExternal': NetOpenfederationAccountResolveExternalInput;
   'net.openfederation.account.revokeSession': NetOpenfederationAccountRevokeSessionInput;
   'net.openfederation.account.updateProfile': NetOpenfederationAccountUpdateProfileInput;
@@ -2664,8 +2690,10 @@ export interface LexiconOutputMap {
   'net.openfederation.account.listPending': NetOpenfederationAccountListPendingOutput;
   'net.openfederation.account.listSessions': NetOpenfederationAccountListSessionsOutput;
   'net.openfederation.account.register': NetOpenfederationAccountRegisterOutput;
+  'net.openfederation.account.registerSelfCustody': NetOpenfederationAccountRegisterSelfCustodyOutput;
   'net.openfederation.account.reject': NetOpenfederationAccountRejectOutput;
   'net.openfederation.account.requestPasswordReset': NetOpenfederationAccountRequestPasswordResetOutput;
+  'net.openfederation.account.reserveCustodyKey': NetOpenfederationAccountReserveCustodyKeyOutput;
   'net.openfederation.account.resolveExternal': NetOpenfederationAccountResolveExternalOutput;
   'net.openfederation.account.revokeSession': NetOpenfederationAccountRevokeSessionOutput;
   'net.openfederation.account.updateProfile': NetOpenfederationAccountUpdateProfileOutput;
@@ -2874,8 +2902,10 @@ export interface LexiconErrorMap {
   'net.openfederation.account.listPending': NetOpenfederationAccountListPendingError;
   'net.openfederation.account.listSessions': NetOpenfederationAccountListSessionsError;
   'net.openfederation.account.register': NetOpenfederationAccountRegisterError;
+  'net.openfederation.account.registerSelfCustody': NetOpenfederationAccountRegisterSelfCustodyError;
   'net.openfederation.account.reject': NetOpenfederationAccountRejectError;
   'net.openfederation.account.requestPasswordReset': NetOpenfederationAccountRequestPasswordResetError;
+  'net.openfederation.account.reserveCustodyKey': NetOpenfederationAccountReserveCustodyKeyError;
   'net.openfederation.account.resolveExternal': NetOpenfederationAccountResolveExternalError;
   'net.openfederation.account.revokeSession': NetOpenfederationAccountRevokeSessionError;
   'net.openfederation.account.updateProfile': NetOpenfederationAccountUpdateProfileError;
@@ -3086,8 +3116,10 @@ export const lexiconContracts = {
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
   'net.openfederation.account.listSessions': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.account.register': { revision: 4, errors: ["AccountExists", "CustodyModeNotAllowed", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
+  'net.openfederation.account.registerSelfCustody': { revision: 1, errors: ["AccountExists", "CustodyModeNotAllowed", "InvalidGenesis", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed", "PdsKeyNotReserved", "SigningKeyNotReserved"] as const },
   'net.openfederation.account.reject': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.requestPasswordReset': { revision: 1, errors: [] as const },
+  'net.openfederation.account.reserveCustodyKey': { revision: 1, errors: ["CustodyModeNotAllowed"] as const },
   'net.openfederation.account.resolveExternal': { revision: 2, errors: ["ResolutionFailed", "ServiceUnavailable"] as const },
   'net.openfederation.account.revokeSession': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.updateProfile': { revision: 2, errors: ["InvalidBlobRef", "InvalidRequest"] as const },
