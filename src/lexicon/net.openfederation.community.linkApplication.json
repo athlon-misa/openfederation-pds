@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.linkApplication",
-  "revision": 3,
+  "revision": 4,
   "description": "Link an external application to a community. Creates a repo record for the linked app.",
   "defs": {
     "main": {
@@ -108,6 +108,10 @@
         {
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
+        },
+        {
+          "name": "NotMember",
+          "description": "The caller is not a member of this community."
         }
       ]
     }

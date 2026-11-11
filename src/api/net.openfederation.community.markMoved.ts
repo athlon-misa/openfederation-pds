@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, isHiddenCommunity } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { currentPlcState } from '../identity/account-migration.js';
@@ -12,7 +12,7 @@ export default async function markMoved(req: AuthRequest, res: Response): Promis
   const did = typeof req.body?.did === 'string' ? req.body.did : '';
   try {
     const c = (await query<{ status: string; owner_did: string | null }>('SELECT status, owner_did FROM communities WHERE did = $1', [did])).rows[0];
-    if (!c) throw new CommunityMoveError(404, 'NotFound', 'Community not found');
+    if (!c || await isHiddenCommunity(req, did)) throw new CommunityMoveError(404, 'NotFound', 'Community not found');
     if (c.owner_did !== req.auth.did && !req.auth.roles.includes('admin')) throw new CommunityMoveError(403, 'Forbidden', 'Only the community owner can do this');
     const state = await currentPlcState(did);
     const home = state ? homeOf(state) : null;

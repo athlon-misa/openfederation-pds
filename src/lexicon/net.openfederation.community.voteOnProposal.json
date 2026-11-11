@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.voteOnProposal",
-  "revision": 9,
+  "revision": 10,
   "description": "Cast a vote on a governance proposal. Quorum and outcome are computed from voter-signed net.openfederation.governance.vote records; the proposal's vote arrays are a non-authoritative read cache.",
   "defs": {
     "main": {
@@ -108,6 +108,14 @@
         {
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The caller lacks the required community permission."
         }
       ]
     }

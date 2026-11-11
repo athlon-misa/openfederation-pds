@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth, writableStatus } from '../auth/guards.js';
+import { requireAuth, writableStatus, requireCommunityVisible } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
@@ -27,6 +27,7 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
     }
 
     // Verify ownership
+    if (!(await requireCommunityVisible(req, res, did))) return;
     const communityResult = await query<{ owner_did: string | null; status: string }>(
       'SELECT owner_did, status FROM communities WHERE did = $1',
       [did]

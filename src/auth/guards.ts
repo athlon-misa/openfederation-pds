@@ -238,6 +238,7 @@ export async function requireCommunityRole(
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
     return null;
   }
+  if (!(await requireCommunityVisible(req, res, communityDid))) return null;
   if (!writableStatus(communityResult.rows[0].status, res)) return null;
 
   const isOwner = communityResult.rows[0].owner_did === req.auth.did;
@@ -305,7 +306,10 @@ export async function requireCommunityPermission(
     withoutOperatorOverride: permission === PERMISSIONS.GOVERNANCE_WRITE,
   });
 
-  if (!capabilities.exists) {
+  // A private community the caller cannot see answers like a missing DID.
+  const hidden = capabilities.visibility === 'private' && !req.auth.roles.includes('admin') && !capabilities.isOwner
+    && capabilities.membership?.status !== 'member';
+  if (!capabilities.exists || hidden) {
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
     return false;
   }
@@ -378,6 +382,31 @@ export async function requireCommunityReadable(
 }
 
 /**
+ * Guard: the community exists and the caller may know it does. A private
+ * community the caller cannot see gets exactly the answer of a DID that does
+ * not exist (404 NotFound), before any owner, member or status check whose
+ * answer would confirm it exists.
+ */
+export async function requireCommunityVisible(
+  req: AuthRequest,
+  res: Response,
+  communityDid: string,
+): Promise<boolean> {
+  const access = await getCommunityAccess({ communityDid, caller: req.auth });
+  if (!access.exists || (access.visibility === 'private' && !canViewPrivateCommunity(access))) {
+    res.status(404).json({ error: 'NotFound', message: 'Community not found' });
+    return false;
+  }
+  return true;
+}
+
+/** True when `did` is a private community the caller may not see (it must look like a missing DID). */
+export async function isHiddenCommunity(req: AuthRequest, did: string): Promise<boolean> {
+  const access = await getCommunityAccess({ communityDid: did, caller: req.auth });
+  return access.exists && access.visibility === 'private' && !canViewPrivateCommunity(access);
+}
+
+/**
  * Guard: a raw repo DID must be readable by the caller.
  *
  * For the generic ATProto repo endpoints (repo.listRecords / getRecord /
@@ -395,10 +424,17 @@ export async function requireRepoReadable(
   req: AuthRequest,
   res: Response,
   did: string,
+  /**
+   * Sends what this endpoint answers for a DID it knows nothing about. A
+   * private community the caller cannot see gets exactly that, so the answer
+   * never tells it apart from a missing DID. Default: RepoNotFound.
+   */
+  notFound?: () => void,
 ): Promise<boolean> {
   const access = await getCommunityAccess({ communityDid: did, caller: req.auth });
   if (access.exists && access.visibility === 'private' && !canViewPrivateCommunity(access)) {
-    res.status(404).json({ error: 'RepoNotFound', message: `Repository not found for DID: ${did}` });
+    if (notFound) notFound();
+    else res.status(404).json({ error: 'RepoNotFound', message: `Repository not found for DID: ${did}` });
     return false;
   }
 

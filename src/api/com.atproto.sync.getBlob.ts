@@ -32,7 +32,8 @@ export default async function getBlob(req: AuthRequest, res: Response): Promise<
       return;
     }
     // A taken-down account (or a private community) is not served to the public.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
+    if (!(await requireRepoReadable(req as AuthRequest, res, did,
+      () => res.status(404).json({ error: 'BlobNotFound', message: 'Blob not found' })))) return;
 
     // Only canonical CIDs reach the store — the same rule the serve route
     // applies, so an alias for a path can never become a storage key.

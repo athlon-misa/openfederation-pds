@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, requireCommunityVisible } from '../auth/guards.js';
 import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { deleteCommunityData } from '../community/delete-community.js';
@@ -27,6 +27,7 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
     }
 
     // Verify community exists and check ownership
+    if (!(await requireCommunityVisible(req, res, did))) return;
     const communityResult = await query<{ owner_did: string | null; handle: string; status: string }>(
       'SELECT owner_did, handle, status FROM communities WHERE did = $1',
       [did]

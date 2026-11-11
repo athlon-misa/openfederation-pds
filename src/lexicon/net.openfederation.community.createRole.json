@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.createRole",
-  "revision": 6,
+  "revision": 7,
   "description": "Create a custom role for a community.",
   "defs": {
     "main": {
@@ -105,6 +105,14 @@
         {
           "name": "GovernanceDenied",
           "description": "Governance policy denied this operation."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The caller lacks the required community permission."
         }
       ]
     }

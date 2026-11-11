@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.verifyAttestation",
-  "revision": 2,
+  "revision": 3,
   "description": "Verify an attestation exists in a community repo. Record existence = validity.",
   "defs": {
     "main": {
@@ -63,6 +63,14 @@
         },
         "expired": {
           "type": "boolean"
+        },
+        "remote": {
+          "type": "boolean",
+          "description": "True when the community lives on another PDS and the record was fetched from there."
+        },
+        "pdsUrl": {
+          "type": "string",
+          "description": "The PDS the remote record was fetched from."
         }
       },
       "required": [

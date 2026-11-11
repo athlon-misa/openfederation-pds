@@ -32,12 +32,13 @@ export default async function getPrimaryWallet(req: AuthRequest, res: Response):
       res.status(400).json({ error: 'InvalidRequest', message: 'did is required' });
       return;
     }
-    // A taken-down account (or a private community) is not served to the public.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
     if (!chainParam || !isWalletChain(chainParam)) {
       res.status(400).json({ error: 'UnsupportedChain', message: 'chain must be "ethereum" or "solana"' });
       return;
     }
+    // A taken-down account (or a private community) is not served to the public.
+    if (!(await requireRepoReadable(req as AuthRequest, res, did,
+      () => res.status(404).json({ error: 'NoPrimaryWallet', message: 'No primary wallet for this DID on this chain' })))) return;
 
     const result = await query<{
       wallet_address: string;

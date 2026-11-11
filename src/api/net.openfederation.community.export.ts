@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, requireCommunityVisible } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { auditLog } from '../db/audit.js';
@@ -27,6 +27,7 @@ export default async function exportCommunity(req: AuthRequest, res: Response): 
     }
 
     // Fetch community
+    if (!(await requireCommunityVisible(req, res, did))) return;
     const communityResult = await query<{
       did: string;
       handle: string;

@@ -6,6 +6,7 @@ import { getKeypairForDid } from '../../repo/keypair-utils.js';
 import { throwXrpc } from '../../xrpc/errors.js';
 import { resolveDisplayFields } from '../display-projection.js';
 import { communityWriteRefusal } from '../../auth/guards.js';
+import { getCommunityAccess, canViewPrivateCommunity } from '../visibility.js';
 
 export function requireString(value: unknown, nsid: string, message: string): string {
   if (typeof value !== 'string' || value.length === 0) {
@@ -19,6 +20,14 @@ export function requireString(value: unknown, nsid: string, message: string): st
  * to the community's repo, so they stop when it is suspended or taken down,
  * and on a copy that moved away or has not finished arriving.
  */
+/** A private community the caller cannot see answers like a missing DID: 404 before any other check. */
+export async function ensureCommunityVisible(communityDid: string, caller: AuthContext, nsid: string): Promise<void> {
+  const access = await getCommunityAccess({ communityDid, caller });
+  if (!access.exists || (access.visibility === 'private' && !canViewPrivateCommunity(access))) {
+    throwXrpc(nsid, 'NotFound', 404, 'Community not found');
+  }
+}
+
 export async function ensureCommunityWritable(communityDid: string, nsid: string): Promise<void> {
   const communityResult = await query<{ status: string }>(
     'SELECT status FROM communities WHERE did = $1',

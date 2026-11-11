@@ -17,7 +17,8 @@ export default async function getProfile(req: AuthRequest, res: Response): Promi
       return;
     }
     // A taken-down account (or a private community) is not served to the public.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
+    if (!(await requireRepoReadable(req as AuthRequest, res, did,
+      () => res.status(404).json({ error: 'ProfileNotFound', message: 'No profile found for this DID' })))) return;
 
     const userResult = await query<{ handle: string }>(
       'SELECT handle FROM users WHERE did = $1',

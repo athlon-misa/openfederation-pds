@@ -19,7 +19,8 @@ export default async function listExternalKeys(req: AuthRequest, res: Response):
       return;
     }
     // A taken-down account (or a private community) is not served to the public.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
+    if (!(await requireRepoReadable(req as AuthRequest, res, did,
+      () => res.status(200).json({ keys: [] })))) return;
 
     let sql = `SELECT rkey, record FROM records_index
                WHERE community_did = $1 AND collection = $2`;

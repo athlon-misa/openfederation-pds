@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Private communities answer "not found" everywhere.** An outsider now gets the same status and error for a private community as for a DID that does not exist, on every endpoint that takes a community or repository DID. Before, about twenty endpoints confirmed a private community existed: owner and member checks (`403 Forbidden` / `NotMember`) and status checks ran before the privacy check (community update, delete, export, activate, markMoved, getMovedKeys, listJoinRequests, leave, removeMember, roles, governance, delegation, applications), and identity reads answered `RepoNotFound` where a missing DID gets an empty or endpoint-specific answer. `tests/api/private-community-not-found.test.ts` compares the two answers for every such endpoint, taken from the lexicons, so new endpoints are covered.
+- Seventeen lexicons now declare the errors their access checks return (`NotFound`, `NotMember`, `Forbidden`); an undeclared error was turned into a 500, so for example a vote on a community that does not exist failed with a server error.
+- `community.verifyAttestation` for a community on another PDS always failed with a 500 (its `remote` and `pdsUrl` fields were not declared). A DID that resolves nowhere now answers `NotFound`.
+
 - `community.export` always failed with a 500: its response carried a `$type` field its lexicon does not declare, so output validation rejected it.
 
 ## [1.4.0] - 2026-11-11
