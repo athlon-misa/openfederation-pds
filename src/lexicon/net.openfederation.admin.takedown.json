@@ -1,0 +1,118 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.takedown",
+  "revision": 1,
+  "description": "Take an account or community down under the takedown policy (docs/FAIR-USE.md). Requires admin role. 'standard': hidden, the owner is emailed a private export link and the data is deleted after 30 days. 'hard' (evident illegal content): hidden, no owner export, kept 90 days then deleted. On a subject already taken down, changes the tier or deadline.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Take an account or community down under the takedown policy (docs/FAIR-USE.md). Requires admin role. 'standard': hidden, the owner is emailed a private export link and the data is deleted after 30 days. 'hard' (evident illegal content): hidden, no owner export, kept 90 days then deleted. On a subject already taken down, changes the tier or deadline.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did",
+              "description": "The account or community DID."
+            },
+            "tier": {
+              "type": "string",
+              "knownValues": [
+                "standard",
+                "hard"
+              ],
+              "description": "standard: rules broken, owner may export; hard: evident illegal content, no owner export."
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Reason shown to the owner in the takedown notice."
+            },
+            "deleteAfter": {
+              "type": "string",
+              "format": "datetime",
+              "description": "Overrides the default deadline (30 days standard, 90 days hard), for example to extend a legal hold."
+            },
+            "notify": {
+              "type": "boolean",
+              "description": "Email the owner a takedown notice. Default true; false when an authority asks that the owner not be informed."
+            }
+          },
+          "required": [
+            "did",
+            "tier",
+            "reason"
+          ]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "kind": {
+              "type": "string",
+              "knownValues": [
+                "account",
+                "community"
+              ],
+              "description": "Whether the DID is an account or a community."
+            },
+            "status": {
+              "type": "string",
+              "description": "Always 'takendown'."
+            },
+            "tier": {
+              "type": "string",
+              "knownValues": [
+                "standard",
+                "hard"
+              ]
+            },
+            "deleteAfter": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the daily sweep deletes the data."
+            },
+            "exportUrl": {
+              "type": "string",
+              "format": "uri",
+              "description": "Standard tier only: the private export link sent to the owner."
+            }
+          },
+          "required": [
+            "did",
+            "kind",
+            "status",
+            "tier",
+            "deleteAfter"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing DID, tier or reason."
+        },
+        {
+          "name": "InvalidDeadline",
+          "description": "deleteAfter is not a date in the future."
+        },
+        {
+          "name": "NotFound",
+          "description": "No account or community with this DID."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Admin accounts cannot be moderated."
+        }
+      ]
+    }
+  }
+}

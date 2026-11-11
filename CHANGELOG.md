@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Takedown policy** ([docs/FAIR-USE.md](docs/FAIR-USE.md)), the same for accounts and communities. A takedown is `standard` (the server's rules were broken) or `hard` (evident illegal content), and needs a reason. Standard: hidden at once; the owner is emailed a private link that downloads the repository as a CAR file plus its blobs, valid for 30 days; a reminder goes out 7 days before; then the data is deleted. Hard: hidden, no owner export, kept unchanged for 90 days, then deleted. New `net.openfederation.admin.takedown` (tier, reason, optional deadline, optional `notify: false`; also changes the tier or deadline of a takedown in place) and `admin.reverseTakedown`, which also lifts community takedowns for the first time. A daily sweep sends reminders and deletes what is due. Migration 054.
+
+### Changed
+
+- A takedown no longer requires a prior export (`ExportRequired` is gone from `community.takedown` and `updateSubjectStatus`); the export window replaces it. Both endpoints now apply a standard takedown.
+- `community.export` and `account.export` refuse the owner during a hard takedown (`TakenDown`); admins can still export.
+- `community.delete` now also removes the community's blobs.
+
+### Fixed
+
+- `community.export` always failed with a 500: its response carried a `$type` field its lexicon does not declare, so output validation rejected it.
+
 ## [1.4.0] - 2026-11-11
 
 ### Security

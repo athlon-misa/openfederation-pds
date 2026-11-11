@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.export",
-  "revision": 4,
+  "revision": 5,
   "description": "Generated XRPC contract for net.openfederation.account.export.",
   "defs": {
     "main": {
@@ -35,6 +35,10 @@
         {
           "name": "ExportTooLarge",
           "description": "Repository exceeds the bounded JSON export limit; use com.atproto.sync.getRepo for a CAR export."
+        },
+        {
+          "name": "TakenDown",
+          "description": "Hard takedown: only a PDS admin can export."
         }
       ]
     }

@@ -1,0 +1,71 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.reverseTakedown",
+  "revision": 1,
+  "description": "Lift a takedown before its deletion date. Requires admin role. The account or community returns to its status before the takedown; export links stop working.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Lift a takedown before its deletion date. Requires admin role. The account or community returns to its status before the takedown; export links stop working.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did",
+              "description": "The account or community DID."
+            }
+          },
+          "required": [
+            "did"
+          ]
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "kind": {
+              "type": "string",
+              "knownValues": [
+                "account",
+                "community"
+              ],
+              "description": "Whether the DID is an account or a community."
+            },
+            "status": {
+              "type": "string",
+              "description": "The restored status."
+            }
+          },
+          "required": [
+            "did",
+            "kind",
+            "status"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing DID."
+        },
+        {
+          "name": "NotFound",
+          "description": "No account or community with this DID."
+        },
+        {
+          "name": "NotTakenDown",
+          "description": "The account or community is not taken down."
+        }
+      ]
+    }
+  }
+}

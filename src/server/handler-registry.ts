@@ -37,6 +37,8 @@ import exportCommunity from '../api/net.openfederation.community.export.js';
 import suspendCommunity from '../api/net.openfederation.community.suspend.js';
 import unsuspendCommunity from '../api/net.openfederation.community.unsuspend.js';
 import takedownCommunity from '../api/net.openfederation.community.takedown.js';
+import adminTakedown from '../api/net.openfederation.admin.takedown.js';
+import adminReverseTakedown from '../api/net.openfederation.admin.reverseTakedown.js';
 import removeMember from '../api/net.openfederation.community.removeMember.js';
 import deleteCommunity from '../api/net.openfederation.community.delete.js';
 import listAccounts from '../api/net.openfederation.account.list.js';
@@ -333,6 +335,8 @@ const handlers = Object.freeze({
   'net.openfederation.community.getDelegation': { handler: getDelegationHandler, limiter: discoveryLimiter },
 
   // Export scheduler admin
+  'net.openfederation.admin.takedown': { handler: adminTakedown },
+  'net.openfederation.admin.reverseTakedown': { handler: adminReverseTakedown },
   'net.openfederation.admin.createExportSchedule': { handler: createExportSchedule },
   'net.openfederation.admin.listExportSchedules': { handler: listExportSchedules },
   'net.openfederation.admin.deleteExportSchedule': { handler: deleteExportSchedule },

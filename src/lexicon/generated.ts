@@ -12,7 +12,7 @@ export type ComAtprotoAdminGetSubjectStatusError = "NotFound";
 
 export type ComAtprotoAdminUpdateSubjectStatusInput = unknown;
 export type ComAtprotoAdminUpdateSubjectStatusOutput = unknown;
-export type ComAtprotoAdminUpdateSubjectStatusError = "AlreadySuspended" | "AlreadyTakenDown" | "ExportRequired" | "NotFound" | "NotSuspended" | "NotTakenDown";
+export type ComAtprotoAdminUpdateSubjectStatusError = "AlreadySuspended" | "AlreadyTakenDown" | "NotFound" | "NotSuspended" | "NotTakenDown";
 
 export type ComAtprotoIdentityGetRecommendedDidCredentialsInput = undefined;
 export type ComAtprotoIdentityGetRecommendedDidCredentialsOutput = {
@@ -276,7 +276,7 @@ export type NetOpenfederationAccountExportInput = {
   "did"?: string;
 };
 export type NetOpenfederationAccountExportOutput = JsonObject;
-export type NetOpenfederationAccountExportError = "ExportTooLarge" | "Forbidden" | "NotFound";
+export type NetOpenfederationAccountExportError = "ExportTooLarge" | "Forbidden" | "NotFound" | "TakenDown";
 
 export type NetOpenfederationAccountGetProfileInput = {
   "did": string;
@@ -485,6 +485,33 @@ export type NetOpenfederationAdminListExportSnapshotsOutput = {
   "snapshots": Array<unknown>;
 };
 export type NetOpenfederationAdminListExportSnapshotsError = never;
+
+export type NetOpenfederationAdminReverseTakedownInput = {
+  "did": string;
+};
+export type NetOpenfederationAdminReverseTakedownOutput = {
+  "did": string;
+  "kind": string;
+  "status": string;
+};
+export type NetOpenfederationAdminReverseTakedownError = "InvalidRequest" | "NotFound" | "NotTakenDown";
+
+export type NetOpenfederationAdminTakedownInput = {
+  "did": string;
+  "tier": string;
+  "reason": string;
+  "deleteAfter"?: string;
+  "notify"?: boolean;
+};
+export type NetOpenfederationAdminTakedownOutput = {
+  "did": string;
+  "kind": string;
+  "status": string;
+  "tier": string;
+  "deleteAfter": string;
+  "exportUrl"?: string;
+};
+export type NetOpenfederationAdminTakedownError = "Forbidden" | "InvalidDeadline" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationAdminVerifyChallengeInput = JsonObject;
 export type NetOpenfederationAdminVerifyChallengeOutput = JsonObject;
@@ -755,7 +782,7 @@ export type NetOpenfederationCommunityExportOutput = {
 };
   "collections": unknown;
 };
-export type NetOpenfederationCommunityExportError = "Forbidden" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunityExportError = "Forbidden" | "InvalidRequest" | "NotFound" | "TakenDown";
 
 export type NetOpenfederationCommunityGetInput = {
   "did": string;
@@ -1197,8 +1224,9 @@ export type NetOpenfederationCommunityTakedownOutput = {
   "did": string;
   "status": string;
   "reason"?: string;
+  "deleteAfter"?: string;
 };
-export type NetOpenfederationCommunityTakedownError = "AlreadyTakenDown" | "ExportRequired" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationCommunityTakedownError = "AlreadyTakenDown" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationCommunityUnlinkApplicationInput = {
   "communityDid": string;
@@ -2389,6 +2417,8 @@ export interface LexiconInputMap {
   'net.openfederation.admin.importRepo': NetOpenfederationAdminImportRepoInput;
   'net.openfederation.admin.listExportSchedules': NetOpenfederationAdminListExportSchedulesInput;
   'net.openfederation.admin.listExportSnapshots': NetOpenfederationAdminListExportSnapshotsInput;
+  'net.openfederation.admin.reverseTakedown': NetOpenfederationAdminReverseTakedownInput;
+  'net.openfederation.admin.takedown': NetOpenfederationAdminTakedownInput;
   'net.openfederation.admin.verifyChallenge': NetOpenfederationAdminVerifyChallengeInput;
   'net.openfederation.attestation.createViewingGrant': NetOpenfederationAttestationCreateViewingGrantInput;
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureInput;
@@ -2593,6 +2623,8 @@ export interface LexiconOutputMap {
   'net.openfederation.admin.importRepo': NetOpenfederationAdminImportRepoOutput;
   'net.openfederation.admin.listExportSchedules': NetOpenfederationAdminListExportSchedulesOutput;
   'net.openfederation.admin.listExportSnapshots': NetOpenfederationAdminListExportSnapshotsOutput;
+  'net.openfederation.admin.reverseTakedown': NetOpenfederationAdminReverseTakedownOutput;
+  'net.openfederation.admin.takedown': NetOpenfederationAdminTakedownOutput;
   'net.openfederation.admin.verifyChallenge': NetOpenfederationAdminVerifyChallengeOutput;
   'net.openfederation.attestation.createViewingGrant': NetOpenfederationAttestationCreateViewingGrantOutput;
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureOutput;
@@ -2797,6 +2829,8 @@ export interface LexiconErrorMap {
   'net.openfederation.admin.importRepo': NetOpenfederationAdminImportRepoError;
   'net.openfederation.admin.listExportSchedules': NetOpenfederationAdminListExportSchedulesError;
   'net.openfederation.admin.listExportSnapshots': NetOpenfederationAdminListExportSnapshotsError;
+  'net.openfederation.admin.reverseTakedown': NetOpenfederationAdminReverseTakedownError;
+  'net.openfederation.admin.takedown': NetOpenfederationAdminTakedownError;
   'net.openfederation.admin.verifyChallenge': NetOpenfederationAdminVerifyChallengeError;
   'net.openfederation.attestation.createViewingGrant': NetOpenfederationAttestationCreateViewingGrantError;
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureError;
@@ -2947,7 +2981,7 @@ export type LexiconNsid = keyof LexiconInputMap;
 export const lexiconContracts = {
   'com.atproto.admin.deleteAccount': { revision: 1, errors: ["NotFound"] as const },
   'com.atproto.admin.getSubjectStatus': { revision: 1, errors: ["NotFound"] as const },
-  'com.atproto.admin.updateSubjectStatus': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "ExportRequired", "NotFound", "NotSuspended", "NotTakenDown"] as const },
+  'com.atproto.admin.updateSubjectStatus': { revision: 2, errors: ["AlreadySuspended", "AlreadyTakenDown", "NotFound", "NotSuspended", "NotTakenDown"] as const },
   'com.atproto.identity.getRecommendedDidCredentials': { revision: 2, errors: [] as const },
   'com.atproto.identity.requestPlcOperationSignature': { revision: 1, errors: ["EmailDeliveryFailed", "NoEmail", "NotCustodial"] as const },
   'com.atproto.identity.resolveHandle': { revision: 1, errors: ["HandleNotFound"] as const },
@@ -2983,7 +3017,7 @@ export const lexiconContracts = {
   'net.openfederation.account.changePassword': { revision: 2, errors: ["AccountLocked", "InvalidPassword", "NotFound", "WeakPassword"] as const },
   'net.openfederation.account.completeRecovery': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
   'net.openfederation.account.confirmPasswordReset': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
-  'net.openfederation.account.export': { revision: 4, errors: ["ExportTooLarge", "Forbidden", "NotFound"] as const },
+  'net.openfederation.account.export': { revision: 5, errors: ["ExportTooLarge", "Forbidden", "NotFound", "TakenDown"] as const },
   'net.openfederation.account.getProfile': { revision: 2, errors: ["InvalidRequest", "ProfileNotFound", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.account.getSecurityLevel': { revision: 3, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
@@ -3003,6 +3037,8 @@ export const lexiconContracts = {
   'net.openfederation.admin.importRepo': { revision: 4, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidRequest", "InvalidSignature", "PayloadTooLarge", "RepoAlreadyExists", "UnresolvableDid"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },
   'net.openfederation.admin.listExportSnapshots': { revision: 1, errors: [] as const },
+  'net.openfederation.admin.reverseTakedown': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotTakenDown"] as const },
+  'net.openfederation.admin.takedown': { revision: 1, errors: ["Forbidden", "InvalidDeadline", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.admin.verifyChallenge': { revision: 1, errors: ["InvalidNonce", "NotFound"] as const },
   'net.openfederation.attestation.createViewingGrant': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
@@ -3022,7 +3058,7 @@ export const lexiconContracts = {
   'net.openfederation.community.delete': { revision: 2, errors: ["CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.deleteAttestation': { revision: 4, errors: ["AttestationNotFound", "AttestationTypeNotAllowed", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest"] as const },
   'net.openfederation.community.deleteRole': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "GovernanceDenied", "RoleInUse", "RoleNotFound"] as const },
-  'net.openfederation.community.export': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.export': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "TakenDown"] as const },
   'net.openfederation.community.get': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.getDelegation': { revision: 2, errors: ["CommunityTakenDown", "NotFound"] as const },
   'net.openfederation.community.getMovedKeys': { revision: 1, errors: ["IncompatibleDidDoc", "NotFound", "NotMoved", "UnresolvableDid"] as const },
@@ -3049,7 +3085,7 @@ export const lexiconContracts = {
   'net.openfederation.community.setDelegation': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "NotMember"] as const },
   'net.openfederation.community.setGovernanceModel': { revision: 8, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.suspend': { revision: 1, errors: ["AlreadySuspended", "AlreadyTakenDown", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.community.takedown': { revision: 1, errors: ["AlreadyTakenDown", "ExportRequired", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.takedown': { revision: 2, errors: ["AlreadyTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.unlinkApplication': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.unsuspend': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotSuspended"] as const },
   'net.openfederation.community.update': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },

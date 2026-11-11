@@ -14,6 +14,8 @@ import { registerAttestor } from '../governance/attestor.js';
 import { createEvmAdapter, installChainModule } from '../modules/chain/index.js';
 import { startExportScheduler, stopExportScheduler } from '../scheduler/export-scheduler.js';
 import { startMigrationCleanup, stopMigrationCleanup } from '../scheduler/migration-cleanup.js';
+import { startTakedownSweep, stopTakedownSweep } from '../moderation/takedown.js';
+import { takedownExportRouter } from '../moderation/takedown-export-routes.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { setSecurityHeaders } from './security-headers.js';
 import { isAllowedStaticOrigin } from './cors-config.js';
@@ -157,6 +159,9 @@ app.get('/', (_req, res) => {
     description: 'Personal Data Server for OpenFederation communities',
   });
 });
+
+// Private export links for the owner of a taken-down repository (docs/FAIR-USE.md)
+app.use('/takedown-export', takedownExportRouter);
 
 // Blob serve route — serves binary blobs by DID + CID
 app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
@@ -503,6 +508,7 @@ export async function startServer(): Promise<Server> {
       // Start export scheduler after server is listening
       startExportScheduler();
       startMigrationCleanup();
+      startTakedownSweep();
       resolve(server);
     });
   });
@@ -512,6 +518,7 @@ export async function startServer(): Promise<Server> {
 export async function releaseServerResources(): Promise<void> {
   stopExportScheduler();
   stopMigrationCleanup();
+  stopTakedownSweep();
   if (sessionCleanupTimer) {
     clearInterval(sessionCleanupTimer);
     sessionCleanupTimer = null;

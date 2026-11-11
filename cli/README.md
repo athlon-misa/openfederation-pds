@@ -106,7 +106,7 @@ Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc c
 | `community export <did>` | Owner/Admin | Export as JSON archive |
 | `community suspend <did> [--reason TEXT]` | PDS Admin | Suspend community |
 | `community unsuspend <did>` | PDS Admin | Unsuspend community |
-| `community takedown <did> [--reason TEXT]` | PDS Admin | Take down (requires prior export) |
+| `community takedown <did> [--reason TEXT]` | PDS Admin | Standard takedown: owner gets a 30-day export link, then the data is deleted (`docs/FAIR-USE.md`) |
 
 ### `ofc record` — Repository Records
 
