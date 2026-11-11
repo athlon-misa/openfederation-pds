@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, refuseCustodyModes } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { parseLinkStatement, base64UrlEncode } from '../../packages/openfederation-pseudonym/src/formats.js';
@@ -17,6 +17,9 @@ export default async function signLink(req: AuthRequest, res: Response): Promise
     res.status(403).json({ error: 'Forbidden', message: 'Local account required' });
     return;
   }
+  // ADR-003: an account with its own owner key signs links itself; this
+  // server's signature would say less than the person's.
+  if (!(await refuseCustodyModes(req, res, ['assisted', 'self'], 'Sign the link with your owner key; this server does not sign for accounts that hold their own keys.'))) return;
   const statement = typeof req.body?.statement === 'string' ? req.body.statement : '';
   const parsed = parseLinkStatement(statement);
   if (!parsed) {

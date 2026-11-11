@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import crypto from 'crypto';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth, requireApprovedUser } from '../auth/guards.js';
+import { requireAuth, requireApprovedUser, refuseCustodyModes } from '../auth/guards.js';
 import { logVaultAudit, getUserShares } from '../vault/vault-store.js';
 import { withTransaction } from '../db/client.js';
 
@@ -17,6 +17,7 @@ export default async function registerEscrow(req: AuthRequest, res: Response): P
   try {
     if (!requireAuth(req, res)) return;
     if (!requireApprovedUser(req, res)) return;
+    if (!(await refuseCustodyModes(req, res, ['self'], 'This account holds its own rotation key (self custody); this server keeps none for it.'))) return;
 
     const { escrowProviderDid, escrowProviderName, verificationUrl } = req.body || {};
     const userDid = req.auth.did;

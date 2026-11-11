@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.createAccount",
-  "revision": 3,
+  "revision": 4,
   "description": "AT Protocol createAccount, used here to import an account from another PDS.",
   "defs": {
     "main": {
@@ -169,6 +169,10 @@
         {
           "name": "InviteBound",
           "description": "Invite code is bound to another email."
+        },
+        {
+          "name": "CustodyModeNotAllowed",
+          "description": "This server does not allow custodial accounts (IDENTITY_CUSTODY_ALLOWED)."
         }
       ]
     }

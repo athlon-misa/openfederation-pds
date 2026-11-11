@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.partner.register",
-  "revision": 2,
+  "revision": 3,
   "description": "Register a new account using a verified partner key. Partner-created accounts are auto-approved and receive session tokens.",
   "defs": {
     "main": {
@@ -124,6 +124,10 @@
         {
           "name": "TicketInvalid",
           "description": "The ticket is not signed by the partner's ticket key, is expired, was already used, or was issued for another account, partner key or server."
+        },
+        {
+          "name": "CustodyModeNotAllowed",
+          "description": "This server does not allow custodial accounts (IDENTITY_CUSTODY_ALLOWED)."
         }
       ]
     }

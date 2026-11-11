@@ -63,6 +63,11 @@ export default async function registerAccount(req: Request, res: Response): Prom
       }
     }
 
+    // ADR-003: this path makes custodial accounts.
+    if (!config.identity.custodyAllowed.includes('custodial')) {
+      throw new RegistrationValidationError(403, 'CustodyModeNotAllowed', 'This server does not allow custodial accounts');
+    }
+
     let identity;
     let passwordHash: string;
     try {

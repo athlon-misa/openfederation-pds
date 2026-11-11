@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth, requireApprovedUser } from '../auth/guards.js';
+import { requireAuth, requireApprovedUser, refuseCustodyModes } from '../auth/guards.js';
 import { getShare, logVaultAudit } from '../vault/vault-store.js';
 import { query } from '../db/client.js';
 
@@ -15,6 +15,7 @@ export default async function requestShareRelease(req: AuthRequest, res: Respons
   try {
     if (!requireAuth(req, res)) return;
     if (!requireApprovedUser(req, res)) return;
+    if (!(await refuseCustodyModes(req, res, ['self'], 'This account holds its own rotation key (self custody); this server keeps none for it.'))) return;
 
     const userDid = req.auth.did;
 

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.vault.requestShareRelease",
-  "revision": 1,
+  "revision": 2,
   "description": "Release the PDS-held vault share to the authenticated user after identity verification.",
   "defs": {
     "main": {
@@ -42,6 +42,10 @@
         {
           "name": "ShareNotFound",
           "description": "No vault share found for this account."
+        },
+        {
+          "name": "SelfCustodyAccount",
+          "description": "This account holds its own rotation key (self custody); this server keeps none for it."
         }
       ]
     }

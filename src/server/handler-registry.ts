@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import type rateLimit from 'express-rate-limit';
 import type { LexiconNsid } from '../lexicon/generated.js';
 import { authLimiter, registrationLimiter, createLimiter, discoveryLimiter, walletSignLimiter } from './rate-limits.js';
-import { isChainModuleEnabled } from '../config.js';
+import { config, isChainModuleEnabled } from '../config.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
 import getRecord from '../api/com.atproto.repo.getRecord.js';
 import resolveHandle from '../api/com.atproto.identity.resolveHandle.js';
@@ -450,9 +450,9 @@ const handlers = Object.freeze({
   'net.openfederation.contact.listFriendOfFriends': { handler: listFriendOfFriendsHandler },
 
   // Pseudonyms
-  'net.openfederation.pseudonym.getTokenKeys': { handler: getTokenKeys, limiter: discoveryLimiter },
-  'net.openfederation.pseudonym.collectTokens': { handler: collectTokens, limiter: createLimiter },
-  'net.openfederation.pseudonym.createAccount': { handler: createPseudonymAccount, limiter: createLimiter },
+  'net.openfederation.pseudonym.getTokenKeys': { enabledWhen: () => config.identity.pseudonymsEnabled, handler: getTokenKeys, limiter: discoveryLimiter },
+  'net.openfederation.pseudonym.collectTokens': { enabledWhen: () => config.identity.pseudonymsEnabled, handler: collectTokens, limiter: createLimiter },
+  'net.openfederation.pseudonym.createAccount': { enabledWhen: () => config.identity.pseudonymsEnabled, handler: createPseudonymAccount, limiter: createLimiter },
   'net.openfederation.pseudonym.getLoginChallenge': { handler: getLoginChallenge, limiter: authLimiter },
   'net.openfederation.pseudonym.createSession': { handler: createPseudonymSession, limiter: authLimiter },
   'net.openfederation.pseudonym.signLink': { handler: signLink, limiter: createLimiter },

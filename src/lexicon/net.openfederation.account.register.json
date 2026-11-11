@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.register",
-  "revision": 3,
+  "revision": 4,
   "description": "Register a new account. Requires an invite code if the server has invite-only registration enabled.",
   "defs": {
     "main": {
@@ -102,6 +102,10 @@
         {
           "name": "IdentityCreationFailed",
           "description": "Failed to create required identity material."
+        },
+        {
+          "name": "CustodyModeNotAllowed",
+          "description": "This server does not allow custodial accounts (IDENTITY_CUSTODY_ALLOWED)."
         }
       ]
     }

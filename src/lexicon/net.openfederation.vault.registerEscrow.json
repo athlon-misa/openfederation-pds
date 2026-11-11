@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.vault.registerEscrow",
-  "revision": 2,
+  "revision": 3,
   "description": "Record an escrow provider for share 3 of the rotation key. The share stays on this server: no transfer to the provider exists yet.",
   "defs": {
     "main": {
@@ -72,6 +72,10 @@
         {
           "name": "EscrowAlreadyRegistered",
           "description": "Share 3 is already assigned to an escrow provider."
+        },
+        {
+          "name": "SelfCustodyAccount",
+          "description": "This account holds its own rotation key (self custody); this server keeps none for it."
         }
       ]
     }
