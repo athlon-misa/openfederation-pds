@@ -1,0 +1,104 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.prepareCustodyChange",
+  "revision": 1,
+  "description": "Prepare a custody mode change (ADR-003, decision 5): returns the exact unsigned PLC update and its CID, who signs it (pds: from custodial, after proof of possession of the new keys; user: every other direction), and, when the server needs a new key of its own, the key it reserved.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Prepare a custody mode change.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "password",
+            "targetMode"
+          ],
+          "properties": {
+            "password": {
+              "type": "string"
+            },
+            "targetMode": {
+              "type": "string",
+              "knownValues": [
+                "custodial",
+                "assisted",
+                "self"
+              ]
+            },
+            "userRotationDidKey": {
+              "type": "string",
+              "description": "Towards the person (from custodial): the user's new rotation key."
+            },
+            "ownerDidKey": {
+              "type": "string",
+              "description": "Towards the person (from custodial): the user's owner key."
+            },
+            "pdsRotationDidKey": {
+              "type": "string",
+              "description": "Towards the PDS: the key prepare reserved (returned as pdsRotationDidKey)."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "operation",
+            "operationCid",
+            "signer"
+          ],
+          "properties": {
+            "operation": {
+              "type": "unknown",
+              "description": "The unsigned PLC operation."
+            },
+            "operationCid": {
+              "type": "string"
+            },
+            "signer": {
+              "type": "string",
+              "knownValues": [
+                "pds",
+                "user"
+              ]
+            },
+            "pdsRotationDidKey": {
+              "type": "string",
+              "description": "The key this server reserved for itself; pass it back to finalize."
+            },
+            "possessionText": {
+              "type": "string",
+              "description": "signer = pds: sign this with both new keys (raw or webauthn owner signatures) and pass them to finalize."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid input, or the account is already in that mode."
+        },
+        {
+          "name": "InvalidPassword",
+          "description": "Wrong password."
+        },
+        {
+          "name": "AccountLocked",
+          "description": "Too many failed attempts."
+        },
+        {
+          "name": "CustodyModeNotAllowed",
+          "description": "This server does not allow the target mode."
+        },
+        {
+          "name": "NotCustodial",
+          "description": "This server holds no rotation key for the account."
+        }
+      ]
+    }
+  }
+}

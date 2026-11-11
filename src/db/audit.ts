@@ -47,6 +47,7 @@ export type AuditAction =
   | 'identity.plcSignature.refused'
   | 'identity.plcSignature.signed'
   | 'identity.plcOperation.submitted'
+  | 'identity.custodyChange'
   | 'account.delete'
   | 'account.export'
   | 'account.roles.update'

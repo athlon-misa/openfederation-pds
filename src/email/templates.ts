@@ -95,3 +95,16 @@ export function accountDeleteCodeEmail(handle: string, code: string, expiresMinu
     <p>The code expires in ${expiresMinutes} minutes. Deleting removes your account, repository and files from this server; your DID stays yours.</p>
     <p>If you did not ask for this, change your password: someone may have access to your account.</p>`);
 }
+
+const MODE_TEXT: Record<string, string> = {
+  custodial: 'this server holds the key that controls your identity',
+  assisted: 'you hold the key that controls your identity; this server keeps a backup key you can override',
+  self: 'only you hold the key that controls your identity',
+};
+
+export function custodyChangedEmail(handle: string, from: string, to: string): string {
+  return wrap('Account custody changed', `
+    <p>Hi <strong>${escapeHtml(handle)}</strong>,</p>
+    <p>Your account changed from <strong>${escapeHtml(from)}</strong> to <strong>${escapeHtml(to)}</strong>: ${MODE_TEXT[to] ?? ''}.</p>
+    <p>If you did not do this, change your password and contact this server's operator straight away.</p>`);
+}

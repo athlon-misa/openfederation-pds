@@ -1719,6 +1719,20 @@ export type NetOpenfederationIdentityDeleteExternalKeyOutput = {
 };
 export type NetOpenfederationIdentityDeleteExternalKeyError = "InvalidRequest" | "KeyNotFound";
 
+export type NetOpenfederationIdentityFinalizeCustodyChangeInput = {
+  "password": string;
+  "targetMode": string;
+  "userRotationDidKey"?: string;
+  "ownerDidKey"?: string;
+  "pdsRotationDidKey"?: string;
+  "operationCid": string;
+  "possession"?: unknown;
+};
+export type NetOpenfederationIdentityFinalizeCustodyChangeOutput = {
+  "custodyMode": string;
+};
+export type NetOpenfederationIdentityFinalizeCustodyChangeError = "AccountLocked" | "CustodyModeNotAllowed" | "InvalidPassword" | "InvalidRequest" | "NotCustodial" | "NotSubmitted" | "OperationMismatch" | "PdsKeyNotReserved" | "PossessionProofInvalid" | "StateChanged" | "UpstreamFailure";
+
 export type NetOpenfederationIdentityGetDidAugmentationInput = {
   "did": string;
 };
@@ -1836,6 +1850,22 @@ export type NetOpenfederationIdentityListWalletsPublicOutput = {
 }>;
 };
 export type NetOpenfederationIdentityListWalletsPublicError = "InvalidRequest" | "RepoNotFound" | "RepoTakendown";
+
+export type NetOpenfederationIdentityPrepareCustodyChangeInput = {
+  "password": string;
+  "targetMode": string;
+  "userRotationDidKey"?: string;
+  "ownerDidKey"?: string;
+  "pdsRotationDidKey"?: string;
+};
+export type NetOpenfederationIdentityPrepareCustodyChangeOutput = {
+  "operation": unknown;
+  "operationCid": string;
+  "signer": string;
+  "pdsRotationDidKey"?: string;
+  "possessionText"?: string;
+};
+export type NetOpenfederationIdentityPrepareCustodyChangeError = "AccountLocked" | "CustodyModeNotAllowed" | "InvalidPassword" | "InvalidRequest" | "NotCustodial";
 
 export type NetOpenfederationIdentityResolveByKeyInput = {
   "publicKey": string;
@@ -2582,6 +2612,7 @@ export interface LexiconInputMap {
   'net.openfederation.governance.objection': NetOpenfederationGovernanceObjectionInput;
   'net.openfederation.governance.vote': NetOpenfederationGovernanceVoteInput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyInput;
+  'net.openfederation.identity.finalizeCustodyChange': NetOpenfederationIdentityFinalizeCustodyChangeInput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationInput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyInput;
   'net.openfederation.identity.getPrimaryWallet': NetOpenfederationIdentityGetPrimaryWalletInput;
@@ -2590,6 +2621,7 @@ export interface LexiconInputMap {
   'net.openfederation.identity.listExternalKeys': NetOpenfederationIdentityListExternalKeysInput;
   'net.openfederation.identity.listWalletLinks': NetOpenfederationIdentityListWalletLinksInput;
   'net.openfederation.identity.listWalletsPublic': NetOpenfederationIdentityListWalletsPublicInput;
+  'net.openfederation.identity.prepareCustodyChange': NetOpenfederationIdentityPrepareCustodyChangeInput;
   'net.openfederation.identity.resolveByKey': NetOpenfederationIdentityResolveByKeyInput;
   'net.openfederation.identity.resolveWallet': NetOpenfederationIdentityResolveWalletInput;
   'net.openfederation.identity.setExternalKey': NetOpenfederationIdentitySetExternalKeyInput;
@@ -2794,6 +2826,7 @@ export interface LexiconOutputMap {
   'net.openfederation.governance.objection': NetOpenfederationGovernanceObjectionOutput;
   'net.openfederation.governance.vote': NetOpenfederationGovernanceVoteOutput;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyOutput;
+  'net.openfederation.identity.finalizeCustodyChange': NetOpenfederationIdentityFinalizeCustodyChangeOutput;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationOutput;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyOutput;
   'net.openfederation.identity.getPrimaryWallet': NetOpenfederationIdentityGetPrimaryWalletOutput;
@@ -2802,6 +2835,7 @@ export interface LexiconOutputMap {
   'net.openfederation.identity.listExternalKeys': NetOpenfederationIdentityListExternalKeysOutput;
   'net.openfederation.identity.listWalletLinks': NetOpenfederationIdentityListWalletLinksOutput;
   'net.openfederation.identity.listWalletsPublic': NetOpenfederationIdentityListWalletsPublicOutput;
+  'net.openfederation.identity.prepareCustodyChange': NetOpenfederationIdentityPrepareCustodyChangeOutput;
   'net.openfederation.identity.resolveByKey': NetOpenfederationIdentityResolveByKeyOutput;
   'net.openfederation.identity.resolveWallet': NetOpenfederationIdentityResolveWalletOutput;
   'net.openfederation.identity.setExternalKey': NetOpenfederationIdentitySetExternalKeyOutput;
@@ -3006,6 +3040,7 @@ export interface LexiconErrorMap {
   'net.openfederation.governance.objection': NetOpenfederationGovernanceObjectionError;
   'net.openfederation.governance.vote': NetOpenfederationGovernanceVoteError;
   'net.openfederation.identity.deleteExternalKey': NetOpenfederationIdentityDeleteExternalKeyError;
+  'net.openfederation.identity.finalizeCustodyChange': NetOpenfederationIdentityFinalizeCustodyChangeError;
   'net.openfederation.identity.getDidAugmentation': NetOpenfederationIdentityGetDidAugmentationError;
   'net.openfederation.identity.getExternalKey': NetOpenfederationIdentityGetExternalKeyError;
   'net.openfederation.identity.getPrimaryWallet': NetOpenfederationIdentityGetPrimaryWalletError;
@@ -3014,6 +3049,7 @@ export interface LexiconErrorMap {
   'net.openfederation.identity.listExternalKeys': NetOpenfederationIdentityListExternalKeysError;
   'net.openfederation.identity.listWalletLinks': NetOpenfederationIdentityListWalletLinksError;
   'net.openfederation.identity.listWalletsPublic': NetOpenfederationIdentityListWalletsPublicError;
+  'net.openfederation.identity.prepareCustodyChange': NetOpenfederationIdentityPrepareCustodyChangeError;
   'net.openfederation.identity.resolveByKey': NetOpenfederationIdentityResolveByKeyError;
   'net.openfederation.identity.resolveWallet': NetOpenfederationIdentityResolveWalletError;
   'net.openfederation.identity.setExternalKey': NetOpenfederationIdentitySetExternalKeyError;
@@ -3220,6 +3256,7 @@ export const lexiconContracts = {
   'net.openfederation.governance.objection': { revision: 2, errors: [] as const },
   'net.openfederation.governance.vote': { revision: 3, errors: [] as const },
   'net.openfederation.identity.deleteExternalKey': { revision: 1, errors: ["InvalidRequest", "KeyNotFound"] as const },
+  'net.openfederation.identity.finalizeCustodyChange': { revision: 1, errors: ["AccountLocked", "CustodyModeNotAllowed", "InvalidPassword", "InvalidRequest", "NotCustodial", "NotSubmitted", "OperationMismatch", "PdsKeyNotReserved", "PossessionProofInvalid", "StateChanged", "UpstreamFailure"] as const },
   'net.openfederation.identity.getDidAugmentation': { revision: 2, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.getExternalKey': { revision: 2, errors: ["InvalidRequest", "KeyNotFound", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.getPrimaryWallet': { revision: 2, errors: ["InvalidRequest", "NoPrimaryWallet", "RepoNotFound", "RepoTakendown", "UnsupportedChain"] as const },
@@ -3228,6 +3265,7 @@ export const lexiconContracts = {
   'net.openfederation.identity.listExternalKeys': { revision: 2, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.listWalletLinks': { revision: 1, errors: ["AuthRequired"] as const },
   'net.openfederation.identity.listWalletsPublic': { revision: 3, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
+  'net.openfederation.identity.prepareCustodyChange': { revision: 1, errors: ["AccountLocked", "CustodyModeNotAllowed", "InvalidPassword", "InvalidRequest", "NotCustodial"] as const },
   'net.openfederation.identity.resolveByKey': { revision: 2, errors: ["InvalidRequest", "KeyConflict", "KeyNotFound"] as const },
   'net.openfederation.identity.resolveWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.setExternalKey': { revision: 2, errors: ["InvalidProof", "InvalidPublicKey", "InvalidRequest", "KeyAlreadyClaimed"] as const },

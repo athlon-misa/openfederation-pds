@@ -1,0 +1,120 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.finalizeCustodyChange",
+  "revision": 1,
+  "description": "Finalize a custody mode change (ADR-003, decision 5). signer = pds: checks the possession proofs, signs and submits the update, reads it back. signer = user: the user already submitted it; checks PLC holds exactly that operation as the latest. Then stores or deletes this server's key shares and updates the mode. Idempotent.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Finalize a custody mode change.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "password",
+            "targetMode",
+            "operationCid"
+          ],
+          "properties": {
+            "password": {
+              "type": "string"
+            },
+            "targetMode": {
+              "type": "string",
+              "knownValues": [
+                "custodial",
+                "assisted",
+                "self"
+              ]
+            },
+            "userRotationDidKey": {
+              "type": "string",
+              "description": "Towards the person (from custodial): the user's new rotation key."
+            },
+            "ownerDidKey": {
+              "type": "string",
+              "description": "Towards the person (from custodial): the user's owner key."
+            },
+            "pdsRotationDidKey": {
+              "type": "string",
+              "description": "Towards the PDS: the key prepare reserved (returned as pdsRotationDidKey)."
+            },
+            "operationCid": {
+              "type": "string"
+            },
+            "possession": {
+              "type": "unknown",
+              "description": "signer = pds: { rotation: OwnerSignature, owner: OwnerSignature } over possessionText."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "custodyMode"
+          ],
+          "properties": {
+            "custodyMode": {
+              "type": "string",
+              "knownValues": [
+                "custodial",
+                "assisted",
+                "self"
+              ]
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid input, or the account is already in that mode."
+        },
+        {
+          "name": "InvalidPassword",
+          "description": "Wrong password."
+        },
+        {
+          "name": "AccountLocked",
+          "description": "Too many failed attempts."
+        },
+        {
+          "name": "CustodyModeNotAllowed",
+          "description": "This server does not allow the target mode."
+        },
+        {
+          "name": "NotCustodial",
+          "description": "This server holds no rotation key for the account."
+        },
+        {
+          "name": "NotSubmitted",
+          "description": "The user-signed operation is not at PLC yet."
+        },
+        {
+          "name": "OperationMismatch",
+          "description": "The operation does not match this change; prepare again."
+        },
+        {
+          "name": "StateChanged",
+          "description": "The DID changed after this operation."
+        },
+        {
+          "name": "PossessionProofInvalid",
+          "description": "The new keys' signatures are missing or wrong."
+        },
+        {
+          "name": "PdsKeyNotReserved",
+          "description": "The key prepare reserved is gone."
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The PLC directory refused or does not show the update yet."
+        }
+      ]
+    }
+  }
+}

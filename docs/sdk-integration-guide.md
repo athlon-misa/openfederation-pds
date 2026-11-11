@@ -1706,5 +1706,10 @@ Then register it with the PDS: `net.openfederation.account.registerSelfCustody`
 `{ did, mode, handle, email, password, inviteCode? }` (the handle is the label, without the
 server's suffix). For `assisted`, first call `net.openfederation.account.reserveCustodyKey`
 and pass its `rotationKey` as `pdsRotationDidKey`: it goes second, after the user's key.
-Changing modes later is the next step of ADR-003 and not available yet.
+Changing modes: `net.openfederation.identity.prepareCustodyChange` `{ password, targetMode, … }`
+returns the update and who signs it. From `custodial`, sign its `possessionText` with both new
+keys (`signOwnerRaw`) and pass them to `finalizeCustodyChange`; the server signs. In every
+other direction, sign `operation` with the rotation key (`signPlcOperation`), submit it to PLC
+(`submitPlcOperation`), then call `finalizeCustodyChange` with the `operationCid` (and
+`pdsRotationDidKey`, if prepare returned one).
 
