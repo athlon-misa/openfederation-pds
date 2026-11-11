@@ -1,9 +1,12 @@
 import { Response, Request } from 'express';
 import { query } from '../db/client.js';
+import type { AuthRequest } from '../auth/types.js';
+import { mayVerifyAttestation } from '../attestation/verify-access.js';
 
 /**
  * Verify a private attestation's commitment hash without revealing content.
- * No authentication required -- this is a public verification endpoint.
+ * Only for those who may verify the attestation (src/attestation/verify-access.ts):
+ * community members, the subject, viewing-grant holders and admins.
  */
 export default async function verifyCommitment(req: Request, res: Response): Promise<void> {
   try {
@@ -30,7 +33,10 @@ export default async function verifyCommitment(req: Request, res: Response): Pro
       [communityDid, rkey]
     );
 
-    if (encResult.rows.length === 0) {
+    // A private attestation, or one in a private community, answers only
+    // members, the subject, viewing-grant holders and admins; anyone else gets
+    // the answer for an attestation that does not exist.
+    if (encResult.rows.length === 0 || !(await mayVerifyAttestation((req as AuthRequest).auth, communityDid, rkey))) {
       res.status(404).json({
         error: 'NotFound',
         message: 'No encryption metadata found for this attestation',

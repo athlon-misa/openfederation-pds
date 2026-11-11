@@ -63,7 +63,7 @@ export async function createViewingGrantLifecycle(
   const { communityDid, rkey, grantedToDid, expiresInMinutes, grantedFields } =
     validateCreateViewingGrantInput(input);
 
-  await ensurePrivateAttestation(communityDid, rkey);
+  await ensureGrantableAttestation(communityDid, rkey);
   const subjectDid = await getAttestationSubjectDid(communityDid, rkey);
   if (caller.did !== subjectDid) {
     throw new AttestationLifecycleError(
@@ -116,16 +116,18 @@ export async function redeemGrantLifecycle(
     throw new AttestationLifecycleError('GrantExpired', 403, 'This viewing grant has expired');
   }
 
-  const encryptedDekIssuer = await getEncryptedDekIssuer(grant.attestation_community_did, grant.attestation_rkey);
   const attestationRecord = await getAttestationRecord(grant.attestation_community_did, grant.attestation_rkey);
   const claim = attestationRecord.claim;
-  if (!claim?.ciphertext || !claim.iv || !claim.authTag) {
-    throw new Error('Attestation missing encrypted claim data');
+  let plainClaim: Record<string, unknown>;
+  if (claim?.ciphertext && claim.iv && claim.authTag) {
+    const encryptedDekIssuer = await getEncryptedDekIssuer(grant.attestation_community_did, grant.attestation_rkey);
+    const dek = await unwrapDEK(encryptedDekIssuer);
+    plainClaim = decryptClaim(claim.ciphertext, dek, claim.iv, claim.authTag);
+  } else {
+    // A public attestation in a private community: the claim is not encrypted.
+    plainClaim = (claim ?? {}) as Record<string, unknown>;
   }
-
-  const dek = await unwrapDEK(encryptedDekIssuer);
-  const decryptedClaim = decryptClaim(claim.ciphertext, dek, claim.iv, claim.authTag);
-  const disclosedData = filterGrantedFields(decryptedClaim, grant.granted_fields);
+  const disclosedData = filterGrantedFields(plainClaim, grant.granted_fields);
 
   const watermarkId = crypto.randomUUID();
   const disclosedAt = new Date().toISOString();
@@ -252,13 +254,23 @@ function validateCreateViewingGrantInput(input: CreateViewingGrantInput): {
   };
 }
 
-async function ensurePrivateAttestation(communityDid: string, rkey: string): Promise<void> {
-  const encResult = await query(
-    'SELECT 1 FROM attestation_encryption WHERE community_did = $1 AND rkey = $2 AND visibility = $3',
-    [communityDid, rkey, 'private'],
+/**
+ * A viewing grant only makes sense where not everyone can already look: a
+ * private attestation, or any attestation in a private community.
+ */
+async function ensureGrantableAttestation(communityDid: string, rkey: string): Promise<void> {
+  const grantable = await query(
+    `SELECT 1 FROM attestation_encryption WHERE community_did = $1 AND rkey = $2 AND visibility = 'private'
+     UNION ALL
+     SELECT 1 FROM records_index r
+       JOIN records_index s ON s.community_did = r.community_did
+        AND s.collection = 'net.openfederation.community.settings' AND s.rkey = 'self'
+     WHERE r.community_did = $1 AND r.collection = 'net.openfederation.community.attestation' AND r.rkey = $2
+       AND s.record->>'visibility' = 'private'`,
+    [communityDid, rkey],
   );
 
-  if (encResult.rows.length === 0) {
+  if (grantable.rows.length === 0) {
     throw new AttestationLifecycleError('NotFound', 404, 'Private attestation not found');
   }
 }

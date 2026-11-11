@@ -81,10 +81,10 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.community.issueAttestation` | Owner/Mod | Issue a signed attestation for a member |
 | POST | `net.openfederation.community.deleteAttestation` | Owner/Mod | Revoke an attestation (delete-as-revoke) |
 | GET  | `net.openfederation.community.listAttestations` | No | List attestations by community/subject/type (items include `subjectDisplayName` and `subjectAvatarUrl`) |
-| GET  | `net.openfederation.community.verifyAttestation` | No | Verify an attestation exists (record existence = validity) |
+| GET  | `net.openfederation.community.verifyAttestation` | No / see note | Verify an attestation exists (record existence = validity). Public attestations in public communities: anyone. Private attestations or private communities: members, the subject, viewing-grant holders (granted fields only) and admins; anyone else gets the answer for a missing attestation |
 | POST | `net.openfederation.attestation.requestDisclosure` | Yes | Request disclosure of a private attestation (policy-based) |
-| POST | `net.openfederation.attestation.createViewingGrant` | Yes | Create time-limited viewing grant (subject-only) |
-| GET  | `net.openfederation.attestation.verifyCommitment` | No | Verify commitment hash without revealing content |
+| POST | `net.openfederation.attestation.createViewingGrant` | Yes | Create time-limited viewing grant (subject-only) for a private attestation or any attestation in a private community; the grantee can verify and redeem it |
+| GET  | `net.openfederation.attestation.verifyCommitment` | Yes (standing) | Verify commitment hash without revealing content; members, the subject, viewing-grant holders and admins only, otherwise NotFound |
 
 ## OpenFederation Disclosure Proxy
 

@@ -76,7 +76,8 @@ describe('Encrypted Attestations & Selective Disclosure', () => {
   describe('verifyCommitment', () => {
     it('should return commitment for a private attestation', async () => {
       if (!plcAvailable) return;
-      const res = await xrpcGet('net.openfederation.attestation.verifyCommitment', {
+      // Private: only members, the subject and grant holders may verify it.
+      const res = await xrpcAuthGet('net.openfederation.attestation.verifyCommitment', viewer.accessJwt, {
         communityDid, rkey: privateRkey,
       });
       expect(res.status).toBe(200);

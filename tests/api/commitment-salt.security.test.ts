@@ -4,7 +4,7 @@
  * subject has disclosed the whole claim to, never to the public.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { xrpcGet, xrpcAuthPost, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
+import { xrpcGet, xrpcAuthGet, xrpcAuthPost, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
 import { createCommitment } from '../../src/attestation/encryption.js';
 
 type User = { accessJwt: string; did: string; handle: string };
@@ -35,7 +35,8 @@ describe('commitment salt', () => {
     rkey = issued.body.rkey;
   });
 
-  const publicCommitment = () => xrpcGet('net.openfederation.attestation.verifyCommitment', { communityDid, rkey });
+  // A member's view: the attestation is private, so verifyCommitment needs standing.
+  const publicCommitment = () => xrpcAuthGet('net.openfederation.attestation.verifyCommitment', viewer.accessJwt, { communityDid, rkey });
   const grantTo = async (fields?: string[]) => (await xrpcAuthPost('net.openfederation.attestation.createViewingGrant', subject.accessJwt, {
     communityDid, rkey, grantedToDid: viewer.did, expiresInMinutes: 10, ...(fields ? { grantedFields: fields } : {}),
   })).body.grantId as string;
