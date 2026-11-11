@@ -33,8 +33,11 @@ takedownExportRouter.get('/:token', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/vnd.ipld.car');
     res.setHeader('Content-Disposition', `attachment; filename="${subject.did.replace(/[^A-Za-z0-9.-]/g, '_')}.car"`);
     for await (const chunk of car) res.write(chunk);
+    // Recorded (and confirmed by email) once every byte is written, before the
+    // response ends: a client that has the file can rely on the record.
+    await markTakedownExported(subject).catch((err) =>
+      console.error('[takedown] could not record export:', err instanceof Error ? err.message : err));
     res.end();
-    await markTakedownExported(subject);
   } catch (err) {
     console.error('[takedown] export failed:', err instanceof Error ? err.message : err);
     if (!res.headersSent) res.status(500).json({ error: 'InternalServerError', message: 'Export failed' });
