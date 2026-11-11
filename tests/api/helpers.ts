@@ -233,3 +233,16 @@ export async function grantWalletConsent(
   return { status: 200, body: consent ?? approved.body };
 }
 
+
+/**
+ * The first href in an email body whose URL contains `marker`, with `&amp;`
+ * decoded. A linear scan, no regex: the body can contain user-supplied text.
+ */
+export function hrefContaining(html: string, marker: string): string | undefined {
+  for (const piece of html.split('href="').slice(1)) {
+    const end = piece.indexOf('"');
+    const url = end === -1 ? piece : piece.slice(0, end);
+    if (url.includes(marker)) return url.split('&amp;').join('&');
+  }
+  return undefined;
+}

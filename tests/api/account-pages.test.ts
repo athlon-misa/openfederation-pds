@@ -2,7 +2,7 @@
  * The links in password-reset and recovery emails have to lead somewhere.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { api, xrpcPost, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
+import { api, xrpcPost, createTestUser, isPLCAvailable, uniqueHandle, hrefContaining } from './helpers.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
 
 const inbox: Array<{ to: string; subject: string; html: string }> = [];
@@ -41,7 +41,7 @@ describe('account pages linked from email', () => {
     let link: string | undefined;
     for (let i = 0; i < 50 && !link; i++) {
       const mail = [...inbox].reverse().find((m) => m.to === email && m.subject.includes('Password Reset'));
-      link = mail?.html.match(/https?:\/\/[^"'\s<]+\/reset-password\?token=[^"'\s<&]+/)?.[0];
+      link = mail ? hrefContaining(mail.html, '/reset-password?token=') : undefined;
       if (!link) await new Promise((r) => setTimeout(r, 100));
     }
     expect(link, 'reset link in the email').toBeTruthy();

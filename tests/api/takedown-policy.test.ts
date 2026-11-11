@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
-  api, xrpcAuthPost, xrpcAuthGet, createTestUser, getAdminToken, isPLCAvailable, uniqueHandle,
+  api, xrpcAuthPost, xrpcAuthGet, createTestUser, getAdminToken, isPLCAvailable, uniqueHandle, hrefContaining,
 } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
@@ -27,9 +27,9 @@ const binary = (res: any, done: (err: Error | null, body: Buffer) => void) => {
 };
 
 function linkIn(mail: Mail): string {
-  const m = /href="(https?:\/\/[^"]+\/takedown-export\/[^"]+)"/.exec(mail.html);
-  if (!m) throw new Error('no export link in mail');
-  return new URL(m[1]).pathname;
+  const href = hrefContaining(mail.html, '/takedown-export/');
+  if (!href) throw new Error('no export link in mail');
+  return new URL(href).pathname;
 }
 
 describe('takedown policy', () => {

@@ -62,6 +62,21 @@ export type EmailSender = (to: string, subject: string, html: string) => Promise
 
 let testSender: EmailSender | null = null;
 
+/** The first `max` characters of an email's text, tags dropped. Linear: no regex over the body. */
+function previewText(html: string, max: number): string {
+  let out = '';
+  let inTag = false;
+  for (const ch of html) {
+    if (ch === '<') inTag = true;
+    else if (ch === '>' && inTag) inTag = false;
+    else if (!inTag) {
+      out += ch;
+      if (out.length >= max) break;
+    }
+  }
+  return out;
+}
+
 /** Pass null to restore the real transport. Test-only. */
 export function setEmailSenderForTests(sender: EmailSender | null): void {
   testSender = sender;
@@ -203,7 +218,7 @@ export async function sendEmail(
       // Development: print it, so a developer can follow the link.
       console.log(`[EMAIL] To: ${to}`);
       console.log(`[EMAIL] Subject: ${subject}`);
-      console.log(`[EMAIL] Body: ${html.replace(/<[^>]+>/g, '').substring(0, 200)}...`);
+      console.log('[EMAIL] Body: %s...', previewText(html, 200));
     }
     await recordDelivery({ recipient: to, purpose, status: 'not-configured', attempts: 0 });
     return { outcome: 'not-configured' };
