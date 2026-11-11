@@ -1978,9 +1978,12 @@ pseudonymCmd
       } else if (result.ownerKeyBound !== 'confirmed') {
         console.log(`SIGNATURES AND COMMITMENT VALID - but the owner key was NOT confirmed to belong to ${bundle.owner.did}. Re-run with --online before trusting this.`);
         process.exitCode = 2;
+      } else if (result.ownerAttestation === 'person') {
+        console.log(`VALID: the person controlling ${bundle.owner.did} signed this link to ${bundle.pseudonym.did} with their own key, and the pseudonym's genesis commits to ${bundle.owner.did}.`);
+        process.exitCode = 0;
       } else {
         console.log(`VALID: ${bundle.owner.did}'s PDS-held key signed this link to ${bundle.pseudonym.did}, and the pseudonym's genesis commits to ${bundle.owner.did}. ` +
-          'Owner keys on OpenFederation PDSes are held by the PDS, so this proves the PDS signed - not that the person consented.');
+          'That key is held by the PDS, so this proves the PDS signed - not that the person consented.');
         process.exitCode = 0;
       }
     } catch (err) {
