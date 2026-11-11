@@ -1692,7 +1692,7 @@ export type NetOpenfederationIdentityLinkWalletOutput = {
   "walletAddress": string;
   "label"?: string;
 };
-export type NetOpenfederationIdentityLinkWalletError = "InvalidRequest" | "LinkFailed" | "UnsupportedChain";
+export type NetOpenfederationIdentityLinkWalletError = "Forbidden" | "InvalidRequest" | "LinkFailed" | "UnsupportedChain";
 
 export type NetOpenfederationIdentityListExternalKeysInput = {
   "did": string;
@@ -1789,7 +1789,7 @@ export type NetOpenfederationIdentitySetPrimaryWalletOutput = {
   "walletAddress": string;
   "isPrimary": boolean;
 };
-export type NetOpenfederationIdentitySetPrimaryWalletError = "InvalidRequest" | "UnsupportedChain" | "WalletInactive" | "WalletNotFound";
+export type NetOpenfederationIdentitySetPrimaryWalletError = "Forbidden" | "InvalidRequest" | "UnsupportedChain" | "WalletInactive" | "WalletNotFound";
 
 export type NetOpenfederationIdentitySignInAssertInput = {
   "chain": string;
@@ -2258,7 +2258,7 @@ export type NetOpenfederationWalletProvisionOutput = {
   "custodyTier": string;
   "label"?: string;
 };
-export type NetOpenfederationWalletProvisionError = "InvalidRequest" | "ProvisionFailed" | "UnsupportedChain";
+export type NetOpenfederationWalletProvisionError = "Forbidden" | "InvalidRequest" | "ProvisionFailed" | "UnsupportedChain";
 
 export type NetOpenfederationWalletRequestConsentInput = {
   "dappOrigin": string;
@@ -3095,14 +3095,14 @@ export const lexiconContracts = {
   'net.openfederation.identity.getExternalKey': { revision: 2, errors: ["InvalidRequest", "KeyNotFound", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.getPrimaryWallet': { revision: 2, errors: ["InvalidRequest", "NoPrimaryWallet", "RepoNotFound", "RepoTakendown", "UnsupportedChain"] as const },
   'net.openfederation.identity.getWalletLinkChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain"] as const },
-  'net.openfederation.identity.linkWallet': { revision: 1, errors: ["InvalidRequest", "LinkFailed", "UnsupportedChain"] as const },
+  'net.openfederation.identity.linkWallet': { revision: 2, errors: ["Forbidden", "InvalidRequest", "LinkFailed", "UnsupportedChain"] as const },
   'net.openfederation.identity.listExternalKeys': { revision: 2, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.listWalletLinks': { revision: 1, errors: ["AuthRequired"] as const },
   'net.openfederation.identity.listWalletsPublic': { revision: 3, errors: ["InvalidRequest", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.identity.resolveByKey': { revision: 2, errors: ["InvalidRequest", "KeyConflict", "KeyNotFound"] as const },
   'net.openfederation.identity.resolveWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.setExternalKey': { revision: 2, errors: ["InvalidProof", "InvalidPublicKey", "InvalidRequest", "KeyAlreadyClaimed"] as const },
-  'net.openfederation.identity.setPrimaryWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletInactive", "WalletNotFound"] as const },
+  'net.openfederation.identity.setPrimaryWallet': { revision: 2, errors: ["Forbidden", "InvalidRequest", "UnsupportedChain", "WalletInactive", "WalletNotFound"] as const },
   'net.openfederation.identity.signInAssert': { revision: 2, errors: ["ChallengeExpired", "ChallengeNotFound", "InvalidRequest", "InvalidSignature", "NoSigningKey", "UnsupportedChain"] as const },
   'net.openfederation.identity.signInChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.unlinkWallet': { revision: 2, errors: ["CustodialWallet", "InvalidRequest", "NotFound"] as const },
@@ -3140,7 +3140,7 @@ export const lexiconContracts = {
   'net.openfederation.wallet.getConsentRequest': { revision: 1, errors: ["NotFound"] as const },
   'net.openfederation.wallet.grantConsent': { revision: 3, errors: ["InvalidRequest", "OriginMismatch", "OriginRequired", "UnsupportedChain", "UserApprovalRequired"] as const },
   'net.openfederation.wallet.listConsents': { revision: 3, errors: [] as const },
-  'net.openfederation.wallet.provision': { revision: 1, errors: ["InvalidRequest", "ProvisionFailed", "UnsupportedChain"] as const },
+  'net.openfederation.wallet.provision': { revision: 2, errors: ["Forbidden", "InvalidRequest", "ProvisionFailed", "UnsupportedChain"] as const },
   'net.openfederation.wallet.requestConsent': { revision: 1, errors: ["AccountDeactivated", "AccountNotApproved", "AccountSuspended", "AccountTakenDown", "EmailNotVerified", "InvalidRequest", "OriginMismatch", "OriginRequired", "UnsupportedChain"] as const },
   'net.openfederation.wallet.retrieveForUpgrade': { revision: 3, errors: ["AccountLocked", "InvalidPassword", "InvalidRequest", "NotFound", "SigningFailed", "UnsupportedChain", "UnsupportedTier", "WalletInactive", "WalletNotFound"] as const },
   'net.openfederation.wallet.revokeConsent': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain"] as const },

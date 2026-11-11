@@ -32,6 +32,21 @@ describe('remote service-auth callers', () => {
     expect(res.status).toBe(403);
   });
 
+  for (const [nsid, body] of [
+    ['net.openfederation.wallet.provision', { chain: 'ethereum' }],
+    ['net.openfederation.identity.linkWallet', { chain: 'ethereum', walletAddress: '0x0000000000000000000000000000000000000002', challenge: 'x', signature: '0x00' }],
+    ['net.openfederation.identity.setPrimaryWallet', { chain: 'ethereum', walletAddress: '0x0000000000000000000000000000000000000002' }],
+  ] as const) {
+    it(`cannot create wallet rows here: ${nsid}`, async () => {
+      if (!plc) return;
+      const remote = await userElsewhere();
+      const token = await serviceAuthFor(remote, { lxm: nsid });
+      const res = await api.post(`/xrpc/${nsid}`).set('Authorization', `Bearer ${token}`).send(body);
+      expect(res.status, JSON.stringify(res.body)).toBe(403);
+      expect(res.body.message).toMatch(/account on this PDS/);
+    });
+  }
+
   it('cannot create a community (which needs an account here)', async () => {
     if (!plc) return;
     const remote = await userElsewhere();

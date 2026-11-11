@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.identity.linkWallet",
-  "revision": 1,
+  "revision": 2,
   "description": "Link a blockchain wallet to the authenticated user's DID after verifying a signed challenge.",
   "defs": {
     "main": {
@@ -78,6 +78,10 @@
         {
           "name": "LinkFailed",
           "description": "Challenge not found, expired, signature invalid, or wallet already linked."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The caller is not an account on this PDS."
         }
       ]
     }
