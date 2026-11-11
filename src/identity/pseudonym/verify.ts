@@ -99,7 +99,7 @@ const FAIL_DETAIL: Record<string, string> = {
  * did:key suffix); older ones emit the legacy secp256k1-2019 form (multibase of
  * the raw, usually uncompressed, SEC1 point with no multicodec prefix).
  */
-function didKeyFromMultibase(mb: string): string | null {
+export function didKeyFromMultibase(mb: string): string | null {
   try {
     const bytes = base58btc.decode(mb);
     if (bytes.length === 35 && bytes[0] === 0xe7 && bytes[1] === 0x01) return `did:key:${mb}`; // secp256k1 Multikey

@@ -19,6 +19,7 @@ import requestEmailConfirmation from '../api/com.atproto.server.requestEmailConf
 import confirmEmail from '../api/com.atproto.server.confirmEmail.js';
 import deleteSession from '../api/com.atproto.server.deleteSession.js';
 import getServiceAuthEndpoint from '../api/com.atproto.server.getServiceAuth.js';
+import verifyRecord from '../api/net.openfederation.identity.verifyRecord.js';
 import recoverAssistedAccount from '../api/net.openfederation.identity.recoverAssistedAccount.js';
 import prepareCustodyChange from '../api/net.openfederation.identity.prepareCustodyChange.js';
 import finalizeCustodyChange from '../api/net.openfederation.identity.finalizeCustodyChange.js';
@@ -238,6 +239,7 @@ const handlers = Object.freeze({
   'net.openfederation.community.create': { handler: createCommunity, limiter: createLimiter },
   'net.openfederation.account.register': { handler: registerAccount, limiter: registrationLimiter },
   'net.openfederation.account.registerSelfCustody': { handler: registerSelfCustody, limiter: registrationLimiter },
+  'net.openfederation.identity.verifyRecord': { handler: verifyRecord, limiter: discoveryLimiter },
   'net.openfederation.identity.recoverAssistedAccount': { handler: recoverAssistedAccount, limiter: createLimiter },
   'net.openfederation.identity.prepareCustodyChange': { handler: prepareCustodyChange, limiter: createLimiter },
   'net.openfederation.identity.finalizeCustodyChange': { handler: finalizeCustodyChange, limiter: createLimiter },

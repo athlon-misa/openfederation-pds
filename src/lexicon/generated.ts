@@ -1977,6 +1977,18 @@ export type NetOpenfederationIdentityUnlinkWalletOutput = {
 };
 export type NetOpenfederationIdentityUnlinkWalletError = "CustodialWallet" | "InvalidRequest" | "NotFound";
 
+export type NetOpenfederationIdentityVerifyRecordInput = {
+  "uri": string;
+};
+export type NetOpenfederationIdentityVerifyRecordOutput = {
+  "uri": string;
+  "cid"?: string;
+  "personSigned": boolean;
+  "reason"?: string;
+  "ownerKey"?: string;
+};
+export type NetOpenfederationIdentityVerifyRecordError = "InvalidRequest" | "RecordNotFound";
+
 export type NetOpenfederationInviteCreateInput = {
   "maxUses"?: number;
   "expiresAt"?: string;
@@ -2645,6 +2657,7 @@ export interface LexiconInputMap {
   'net.openfederation.identity.signInAssert': NetOpenfederationIdentitySignInAssertInput;
   'net.openfederation.identity.signInChallenge': NetOpenfederationIdentitySignInChallengeInput;
   'net.openfederation.identity.unlinkWallet': NetOpenfederationIdentityUnlinkWalletInput;
+  'net.openfederation.identity.verifyRecord': NetOpenfederationIdentityVerifyRecordInput;
   'net.openfederation.invite.create': NetOpenfederationInviteCreateInput;
   'net.openfederation.invite.list': NetOpenfederationInviteListInput;
   'net.openfederation.notification.list': NetOpenfederationNotificationListInput;
@@ -2860,6 +2873,7 @@ export interface LexiconOutputMap {
   'net.openfederation.identity.signInAssert': NetOpenfederationIdentitySignInAssertOutput;
   'net.openfederation.identity.signInChallenge': NetOpenfederationIdentitySignInChallengeOutput;
   'net.openfederation.identity.unlinkWallet': NetOpenfederationIdentityUnlinkWalletOutput;
+  'net.openfederation.identity.verifyRecord': NetOpenfederationIdentityVerifyRecordOutput;
   'net.openfederation.invite.create': NetOpenfederationInviteCreateOutput;
   'net.openfederation.invite.list': NetOpenfederationInviteListOutput;
   'net.openfederation.notification.list': NetOpenfederationNotificationListOutput;
@@ -3075,6 +3089,7 @@ export interface LexiconErrorMap {
   'net.openfederation.identity.signInAssert': NetOpenfederationIdentitySignInAssertError;
   'net.openfederation.identity.signInChallenge': NetOpenfederationIdentitySignInChallengeError;
   'net.openfederation.identity.unlinkWallet': NetOpenfederationIdentityUnlinkWalletError;
+  'net.openfederation.identity.verifyRecord': NetOpenfederationIdentityVerifyRecordError;
   'net.openfederation.invite.create': NetOpenfederationInviteCreateError;
   'net.openfederation.invite.list': NetOpenfederationInviteListError;
   'net.openfederation.notification.list': NetOpenfederationNotificationListError;
@@ -3191,7 +3206,7 @@ export const lexiconContracts = {
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.verifyCommitment': { revision: 3, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.audit.list': { revision: 1, errors: [] as const },
-  'net.openfederation.authorship.claim': { revision: 1, errors: [] as const },
+  'net.openfederation.authorship.claim': { revision: 2, errors: [] as const },
   'net.openfederation.calendar.createEvent': { revision: 6, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ProbationLimit"] as const },
   'net.openfederation.calendar.listEvents': { revision: 4, errors: ["CommunityTakenDown", "NotFound"] as const },
   'net.openfederation.calendar.listRsvps': { revision: 5, errors: ["CommunityTakenDown", "NotFound"] as const },
@@ -3292,6 +3307,7 @@ export const lexiconContracts = {
   'net.openfederation.identity.signInAssert': { revision: 2, errors: ["ChallengeExpired", "ChallengeNotFound", "InvalidRequest", "InvalidSignature", "NoSigningKey", "UnsupportedChain"] as const },
   'net.openfederation.identity.signInChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.unlinkWallet': { revision: 2, errors: ["CustodialWallet", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.identity.verifyRecord': { revision: 1, errors: ["InvalidRequest", "RecordNotFound"] as const },
   'net.openfederation.invite.create': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.invite.list': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.notification.list': { revision: 1, errors: [] as const },
