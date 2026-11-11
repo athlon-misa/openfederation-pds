@@ -1,5 +1,12 @@
 # @open-federation/react
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [22b6c94]
+  - @open-federation/sdk@0.3.0
+
 ## 0.1.1
 
 ### Patch Changes
