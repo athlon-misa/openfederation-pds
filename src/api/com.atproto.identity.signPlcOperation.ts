@@ -6,6 +6,8 @@ import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { verifyPassword } from '../auth/password.js';
 import { buildNextOp, holdsRotationKey, signWithCustodialKey, PlcOpError } from '../identity/plc-ops.js';
+import { noticeServerSignedUpdate } from '../identity/assisted-notice.js';
+import { unsignedCid } from '../identity/custody-change.js';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
 
 /**
@@ -64,6 +66,8 @@ export default async function signPlcOperation(req: AuthRequest, res: Response):
     await auditLog('identity.plcSignature.signed', user.id, user.id, {
       did: req.auth.did, rotationKeys: op.rotationKeys, endpoint: op.services.atproto_pds.endpoint,
     });
+    // An assisted account's own key ranks higher: tell the person, who can cancel within 72 hours.
+    await noticeServerSignedUpdate(req.auth.did, unsignedCid(operation), 'an update you requested, for example a move');
     res.status(200).json({ operation });
   } catch (error) {
     if (error instanceof PlcOpError) {

@@ -1,0 +1,105 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.recoverAssistedAccount",
+  "revision": 1,
+  "description": "Recover an assisted account whose phrase is lost (ADR-003, decision 10). Needs an identity verification from the last 30 minutes (one per recovery), the password, and proof that the person holds the new keys. This server signs, with its second-priority key, an update putting the new keys first; the old key can cancel it for 72 hours, and the account is emailed. Without operationCid it only returns the planned update and the text to sign.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Recover an assisted account (plan without operationCid, perform with it).",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "password",
+            "userRotationDidKey",
+            "ownerDidKey"
+          ],
+          "properties": {
+            "password": {
+              "type": "string"
+            },
+            "userRotationDidKey": {
+              "type": "string"
+            },
+            "ownerDidKey": {
+              "type": "string"
+            },
+            "operationCid": {
+              "type": "string",
+              "description": "From the plan; present = perform the recovery."
+            },
+            "possession": {
+              "type": "unknown",
+              "description": "{ rotation: OwnerSignature, owner: OwnerSignature } over possessionText."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "operationCid"
+          ],
+          "properties": {
+            "operation": {
+              "type": "unknown"
+            },
+            "operationCid": {
+              "type": "string"
+            },
+            "possessionText": {
+              "type": "string"
+            },
+            "cancelUntil": {
+              "type": "string",
+              "format": "datetime",
+              "description": "Until when the old key can cancel the update."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "NotAssisted",
+          "description": "Only assisted accounts are recovered this way."
+        },
+        {
+          "name": "VerificationRequired",
+          "description": "A fresh identity verification is required for each recovery."
+        },
+        {
+          "name": "InvalidPassword",
+          "description": "Wrong password."
+        },
+        {
+          "name": "AccountLocked",
+          "description": "Too many failed attempts."
+        },
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid keys."
+        },
+        {
+          "name": "NotCustodial",
+          "description": "This server holds no backup key for the account."
+        },
+        {
+          "name": "OperationMismatch",
+          "description": "The DID changed since the plan."
+        },
+        {
+          "name": "PossessionProofInvalid",
+          "description": "The new keys' signatures are missing or wrong."
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The PLC directory refused or does not show the update."
+        }
+      ]
+    }
+  }
+}

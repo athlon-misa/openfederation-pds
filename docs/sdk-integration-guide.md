@@ -1713,3 +1713,8 @@ other direction, sign `operation` with the rotation key (`signPlcOperation`), su
 (`submitPlcOperation`), then call `finalizeCustodyChange` with the `operationCid` (and
 `pdsRotationDidKey`, if prepare returned one).
 
+Cancelling an update the server signed for an `assisted` account (the account is emailed every
+time; the person's key ranks higher for 72 hours): fetch the DID's log from PLC, then
+`signPlcOperation(buildCancelOp(log[i - 1]), keys.rotationPrivateKey)` for the update at
+`log[i]`, and `submitPlcOperation` it.
+
