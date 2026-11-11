@@ -268,7 +268,7 @@ export async function fetchMovedKeys(did: string, fromPds: string): Promise<numb
     if (!body?.sealed || typeof body.sealed !== 'string') return null;
     return await importMovedKeys(did, body.sealed);
   } catch (err) {
-    console.warn(`community ${did}: moved keys could not be imported from ${fromPds}:`, err instanceof Error ? err.message : err);
+    console.warn('community %s: moved keys could not be imported from %s:', did, fromPds, err instanceof Error ? err.message : err);
     return null;
   }
 }
