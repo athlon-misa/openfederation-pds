@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-11
+
 ### Security
 
 - **Takedown covers blobs and public identity reads**: `sync.getBlob`, `/blob/:did/:cid`, `account.getProfile`, `identity.listExternalKeys`, `getExternalKey`, `listWalletsPublic`, `getPrimaryWallet` and `getDidAugmentation` refuse a taken-down account (`RepoTakendown`) to everyone but an admin, and hide private communities from outsiders.
