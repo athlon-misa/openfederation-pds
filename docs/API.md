@@ -53,6 +53,8 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.account.revokeSession` | Yes | Revoke session by ID or revoke all |
 | POST | `net.openfederation.account.requestPasswordReset` | No | Request password reset email |
 | POST | `net.openfederation.account.confirmPasswordReset` | No | Confirm reset with token + new password |
+| POST | `net.openfederation.account.reserveCustodyKey` | No | Reserve the rotation key this server will hold for an `assisted` account; returns `rotationKey` (did:key) to list second in the genesis operation (ADR-003) |
+| POST | `net.openfederation.account.registerSelfCustody` | No | Register an `assisted` or `self` account whose genesis operation is already in PLC: `{ did, mode, handle, email, password, inviteCode? }`; same rules as `register`; refuses `InvalidGenesis`, `SigningKeyNotReserved`, `PdsKeyNotReserved`, `CustodyModeNotAllowed` (ADR-003) |
 | GET  | `net.openfederation.account.getSecurityLevel` | Yes | Recovery tier, security checklist, `pdsHoldsRotationKey` and `custodyMode` (`custodial` / `assisted` / `self`, ADR-003) |
 | POST | `net.openfederation.account.initiateRecovery` | No | Start identity recovery (email-based) |
 | POST | `net.openfederation.account.completeRecovery` | No | Complete recovery with token + new password |

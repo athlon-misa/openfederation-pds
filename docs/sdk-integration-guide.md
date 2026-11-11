@@ -1702,6 +1702,9 @@ const did = didForGenesisOp(op);
 await submitPlcOperation(plcUrl, did, op);
 ```
 
-Registering such an account with the PDS (`registerSelfCustody`) and changing modes
-through it are the next steps of ADR-003 and not available yet.
+Then register it with the PDS: `net.openfederation.account.registerSelfCustody`
+`{ did, mode, handle, email, password, inviteCode? }` (the handle is the label, without the
+server's suffix). For `assisted`, first call `net.openfederation.account.reserveCustodyKey`
+and pass its `rotationKey` as `pdsRotationDidKey`: it goes second, after the user's key.
+Changing modes later is the next step of ADR-003 and not available yet.
 

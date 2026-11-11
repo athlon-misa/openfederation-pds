@@ -1,0 +1,135 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.registerSelfCustody",
+  "revision": 1,
+  "description": "Register an assisted or self custody account (ADR-003). The client put the DID's genesis operation in PLC: rotation keys [the user's key] (self) or [the user's key, the key from account.reserveCustodyKey] (assisted), signed by the user's key; verificationMethods.atproto from com.atproto.server.reserveSigningKey and openfederation_owner = the user's owner key; this server's endpoint; at://<handle><suffix>. Same rules as account.register (invite, email, password, approval).",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Register an assisted or self custody account whose genesis operation is already in PLC.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "did",
+            "mode",
+            "handle",
+            "email",
+            "password"
+          ],
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "mode": {
+              "type": "string",
+              "knownValues": [
+                "assisted",
+                "self"
+              ]
+            },
+            "handle": {
+              "type": "string",
+              "description": "The label; must match the genesis operation's at:// handle without this server's suffix."
+            },
+            "email": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            },
+            "inviteCode": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "id",
+            "handle",
+            "did",
+            "status",
+            "custodyMode"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "handle": {
+              "type": "string"
+            },
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "email": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "custodyMode": {
+              "type": "string",
+              "knownValues": [
+                "assisted",
+                "self"
+              ]
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid did, mode, handle, email or password."
+        },
+        {
+          "name": "CustodyModeNotAllowed",
+          "description": "This server's policy does not allow the mode (IDENTITY_CUSTODY_ALLOWED)."
+        },
+        {
+          "name": "InviteRequired",
+          "description": "An invite code is required."
+        },
+        {
+          "name": "InvalidGenesis",
+          "description": "The DID's PLC history is not exactly a genesis operation that matches the mode, this server, the handle and the keys."
+        },
+        {
+          "name": "SigningKeyNotReserved",
+          "description": "The atproto key was not reserved here."
+        },
+        {
+          "name": "PdsKeyNotReserved",
+          "description": "The second rotation key (assisted) was not reserved here, or was already used."
+        },
+        {
+          "name": "AccountExists",
+          "description": "Handle, email or DID already in use."
+        },
+        {
+          "name": "InviteInvalid",
+          "description": "Invalid invite."
+        },
+        {
+          "name": "InviteExpired",
+          "description": "Expired invite."
+        },
+        {
+          "name": "InviteUsed",
+          "description": "Used invite."
+        },
+        {
+          "name": "InviteBound",
+          "description": "Invite bound to another email."
+        }
+      ]
+    }
+  }
+}

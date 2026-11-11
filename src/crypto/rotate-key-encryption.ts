@@ -27,6 +27,7 @@ export const ENCRYPTED_KEY_COLUMNS: readonly EncryptedKeyColumn[] = [
   { table: 'signing_keys', key: 'community_did', column: 'signing_key_bytes', purpose: 'identity.signing-key', encoding: 'bytea' },
   { table: 'user_signing_keys', key: 'user_did', column: 'signing_key_bytes', purpose: 'identity.signing-key', encoding: 'bytea' },
   { table: 'reserved_signing_keys', key: 'signing_key', column: 'key_bytes', purpose: 'identity.signing-key', encoding: 'bytea' },
+  { table: 'reserved_rotation_keys', key: 'rotation_key', column: 'key_bytes', purpose: 'identity.recovery-key', encoding: 'bytea' },
   { table: 'ap_signing_keys', key: 'did', column: 'encrypted_private_key', purpose: 'activitypub.signing-key', encoding: 'bytea' },
   { table: 'pds_service_keys', key: 'id', column: 'private_key_encrypted', purpose: 'identity.pds-service-key', encoding: 'bytea' },
   { table: 'wallet_custody', key: 'id', column: 'private_key_encrypted', purpose: 'wallet.custodial-key', encoding: 'bytea' },

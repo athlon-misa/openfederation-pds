@@ -1,0 +1,33 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.reserveCustodyKey",
+  "revision": 1,
+  "description": "Make the rotation key this server will hold for an assisted account (ADR-003) and return its did:key, to list second in the genesis operation after the user's own key. Taken by account.registerSelfCustody. Unauthenticated, rate limited.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Reserve this server's rotation key for an assisted account.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "rotationKey"
+          ],
+          "properties": {
+            "rotationKey": {
+              "type": "string",
+              "description": "did:key of the reserved secp256k1 key."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "CustodyModeNotAllowed",
+          "description": "This server does not allow assisted accounts."
+        }
+      ]
+    }
+  }
+}
