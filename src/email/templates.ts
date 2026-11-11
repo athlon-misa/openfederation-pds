@@ -86,3 +86,12 @@ export function takedownReminderEmail(o: { kind: 'account' | 'community'; handle
     <p>The ${o.kind} <strong>${escapeHtml(o.handle)}</strong> was taken down and has not been downloaded yet. It will be deleted on <strong>${formatDate(o.deleteAfter)}</strong>.</p>
     <p><a href="${o.exportUrl}" style="${BUTTON}">Download your data</a></p>`);
 }
+
+export function accountDeleteCodeEmail(handle: string, code: string, expiresMinutes: number): string {
+  return wrap('Confirm account deletion', `
+    <p>Hi <strong>${escapeHtml(handle)}</strong>,</p>
+    <p>Someone signed in to your account asked to delete it from this server. To confirm, enter this code together with your password:</p>
+    <p style="font-size: 1.5rem; font-weight: bold; letter-spacing: 0.1em;">${code}</p>
+    <p>The code expires in ${expiresMinutes} minutes. Deleting removes your account, repository and files from this server; your DID stays yours.</p>
+    <p>If you did not ask for this, change your password: someone may have access to your account.</p>`);
+}

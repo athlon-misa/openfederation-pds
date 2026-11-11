@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Owners can delete their account here** (#269): standard `com.atproto.server.requestAccountDelete` (emails a code) and `com.atproto.server.deleteAccount` (password + code; a pseudonym proves it with an owner-key JWT instead). Allowed for an active account or a deactivated copy whose DID names another server, which is how the copy left behind by a move gets removed without an admin. Refused for a deactivated account the DID still names here, and for suspended or taken-down accounts. A community's owner on another PDS already removes a moved copy with `community.delete` through service auth; now tested.
+
 - **Takedown policy** ([docs/FAIR-USE.md](docs/FAIR-USE.md)), the same for accounts and communities. A takedown is `standard` (the server's rules were broken) or `hard` (evident illegal content), and needs a reason. Standard: hidden at once; the owner is emailed a private link that downloads the repository as a CAR file plus its blobs, valid for 30 days; a reminder goes out 7 days before; then the data is deleted. Hard: hidden, no owner export, kept unchanged for 90 days, then deleted. New `net.openfederation.admin.takedown` (tier, reason, optional deadline, optional `notify: false`; also changes the tier or deadline of a takedown in place) and `admin.reverseTakedown`, which also lifts community takedowns for the first time. A daily sweep sends reminders and deletes what is due. Migration 054.
 
 ### Changed

@@ -57,6 +57,8 @@ import listApplications from '../api/net.openfederation.community.listApplicatio
 import verifyMembership from '../api/net.openfederation.community.verifyMembership.js';
 import myCapabilities from '../api/net.openfederation.community.myCapabilities.js';
 import updateSubjectStatus from '../api/com.atproto.admin.updateSubjectStatus.js';
+import requestAccountDelete from '../api/com.atproto.server.requestAccountDelete.js';
+import deleteOwnAccount from '../api/com.atproto.server.deleteAccount.js';
 import getSubjectStatus from '../api/com.atproto.admin.getSubjectStatus.js';
 import adminDeleteAccount from '../api/com.atproto.admin.deleteAccount.js';
 import deactivateAccount from '../api/com.atproto.server.deactivateAccount.js';
@@ -456,6 +458,8 @@ const handlers = Object.freeze({
   // Account migration
   'com.atproto.server.createAccount': { handler: createAccount, limiter: createLimiter },
   'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus, whileDeactivated: true },
+  'com.atproto.server.requestAccountDelete': { handler: requestAccountDelete, limiter: createLimiter, whileDeactivated: true },
+  'com.atproto.server.deleteAccount': { handler: deleteOwnAccount, limiter: createLimiter },
   'com.atproto.repo.importRepo': { handler: importRepoForAccount, limiter: createLimiter, whileDeactivated: true },
   'com.atproto.repo.listMissingBlobs': { handler: listMissingBlobs, whileDeactivated: true },
   'net.openfederation.community.migrateIn': { handler: communityMigrateIn, limiter: createLimiter },

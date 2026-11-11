@@ -44,6 +44,7 @@ export type EmailPurpose =
   | 'admin-verification'
   | 'email-verification'
   | 'moderation'
+  | 'account-delete'
   | 'other';
 
 export type DeliveryOutcome =
