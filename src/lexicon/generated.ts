@@ -181,6 +181,22 @@ export type ComAtprotoServerDeleteSessionInput = unknown;
 export type ComAtprotoServerDeleteSessionOutput = unknown;
 export type ComAtprotoServerDeleteSessionError = never;
 
+export type ComAtprotoServerDescribeServerInput = undefined;
+export type ComAtprotoServerDescribeServerOutput = {
+  "inviteCodeRequired"?: boolean;
+  "phoneVerificationRequired"?: boolean;
+  "availableUserDomains": Array<string>;
+  "links"?: {
+  "privacyPolicy"?: string;
+  "termsOfService"?: string;
+};
+  "contact"?: {
+  "email"?: string;
+};
+  "did": string;
+};
+export type ComAtprotoServerDescribeServerError = never;
+
 export type ComAtprotoServerGetServiceAuthInput = {
   "aud": string;
   "exp"?: number;
@@ -224,6 +240,15 @@ export type ComAtprotoSyncGetBlobInput = {
 };
 export type ComAtprotoSyncGetBlobOutput = undefined;
 export type ComAtprotoSyncGetBlobError = "BlobNotFound" | "RepoNotFound" | "RepoTakendown";
+
+export type ComAtprotoSyncGetLatestCommitInput = {
+  "did": string;
+};
+export type ComAtprotoSyncGetLatestCommitOutput = {
+  "cid": string;
+  "rev": string;
+};
+export type ComAtprotoSyncGetLatestCommitError = "InvalidRequest" | "RepoDeactivated" | "RepoNotFound" | "RepoSuspended" | "RepoTakendown";
 
 export type ComAtprotoSyncGetRepoInput = JsonObject;
 export type ComAtprotoSyncGetRepoOutput = unknown;
@@ -2400,6 +2425,7 @@ export interface LexiconInputMap {
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountInput;
   'com.atproto.server.deleteAccount': ComAtprotoServerDeleteAccountInput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionInput;
+  'com.atproto.server.describeServer': ComAtprotoServerDescribeServerInput;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthInput;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionInput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionInput;
@@ -2407,6 +2433,7 @@ export interface LexiconInputMap {
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationInput;
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyInput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobInput;
+  'com.atproto.sync.getLatestCommit': ComAtprotoSyncGetLatestCommitInput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoInput;
   'com.atproto.sync.listBlobs': ComAtprotoSyncListBlobsInput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventInput;
@@ -2608,6 +2635,7 @@ export interface LexiconOutputMap {
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountOutput;
   'com.atproto.server.deleteAccount': ComAtprotoServerDeleteAccountOutput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionOutput;
+  'com.atproto.server.describeServer': ComAtprotoServerDescribeServerOutput;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthOutput;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionOutput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionOutput;
@@ -2615,6 +2643,7 @@ export interface LexiconOutputMap {
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationOutput;
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyOutput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobOutput;
+  'com.atproto.sync.getLatestCommit': ComAtprotoSyncGetLatestCommitOutput;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoOutput;
   'com.atproto.sync.listBlobs': ComAtprotoSyncListBlobsOutput;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventOutput;
@@ -2816,6 +2845,7 @@ export interface LexiconErrorMap {
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountError;
   'com.atproto.server.deleteAccount': ComAtprotoServerDeleteAccountError;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionError;
+  'com.atproto.server.describeServer': ComAtprotoServerDescribeServerError;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthError;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionError;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionError;
@@ -2823,6 +2853,7 @@ export interface LexiconErrorMap {
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationError;
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyError;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobError;
+  'com.atproto.sync.getLatestCommit': ComAtprotoSyncGetLatestCommitError;
   'com.atproto.sync.getRepo': ComAtprotoSyncGetRepoError;
   'com.atproto.sync.listBlobs': ComAtprotoSyncListBlobsError;
   'community.lexicon.calendar.event': CommunityLexiconCalendarEventError;
@@ -3026,6 +3057,7 @@ export const lexiconContracts = {
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteAccount': { revision: 1, errors: ["AccountDeactivated", "AccountLocked", "AccountModerated", "AuthRequired", "ExpiredToken", "InvalidPassword", "InvalidRequest", "InvalidToken", "UpstreamFailure"] as const },
   'com.atproto.server.deleteSession': { revision: 1, errors: [] as const },
+  'com.atproto.server.describeServer': { revision: 1, errors: [] as const },
   'com.atproto.server.getServiceAuth': { revision: 1, errors: ["BadExpiration", "InvalidRequest", "NoSigningKey"] as const },
   'com.atproto.server.getSession': { revision: 3, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
@@ -3033,6 +3065,7 @@ export const lexiconContracts = {
   'com.atproto.server.requestEmailConfirmation': { revision: 2, errors: ["AccountNotFound", "EmailDeliveryFailed", "NoEmail", "VerificationDisabled"] as const },
   'com.atproto.server.reserveSigningKey': { revision: 2, errors: [] as const },
   'com.atproto.sync.getBlob': { revision: 2, errors: ["BlobNotFound", "RepoNotFound", "RepoTakendown"] as const },
+  'com.atproto.sync.getLatestCommit': { revision: 1, errors: ["InvalidRequest", "RepoDeactivated", "RepoNotFound", "RepoSuspended", "RepoTakendown"] as const },
   'com.atproto.sync.getRepo': { revision: 2, errors: ["RepoNotFound", "RepoTakendown"] as const },
   'com.atproto.sync.listBlobs': { revision: 2, errors: ["RepoNotFound", "RepoTakendown"] as const },
   'community.lexicon.calendar.event': { revision: 1, errors: [] as const },
@@ -3188,7 +3221,7 @@ export const lexiconContracts = {
   'net.openfederation.pseudonym.link': { revision: 1, errors: [] as const },
   'net.openfederation.pseudonym.signLink': { revision: 1, errors: ["Forbidden", "InvalidStatement", "Unauthorized"] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
-  'net.openfederation.server.getPublicConfig': { revision: 2, errors: [] as const },
+  'net.openfederation.server.getPublicConfig': { revision: 3, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },
   'net.openfederation.vault.exportRecoveryKey': { revision: 2, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
   'net.openfederation.vault.getCustodialSecret': { revision: 4, errors: ["NotFound", "WalletAddressRequired"] as const },

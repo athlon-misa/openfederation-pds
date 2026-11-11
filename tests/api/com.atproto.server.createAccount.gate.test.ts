@@ -27,7 +27,7 @@ describe('migration gate (createAccount)', () => {
     config.migration.accounts = 'closed';
     const res = await xrpcGet('net.openfederation.server.getPublicConfig');
     expect(res.status).toBe(200);
-    expect(res.body.migration).toEqual({ accounts: 'closed', pseudonyms: 'token' });
+    expect(res.body.migration).toEqual({ accounts: 'closed', pseudonyms: 'token', communities: config.migration.communities });
   });
 
   it('closed: refuses before anything is stored', async (ctx) => {

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { changePassword } from '@/lib/api/account';
 import { toast } from 'sonner';
+import { MoveAccountCard } from '@/components/move/move-account-card';
 
 export default function SettingsPage() {
   const handle = useAuthStore((s) => s.handle);
@@ -158,6 +159,8 @@ export default function SettingsPage() {
             </form>
           </CardContent>
         </Card>
+
+        {did && handle && email && status === 'approved' && <MoveAccountCard did={did} handle={handle} email={email} />}
       </div>
     </div>
   );
