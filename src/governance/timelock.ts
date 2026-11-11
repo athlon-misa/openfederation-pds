@@ -220,7 +220,7 @@ export async function closeExpiredOverrideSafely(input: {
   try {
     return await closeExpiredOverride(input);
   } catch (error) {
-    console.error(`[governance] could not close override round for ${input.communityDid}/${input.proposalRkey}:`, error);
+    console.error('[governance] could not close override round for %s/%s:', input.communityDid, input.proposalRkey, error);
     await auditLog('community.proposal.overrideCloseFailed', null, input.communityDid, {
       rkey: input.proposalRkey,
       reason: error instanceof Error ? error.message : String(error),
@@ -249,7 +249,7 @@ export async function closeExpiredOverrides(communityDid: string, now: Date = ne
       [communityDid, PROPOSAL_COLLECTION, OVERRIDE_STATUS, now.toISOString()],
     );
   } catch (error) {
-    console.error(`[governance] could not list expired override rounds for ${communityDid}:`, error);
+    console.error('[governance] could not list expired override rounds for %s:', communityDid, error);
     return 0;
   }
 
@@ -670,7 +670,7 @@ export async function applyDueProposals(communityDid: string, now: Date = new Da
       [communityDid, PROPOSAL_COLLECTION, PENDING_STATUS, now.toISOString()],
     );
   } catch (error) {
-    console.error(`[governance] timelock sweep could not list due proposals for ${communityDid}:`, error);
+    console.error('[governance] timelock sweep could not list due proposals for %s:', communityDid, error);
     return 0;
   }
 
@@ -697,7 +697,7 @@ export async function applyIfDueSafely(input: {
   try {
     return await applyIfDue(input);
   } catch (error) {
-    console.error(`[governance] timelock application failed for ${input.communityDid}/${input.proposalRkey}:`, error);
+    console.error('[governance] timelock application failed for %s/%s:', input.communityDid, input.proposalRkey, error);
     await auditLog('community.proposal.applyFailed', null, input.communityDid, {
       rkey: input.proposalRkey,
       reason: error instanceof Error ? error.message : String(error),

@@ -254,9 +254,9 @@ export async function placeMemberContentForVisibility(communityDid: string): Pro
     const moved = await relocateMemberContent(communityDid);
     const total = moved.threads + moved.posts + moved.rsvps + moved.votes + moved.objections;
     if (total > 0) {
-      console.log(`community ${communityDid} is private: moved ${total} member record(s) into its repository`, moved);
+      console.log('community %s is private: moved %s member record(s) into its repository', communityDid, total, moved);
     }
   } catch (err) {
-    console.error(`community ${communityDid}: could not move member content into its repository:`, err);
+    console.error('community %s: could not move member content into its repository:', communityDid, err);
   }
 }

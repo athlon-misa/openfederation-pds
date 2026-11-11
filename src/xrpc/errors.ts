@@ -87,7 +87,7 @@ export function enforceXrpcErrorResponses(nsid: string, res: Response): void {
       try {
         assertAllowedXrpcErrorCode(nsid, body.error);
       } catch (validationError) {
-        console.error(`Undeclared XRPC error response from ${nsid}:`, validationError);
+        console.error('Undeclared XRPC error response from %s:', nsid, validationError);
         res.status(500);
         return originalJson({
           error: 'InternalServerError',
@@ -114,7 +114,7 @@ export function renderXrpcError(nsid: string, res: Response, error: unknown): vo
     try {
       assertAllowedXrpcErrorCode(error.nsid, error.code);
     } catch (validationError) {
-      console.error(`Undeclared XRPC error from ${error.nsid}:`, validationError);
+      console.error('Undeclared XRPC error from %s:', error.nsid, validationError);
       res.status(500).json({
         error: 'InternalServerError',
         message: 'An internal error occurred',
@@ -133,7 +133,7 @@ export function renderXrpcError(nsid: string, res: Response, error: unknown): vo
     try {
       assertAllowedXrpcErrorCode(nsid, error.code);
     } catch (validationError) {
-      console.error(`Undeclared XRPC error from ${nsid}:`, validationError);
+      console.error('Undeclared XRPC error from %s:', nsid, validationError);
       res.status(500).json({
         error: 'InternalServerError',
         message: 'An internal error occurred',
@@ -147,7 +147,7 @@ export function renderXrpcError(nsid: string, res: Response, error: unknown): vo
     return;
   }
 
-  console.error(`Error handling XRPC request for ${nsid}:`, error);
+  console.error('Error handling XRPC request for %s:', nsid, error);
   res.status(500).json({
     error: 'InternalServerError',
     message: 'An internal error occurred',

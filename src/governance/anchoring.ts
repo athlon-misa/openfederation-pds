@@ -290,7 +290,7 @@ export async function anchorPendingDecisions(input: {
       if (pending.length >= limit) break;
     }
   } catch (error) {
-    console.error(`[governance] could not list pending anchors for ${input.communityDid}:`, error);
+    console.error('[governance] could not list pending anchors for %s:', input.communityDid, error);
     return 0;
   }
 
