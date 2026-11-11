@@ -48,6 +48,7 @@ export type AuditAction =
   | 'identity.plcSignature.signed'
   | 'identity.plcOperation.submitted'
   | 'identity.custodyChange'
+  | 'identity.assistedRecovery'
   | 'account.delete'
   | 'account.export'
   | 'account.roles.update'

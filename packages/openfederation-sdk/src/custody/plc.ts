@@ -103,3 +103,21 @@ export async function submitPlcOperation(plcUrl: string, did: string, signed: Si
   });
   if (!res.ok) throw new Error(`PLC refused the operation (${res.status}): ${await res.text()}`);
 }
+
+/**
+ * Cancel an update within 72 hours (ADR-003, decision 10): PLC lets a rotation
+ * key listed higher than the update's signer replace it. Pass the operation
+ * *before* the one to cancel (`log[i - 1]` for `log[i]`); the result restores
+ * that state. Sign it with the higher key (in `assisted`, the user's) and
+ * submit it.
+ */
+export function buildCancelOp(before: SignedPlcOperation): PlcOperation {
+  return {
+    type: 'plc_operation',
+    prev: cidForPlcOp(before),
+    rotationKeys: [...before.rotationKeys],
+    verificationMethods: { ...before.verificationMethods },
+    alsoKnownAs: [...before.alsoKnownAs],
+    services: { atproto_pds: { ...before.services.atproto_pds } },
+  };
+}

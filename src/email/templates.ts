@@ -108,3 +108,11 @@ export function custodyChangedEmail(handle: string, from: string, to: string): s
     <p>Your account changed from <strong>${escapeHtml(from)}</strong> to <strong>${escapeHtml(to)}</strong>: ${MODE_TEXT[to] ?? ''}.</p>
     <p>If you did not do this, change your password and contact this server's operator straight away.</p>`);
 }
+
+export function serverSignedUpdateEmail(o: { handle: string; operationCid: string; why: string; cancelUntil: Date }): string {
+  return wrap('Your identity was changed by this server', `
+    <p>Hi <strong>${escapeHtml(o.handle)}</strong>,</p>
+    <p>This server signed a change to your identity (${escapeHtml(o.why)}). It holds the backup key of your account.</p>
+    <p><strong>If this was you, nothing to do.</strong> If it was not, you can cancel it with your 12-word phrase for 72 hours, until <strong>${o.cancelUntil.toUTCString()}</strong>: your key ranks above this server's. Then change your password.</p>
+    <p style="font-size: 0.85rem; color: #6c757d;">Change: <code>${escapeHtml(o.operationCid)}</code></p>`);
+}
