@@ -1,5 +1,11 @@
 # @open-federation/lexicon
 
+## 0.6.0
+
+### Minor Changes
+
+- 22b6c94: Schemas for OpenFederation PDS 1.4.0: new wallet consent request methods (`requestConsent`, `getConsentRequest`, `approveConsentRequest`), new and newly declared errors across governance, identity, wallet and moderation methods, and query/procedure types corrected. See each schema's `revision`.
+
 ## 0.4.0
 
 ### Minor Changes
