@@ -1,3 +1,4 @@
+import { requireRepoReadable } from '../auth/guards.js';
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
@@ -20,6 +21,8 @@ export default async function listWalletsPublic(req: AuthRequest, res: Response)
       res.status(400).json({ error: 'InvalidRequest', message: 'did is required' });
       return;
     }
+    // A taken-down account (or a private community) is not served to the public.
+    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
 
     const result = await query<{
       chain: string;

@@ -109,7 +109,15 @@ async function registerDidPlcReal(opts: {
  *
  * @returns The DID document, or null if not found
  */
+/** A did:plc is 24 base32 characters; anything else must not reach the directory URL. */
+export const DID_PLC_PATTERN = /^did:plc:[a-z2-7]{24}$/;
+
+function assertDidPlc(did: string): void {
+  if (!DID_PLC_PATTERN.test(did)) throw new Error('Not a did:plc identifier');
+}
+
 async function resolveFromPlcReal(did: string): Promise<Record<string, unknown> | null> {
+  assertDidPlc(did);
   const directoryUrl = config.plc.directoryUrl;
   const url = `${directoryUrl}/${did}`;
 
@@ -181,6 +189,7 @@ export function didForSignedOperation(signedOp: Record<string, unknown>): string
 
 /** Signed operation log for a DID (GET /{did}/log). Genesis is element 0. */
 async function getPlcLogReal(did: string): Promise<Record<string, unknown>[] | null> {
+  assertDidPlc(did);
   const response = await fetch(`${config.plc.directoryUrl}/${did}/log`, { headers: { Accept: 'application/json' } });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`PLC log lookup failed (${response.status}): ${await response.text()}`);

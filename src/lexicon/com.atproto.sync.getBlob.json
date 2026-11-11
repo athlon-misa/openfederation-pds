@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "com.atproto.sync.getBlob",
-  "revision": 1,
+  "revision": 2,
   "description": "Get a blob's raw bytes by owning DID and CID. Unauthenticated, like upstream ATProto: the CID is the capability — it is published only inside records, which is where membership gating lives.",
   "defs": {
     "main": {
@@ -31,6 +31,14 @@
         {
           "name": "BlobNotFound",
           "description": "No blob with this CID is owned by this DID."
+        },
+        {
+          "name": "RepoTakendown",
+          "description": "The account or community has been taken down."
+        },
+        {
+          "name": "RepoNotFound",
+          "description": "No such repository, or a private community the caller cannot see."
         }
       ]
     }
