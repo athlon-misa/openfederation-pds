@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.authorship.claim",
-  "revision": 1,
+  "revision": 2,
   "description": "A claim of authorship over content, identified by its hash.",
   "defs": {
     "main": {
@@ -10,7 +10,10 @@
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["contentHash", "createdAt"],
+        "required": [
+          "contentHash",
+          "createdAt"
+        ],
         "properties": {
           "contentHash": {
             "type": "string",
@@ -18,10 +21,28 @@
             "minLength": 64,
             "maxLength": 64
           },
-          "url": { "type": "string", "format": "uri", "maxLength": 2000 },
-          "title": { "type": "string", "maxLength": 500, "maxGraphemes": 500 },
-          "publishedAt": { "type": "string", "format": "datetime" },
-          "createdAt": { "type": "string", "format": "datetime" }
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500,
+            "maxGraphemes": 500
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "ownerSig": {
+            "type": "unknown",
+            "description": "Optional person signature (ADR-003, decision 11): { cid, signature }, where cid is the CID of this record without ownerSig and signature is the owner key's signature over 'OpenFederation Owner Record v1' + did + collection + cid. Check with net.openfederation.identity.verifyRecord."
+          }
         }
       }
     }

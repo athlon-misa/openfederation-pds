@@ -1718,3 +1718,9 @@ time; the person's key ranks higher for 72 hours): fetch the DID's log from PLC,
 `signPlcOperation(buildCancelOp(log[i - 1]), keys.rotationPrivateKey)` for the update at
 `log[i]`, and `submitPlcOperation` it.
 
+Person-signed records (decision 11): `signRecord(record, { did, collection }, (t) => signOwnerRaw(keys.ownerPrivateKey, t))`
+(or `signRecordWithPasskey`) adds `ownerSig`; write the record as usual. Anyone can check it with
+`verifyOwnerRecord(record, { did, collection, ownerDidKey })`, or ask the PDS:
+`net.openfederation.identity.verifyRecord?uri=at://…`. Apps should show "signed by the person"
+only for records that verify.
+

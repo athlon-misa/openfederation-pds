@@ -9,3 +9,4 @@ export * from './plc.js';
 export * from './owner-signature.js';
 export * from './device-unlock.js';
 export { didKeyFor, parseDidKey, base64UrlEncode, base64UrlDecode, type KeyCurve } from './encoding.js';
+export * from './owner-record.js';

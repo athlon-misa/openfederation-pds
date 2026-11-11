@@ -1,0 +1,68 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.identity.verifyRecord",
+  "revision": 1,
+  "description": "Is this record person-signed (ADR-003, decision 11)? For a record hosted here: its ownerSig must match the record's content (CID of the record without ownerSig) and verify with the openfederation_owner key in the author's DID document, over 'OpenFederation Owner Record v1' + did + collection + cid. No auth; same readability rules as reading the record.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Check whether a record carries a valid person signature.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "uri"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "format": "at-uri"
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "uri",
+            "personSigned"
+          ],
+          "properties": {
+            "uri": {
+              "type": "string"
+            },
+            "cid": {
+              "type": "string"
+            },
+            "personSigned": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string",
+              "knownValues": [
+                "NotSigned",
+                "NoOwnerKey",
+                "CidMismatch",
+                "SignatureInvalid"
+              ]
+            },
+            "ownerKey": {
+              "type": "string",
+              "description": "The owner did:key the signature was checked against."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "uri is not at://<did>/<collection>/<rkey>."
+        },
+        {
+          "name": "RecordNotFound",
+          "description": "No such record here (or not readable by the caller)."
+        }
+      ]
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # ADR-003: Identity custody modes, custodial and self (#251)
 
-**Status:** accepted, not built · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset) · **Issues:** #251 (daily unlock), #238 (recovery, later), #242 (write integrity)
+**Status:** accepted, built (#361–#366 and the person-signed records PR) · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset) · **Issues:** #251 (daily unlock), #238 (recovery, later), #242 (write integrity)
 
 One OpenFederation codebase serves two kinds of installation:
 
