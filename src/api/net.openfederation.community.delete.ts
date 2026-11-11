@@ -3,12 +3,14 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { deleteCommunityData } from '../community/delete-community.js';
+import { removeBlobFiles } from '../identity/delete-account.js';
 
 /**
  * net.openfederation.community.delete
  *
  * Delete a community permanently. Only the community owner or PDS admin can delete.
- * Removes all associated data: records, members, keys, join requests.
+ * Removes all associated data: records, members, keys, join requests, blobs.
  * Uses a database transaction to prevent partial deletes.
  */
 export default async function deleteCommunity(req: AuthRequest, res: Response): Promise<void> {
@@ -53,19 +55,9 @@ export default async function deleteCommunity(req: AuthRequest, res: Response): 
       return;
     }
 
-    // Delete all associated data in a transaction to prevent partial deletes
-    await withTransaction(async (client) => {
-      // Delete in correct order (foreign key constraints)
-      await client.query('DELETE FROM join_requests WHERE community_did = $1', [did]);
-      await client.query('DELETE FROM members_unique WHERE community_did = $1', [did]);
-      await client.query('DELETE FROM records_index WHERE community_did = $1', [did]);
-      await client.query('DELETE FROM repo_blocks WHERE community_did = $1', [did]);
-      await client.query('DELETE FROM repo_roots WHERE did = $1', [did]);
-      await client.query('DELETE FROM commits WHERE community_did = $1', [did]);
-      await client.query('DELETE FROM signing_keys WHERE community_did = $1', [did]);
-      await client.query('DELETE FROM plc_keys WHERE community_did = $1', [did]);
-      await client.query('DELETE FROM communities WHERE did = $1', [did]);
-    });
+    // One transaction, so a failure leaves nothing half-deleted; blob files go after it commits.
+    const orphanedBlobs = await withTransaction((client) => deleteCommunityData(client, did));
+    await removeBlobFiles(orphanedBlobs);
 
     await auditLog('community.delete', req.auth!.userId, did, {
       handle: communityResult.rows[0].handle,

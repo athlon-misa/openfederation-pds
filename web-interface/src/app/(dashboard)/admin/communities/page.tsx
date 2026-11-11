@@ -135,7 +135,7 @@ export default function AdminCommunitiesPage() {
               ? `Unsuspend @${actionTarget.handle}?`
               : actionTarget.action === 'delete'
               ? `Permanently delete @${actionTarget.handle} and all its data? This cannot be undone.`
-              : `${actionTarget.action === 'suspend' ? 'Suspend' : 'Take down'} @${actionTarget.handle}? ${actionTarget.action === 'takedown' ? 'This requires a prior export.' : ''}`
+              : `${actionTarget.action === 'suspend' ? 'Suspend' : 'Take down'} @${actionTarget.handle}? ${actionTarget.action === 'takedown' ? 'The owner gets a private export link; the community is deleted after 30 days.' : ''}`
           }
           confirmLabel={actionTarget.action.charAt(0).toUpperCase() + actionTarget.action.slice(1)}
           variant={actionTarget.action === 'takedown' || actionTarget.action === 'delete' ? 'destructive' : 'default'}

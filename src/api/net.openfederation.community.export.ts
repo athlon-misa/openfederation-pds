@@ -33,8 +33,9 @@ export default async function exportCommunity(req: AuthRequest, res: Response): 
       did_method: string;
       owner_did: string | null;
       status: string;
+      takedown_tier: string | null;
     }>(
-      'SELECT did, handle, did_method, owner_did, status FROM communities WHERE did = $1',
+      'SELECT did, handle, did_method, owner_did, status, takedown_tier FROM communities WHERE did = $1',
       [did]
     );
 
@@ -54,6 +55,13 @@ export default async function exportCommunity(req: AuthRequest, res: Response): 
         error: 'Forbidden',
         message: 'Only the community owner or PDS admin can export community data',
       });
+      return;
+    }
+
+    // A hard takedown (evident illegal content, docs/FAIR-USE.md): kept under
+    // legal hold, and only a PDS admin may export it.
+    if (community.status === 'takendown' && community.takedown_tier === 'hard' && !isAdmin) {
+      res.status(403).json({ error: 'TakenDown', message: 'This community is under a hard takedown and cannot be exported' });
       return;
     }
 
@@ -88,7 +96,6 @@ export default async function exportCommunity(req: AuthRequest, res: Response): 
     });
 
     const exportData = {
-      $type: 'net.openfederation.community.export',
       exportedAt: new Date().toISOString(),
       exportedBy: req.auth!.did,
       community: {

@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.takedown",
-  "revision": 1,
-  "description": "Take down a community. Requires admin role. Requires prior export (exported_at must be set). Per AT Protocol, more permanent than suspension.",
+  "revision": 2,
+  "description": "Take down a community with a standard takedown (docs/FAIR-USE.md). Requires admin role. The owner is emailed a private export link and the data is deleted after 30 days. Use admin.takedown for a hard takedown.",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Take down a community permanently. An export must have been performed before takedown to ensure data preservation.",
+      "description": "Standard takedown of a community: hidden at once, owner export for 30 days, then deletion.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -42,6 +42,11 @@
             "reason": {
               "type": "string",
               "description": "The reason for takedown, or null if not provided."
+            },
+            "deleteAfter": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When the data will be deleted."
             }
           },
           "required": [
@@ -62,10 +67,6 @@
         {
           "name": "AlreadyTakenDown",
           "description": "The community has already been taken down."
-        },
-        {
-          "name": "ExportRequired",
-          "description": "Community data must be exported before takedown. Use community.export first."
         }
       ]
     }

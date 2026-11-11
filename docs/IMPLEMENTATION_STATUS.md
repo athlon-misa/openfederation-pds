@@ -103,6 +103,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Repo endpoints: `getRecord`, `putRecord`, `createRecord`, `deleteRecord`, `describeRepo`, `listRecords`
 - `sync.getRepo` (full repo as CAR stream) — federation-critical
 - Account lifecycle: suspend, unsuspend, takedown, deactivate, activate, export, delete (all ATProto-compatible)
+- Takedown policy ([FAIR-USE.md](FAIR-USE.md)), accounts and communities alike: `standard` (owner gets a private export link, deleted after 30 days, reminder 7 days before) or `hard` (no owner export, 90-day legal hold, then deleted); daily sweep in `src/moderation/takedown.ts`
 - `com.atproto.identity.resolveHandle` — local + external cross-PDS resolution (DNS TXT → HTTPS well-known, 1h cache)
 - Well-known: `/.well-known/did.json` (PDS service DID, secp256k1, encrypted in `pds_service_keys`; falls through to community at hostname), `/.well-known/webfinger`
 - Private communities are gated on read (`requireCommunityReadable` / `requireRepoReadable`, `831285b`, 2026-07-10) at this PDS only. **This PDS is not yet federating to any external relay or AppView** — no production federation network is deployed. Before that federation is turned on, private-community DIDs still need to be excluded (or only sent to relays honoring the same gating) — tracked in [#85](https://github.com/athlon-misa/openfederation-pds/issues/85)

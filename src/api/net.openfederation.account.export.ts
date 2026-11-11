@@ -36,9 +36,10 @@ export default async function exportAccount(req: AuthRequest, res: Response): Pr
       handle: string;
       email: string;
       status: string;
+      takedown_tier: string | null;
       created_at: string;
     }>(
-      'SELECT id, did, handle, email, status, created_at FROM users WHERE did = $1',
+      'SELECT id, did, handle, email, status, created_at, takedown_tier FROM users WHERE did = $1',
       [did]
     );
 
@@ -58,6 +59,13 @@ export default async function exportAccount(req: AuthRequest, res: Response): Pr
         error: 'Forbidden',
         message: 'Only the account owner or PDS admin can export account data',
       });
+      return;
+    }
+
+    // A hard takedown (evident illegal content, docs/FAIR-USE.md): kept under
+    // legal hold, and only a PDS admin may export it.
+    if (user.status === 'takendown' && user.takedown_tier === 'hard' && !isAdmin) {
+      res.status(403).json({ error: 'TakenDown', message: 'This account is under a hard takedown and cannot be exported' });
       return;
     }
 

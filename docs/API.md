@@ -22,6 +22,9 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `com.atproto.sync.getRepo` | No | Full repo as CAR stream (federation-critical) |
 | POST | `com.atproto.admin.updateSubjectStatus` | Admin | Suspend/unsuspend or takedown/reverse-takedown a user by DID |
 | GET  | `com.atproto.admin.getSubjectStatus` | Admin | Check takedown/deactivation status of an account by DID |
+| POST | `net.openfederation.admin.takedown` | Admin | Take an account or community down, `standard` (owner export 30 days) or `hard` (no owner export, 90-day hold); changes tier or deadline of an existing takedown ([FAIR-USE.md](FAIR-USE.md)) |
+| POST | `net.openfederation.admin.reverseTakedown` | Admin | Lift a takedown before its deletion date |
+| GET  | `/takedown-export/:token` (`/blobs`, `/blob/:cid`) | Link | Owner's private download after a standard takedown: repository CAR, blob list, blobs |
 | POST | `com.atproto.admin.deleteAccount` | Admin | Permanently delete a user account and all repo data |
 | POST | `com.atproto.server.deactivateAccount` | Yes | User deactivates own account (self-service) |
 | POST | `com.atproto.server.activateAccount` | Yes | User reactivates own account after deactivation |
@@ -73,7 +76,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `net.openfederation.community.export` | Owner/Admin | Export community data as JSON archive |
 | POST | `net.openfederation.community.suspend` | Admin | Suspend a community |
 | POST | `net.openfederation.community.unsuspend` | Admin | Unsuspend a community |
-| POST | `net.openfederation.community.takedown` | Admin | Take down a community (requires prior export) |
+| POST | `net.openfederation.community.takedown` | Admin | Standard takedown of a community: hidden, owner export link for 30 days, then deleted ([FAIR-USE.md](FAIR-USE.md)) |
 | POST | `net.openfederation.community.updateMember` | Owner/Admin | Partial update of member record: role, kind, tags, attributes (any subset). Renamed from updateMemberRole to support semantic classification (#50). |
 | POST | `net.openfederation.community.issueAttestation` | Owner/Mod | Issue a signed attestation for a member |
 | POST | `net.openfederation.community.deleteAttestation` | Owner/Mod | Revoke an attestation (delete-as-revoke) |

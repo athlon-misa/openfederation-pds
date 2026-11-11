@@ -240,11 +240,11 @@ export default function AdminUsersPage() {
       case 'unsuspend':
         return { title: 'Unsuspend account', description: `Unsuspend @${handle}?`, variant: 'default' as const };
       case 'takedown':
-        return { title: 'Take down account', description: `Take down @${handle}? This requires a prior data export.`, variant: 'destructive' as const };
+        return { title: 'Take down account', description: `Take down @${handle}? They get a private export link; the account is deleted after 30 days.`, variant: 'destructive' as const };
       case 'reverseTakedown':
-        return { title: 'Reverse takedown', description: `Reverse takedown for @${handle}? Account will be restored to approved.`, variant: 'default' as const };
+        return { title: 'Reverse takedown', description: `Reverse takedown for @${handle}? The account returns to its previous status.`, variant: 'default' as const };
       case 'export':
-        return { title: 'Export account', description: `Export all repo data for @${handle}? This sets exported_at (required before takedown).`, variant: 'default' as const };
+        return { title: 'Export account', description: `Export all repo data for @${handle}? An admin export stays possible after a takedown.`, variant: 'default' as const };
       case 'delete':
         return { title: 'Delete account', description: `Permanently delete @${handle} and all their data? This cannot be undone.`, variant: 'destructive' as const };
     }

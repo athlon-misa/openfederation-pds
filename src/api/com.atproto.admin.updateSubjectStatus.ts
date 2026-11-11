@@ -5,6 +5,7 @@ import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 import { revokeOAuthGrants } from '../auth/revoke-grants.js';
+import { applyTakedown, findTakedownSubject, reverseTakedown } from '../moderation/takedown.js';
 
 /**
  * com.atproto.admin.updateSubjectStatus
@@ -88,34 +89,9 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
           return;
         }
 
-        if (!user.exported_at) {
-          res.status(409).json({
-            error: 'ExportRequired',
-            message: 'Account must be exported before takedown. The user must have the opportunity to export their data (AT Protocol "free to go" principle).',
-          });
-          return;
-        }
-
-        await query(
-          `UPDATE users
-           SET prior_status = CASE WHEN status = 'suspended' THEN prior_status ELSE status END,
-               status = 'takendown', token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
-               status_changed_by = $1, status_reason = $2
-           WHERE id = $3`,
-          [req.auth!.userId, takedown.ref || null, user.id]
-        );
-
-        // Revoke all sessions
-        await query(
-          'UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL',
-          [user.id]
-        );
-        await revokeOAuthGrants(user.did);
-
-        await auditLog('account.takedown', req.auth!.userId, user.id, {
-          did,
-          reason: takedown.ref || null,
-          previousStatus: user.status,
+        const subjectRow = await findTakedownSubject(did);
+        await applyTakedown(subjectRow!, {
+          tier: 'standard', reason: takedown.ref || 'Breach of this server\'s rules', actorUserId: req.auth!.userId,
         });
       } else {
         // Reverse takedown
@@ -124,19 +100,8 @@ export default async function updateSubjectStatus(req: AuthRequest, res: Respons
           return;
         }
 
-        await query(
-          `UPDATE users
-           SET status = COALESCE(prior_status, 'approved'), prior_status = NULL,
-               token_version = token_version + 1, status_changed_at = CURRENT_TIMESTAMP,
-               status_changed_by = $1, status_reason = NULL
-           WHERE id = $2`,
-          [req.auth!.userId, user.id]
-        );
-
-        await auditLog('account.unsuspend', req.auth!.userId, user.id, {
-          did,
-          previousStatus: 'takendown',
-        });
+        const subjectRow = await findTakedownSubject(did);
+        await reverseTakedown(subjectRow!, req.auth!.userId);
       }
     }
 

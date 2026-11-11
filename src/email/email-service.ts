@@ -43,6 +43,7 @@ export type EmailPurpose =
   | 'session-revoked'
   | 'admin-verification'
   | 'email-verification'
+  | 'moderation'
   | 'other';
 
 export type DeliveryOutcome =
