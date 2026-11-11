@@ -45,8 +45,9 @@ export default async function getSecurityLevel(req: AuthRequest, res: Response):
     const userResult = await query<{
       recovery_tier: number;
       recovery_email_verified: boolean;
+      custody_mode: string | null;
     }>(
-      'SELECT recovery_tier, recovery_email_verified FROM users WHERE did = $1',
+      'SELECT recovery_tier, recovery_email_verified, custody_mode FROM users WHERE did = $1',
       [userDid]
     );
 
@@ -80,6 +81,8 @@ export default async function getSecurityLevel(req: AuthRequest, res: Response):
 
     res.status(200).json({
       recoveryTier,
+      // ADR-003: custodial, assisted or self; null when no rotation key is held here or by the user.
+      custodyMode: user.custody_mode,
       tierName: tierName(recoveryTier),
       // True whenever this server can rebuild the rotation key on its own.
       pdsHoldsRotationKey: await holdsRotationKey(userDid),

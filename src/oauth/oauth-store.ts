@@ -61,6 +61,11 @@ export class PgAccountStore implements AccountStore {
       }
     }
 
+    // ADR-003: OAuth sign-up makes custodial accounts.
+    if (!config.identity.custodyAllowed.includes('custodial')) {
+      throw new Error('This server does not allow custodial accounts');
+    }
+
     const userId = crypto.randomUUID();
     const identity = await withTransaction(async (client) => {
       await ensureHandleEmailAvailable(client, handle, email);

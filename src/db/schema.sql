@@ -800,3 +800,7 @@ CREATE INDEX IF NOT EXISTS idx_takedown_export_tokens_subject ON takedown_export
 
 -- Community import progress code (migrate-055)
 ALTER TABLE communities ADD COLUMN IF NOT EXISTS migration_code_hash CHAR(64);
+
+-- Custody modes (migrate-056)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS custody_mode VARCHAR(16)
+  CHECK (custody_mode IN ('custodial', 'assisted', 'self'));

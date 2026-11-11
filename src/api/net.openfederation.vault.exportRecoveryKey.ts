@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth, requireApprovedUser } from '../auth/guards.js';
+import { requireAuth, requireApprovedUser, refuseCustodyModes } from '../auth/guards.js';
 import { getShare, updateRecoveryTier, logVaultAudit } from '../vault/vault-store.js';
 import { combineShares } from '../vault/shamir.js';
 import { query } from '../db/client.js';
@@ -19,6 +19,7 @@ export default async function exportRecoveryKey(req: AuthRequest, res: Response)
   try {
     if (!requireAuth(req, res)) return;
     if (!requireApprovedUser(req, res)) return;
+    if (!(await refuseCustodyModes(req, res, ['self'], 'This account holds its own rotation key (self custody); this server keeps none for it.'))) return;
 
     const userDid = req.auth.did;
 

@@ -159,7 +159,7 @@ export type ComAtprotoServerCreateAccountOutput = {
   "didDoc"?: unknown;
   "rotationDeviceShare"?: string;
 };
-export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteUsed" | "MigrationNotAllowed" | "TokenSpent" | "UnresolvableDid" | "UnsupportedDomain";
+export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "CustodyModeNotAllowed" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteUsed" | "MigrationNotAllowed" | "TokenSpent" | "UnresolvableDid" | "UnsupportedDomain";
 
 export type ComAtprotoServerCreateSessionInput = unknown;
 export type ComAtprotoServerCreateSessionOutput = unknown;
@@ -339,6 +339,7 @@ export type NetOpenfederationAccountGetSecurityLevelOutput = {
 };
   "upgradePath"?: string;
   "pdsHoldsRotationKey"?: boolean;
+  "custodyMode"?: string;
 };
 export type NetOpenfederationAccountGetSecurityLevelError = "NotFound";
 
@@ -419,7 +420,7 @@ export type NetOpenfederationAccountRegisterOutput = {
   "email": string;
   "status": string;
 };
-export type NetOpenfederationAccountRegisterError = "AccountExists" | "IdentityCreationFailed" | "InvalidRequest" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteRequired" | "InviteUsed";
+export type NetOpenfederationAccountRegisterError = "AccountExists" | "CustodyModeNotAllowed" | "IdentityCreationFailed" | "InvalidRequest" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteRequired" | "InviteUsed";
 
 export type NetOpenfederationAccountRejectInput = {
   "userId"?: string;
@@ -2060,7 +2061,7 @@ export type NetOpenfederationPartnerRegisterOutput = {
   "active": boolean;
   "emailVerificationRequired"?: boolean;
 };
-export type NetOpenfederationPartnerRegisterError = "AccountExists" | "IdentityCreationFailed" | "InvalidRequest" | "OriginNotAllowed" | "PartnerKeyInvalid" | "PartnerKeyMissing" | "PartnerKeyRevoked" | "PartnerKeyUnverified" | "PermissionDenied" | "TicketInvalid" | "TicketRequired";
+export type NetOpenfederationPartnerRegisterError = "AccountExists" | "CustodyModeNotAllowed" | "IdentityCreationFailed" | "InvalidRequest" | "OriginNotAllowed" | "PartnerKeyInvalid" | "PartnerKeyMissing" | "PartnerKeyRevoked" | "PartnerKeyUnverified" | "PermissionDenied" | "TicketInvalid" | "TicketRequired";
 
 export type NetOpenfederationPartnerRevokeKeyInput = JsonObject;
 export type NetOpenfederationPartnerRevokeKeyOutput = JsonObject;
@@ -2147,7 +2148,7 @@ export type NetOpenfederationPseudonymSignLinkOutput = {
   "sig": string;
   "signingKey": string;
 };
-export type NetOpenfederationPseudonymSignLinkError = "Forbidden" | "InvalidStatement" | "Unauthorized";
+export type NetOpenfederationPseudonymSignLinkError = "Forbidden" | "InvalidStatement" | "SelfCustodyAccount" | "Unauthorized";
 
 export type NetOpenfederationServerGetConfigInput = undefined;
 export type NetOpenfederationServerGetConfigOutput = {
@@ -2197,7 +2198,7 @@ export type NetOpenfederationVaultExportRecoveryKeyOutput = {
   "rotationKey": string;
   "pdsHoldsRotationKey"?: boolean;
 };
-export type NetOpenfederationVaultExportRecoveryKeyError = "ShareNotFound" | "VerificationFailed" | "VerificationRequired";
+export type NetOpenfederationVaultExportRecoveryKeyError = "SelfCustodyAccount" | "ShareNotFound" | "VerificationFailed" | "VerificationRequired";
 
 export type NetOpenfederationVaultGetCustodialSecretInput = {
   "chain": string;
@@ -2225,7 +2226,7 @@ export type NetOpenfederationVaultRegisterEscrowOutput = {
   "message"?: string;
   "shareStoredHere"?: boolean;
 };
-export type NetOpenfederationVaultRegisterEscrowError = "EscrowAlreadyRegistered" | "InvalidRequest" | "ShareNotFound";
+export type NetOpenfederationVaultRegisterEscrowError = "EscrowAlreadyRegistered" | "InvalidRequest" | "SelfCustodyAccount" | "ShareNotFound";
 
 export type NetOpenfederationVaultRequestShareReleaseInput = {
   "verificationToken"?: string;
@@ -2233,7 +2234,7 @@ export type NetOpenfederationVaultRequestShareReleaseInput = {
 export type NetOpenfederationVaultRequestShareReleaseOutput = {
   "share": string;
 };
-export type NetOpenfederationVaultRequestShareReleaseError = "ShareNotFound" | "VerificationRequired";
+export type NetOpenfederationVaultRequestShareReleaseError = "SelfCustodyAccount" | "ShareNotFound" | "VerificationRequired";
 
 export type NetOpenfederationVaultStoreCustodialSecretInput = {
   "secretType": string;
@@ -3055,7 +3056,7 @@ export const lexiconContracts = {
   'com.atproto.server.activateAccount': { revision: 3, errors: ["IncompatibleDidDoc", "InvalidStatus", "NotFound", "UpstreamFailure"] as const },
   'com.atproto.server.checkAccountStatus': { revision: 1, errors: [] as const },
   'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
-  'com.atproto.server.createAccount': { revision: 3, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
+  'com.atproto.server.createAccount': { revision: 4, errors: ["AlreadyExists", "CustodyModeNotAllowed", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteAccount': { revision: 1, errors: ["AccountDeactivated", "AccountLocked", "AccountModerated", "AuthRequired", "ExpiredToken", "InvalidPassword", "InvalidRequest", "InvalidToken", "UpstreamFailure"] as const },
@@ -3079,12 +3080,12 @@ export const lexiconContracts = {
   'net.openfederation.account.confirmPasswordReset': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
   'net.openfederation.account.export': { revision: 5, errors: ["ExportTooLarge", "Forbidden", "NotFound", "TakenDown"] as const },
   'net.openfederation.account.getProfile': { revision: 2, errors: ["InvalidRequest", "ProfileNotFound", "RepoNotFound", "RepoTakendown"] as const },
-  'net.openfederation.account.getSecurityLevel': { revision: 4, errors: ["NotFound"] as const },
+  'net.openfederation.account.getSecurityLevel': { revision: 5, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
   'net.openfederation.account.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
   'net.openfederation.account.listSessions': { revision: 3, errors: ["NotFound"] as const },
-  'net.openfederation.account.register': { revision: 3, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
+  'net.openfederation.account.register': { revision: 4, errors: ["AccountExists", "CustodyModeNotAllowed", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
   'net.openfederation.account.reject': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.requestPasswordReset': { revision: 1, errors: [] as const },
   'net.openfederation.account.resolveExternal': { revision: 2, errors: ["ResolutionFailed", "ServiceUnavailable"] as const },
@@ -3213,7 +3214,7 @@ export const lexiconContracts = {
   'net.openfederation.oracle.submitProof': { revision: 2, errors: ["AuthRequired", "InvalidRequest"] as const },
   'net.openfederation.partner.createKey': { revision: 2, errors: [] as const },
   'net.openfederation.partner.listKeys': { revision: 2, errors: [] as const },
-  'net.openfederation.partner.register': { revision: 2, errors: ["AccountExists", "IdentityCreationFailed", "InvalidRequest", "OriginNotAllowed", "PartnerKeyInvalid", "PartnerKeyMissing", "PartnerKeyRevoked", "PartnerKeyUnverified", "PermissionDenied", "TicketInvalid", "TicketRequired"] as const },
+  'net.openfederation.partner.register': { revision: 3, errors: ["AccountExists", "CustodyModeNotAllowed", "IdentityCreationFailed", "InvalidRequest", "OriginNotAllowed", "PartnerKeyInvalid", "PartnerKeyMissing", "PartnerKeyRevoked", "PartnerKeyUnverified", "PermissionDenied", "TicketInvalid", "TicketRequired"] as const },
   'net.openfederation.partner.revokeKey': { revision: 1, errors: ["AlreadyRevoked", "NotFound"] as const },
   'net.openfederation.partner.verifyKey': { revision: 1, errors: ["InvalidRequest", "NotFound", "VerificationFailed"] as const },
   'net.openfederation.pseudonym.collectTokens': { revision: 1, errors: ["AlreadyCollected", "Forbidden", "InvalidRequest", "WrongEpoch"] as const },
@@ -3222,14 +3223,14 @@ export const lexiconContracts = {
   'net.openfederation.pseudonym.getLoginChallenge': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.pseudonym.getTokenKeys': { revision: 2, errors: [] as const },
   'net.openfederation.pseudonym.link': { revision: 1, errors: [] as const },
-  'net.openfederation.pseudonym.signLink': { revision: 1, errors: ["Forbidden", "InvalidStatement", "Unauthorized"] as const },
+  'net.openfederation.pseudonym.signLink': { revision: 2, errors: ["Forbidden", "InvalidStatement", "SelfCustodyAccount", "Unauthorized"] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
-  'net.openfederation.server.getPublicConfig': { revision: 3, errors: [] as const },
+  'net.openfederation.server.getPublicConfig': { revision: 4, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },
-  'net.openfederation.vault.exportRecoveryKey': { revision: 3, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
+  'net.openfederation.vault.exportRecoveryKey': { revision: 4, errors: ["SelfCustodyAccount", "ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
   'net.openfederation.vault.getCustodialSecret': { revision: 4, errors: ["NotFound", "WalletAddressRequired"] as const },
-  'net.openfederation.vault.registerEscrow': { revision: 2, errors: ["EscrowAlreadyRegistered", "InvalidRequest", "ShareNotFound"] as const },
-  'net.openfederation.vault.requestShareRelease': { revision: 1, errors: ["ShareNotFound", "VerificationRequired"] as const },
+  'net.openfederation.vault.registerEscrow': { revision: 3, errors: ["EscrowAlreadyRegistered", "InvalidRequest", "SelfCustodyAccount", "ShareNotFound"] as const },
+  'net.openfederation.vault.requestShareRelease': { revision: 2, errors: ["SelfCustodyAccount", "ShareNotFound", "VerificationRequired"] as const },
   'net.openfederation.vault.storeCustodialSecret': { revision: 2, errors: [] as const },
   'net.openfederation.wallet.approveConsentRequest': { revision: 1, errors: ["AccountLocked", "AlreadySettled", "Expired", "Forbidden", "InvalidPassword", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.wallet.finalizeTierChange': { revision: 3, errors: ["AccountLocked", "InvalidPassword", "InvalidRequest", "NotFound", "UnsupportedChain", "UnsupportedTransition", "WalletInactive", "WalletNotFound"] as const },

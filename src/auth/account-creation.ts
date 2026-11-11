@@ -109,6 +109,8 @@ export interface InsertUserParams {
   pseudonymOwnerKey?: string;
   /** Arrived from another PDS and not yet activated here (#261). */
   migratingIn?: boolean;
+  /** ADR-003. Default: self for pseudonyms, NULL for external accounts, custodial otherwise. */
+  custodyMode?: 'custodial' | 'assisted' | 'self' | null;
 }
 
 /**
@@ -120,8 +122,8 @@ export async function insertUserWithRole(client: PoolClient, params: InsertUserP
   const isApproved = params.status === 'approved';
   await client.query(
     `INSERT INTO users
-       (id, handle, email, password_hash, status, did, auth_type, created_by_partner, pseudonym_owner_key, migrating_in, approved_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, ${isApproved ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
+       (id, handle, email, password_hash, status, did, auth_type, created_by_partner, pseudonym_owner_key, migrating_in, custody_mode, approved_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, ${isApproved ? 'CURRENT_TIMESTAMP' : 'NULL'})`,
     [
       params.userId,
       params.handle,
@@ -133,6 +135,8 @@ export async function insertUserWithRole(client: PoolClient, params: InsertUserP
       params.createdByPartner ?? null,
       params.pseudonymOwnerKey ?? null,
       params.migratingIn ?? false,
+      params.custodyMode !== undefined ? params.custodyMode
+        : authType === 'pseudonym' ? 'self' : authType === 'external' ? null : 'custodial',
     ],
   );
   await client.query(`INSERT INTO user_roles (user_id, role) VALUES ($1, 'user')`, [params.userId]);

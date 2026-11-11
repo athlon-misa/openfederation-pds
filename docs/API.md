@@ -53,7 +53,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.account.revokeSession` | Yes | Revoke session by ID or revoke all |
 | POST | `net.openfederation.account.requestPasswordReset` | No | Request password reset email |
 | POST | `net.openfederation.account.confirmPasswordReset` | No | Confirm reset with token + new password |
-| GET  | `net.openfederation.account.getSecurityLevel` | Yes | Get recovery tier and security checklist |
+| GET  | `net.openfederation.account.getSecurityLevel` | Yes | Recovery tier, security checklist, `pdsHoldsRotationKey` and `custodyMode` (`custodial` / `assisted` / `self`, ADR-003) |
 | POST | `net.openfederation.account.initiateRecovery` | No | Start identity recovery (email-based) |
 | POST | `net.openfederation.account.completeRecovery` | No | Complete recovery with token + new password |
 

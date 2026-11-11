@@ -543,3 +543,23 @@ export async function assertCommunityPermission(
   }
   throw new HttpError(403, 'Forbidden', 'Insufficient community privileges');
 }
+
+/**
+ * Guard (ADR-003, decision 6): refuse accounts whose custody mode is in
+ * `refused` with SelfCustodyAccount. The PDS holds no rotation key for a
+ * `self` account, and signs nothing person-level for `assisted` or `self`.
+ */
+export async function refuseCustodyModes(
+  req: AuthRequest,
+  res: Response,
+  refused: Array<'assisted' | 'self'>,
+  message: string,
+): Promise<boolean> {
+  const row = await query<{ custody_mode: string | null }>('SELECT custody_mode FROM users WHERE did = $1', [req.auth?.did]);
+  const mode = row.rows[0]?.custody_mode;
+  if (mode && (refused as string[]).includes(mode)) {
+    res.status(403).json({ error: 'SelfCustodyAccount', message });
+    return false;
+  }
+  return true;
+}

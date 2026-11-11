@@ -72,6 +72,14 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
     // The gate (#265): refused here, nothing has changed anywhere.
     const policy = ownerKey ? config.migration.pseudonyms : config.migration.accounts;
     if (policy === 'closed') throw new Refusal(403, 'MigrationNotAllowed', 'This PDS does not accept accounts moving in');
+    // ADR-003: a user account moving in becomes custodial here; a pseudonym
+    // is new to this server, which may have switched pseudonyms off.
+    if (custodial && !config.identity.custodyAllowed.includes('custodial')) {
+      throw new Refusal(403, 'CustodyModeNotAllowed', 'This server does not allow custodial accounts');
+    }
+    if (ownerKey && !config.identity.pseudonymsEnabled) {
+      throw new Refusal(403, 'MigrationNotAllowed', 'This server does not accept pseudonyms');
+    }
     if (policy === 'token' && (!token || typeof token !== 'object')) {
       throw new Refusal(400, 'InvalidToken', 'This PDS asks for a creation token to accept a pseudonym');
     }

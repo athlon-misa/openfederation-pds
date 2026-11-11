@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.vault.exportRecoveryKey",
-  "revision": 3,
+  "revision": 4,
   "description": "Export the account's PLC rotation key: a working backup the user can sign PLC operations with. Requires an identity verification (admin.verifyChallenge) in the last 30 minutes; each verification allows one export. This server keeps the key too (custodial).",
   "defs": {
     "main": {
@@ -58,6 +58,10 @@
         {
           "name": "ShareNotFound",
           "description": "No vault share found for this account."
+        },
+        {
+          "name": "SelfCustodyAccount",
+          "description": "This account holds its own rotation key (self custody); this server keeps none for it."
         }
       ]
     }

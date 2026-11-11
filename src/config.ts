@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { resolveIdentityPolicy } from './identity/custody-policy.js';
 
 // quiet: dotenv 17 prints an informational banner to stdout on every load,
 // which corrupts machine-readable output from the ofc CLI. Loading is unchanged.
@@ -167,6 +168,9 @@ export const config = {
     probationDays: (v => Number.isFinite(v) && v >= 0 ? v : 7)(parseInt(process.env.PSEUDONYM_PROBATION_DAYS ?? '7', 10)),
     probationDailyWrites: (v => Number.isFinite(v) && v >= 1 ? v : 20)(parseInt(process.env.PSEUDONYM_PROBATION_DAILY_WRITES ?? '20', 10)),
   },
+  // Custody modes and pseudonyms (ADR-003): OPENFEDERATION_PROFILE,
+  // IDENTITY_CUSTODY_ALLOWED, IDENTITY_CUSTODY_DEFAULT, PSEUDONYMS_ENABLED.
+  identity: resolveIdentityPolicy(process.env),
   // Accounts moving in from another PDS (#265). Pseudonyms never use invite
   // codes: a code can say who handed it out.
   migration: {
