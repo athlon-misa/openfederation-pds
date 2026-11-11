@@ -18,6 +18,8 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   variant?: 'default' | 'destructive';
   loading?: boolean;
+  /** Keeps the confirm button disabled, for example until a required field is filled. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   children?: React.ReactNode;
 }
@@ -30,6 +32,7 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm',
   variant = 'default',
   loading = false,
+  confirmDisabled = false,
   onConfirm,
   children,
 }: ConfirmDialogProps) {
@@ -45,7 +48,7 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button variant={variant} onClick={onConfirm} disabled={loading}>
+          <Button variant={variant} onClick={onConfirm} disabled={loading || confirmDisabled}>
             {loading ? 'Processing...' : confirmLabel}
           </Button>
         </DialogFooter>

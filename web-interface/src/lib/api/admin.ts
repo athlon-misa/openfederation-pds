@@ -1,5 +1,5 @@
 import { xrpc } from '../api-client';
-import type { InviteResponse, ListAccountsResponse, ListInvitesResponse, ListAuditResponse, ServerConfigResponse, ListPartnerKeysResponse, CreatePartnerKeyResponse, RevokePartnerKeyResponse } from './types';
+import type { InviteResponse, ListAccountsResponse, ListInvitesResponse, ListAuditResponse, ServerConfigResponse, ListPartnerKeysResponse, CreatePartnerKeyResponse, RevokePartnerKeyResponse, AdminTakedownResponse, AdminReverseTakedownResponse, TakedownTier } from './types';
 
 export async function approveAccount(userId: string) {
   return xrpc<{ message: string }>('net.openfederation.account.approve', {
@@ -70,16 +70,14 @@ export async function unsuspendAccount(did: string) {
   });
 }
 
-export async function takedownAccount(did: string, reason?: string) {
-  return xrpc<{ subject: unknown; takedown: unknown; deactivated: unknown }>('com.atproto.admin.updateSubjectStatus', {
-    body: { subject: { did }, takedown: { applied: true, ref: reason } },
-  });
+/** Take down an account or community under docs/FAIR-USE.md. */
+export async function adminTakedown(input: { did: string; tier: TakedownTier; reason: string; notify?: boolean }) {
+  return xrpc<AdminTakedownResponse>('net.openfederation.admin.takedown', { body: input });
 }
 
-export async function reverseTakedownAccount(did: string) {
-  return xrpc<{ subject: unknown; takedown: unknown; deactivated: unknown }>('com.atproto.admin.updateSubjectStatus', {
-    body: { subject: { did }, takedown: { applied: false } },
-  });
+/** Lift a takedown of an account or community. */
+export async function adminReverseTakedown(did: string) {
+  return xrpc<AdminReverseTakedownResponse>('net.openfederation.admin.reverseTakedown', { body: { did } });
 }
 
 export async function exportAccount(did: string) {

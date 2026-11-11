@@ -189,10 +189,21 @@ export interface UnsuspendCommunityResponse {
   status: 'active';
 }
 
-export interface TakedownCommunityResponse {
+export type TakedownTier = 'standard' | 'hard';
+
+export interface AdminTakedownResponse {
   did: string;
+  kind: 'account' | 'community';
   status: 'takendown';
-  reason: string | null;
+  tier: TakedownTier;
+  deleteAfter: string;
+  exportUrl?: string;
+}
+
+export interface AdminReverseTakedownResponse {
+  did: string;
+  kind: 'account' | 'community';
+  status: string;
 }
 
 // Account list types

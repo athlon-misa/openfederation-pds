@@ -7,8 +7,8 @@ import {
   createInvite,
   suspendAccount,
   unsuspendAccount,
-  takedownAccount,
-  reverseTakedownAccount,
+  adminTakedown,
+  adminReverseTakedown,
   exportAccount,
   deleteAccount,
   listPartnerKeys,
@@ -16,7 +16,7 @@ import {
   revokePartnerKey,
   updateRoles,
 } from '@/lib/api/admin';
-import { suspendCommunity, unsuspendCommunity, takedownCommunity, deleteCommunity, listAllCommunities } from '@/lib/api/communities';
+import { suspendCommunity, unsuspendCommunity, deleteCommunity, listAllCommunities } from '@/lib/api/communities';
 import { unwrapApi } from '@/lib/api/unwrap';
 
 export const adminKeys = {
@@ -102,23 +102,25 @@ export function useUnsuspendAccountMutation() {
   });
 }
 
-export function useTakedownAccountMutation() {
+/** Takedown of an account or community (tier, reason, optional notify). */
+export function useAdminTakedownMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ did, reason }: { did: string; reason?: string }) =>
-      unwrapApi(await takedownAccount(did, reason)),
+    mutationFn: async (input: Parameters<typeof adminTakedown>[0]) => unwrapApi(await adminTakedown(input)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
+      queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
   });
 }
 
-export function useReverseTakedownAccountMutation() {
+export function useAdminReverseTakedownMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (did: string) => unwrapApi(await reverseTakedownAccount(did)),
+    mutationFn: async (did: string) => unwrapApi(await adminReverseTakedown(did)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] });
+      queryClient.invalidateQueries({ queryKey: ['communities'] });
     },
   });
 }
@@ -159,18 +161,6 @@ export function useUnsuspendCommunityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (did: string) => unwrapApi(await unsuspendCommunity(did)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'communities'] });
-      queryClient.invalidateQueries({ queryKey: ['communities'] });
-    },
-  });
-}
-
-export function useTakedownCommunityMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ did, reason }: { did: string; reason?: string }) =>
-      unwrapApi(await takedownCommunity(did, reason)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'communities'] });
       queryClient.invalidateQueries({ queryKey: ['communities'] });

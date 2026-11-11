@@ -13,7 +13,6 @@ import type {
   ListPeersResponse,
   ResolveJoinRequestResponse,
   SuspendCommunityResponse,
-  TakedownCommunityResponse,
   UnsuspendCommunityResponse,
   UpdateCommunityResponse,
 } from './types';
@@ -117,12 +116,6 @@ export async function suspendCommunity(did: string, reason?: string) {
 export async function unsuspendCommunity(did: string) {
   return xrpc<UnsuspendCommunityResponse>('net.openfederation.community.unsuspend', {
     body: { did },
-  });
-}
-
-export async function takedownCommunity(did: string, reason?: string) {
-  return xrpc<TakedownCommunityResponse>('net.openfederation.community.takedown', {
-    body: { did, reason },
   });
 }
 
