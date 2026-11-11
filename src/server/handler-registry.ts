@@ -240,9 +240,11 @@ const handlers = Object.freeze({
   'net.openfederation.account.register': { handler: registerAccount, limiter: registrationLimiter },
   'net.openfederation.account.registerSelfCustody': { handler: registerSelfCustody, limiter: registrationLimiter },
   'net.openfederation.identity.verifyRecord': { handler: verifyRecord, limiter: discoveryLimiter },
-  'net.openfederation.identity.recoverAssistedAccount': { handler: recoverAssistedAccount, limiter: createLimiter },
-  'net.openfederation.identity.prepareCustodyChange': { handler: prepareCustodyChange, limiter: createLimiter },
-  'net.openfederation.identity.finalizeCustodyChange': { handler: finalizeCustodyChange, limiter: createLimiter },
+  // Password-checked like a login, and one change takes two calls: the auth
+  // limiter, not the 10/hour creation one.
+  'net.openfederation.identity.recoverAssistedAccount': { handler: recoverAssistedAccount, limiter: authLimiter },
+  'net.openfederation.identity.prepareCustodyChange': { handler: prepareCustodyChange, limiter: authLimiter },
+  'net.openfederation.identity.finalizeCustodyChange': { handler: finalizeCustodyChange, limiter: authLimiter },
   'net.openfederation.account.reserveCustodyKey': { handler: reserveCustodyKey, limiter: createLimiter },
   'net.openfederation.account.approve': { handler: approveAccount },
   'net.openfederation.account.reject': { handler: rejectAccount },

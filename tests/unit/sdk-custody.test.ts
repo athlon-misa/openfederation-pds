@@ -11,7 +11,7 @@ import { sha256 } from '@noble/hashes/sha2';
 import { hmac } from '@noble/hashes/hmac';
 import {
   generateCustodyPhrase, deriveCustodyKeys, buildCustodyGenesisOp, buildCustodyChangeOp, signPlcOperation,
-  didForGenesisOp, cidForPlcOp, submitPlcOperation, signOwnerRaw, verifyOwnerSignature as sdkVerify,
+  didForGenesisOp, cidForPlcOp, submitPlcOperation, signOwnerRaw, verifyOwnerSignature as sdkVerify, plcOperationSigner,
   ownerChallenge, didKeyFor, rememberPhraseWithPasskey, unlockPhraseWithPasskey, rotationKeysFor,
   type OwnerSignature,
 } from '../../packages/openfederation-sdk/src/custody/index.js';
@@ -107,6 +107,19 @@ describe('PLC operations', () => {
     await submitPlcOperation(PLC, did, genesis);
     const byOwnerKey = signPlcOperation(buildCustodyChangeOp({ previous: genesis, rotationKeys: [pdsKey()], ownerDidKey: null }), keys.ownerPrivateKey);
     await expect(submitPlcOperation(PLC, did, byOwnerKey)).rejects.toThrow(/PLC refused/);
+  });
+});
+
+describe('plcOperationSigner', () => {
+  it('names the rotation key that signed, or null', () => {
+    const user = deriveCustodyKeys(generateCustodyPhrase());
+    const pds = deriveCustodyKeys(generateCustodyPhrase());
+    const op = buildCustodyGenesisOp({ mode: 'assisted', userRotationDidKey: user.rotationDidKey, pdsRotationDidKey: pds.rotationDidKey,
+      atprotoDidKey: pds.ownerDidKey, ownerDidKey: user.ownerDidKey, handle: 'signer.example.test', pdsEndpoint: 'https://pds.example.test' });
+    const keys = [user.rotationDidKey, pds.rotationDidKey];
+    expect(plcOperationSigner(signPlcOperation(op, user.rotationPrivateKey), keys)).toBe(user.rotationDidKey);
+    expect(plcOperationSigner(signPlcOperation(op, pds.rotationPrivateKey), keys)).toBe(pds.rotationDidKey);
+    expect(plcOperationSigner(signPlcOperation(op, user.ownerPrivateKey), keys)).toBeNull();
   });
 });
 

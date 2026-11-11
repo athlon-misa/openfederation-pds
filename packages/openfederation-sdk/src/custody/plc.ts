@@ -7,7 +7,8 @@
 import * as dagCbor from '@ipld/dag-cbor';
 import { sha256 } from '@noble/hashes/sha2';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { base32Lower, base64UrlEncode } from './encoding.js';
+import { p256 } from '@noble/curves/p256';
+import { base32Lower, base64UrlDecode, base64UrlEncode, parseDidKey } from './encoding.js';
 
 export type SelfCustodyMode = 'assisted' | 'self';
 
@@ -120,4 +121,24 @@ export function buildCancelOp(before: SignedPlcOperation): PlcOperation {
     alsoKnownAs: [...before.alsoKnownAs],
     services: { atproto_pds: { ...before.services.atproto_pds } },
   };
+}
+
+/**
+ * Which of `rotationKeys` signed a PLC operation (the keys of the state
+ * before it), or null. Tells a client whether a change was made by the
+ * person's own key or by a lower one it may still cancel (buildCancelOp).
+ */
+export function plcOperationSigner(op: SignedPlcOperation, rotationKeys: string[]): string | null {
+  const { sig, ...unsigned } = op;
+  let sigBytes: Uint8Array;
+  try { sigBytes = base64UrlDecode(sig); } catch { return null; }
+  const digest = sha256(dagCbor.encode(unsigned));
+  for (const key of rotationKeys) {
+    try {
+      const { curve, publicKey } = parseDidKey(key);
+      const c = curve === 'secp256k1' ? secp256k1 : p256;
+      if (c.verify(sigBytes, digest, publicKey, { lowS: false })) return key;
+    } catch { /* not a key we can check */ }
+  }
+  return null;
 }

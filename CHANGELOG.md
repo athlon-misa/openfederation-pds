@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`@open-federation/sdk/custody`: `plcOperationSigner(op, rotationKeys)`** names the rotation key that signed a PLC operation, so a client can tell a change the person made from one the server's backup key made in `assisted`, which the person may still cancel.
+
+### Changed
+
+- **Custody changes and assisted recovery use the login rate limit** (`AUTH_RATE_LIMIT`, 20 per 15 minutes per IP) instead of the creation limit (10 per hour). `identity.prepareCustodyChange`, `finalizeCustodyChange` and `recoverAssistedAccount` check the password like a login, and a single change takes two calls, so the creation limit ran out after a few changes from one address.
+
 ## [1.5.0] - 2026-11-12
 
 ### Added
