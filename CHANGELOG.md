@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A takedown no longer requires a prior export (`ExportRequired` is gone from `community.takedown` and `updateSubjectStatus`); the export window replaces it. Both endpoints now apply a standard takedown.
 - `community.export` and `account.export` refuse the owner during a hard takedown (`TakenDown`); admins can still export.
 - `community.delete` now also removes the community's blobs.
+- Dashboard: takedowns of accounts and communities open one dialog to choose standard or hard, with a required reason and, for hard, an option not to notify the owner. Takedown is offered for active and suspended subjects alike (no suspension first), communities can have a takedown reversed, and suspending a community takes an optional reason.
 
 ### Fixed
 

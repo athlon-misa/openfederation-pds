@@ -8,8 +8,7 @@ import {
   useRejectAccountMutation,
   useSuspendAccountMutation,
   useUnsuspendAccountMutation,
-  useTakedownAccountMutation,
-  useReverseTakedownAccountMutation,
+  useAdminReverseTakedownMutation,
   useExportAccountMutation,
   useDeleteAccountMutation,
   useUpdateRolesMutation,
@@ -19,6 +18,7 @@ import { DataTable } from '@/components/data-table/data-table';
 import { StatusBadge } from '@/components/status-badge';
 import { RoleBadge } from '@/components/role-badge';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { TakedownDialog } from '@/components/takedown-dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -53,7 +53,7 @@ export default function AdminUsersPage() {
 
   const [actionTarget, setActionTarget] = useState<{
     did: string;
-    action: 'suspend' | 'unsuspend' | 'takedown' | 'reverseTakedown' | 'export' | 'delete';
+    action: 'suspend' | 'unsuspend' | 'reverseTakedown' | 'export' | 'delete';
     handle: string;
   } | null>(null);
   const [reason, setReason] = useState('');
@@ -74,8 +74,8 @@ export default function AdminUsersPage() {
   const rejectMutation = useRejectAccountMutation();
   const suspendMutation = useSuspendAccountMutation();
   const unsuspendMutation = useUnsuspendAccountMutation();
-  const takedownMutation = useTakedownAccountMutation();
-  const reverseTakedownMutation = useReverseTakedownAccountMutation();
+  const reverseTakedownMutation = useAdminReverseTakedownMutation();
+  const [takedownTarget, setTakedownTarget] = useState<{ did: string; handle: string } | null>(null);
   const exportMutation = useExportAccountMutation();
   const deleteMutation = useDeleteAccountMutation();
   const updateRolesMutation = useUpdateRolesMutation();
@@ -91,11 +91,6 @@ export default function AdminUsersPage() {
     } else if (action === 'unsuspend') {
       unsuspendMutation.mutate(did, {
         onSuccess: () => { toast.success('Account unsuspended'); setActionTarget(null); },
-        onError: (e) => toast.error(e.message),
-      });
-    } else if (action === 'takedown') {
-      takedownMutation.mutate({ did, reason: reason || undefined }, {
-        onSuccess: () => { toast.success('Account taken down'); setActionTarget(null); setReason(''); },
         onError: (e) => toast.error(e.message),
       });
     } else if (action === 'reverseTakedown') {
@@ -118,7 +113,7 @@ export default function AdminUsersPage() {
 
   const actionMutationPending =
     suspendMutation.isPending || unsuspendMutation.isPending ||
-    takedownMutation.isPending || reverseTakedownMutation.isPending ||
+    reverseTakedownMutation.isPending ||
     exportMutation.isPending || deleteMutation.isPending;
 
   const columns: ColumnDef<AccountListItem, unknown>[] = [
@@ -199,16 +194,14 @@ export default function AdminUsersPage() {
               </Button>
             )}
             {u.status === 'suspended' && !isTargetAdmin && (
-              <>
-                <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'unsuspend', handle: u.handle })}>
-                  Unsuspend
-                </Button>
-                {callerIsAdmin && (
-                  <Button size="sm" variant="destructive" onClick={() => setActionTarget({ did: u.did, action: 'takedown', handle: u.handle })}>
-                    Takedown
-                  </Button>
-                )}
-              </>
+              <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'unsuspend', handle: u.handle })}>
+                Unsuspend
+              </Button>
+            )}
+            {(u.status === 'approved' || u.status === 'suspended') && !isTargetAdmin && callerIsAdmin && (
+              <Button size="sm" variant="destructive" onClick={() => setTakedownTarget({ did: u.did, handle: u.handle })}>
+                Takedown
+              </Button>
             )}
             {u.status === 'takendown' && callerIsAdmin && (
               <Button size="sm" variant="outline" onClick={() => setActionTarget({ did: u.did, action: 'reverseTakedown', handle: u.handle })}>
@@ -239,8 +232,6 @@ export default function AdminUsersPage() {
         return { title: 'Suspend account', description: `Suspend @${handle}? Their sessions will be revoked.`, variant: 'default' as const };
       case 'unsuspend':
         return { title: 'Unsuspend account', description: `Unsuspend @${handle}?`, variant: 'default' as const };
-      case 'takedown':
-        return { title: 'Take down account', description: `Take down @${handle}? They get a private export link; the account is deleted after 30 days.`, variant: 'destructive' as const };
       case 'reverseTakedown':
         return { title: 'Reverse takedown', description: `Reverse takedown for @${handle}? The account returns to its previous status.`, variant: 'default' as const };
       case 'export':
@@ -254,7 +245,6 @@ export default function AdminUsersPage() {
   const confirmLabels: Record<string, string> = {
     suspend: 'Suspend',
     unsuspend: 'Unsuspend',
-    takedown: 'Take Down',
     reverseTakedown: 'Reverse Takedown',
     export: 'Export',
     delete: 'Delete',
@@ -374,7 +364,7 @@ export default function AdminUsersPage() {
           loading={actionMutationPending}
           onConfirm={handleAction}
         >
-          {(actionTarget.action === 'suspend' || actionTarget.action === 'takedown') && (
+          {actionTarget.action === 'suspend' && (
             <Textarea
               placeholder="Reason (optional)"
               value={reason}
@@ -384,6 +374,11 @@ export default function AdminUsersPage() {
           )}
         </ConfirmDialog>
       )}
+
+      <TakedownDialog
+        target={takedownTarget ? { ...takedownTarget, kind: 'account' } : null}
+        onClose={() => setTakedownTarget(null)}
+      />
     </div>
   );
 }
