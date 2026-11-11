@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.getSecurityLevel",
-  "revision": 3,
-  "description": "Get the current security posture and recovery tier for the authenticated user.",
+  "revision": 4,
+  "description": "Get the account's custody status. All tiers are custodial (this server holds the rotation key); the tier records an escrow provider on record and whether the user has exported their own copy of the key.",
   "defs": {
     "main": {
       "type": "query",
@@ -19,18 +19,18 @@
           "properties": {
             "recoveryTier": {
               "type": "integer",
-              "description": "Recovery tier level (1=standard, 2=enhanced, 3=self-custodial).",
+              "description": "Recovery tier (1 = custodial, 2 = escrow provider recorded, 3 = key exported). All tiers are custodial.",
               "minimum": 1,
               "maximum": 3
             },
             "tierName": {
               "type": "string",
-              "description": "Human-readable tier name.",
-              "enum": [
-                "standard",
-                "enhanced",
-                "self-custodial"
-              ]
+              "knownValues": [
+                "custodial",
+                "escrow-recorded",
+                "key-exported"
+              ],
+              "description": "Every tier is custodial: this server holds the rotation key. escrow-recorded: an escrow provider is on record (the share stays here). key-exported: the user also holds a copy of the rotation key."
             },
             "checklist": {
               "type": "ref",
@@ -39,6 +39,10 @@
             "upgradePath": {
               "type": "string",
               "description": "Suggestion for next security upgrade, or null if at maximum tier."
+            },
+            "pdsHoldsRotationKey": {
+              "type": "boolean",
+              "description": "True when this server can rebuild the account's rotation key on its own."
             }
           }
         }

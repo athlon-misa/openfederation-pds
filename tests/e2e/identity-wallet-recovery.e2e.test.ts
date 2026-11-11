@@ -116,7 +116,7 @@ describe('Identity + Wallet + Recovery', () => {
     expect(res.body.recoveryTier).toBe(2);
   });
 
-  it('step 6: security level Tier 2, enhanced, escrowRegistered: true', async () => {
+  it('step 6: security level Tier 2, escrow-recorded, escrowRegistered: true', async () => {
     if (!plcAvailable) return;
 
     const res = await xrpcAuthGet(
@@ -126,7 +126,7 @@ describe('Identity + Wallet + Recovery', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.recoveryTier).toBe(2);
-    expect(res.body.tierName).toBe('enhanced');
+    expect(res.body.tierName).toBe('escrow-recorded');
     expect(res.body.checklist.escrowRegistered).toBe(true);
   });
 

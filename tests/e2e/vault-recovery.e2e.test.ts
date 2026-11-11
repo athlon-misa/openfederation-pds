@@ -50,7 +50,7 @@ describe('Vault Recovery', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.recoveryTier).toBe(1);
-    expect(res.body.tierName).toBe('standard');
+    expect(res.body.tierName).toBe('custodial');
     expect(res.body.checklist.vaultShares).toBe(true);
     expect(res.body.checklist.escrowRegistered).toBe(false);
   });
@@ -83,7 +83,7 @@ describe('Vault Recovery', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.recoveryTier).toBe(2);
-    expect(res.body.tierName).toBe('enhanced');
+    expect(res.body.tierName).toBe('escrow-recorded');
     expect(res.body.checklist.escrowRegistered).toBe(true);
   });
 

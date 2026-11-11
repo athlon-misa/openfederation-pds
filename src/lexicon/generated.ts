@@ -338,6 +338,7 @@ export type NetOpenfederationAccountGetSecurityLevelOutput = {
   "keyExported": boolean;
 };
   "upgradePath"?: string;
+  "pdsHoldsRotationKey"?: boolean;
 };
 export type NetOpenfederationAccountGetSecurityLevelError = "NotFound";
 
@@ -2191,9 +2192,10 @@ export type NetOpenfederationVaultExportRecoveryKeyInput = {
   "verificationToken"?: string;
 };
 export type NetOpenfederationVaultExportRecoveryKeyOutput = {
-  "share": string;
   "recoveryTier": number;
   "message"?: string;
+  "rotationKey": string;
+  "pdsHoldsRotationKey"?: boolean;
 };
 export type NetOpenfederationVaultExportRecoveryKeyError = "ShareNotFound" | "VerificationFailed" | "VerificationRequired";
 
@@ -2221,6 +2223,7 @@ export type NetOpenfederationVaultRegisterEscrowOutput = {
   "recoveryTier": number;
   "escrowProviderDid": string;
   "message"?: string;
+  "shareStoredHere"?: boolean;
 };
 export type NetOpenfederationVaultRegisterEscrowError = "EscrowAlreadyRegistered" | "InvalidRequest" | "ShareNotFound";
 
@@ -3076,7 +3079,7 @@ export const lexiconContracts = {
   'net.openfederation.account.confirmPasswordReset': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
   'net.openfederation.account.export': { revision: 5, errors: ["ExportTooLarge", "Forbidden", "NotFound", "TakenDown"] as const },
   'net.openfederation.account.getProfile': { revision: 2, errors: ["InvalidRequest", "ProfileNotFound", "RepoNotFound", "RepoTakendown"] as const },
-  'net.openfederation.account.getSecurityLevel': { revision: 3, errors: ["NotFound"] as const },
+  'net.openfederation.account.getSecurityLevel': { revision: 4, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
   'net.openfederation.account.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
@@ -3223,9 +3226,9 @@ export const lexiconContracts = {
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 3, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },
-  'net.openfederation.vault.exportRecoveryKey': { revision: 2, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
+  'net.openfederation.vault.exportRecoveryKey': { revision: 3, errors: ["ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
   'net.openfederation.vault.getCustodialSecret': { revision: 4, errors: ["NotFound", "WalletAddressRequired"] as const },
-  'net.openfederation.vault.registerEscrow': { revision: 1, errors: ["EscrowAlreadyRegistered", "InvalidRequest", "ShareNotFound"] as const },
+  'net.openfederation.vault.registerEscrow': { revision: 2, errors: ["EscrowAlreadyRegistered", "InvalidRequest", "ShareNotFound"] as const },
   'net.openfederation.vault.requestShareRelease': { revision: 1, errors: ["ShareNotFound", "VerificationRequired"] as const },
   'net.openfederation.vault.storeCustodialSecret': { revision: 2, errors: [] as const },
   'net.openfederation.wallet.approveConsentRequest': { revision: 1, errors: ["AccountLocked", "AlreadySettled", "Expired", "Forbidden", "InvalidPassword", "InvalidRequest", "NotFound"] as const },

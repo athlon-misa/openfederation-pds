@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.vault.registerEscrow",
-  "revision": 1,
-  "description": "Register an external escrow provider for the user's Share 3.",
+  "revision": 2,
+  "description": "Record an escrow provider for share 3 of the rotation key. The share stays on this server: no transfer to the provider exists yet.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -52,6 +52,10 @@
             },
             "message": {
               "type": "string"
+            },
+            "shareStoredHere": {
+              "type": "boolean",
+              "description": "Always true for now: the provider is on record but share 3 stays on this server; no transfer exists yet."
             }
           }
         }

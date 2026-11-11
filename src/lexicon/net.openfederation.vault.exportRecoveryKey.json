@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.vault.exportRecoveryKey",
-  "revision": 2,
-  "description": "Export the vault share for self-custodial key reconstruction.",
+  "revision": 3,
+  "description": "Export the account's PLC rotation key: a working backup the user can sign PLC operations with. Requires an identity verification (admin.verifyChallenge) in the last 30 minutes; each verification allows one export. This server keeps the key too (custodial).",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Returns Share 2 (vault share) for the user to combine with their device Share 1. Requires elevated verification. Upgrades recovery tier to 3.",
+      "description": "Export the account's PLC rotation key: a working backup the user can sign PLC operations with. Requires an identity verification (admin.verifyChallenge) in the last 30 minutes; each verification allows one export. This server keeps the key too (custodial).",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -24,20 +24,24 @@
         "schema": {
           "type": "object",
           "required": [
-            "share",
-            "recoveryTier"
+            "recoveryTier",
+            "rotationKey"
           ],
           "properties": {
-            "share": {
-              "type": "string",
-              "description": "The decrypted vault share (hex-encoded Shamir share)."
-            },
             "recoveryTier": {
               "type": "integer",
-              "description": "Updated recovery tier (3 = self-custodial)."
+              "description": "Updated recovery tier (3 = key exported)."
             },
             "message": {
               "type": "string"
+            },
+            "rotationKey": {
+              "type": "string",
+              "description": "The PLC rotation key, secp256k1 private key bytes, base64. Whoever holds it controls the identity."
+            },
+            "pdsHoldsRotationKey": {
+              "type": "boolean",
+              "description": "Always true: this server keeps its copy."
             }
           }
         }

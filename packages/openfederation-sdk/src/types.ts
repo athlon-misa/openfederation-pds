@@ -311,7 +311,9 @@ export interface SignInWithOpenFederationOptions {
 
 export interface SecurityLevel {
   recoveryTier: number;
-  tierName: 'standard' | 'enhanced' | 'self-custodial';
+  /** Every tier is custodial: the PDS holds the rotation key (see pdsHoldsRotationKey). */
+  tierName: 'custodial' | 'escrow-recorded' | 'key-exported';
+  pdsHoldsRotationKey: boolean;
   checklist: {
     passkey: boolean;
     recoveryEmail: boolean;

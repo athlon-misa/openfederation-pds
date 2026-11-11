@@ -95,7 +95,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 
 - Code: registration splits the PLC rotation key 2-of-3 (`secrets.js-grempe`, `src/identity/user-identity.ts`); shares 2 and 3 encrypted in `vault_shares`; `vault_audit_log`; `escrow_providers`
 - XRPC endpoints registered: `vault.requestShareRelease`, `vault.exportRecoveryKey`, `vault.registerEscrow`, `vault.auditLog`, `account.getSecurityLevel`, plus `vault.storeCustodialSecret` / `getCustodialSecret`
-- Recovery tiers: T1 identity verification by emailed code, T2 escrow, T3 "self-custodial"; security level endpoint
+- Custody tiers, all custodial (#239): this PDS holds shares 2 and 3 of every user's rotation key, a quorum. T1 `custodial`, T2 `escrow-recorded` (a provider on record; the share stays here, no transfer exists), T3 `key-exported` (the user also holds the rotation key, from `vault.exportRecoveryKey`, one export per identity verification). `getSecurityLevel` reports `pdsHoldsRotationKey`. Real self-custody (no rotation key on the PDS) is the planned `self` custody mode.
 - Custodial Secret Storage: opaque encrypted blobs per user per chain, FK-cascaded on account delete
 - `tests/api/vault-recovery-e2e.test.ts`: shares 2 + 3 rebuild the rotation key the PLC directory lists; storage encryption and secret rotation; release, export, escrow, security level and audit rows. It also pins the custody gaps in [#239](https://github.com/athlon-misa/openfederation-pds/issues/239): share 1 never reaches a client, tier 3 deletes nothing, escrow only relabels share 3
 - Not exercised: the emailed code on staging, and a real escrow provider (there is no transfer to, or retrieval from, one)

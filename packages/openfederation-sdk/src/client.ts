@@ -454,22 +454,26 @@ export class OpenFederationClient implements AuthProvider {
   }
 
   /**
-   * Register an escrow provider for enhanced recovery.
+   * Record an escrow provider for share 3 of the rotation key. The share stays
+   * on the PDS (`shareStoredHere: true`): no transfer to the provider exists yet.
    */
-  async registerEscrow(opts: RegisterEscrowOptions): Promise<{ success: boolean; recoveryTier: number; escrowProviderDid: string }> {
+  async registerEscrow(opts: RegisterEscrowOptions): Promise<{ success: boolean; recoveryTier: number; escrowProviderDid: string; shareStoredHere: boolean }> {
     return this.fetch('net.openfederation.vault.registerEscrow', {
       method: 'POST',
       body: opts as unknown as Record<string, unknown>,
-    }) as Promise<{ success: boolean; recoveryTier: number; escrowProviderDid: string }>;
+    }) as Promise<{ success: boolean; recoveryTier: number; escrowProviderDid: string; shareStoredHere: boolean }>;
   }
 
   /**
-   * Export a recovery key share for self-custodial backup.
+   * Export the account's PLC rotation key (secp256k1, base64): the user's own
+   * backup, enough to sign PLC operations and move without the PDS's help.
+   * The PDS keeps its copy (custodial). Needs a fresh identity verification
+   * per export.
    */
-  async exportRecoveryKey(): Promise<{ share: string; recoveryTier: number }> {
+  async exportRecoveryKey(): Promise<{ rotationKey: string; recoveryTier: number; pdsHoldsRotationKey: boolean }> {
     return this.fetch('net.openfederation.vault.exportRecoveryKey', {
       method: 'POST',
-    }) as Promise<{ share: string; recoveryTier: number }>;
+    }) as Promise<{ rotationKey: string; recoveryTier: number; pdsHoldsRotationKey: boolean }>;
   }
 
   /**
