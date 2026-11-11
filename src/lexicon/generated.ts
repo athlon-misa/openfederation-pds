@@ -169,6 +169,14 @@ export type ComAtprotoServerDeactivateAccountInput = unknown;
 export type ComAtprotoServerDeactivateAccountOutput = unknown;
 export type ComAtprotoServerDeactivateAccountError = "AlreadyDeactivated" | "InvalidStatus" | "NotFound";
 
+export type ComAtprotoServerDeleteAccountInput = {
+  "did": string;
+  "password"?: string;
+  "token"?: string;
+};
+export type ComAtprotoServerDeleteAccountOutput = undefined;
+export type ComAtprotoServerDeleteAccountError = "AccountDeactivated" | "AccountLocked" | "AccountModerated" | "AuthRequired" | "ExpiredToken" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "UpstreamFailure";
+
 export type ComAtprotoServerDeleteSessionInput = unknown;
 export type ComAtprotoServerDeleteSessionOutput = unknown;
 export type ComAtprotoServerDeleteSessionError = never;
@@ -190,6 +198,10 @@ export type ComAtprotoServerGetSessionError = never;
 export type ComAtprotoServerRefreshSessionInput = unknown;
 export type ComAtprotoServerRefreshSessionOutput = unknown;
 export type ComAtprotoServerRefreshSessionError = never;
+
+export type ComAtprotoServerRequestAccountDeleteInput = undefined;
+export type ComAtprotoServerRequestAccountDeleteOutput = undefined;
+export type ComAtprotoServerRequestAccountDeleteError = "Forbidden" | "InvalidRequest";
 
 export type ComAtprotoServerRequestEmailConfirmationInput = JsonObject;
 export type ComAtprotoServerRequestEmailConfirmationOutput = {
@@ -2386,10 +2398,12 @@ export interface LexiconInputMap {
   'com.atproto.server.createAccount': ComAtprotoServerCreateAccountInput;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionInput;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountInput;
+  'com.atproto.server.deleteAccount': ComAtprotoServerDeleteAccountInput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionInput;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthInput;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionInput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionInput;
+  'com.atproto.server.requestAccountDelete': ComAtprotoServerRequestAccountDeleteInput;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationInput;
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyInput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobInput;
@@ -2592,10 +2606,12 @@ export interface LexiconOutputMap {
   'com.atproto.server.createAccount': ComAtprotoServerCreateAccountOutput;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionOutput;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountOutput;
+  'com.atproto.server.deleteAccount': ComAtprotoServerDeleteAccountOutput;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionOutput;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthOutput;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionOutput;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionOutput;
+  'com.atproto.server.requestAccountDelete': ComAtprotoServerRequestAccountDeleteOutput;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationOutput;
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyOutput;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobOutput;
@@ -2798,10 +2814,12 @@ export interface LexiconErrorMap {
   'com.atproto.server.createAccount': ComAtprotoServerCreateAccountError;
   'com.atproto.server.createSession': ComAtprotoServerCreateSessionError;
   'com.atproto.server.deactivateAccount': ComAtprotoServerDeactivateAccountError;
+  'com.atproto.server.deleteAccount': ComAtprotoServerDeleteAccountError;
   'com.atproto.server.deleteSession': ComAtprotoServerDeleteSessionError;
   'com.atproto.server.getServiceAuth': ComAtprotoServerGetServiceAuthError;
   'com.atproto.server.getSession': ComAtprotoServerGetSessionError;
   'com.atproto.server.refreshSession': ComAtprotoServerRefreshSessionError;
+  'com.atproto.server.requestAccountDelete': ComAtprotoServerRequestAccountDeleteError;
   'com.atproto.server.requestEmailConfirmation': ComAtprotoServerRequestEmailConfirmationError;
   'com.atproto.server.reserveSigningKey': ComAtprotoServerReserveSigningKeyError;
   'com.atproto.sync.getBlob': ComAtprotoSyncGetBlobError;
@@ -3006,10 +3024,12 @@ export const lexiconContracts = {
   'com.atproto.server.createAccount': { revision: 3, errors: ["AlreadyExists", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
+  'com.atproto.server.deleteAccount': { revision: 1, errors: ["AccountDeactivated", "AccountLocked", "AccountModerated", "AuthRequired", "ExpiredToken", "InvalidPassword", "InvalidRequest", "InvalidToken", "UpstreamFailure"] as const },
   'com.atproto.server.deleteSession': { revision: 1, errors: [] as const },
   'com.atproto.server.getServiceAuth': { revision: 1, errors: ["BadExpiration", "InvalidRequest", "NoSigningKey"] as const },
   'com.atproto.server.getSession': { revision: 3, errors: [] as const },
   'com.atproto.server.refreshSession': { revision: 1, errors: [] as const },
+  'com.atproto.server.requestAccountDelete': { revision: 1, errors: ["Forbidden", "InvalidRequest"] as const },
   'com.atproto.server.requestEmailConfirmation': { revision: 2, errors: ["AccountNotFound", "EmailDeliveryFailed", "NoEmail", "VerificationDisabled"] as const },
   'com.atproto.server.reserveSigningKey': { revision: 2, errors: [] as const },
   'com.atproto.sync.getBlob': { revision: 2, errors: ["BlobNotFound", "RepoNotFound", "RepoTakendown"] as const },

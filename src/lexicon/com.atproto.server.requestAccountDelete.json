@@ -1,0 +1,22 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.requestAccountDelete",
+  "revision": 1,
+  "description": "Initiate a user account deletion via email (AT Protocol standard). Emails a code to the signed-in account, valid 15 minutes. Allowed with the limited session of a deactivated account, so a copy left behind by a move can be removed.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Initiate a user account deletion via email (AT Protocol standard). Emails a code to the signed-in account, valid 15 minutes. Allowed with the limited session of a deactivated account, so a copy left behind by a move can be removed.",
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "The account has no email (a pseudonym deletes itself with its owner key)."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Service-auth callers must use a session on this server."
+        }
+      ]
+    }
+  }
+}

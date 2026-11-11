@@ -1,0 +1,73 @@
+{
+  "lexicon": 1,
+  "id": "com.atproto.server.deleteAccount",
+  "revision": 1,
+  "description": "Delete an actor's account with a token and password (AT Protocol standard). Extension: a pseudonym omits password and token and sends a Bearer JWT signed by its owner key (lxm = this method, iss = did, at most 5 minutes). Allowed for an active account, or a deactivated copy whose DID now names another server; refused for a deactivated account the DID still names here, and for suspended or taken-down accounts.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Delete an actor's account with a token and password (AT Protocol standard). Extension: a pseudonym omits password and token and sends a Bearer JWT signed by its owner key (lxm = this method, iss = did, at most 5 minutes). Allowed for an active account, or a deactivated copy whose DID now names another server; refused for a deactivated account the DID still names here, and for suspended or taken-down accounts.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "password": {
+              "type": "string",
+              "description": "Required for user accounts."
+            },
+            "token": {
+              "type": "string",
+              "description": "The code from requestAccountDelete. Required for user accounts."
+            }
+          },
+          "required": [
+            "did"
+          ]
+        }
+      },
+      "errors": [
+        {
+          "name": "ExpiredToken",
+          "description": "The code has expired."
+        },
+        {
+          "name": "InvalidToken",
+          "description": "The code (or the pseudonym's proof) is invalid, expired or already used."
+        },
+        {
+          "name": "InvalidRequest",
+          "description": "Missing fields, or the account cannot be deleted in its state."
+        },
+        {
+          "name": "InvalidPassword",
+          "description": "Wrong password."
+        },
+        {
+          "name": "AccountLocked",
+          "description": "Too many failed password attempts."
+        },
+        {
+          "name": "AuthRequired",
+          "description": "A pseudonym's owner-key proof is missing."
+        },
+        {
+          "name": "AccountDeactivated",
+          "description": "Deactivated while the DID still names this server: reactivate first."
+        },
+        {
+          "name": "AccountModerated",
+          "description": "Suspended or taken down: only moderation can remove it."
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The PLC directory could not be reached."
+        }
+      ]
+    }
+  }
+}
