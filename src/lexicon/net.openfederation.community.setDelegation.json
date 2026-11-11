@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.setDelegation",
-  "revision": 4,
+  "revision": 5,
   "description": "Delegate your governance vote to another member.",
   "defs": {
     "main": {
@@ -66,6 +66,14 @@
         {
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The caller lacks the required community permission."
         }
       ]
     }

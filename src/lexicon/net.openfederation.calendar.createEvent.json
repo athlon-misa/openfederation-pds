@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.createEvent",
-  "revision": 5,
+  "revision": 6,
   "description": "Create a community event. Writes a community.lexicon.calendar.event record to the community repo. Requires community.calendar.write.",
   "defs": {
     "main": {
@@ -108,6 +108,10 @@
         {
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
         }
       ]
     }

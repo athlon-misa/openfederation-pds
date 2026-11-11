@@ -4,7 +4,7 @@ import { throwXrpc } from '../../xrpc/errors.js';
 import { auditLog } from '../../db/audit.js';
 import {
   requireString,
-  getCommunityOwner, ensureCommunityWritable,
+  getCommunityOwner, ensureCommunityVisible, ensureCommunityWritable,
   getMemberRkey,
   deleteMemberRecord,
   getUserIdByDid,
@@ -23,6 +23,7 @@ export async function removeMemberLifecycle(
 ): Promise<{ success: true }> {
   const communityDid = requireString(input.did, REMOVE_NSID, 'Missing required fields: did, memberDid');
   const memberDid = requireString(input.memberDid, REMOVE_NSID, 'Missing required fields: did, memberDid');
+  await ensureCommunityVisible(communityDid, caller, REMOVE_NSID);
   await ensureCommunityWritable(communityDid, REMOVE_NSID);
   const community = await getCommunityOwner(communityDid, REMOVE_NSID);
 

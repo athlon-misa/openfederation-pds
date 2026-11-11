@@ -173,7 +173,8 @@ app.get('/blob/:did/:cid', async (req: Request, res: Response) => {
     }
     // Same rule as com.atproto.sync.getBlob: nothing from a taken-down
     // account, nor from a private community to outsiders.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
+    if (!(await requireRepoReadable(req as AuthRequest, res, did,
+      () => res.status(404).json({ error: 'BlobNotFound', message: 'Blob not found' })))) return;
 
     // Public blob URLs are CID-addressed and bound to the owning DID. Never
     // pass arbitrary storage keys (for example scheduled export paths) to the

@@ -22,7 +22,8 @@ export default async function listWalletsPublic(req: AuthRequest, res: Response)
       return;
     }
     // A taken-down account (or a private community) is not served to the public.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
+    if (!(await requireRepoReadable(req as AuthRequest, res, did,
+      () => res.status(200).json({ did, handle: null, wallets: [] })))) return;
 
     const result = await query<{
       chain: string;

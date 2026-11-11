@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
-import { requireAuth } from '../auth/guards.js';
+import { requireAuth, isHiddenCommunity } from '../auth/guards.js';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
@@ -19,7 +19,7 @@ export default async function activateCommunity(req: AuthRequest, res: Response)
   try {
     const c = (await query<{ status: string; owner_did: string | null; from_pds: string | null }>(
       'SELECT status, owner_did, from_pds FROM communities WHERE did = $1', [did])).rows[0];
-    if (!c) throw new CommunityMoveError(404, 'NotFound', 'No copy of this community here');
+    if (!c || await isHiddenCommunity(req, did)) throw new CommunityMoveError(404, 'NotFound', 'No copy of this community here');
     if (c.owner_did !== req.auth.did && !req.auth.roles.includes('admin')) {
       throw new CommunityMoveError(403, 'Forbidden', 'Only the community owner can activate it');
     }

@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.unlinkApplication",
-  "revision": 3,
+  "revision": 4,
   "description": "Remove a linked application from a community.",
   "defs": {
     "main": {
@@ -70,6 +70,10 @@
         {
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
+        },
+        {
+          "name": "NotMember",
+          "description": "The caller is not a member of this community."
         }
       ]
     }

@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import type { AuthRequest, AuthContext } from '../auth/types.js';
-import { requireAuth, requireApprovedUser, requireActiveCommunity, requireCommunityPermission } from '../auth/guards.js';
+import { requireAuth, requireApprovedUser, requireActiveCommunity, requireCommunityPermission, requireCommunityVisible } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
@@ -30,6 +30,7 @@ export default async function unlinkApplication(req: AuthRequest, res: Response)
     }
 
     // Ensure community is active
+    if (!(await requireCommunityVisible(req, res, communityDid))) return;
     const community = await requireActiveCommunity(communityDid, res);
     if (!community) return;
 

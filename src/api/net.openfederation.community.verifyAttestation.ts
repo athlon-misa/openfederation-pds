@@ -50,13 +50,8 @@ export default async function verifyAttestation(req: AuthRequest, res: Response)
 
       const pdsUrl = await resolveDidToPds(communityDid);
       if (!pdsUrl) {
-        res.status(200).json({
-          valid: false,
-          communityDid,
-          communityHandle: null,
-          remote: true,
-          error: 'Could not resolve community DID to a PDS',
-        });
+        // Same answer as a private community the caller cannot see.
+        res.status(404).json({ error: 'NotFound', message: 'Community not found' });
         return;
       }
 

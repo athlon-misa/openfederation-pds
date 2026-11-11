@@ -1,7 +1,7 @@
 import type { AuthContext } from '../../auth/types.js';
 import { query } from '../../db/client.js';
 import { throwXrpc } from '../../xrpc/errors.js';
-import { requireString, getCommunityOwner, ensureCommunityWritable, getMemberRkey, deleteMemberRecord } from './utils.js';
+import { requireString, getCommunityOwner, ensureCommunityVisible, ensureCommunityWritable, getMemberRkey, deleteMemberRecord } from './utils.js';
 
 const LEAVE_NSID = 'net.openfederation.community.leave';
 
@@ -14,6 +14,7 @@ export async function leaveCommunityLifecycle(
   input: LeaveCommunityInput,
 ): Promise<{ success: true }> {
   const communityDid = requireString(input.did, LEAVE_NSID, 'Missing required field: did');
+  await ensureCommunityVisible(communityDid, caller, LEAVE_NSID);
   await ensureCommunityWritable(communityDid, LEAVE_NSID);
   const community = await getCommunityOwner(communityDid, LEAVE_NSID);
 

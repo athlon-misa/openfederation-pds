@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.calendar.rsvp",
-  "revision": 5,
+  "revision": 6,
   "description": "RSVP to a community event. Writes a community.lexicon.calendar.rsvp record to the caller's repo.",
   "defs": {
     "main": {
@@ -85,6 +85,10 @@
         {
           "name": "InvalidRequest",
           "description": "The request is malformed."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
         }
       ]
     }

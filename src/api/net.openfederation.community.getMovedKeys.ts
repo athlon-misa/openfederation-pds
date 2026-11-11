@@ -1,3 +1,4 @@
+import { isHiddenCommunity } from '../auth/guards.js';
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
@@ -16,10 +17,14 @@ export default async function getMovedKeys(req: AuthRequest, res: Response): Pro
   try {
     const c = (await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [did])).rows[0];
     if (!c || c.status === 'importing') throw new CommunityMoveError(404, 'NotFound', 'No community with this DID here');
+    // Until the DID points elsewhere, a private community answers like a missing one.
+    const hidden = await isHiddenCommunity(req, did);
+    const refuse = (status: number, code: string, message: string) =>
+      hidden ? new CommunityMoveError(404, 'NotFound', 'No community with this DID here') : new CommunityMoveError(status, code, message);
     const state = await currentPlcState(did);
-    if (!state) throw new CommunityMoveError(400, 'UnresolvableDid', 'DID is not in the PLC directory');
+    if (!state) throw refuse(400, 'UnresolvableDid', 'DID is not in the PLC directory');
     const home = homeOf(state);
-    if (!home) throw new CommunityMoveError(400, 'NotMoved', 'The DID still points to this PDS');
+    if (!home) throw refuse(400, 'NotMoved', 'The DID still points to this PDS');
     const recipient = state.verificationMethods.atproto;
     if (!recipient) throw new CommunityMoveError(400, 'IncompatibleDidDoc', 'The DID names no atproto signing key');
 

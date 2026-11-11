@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.updateRole",
-  "revision": 6,
+  "revision": 7,
   "description": "Update a community role's name, description, or permissions.",
   "defs": {
     "main": {
@@ -104,6 +104,18 @@
         {
           "name": "GovernanceDenied",
           "description": "Governance policy denied this operation."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
+        },
+        {
+          "name": "NotMember",
+          "description": "The caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The caller lacks the required community permission."
         }
       ]
     }

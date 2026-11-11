@@ -16,9 +16,6 @@ export default async function getExternalKey(req: AuthRequest, res: Response): P
       });
       return;
     }
-    // A taken-down account (or a private community) is not served to the public.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
-
     if (!rkey) {
       res.status(400).json({
         error: 'InvalidRequest',
@@ -26,6 +23,9 @@ export default async function getExternalKey(req: AuthRequest, res: Response): P
       });
       return;
     }
+    // A taken-down account (or a private community) is not served to the public.
+    if (!(await requireRepoReadable(req as AuthRequest, res, did,
+      () => res.status(404).json({ error: 'KeyNotFound', message: 'No external key found for the given DID and rkey' })))) return;
 
     const result = await query<{ record: any }>(
       `SELECT record FROM records_index

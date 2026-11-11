@@ -24,7 +24,16 @@ export default async function getDidAugmentation(req: AuthRequest, res: Response
       return;
     }
     // A taken-down account (or a private community) is not served to the public.
-    if (!(await requireRepoReadable(req as AuthRequest, res, did))) return;
+    const respond = (wallets: LinkedWalletInput[]) => res.status(200).json({
+      '@context': [
+        'https://www.w3.org/ns/did/v1',
+        'https://w3id.org/security/suites/secp256k1-2019/v1',
+        'https://w3id.org/security/suites/ed25519-2020/v1',
+      ],
+      did,
+      ...buildDidAugmentation(did, wallets),
+    });
+    if (!(await requireRepoReadable(req as AuthRequest, res, did, () => respond([])))) return;
 
     const result = await query<{
       chain: 'ethereum' | 'solana';
@@ -45,16 +54,7 @@ export default async function getDidAugmentation(req: AuthRequest, res: Response
       isPrimary: r.is_primary,
     }));
 
-    const augmentation = buildDidAugmentation(did, wallets);
-    res.status(200).json({
-      '@context': [
-        'https://www.w3.org/ns/did/v1',
-        'https://w3id.org/security/suites/secp256k1-2019/v1',
-        'https://w3id.org/security/suites/ed25519-2020/v1',
-      ],
-      did,
-      ...augmentation,
-    });
+    respond(wallets);
   } catch (err) {
     console.error('Error in getDidAugmentation:', err);
     if (!res.headersSent) {

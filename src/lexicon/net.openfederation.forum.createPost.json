@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.createPost",
-  "revision": 6,
+  "revision": 7,
   "description": "Create a forum post/reply. Member-only; writes a net.openfederation.forum.post record to the caller's repo.",
   "defs": {
     "main": {
@@ -89,6 +89,10 @@
         {
           "name": "CommunityTakenDown",
           "description": "The community has been taken down."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
         }
       ]
     }

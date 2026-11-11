@@ -2,7 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
-import { getCommunityAccess } from '../community/visibility.js';
+import { getCommunityAccess, canViewPrivateCommunity } from '../community/visibility.js';
 
 /**
  * net.openfederation.community.listJoinRequests
@@ -26,7 +26,7 @@ export default async function listJoinRequests(req: AuthRequest, res: Response):
     }
 
     const access = await getCommunityAccess({ communityDid: did, caller: req.auth });
-    if (!access.exists) {
+    if (!access.exists || (access.visibility === 'private' && !canViewPrivateCommunity(access))) {
       res.status(404).json({ error: 'NotFound', message: 'Community not found' });
       return;
     }
