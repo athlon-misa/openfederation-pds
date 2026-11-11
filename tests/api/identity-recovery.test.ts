@@ -115,7 +115,7 @@ describe('Identity Recovery', () => {
       );
       expect(res.status).toBe(200);
       expect(res.body.recoveryTier).toBe(1);
-      expect(res.body.tierName).toBe('standard');
+      expect(res.body.tierName).toBe('custodial');
       expect(res.body.checklist).toBeDefined();
       expect(res.body.checklist.passkey).toBe(true);
       expect(typeof res.body.checklist.recoveryEmail).toBe('boolean');

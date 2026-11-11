@@ -8,7 +8,8 @@ import { withTransaction } from '../db/client.js';
 const DID_PATTERN = /^did:[a-z]+:.+$/;
 
 /**
- * Register an external escrow provider for Share 3.
+ * Record an external escrow provider for Share 3. The share stays in this
+ * server's vault: no transfer to a provider exists yet (#239).
  * Transitions user from recovery tier 1 to tier 2.
  * All DB mutations run in a single transaction.
  */
@@ -103,7 +104,9 @@ export default async function registerEscrow(req: AuthRequest, res: Response): P
       success: true,
       recoveryTier: 2,
       escrowProviderDid,
-      message: 'Escrow provider registered. Recovery tier upgraded to 2.',
+      // Nothing is transferred yet (#239): the provider is on record, share 3 stays here.
+      shareStoredHere: true,
+      message: 'Escrow provider recorded for share 3. The share itself is still stored on this server; no transfer to the provider exists yet.',
     });
   } catch (error) {
     console.error('Error registering escrow:', error);

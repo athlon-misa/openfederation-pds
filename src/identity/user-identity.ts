@@ -18,7 +18,6 @@ import { storeShare, logVaultAudit } from '../vault/vault-store.js';
 export interface UserIdentityResult {
   did: string;
   signingKeyBase64: string; // For encrypted storage in user_signing_keys
-  deviceShare?: string; // Shamir share 1 — returned to caller for device storage
 }
 
 /**
@@ -54,14 +53,14 @@ export async function createUserIdentity(handle: string): Promise<UserIdentityRe
   const signingKeyBase64 = Buffer.from(signingKeyExport).toString('base64');
 
   // Split rotation key into 2-of-3 Shamir shares for threshold custody
-  let deviceShare: string | undefined;
   try {
     const rotationKeyExport = await rotationKey.export();
     const rotationKeyBuf = Buffer.from(rotationKeyExport);
     const shares = splitSecret(rotationKeyBuf, 3, 2);
 
-    // Share 1 = device share (returned to caller)
-    deviceShare = shares[0];
+    // Share 1 is not kept anywhere (#239): this server holds shares 2 and 3,
+    // a quorum, so the account is custodial. Users get their own copy of the
+    // whole key through vault.exportRecoveryKey.
 
     // Share 2 = vault share (PDS holds)
     await storeShare(did, 2, shares[1], 'vault');
@@ -73,7 +72,7 @@ export async function createUserIdentity(handle: string): Promise<UserIdentityRe
     await logVaultAudit(did, 'shares.created', did, undefined, {
       numShares: 3,
       threshold: 2,
-      holders: { 1: 'device', 2: 'vault', 3: 'vault' },
+      holders: { 2: 'vault', 3: 'vault' },
     });
   } catch (err) {
     // The rotation key exists only in this function's memory. If its shares
@@ -84,7 +83,7 @@ export async function createUserIdentity(handle: string): Promise<UserIdentityRe
     throw err;
   }
 
-  return { did, signingKeyBase64, deviceShare };
+  return { did, signingKeyBase64 };
 }
 
 /**

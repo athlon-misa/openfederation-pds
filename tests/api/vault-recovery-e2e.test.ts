@@ -8,11 +8,13 @@
  * registration, the security level each step reports, and the vault audit
  * trail.
  *
- * The tests under "custody as it is today (#239)" pin facts that #239
- * reports: the device share never reaches a client, tier 3 deletes nothing,
- * and escrow only relabels a share the PDS keeps. They describe current
- * behaviour, not intended behaviour — when #239 is fixed they are expected
- * to change with it.
+ * Custody is honest (#239): every tier is custodial — this PDS holds shares 2
+ * and 3, a quorum — and says so. "Export" hands the user the rotation key
+ * itself (a working backup: with it they can sign PLC operations and leave),
+ * not a share that needs a device share nobody has. Escrow records a
+ * provider while the share stays here, and the API says that too. Real
+ * self-custody, where the PDS holds no rotation key, is the separate `self`
+ * custody mode.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -121,7 +123,7 @@ describe('vault & recovery end to end (#77)', () => {
       const created = (await vaultActions(user.did)).filter((a) => a.action === 'shares.created');
       expect(created).toHaveLength(1);
       expect(created[0].actor_did).toBe(user.did);
-      expect(created[0].metadata).toEqual({ numShares: 3, threshold: 2, holders: { 1: 'device', 2: 'vault', 3: 'vault' } });
+      expect(created[0].metadata).toEqual({ numShares: 3, threshold: 2, holders: { 2: 'vault', 3: 'vault' } });
     });
   });
 
@@ -224,17 +226,17 @@ describe('vault & recovery end to end (#77)', () => {
   });
 
   describe('security level and escrow', () => {
-    it('getSecurityLevel reports tier 1 "standard" with vault shares and no escrow', async () => {
+    it('getSecurityLevel reports tier 1 "custodial": the PDS holds the rotation key', async () => {
       if (!plc) return;
       const res = await xrpcAuthGet('net.openfederation.account.getSecurityLevel', user.accessJwt);
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        recoveryTier: 1, tierName: 'standard',
+        recoveryTier: 1, tierName: 'custodial', pdsHoldsRotationKey: true,
         checklist: { vaultShares: true, escrowRegistered: false, keyExported: false },
       });
     });
 
-    it('registerEscrow records the provider, moves share 3 to it, and reaches tier 2 "enhanced"', async () => {
+    it('registerEscrow records the provider for share 3, reaches tier 2 "escrow-recorded", and says the share stays here', async () => {
       if (!plc) return;
       const providerDid = `did:web:escrow-${Date.now()}.example.test`;
       const res = await xrpcAuthPost('net.openfederation.vault.registerEscrow', user.accessJwt, {
@@ -242,7 +244,7 @@ describe('vault & recovery end to end (#77)', () => {
         verificationUrl: 'https://escrow.example.test/verify',
       });
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ success: true, recoveryTier: 2, escrowProviderDid: providerDid });
+      expect(res.body).toMatchObject({ success: true, recoveryTier: 2, escrowProviderDid: providerDid, shareStoredHere: true });
 
       const provider = await query<{ name: string; verification_url: string; registered_by: string }>(
         'SELECT name, verification_url, registered_by FROM escrow_providers WHERE did = $1', [providerDid],
@@ -258,7 +260,7 @@ describe('vault & recovery end to end (#77)', () => {
       ]);
 
       const level = await xrpcAuthGet('net.openfederation.account.getSecurityLevel', user.accessJwt);
-      expect(level.body).toMatchObject({ recoveryTier: 2, tierName: 'enhanced', checklist: { escrowRegistered: true } });
+      expect(level.body).toMatchObject({ recoveryTier: 2, tierName: 'escrow-recorded', pdsHoldsRotationKey: true, checklist: { escrowRegistered: true } });
 
       const audit = (await vaultActions(user.did)).filter((a) => a.action === 'escrow.registered');
       expect(audit).toHaveLength(1);
@@ -268,20 +270,25 @@ describe('vault & recovery end to end (#77)', () => {
       });
     });
 
-    it('exportRecoveryKey returns share 2 after verification, and audits it', async () => {
+    it('exportRecoveryKey hands over the rotation key itself (the one PLC lists), and audits it', async () => {
       if (!plc) return;
       // The verification from the release above is still within its 30 minutes.
       const res = await xrpcAuthPost('net.openfederation.vault.exportRecoveryKey', user.accessJwt, {});
       expect(res.status).toBe(200);
-      expect(res.body.share).toBe(await getShare(user.did, 2));
-      expect(res.body.recoveryTier).toBe(3);
+      expect(res.body.share).toBeUndefined();
+      expect(await plcRotationKeys(user.did)).toContain(await didKeyOf(Buffer.from(res.body.rotationKey, 'base64')));
+      expect(res.body).toMatchObject({ recoveryTier: 3, pdsHoldsRotationKey: true });
 
       const rows = await shareRows(user.did);
       expect(rows.every((r) => r.recovery_tier === 3)).toBe(true);
+      const account = await query<{ recovery_tier: number }>('SELECT recovery_tier FROM users WHERE did = $1', [user.did]);
+      expect(account.rows[0].recovery_tier).toBe(3);
+      const level = await xrpcAuthGet('net.openfederation.account.getSecurityLevel', user.accessJwt);
+      expect(level.body).toMatchObject({ recoveryTier: 3, tierName: 'key-exported', pdsHoldsRotationKey: true, checklist: { keyExported: true } });
 
       const audit = (await vaultActions(user.did)).filter((a) => a.action === 'key.exported');
       expect(audit).toHaveLength(1);
-      expect(audit[0]).toMatchObject({ actor_did: user.did, share_index: 2, metadata: { newRecoveryTier: 3 } });
+      expect(audit[0]).toMatchObject({ actor_did: user.did, metadata: { newRecoveryTier: 3, exported: 'rotation-key' } });
     });
 
     it('the vault audit log, through its endpoint, holds every operation in order', async () => {
@@ -294,8 +301,8 @@ describe('vault & recovery end to end (#77)', () => {
     });
   });
 
-  describe('custody as it is today (#239)', () => {
-    it('#239: registration returns no device share, and no share 1 is stored anywhere', async () => {
+  describe('custody, honestly (#239)', () => {
+    it('registration keeps shares 2 and 3 here and no longer claims a device share', async () => {
       if (!plc) return;
       const invite = await xrpcAuthPost('net.openfederation.invite.create', adminToken, { maxUses: 1 });
       const handle = uniqueHandle('vx-reg');
@@ -304,60 +311,26 @@ describe('vault & recovery end to end (#77)', () => {
       });
       expect([200, 201]).toContain(reg.status);
       const did = reg.body.did as string;
-      expect(did).toMatch(/^did:plc:/);
-
-      const share1Shape = /\b8[0-9a-f]{2}1[0-9a-f]{60,}\b/; // secrets.js share 1 hex: bits, id 001, data
       expect(JSON.stringify(reg.body)).not.toMatch(/deviceShare|share/i);
-      expect(JSON.stringify(reg.body)).not.toMatch(share1Shape);
-
-      const rows = await shareRows(did);
-      expect(rows.map((r) => r.share_index)).toEqual([2, 3]);
-      // The audit says share 1 went to "device"; there is no device it went to.
+      expect((await shareRows(did)).map((r) => r.share_index)).toEqual([2, 3]);
       const created = (await vaultActions(did)).find((a) => a.action === 'shares.created');
-      expect(created?.metadata.holders['1']).toBe('device');
+      expect(created?.metadata.holders).toEqual({ 2: 'vault', 3: 'vault' });
     });
 
-    it('#239: the PDS alone holds a reconstructing quorum (shares 2 + 3) at every tier', async () => {
+    it('the PDS still holds a rebuilding quorum after escrow and export, and the API says so', async () => {
       if (!plc) return;
-      // `user` is now at tier 3 with share 3 "in escrow".
-      const rows = await shareRows(user.did);
-      expect(rows).toHaveLength(2);
       const key = combineShares([(await getShare(user.did, 2))!, (await getShare(user.did, 3))!]);
       expect(await plcRotationKeys(user.did)).toContain(await didKeyOf(key));
-    });
-
-    it('#239: tier 3 "self-custodial" deletes nothing — both shares remain in vault_shares', async () => {
-      if (!plc) return;
-      const rows = await shareRows(user.did);
-      expect(rows.map((r) => [r.share_index, r.recovery_tier])).toEqual([[2, 3], [3, 3]]);
-      expect(await getShare(user.did, 2)).toBeTruthy();
-      expect(await getShare(user.did, 3)).toBeTruthy();
-    });
-
-    it('#239: escrow only relabels — share 3 stays in the PDS database, decryptable by the PDS', async () => {
-      if (!plc) return;
-      const share3 = (await shareRows(user.did)).find((r) => r.share_index === 3)!;
-      expect(share3.share_holder).toBe('escrow');
-      expect(share3.encrypted_share.length).toBeGreaterThan(0);
-      expect(await getShare(user.did, 3)).toMatch(/^[0-9a-f]+$/);
-    });
-
-    it('#239: after export, vault_shares say tier 3 but the account (and getSecurityLevel) still say tier 2', async () => {
-      if (!plc) return;
-      // exportRecoveryKey updates vault_shares.recovery_tier only; registerEscrow
-      // also updates users.recovery_tier, which is what getSecurityLevel reads.
-      const account = await query<{ recovery_tier: number }>('SELECT recovery_tier FROM users WHERE did = $1', [user.did]);
-      expect(account.rows[0].recovery_tier).toBe(2);
       const level = await xrpcAuthGet('net.openfederation.account.getSecurityLevel', user.accessJwt);
-      expect(level.body).toMatchObject({ recoveryTier: 2, tierName: 'enhanced', checklist: { keyExported: false } });
+      expect(level.body.pdsHoldsRotationKey).toBe(true);
+      expect(JSON.stringify(level.body)).not.toMatch(/self-custod/i);
     });
 
-    it('#239: a single verification allows repeated releases and exports within 30 minutes', async () => {
+    it('one verification allows one export', async () => {
       if (!plc) return;
-      const again = await xrpcAuthPost('net.openfederation.vault.requestShareRelease', user.accessJwt, {});
-      expect(again.status).toBe(200);
       const exportAgain = await xrpcAuthPost('net.openfederation.vault.exportRecoveryKey', user.accessJwt, {});
-      expect(exportAgain.status).toBe(200);
+      expect(exportAgain.status).toBe(403);
+      expect(exportAgain.body.error).toBe('VerificationRequired');
     });
   });
 });
