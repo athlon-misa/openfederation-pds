@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsup';
 
-export default defineConfig({
+export default defineConfig([{
   entry: ['src/index.ts'],
   format: ['esm', 'cjs', 'iife'],
   globalName: 'OpenFederation',
@@ -19,4 +19,14 @@ export default defineConfig({
   // browser builds do not try to bundle a Node builtin; the import throws there
   // and the guard falls back to its isomorphic checks.
   external: ['ethers', 'node:dns/promises'],
-});
+}, {
+  // @open-federation/sdk/custody (ADR-003): ESM and CJS only, never in the
+  // /sdk/v1.js IIFE, so Grvty and FlappySoccer bundles don't change.
+  entry: { custody: 'src/custody/index.ts' },
+  format: ['esm', 'cjs'],
+  dts: true,
+  clean: false,
+  sourcemap: true,
+  minify: true,
+  target: 'es2020',
+}]);

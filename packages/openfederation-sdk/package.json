@@ -1,7 +1,7 @@
 {
   "name": "@open-federation/sdk",
   "version": "0.3.0",
-  "description": "Vanilla JS SDK for OpenFederation PDS — registration, login, and session management",
+  "description": "Vanilla JS SDK for OpenFederation PDS \u2014 registration, login, and session management",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -15,6 +15,11 @@
     "./global": {
       "types": "./dist/global.d.ts",
       "default": "./dist/index.global.js"
+    },
+    "./custody": {
+      "types": "./dist/custody.d.ts",
+      "import": "./dist/custody.js",
+      "require": "./dist/custody.cjs"
     }
   },
   "typesVersions": {
@@ -24,6 +29,9 @@
       ],
       "global": [
         "./dist/global.d.ts"
+      ],
+      "custody": [
+        "./dist/custody.d.ts"
       ]
     }
   },
@@ -65,6 +73,7 @@
     "directory": "packages/openfederation-sdk"
   },
   "dependencies": {
+    "@ipld/dag-cbor": "^10.0.2",
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0",
     "@scure/bip32": "^1.7.0",
