@@ -215,7 +215,7 @@ describe('Community Attestations', () => {
       expect(attRes.status).toBe(200);
       const rkey = attRes.body.rkey;
 
-      const beforeCommit = await xrpcGet('net.openfederation.attestation.verifyCommitment', {
+      const beforeCommit = await xrpcAuthGet('net.openfederation.attestation.verifyCommitment', owner.accessJwt, {
         communityDid: cascadeCommDid, rkey,
       });
       expect(beforeCommit.status).toBe(200);
@@ -224,7 +224,7 @@ describe('Community Attestations', () => {
         communityDid: cascadeCommDid, rkey,
       });
 
-      const afterCommit = await xrpcGet('net.openfederation.attestation.verifyCommitment', {
+      const afterCommit = await xrpcAuthGet('net.openfederation.attestation.verifyCommitment', owner.accessJwt, {
         communityDid: cascadeCommDid, rkey,
       });
       expect(afterCommit.status).toBe(404);

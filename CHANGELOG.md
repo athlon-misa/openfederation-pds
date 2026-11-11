@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Who may verify an attestation.** A public attestation in a public community stays verifiable by anyone. A private attestation, or any attestation in a private community, is verifiable only by community members, its subject, PDS admins, and whoever the subject gave a viewing grant; anyone else gets the answer for an attestation that does not exist. `attestation.verifyCommitment` was open to everyone and now needs that standing (signed in here or by service auth). Viewing grants can now be created for any attestation in a private community, not only private ones, and a grantee sees through `verifyAttestation` only the fields the grant names; `disclosure.redeemGrant` works for such unencrypted claims too.
 - `community.checkMigration` no longer shows an importing community's progress to anyone who knows its DID: only the owner (signed in here or by service auth), an admin, or the new `progressCode` that `community.migrateIn` returns (pass it as `code`). Migration 055.
 
 - A takedown no longer requires a prior export (`ExportRequired` is gone from `community.takedown` and `updateSubjectStatus`); the export window replaces it. Both endpoints now apply a standard takedown.

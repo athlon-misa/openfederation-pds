@@ -1,8 +1,10 @@
 import { Response } from 'express';
+import { verifyAccess } from '../attestation/verify-access.js';
+import { filterGrantedFields } from '../attestation/lifecycle.js';
+import { getCommunityAccess } from '../community/visibility.js';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
 import { resolveDidToPds, fetchRemoteRecord } from '../federation/remote-verify.js';
-import { requireCommunityReadable } from '../auth/guards.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 
@@ -26,15 +28,30 @@ export default async function verifyAttestation(req: AuthRequest, res: Response)
     );
     const communityHandle = communityResult.rows[0]?.handle;
 
-    // For a community hosted here, the same gate as listAttestations: without
-    // it this endpoint confirms a private community exists, names its handle,
-    // and returns attestations (subject, claim) to anyone.
-    if (communityResult.rows.length > 0 && !(await requireCommunityReadable(req, res, communityDid))) return;
+    // For a community hosted here: a private community, or a private
+    // attestation, is verifiable only by those mayVerifyAttestation names
+    // (members, the subject, viewing-grant holders, admins). Anyone else gets
+    // the answer for something that does not exist: NotFound for a private
+    // community, `valid: false` for an attestation in a public one.
+    const isLocalCommunity = communityResult.rows.length > 0;
+    const verify = isLocalCommunity ? await verifyAccess(req.auth, communityDid, rkey) : { allowed: true };
+    const allowed = verify.allowed;
+    if (isLocalCommunity) {
+      const access = await getCommunityAccess({ communityDid, caller: req.auth });
+      if (access.visibility === 'private' && !allowed) {
+        res.status(404).json({ error: 'NotFound', message: 'Community not found' });
+        return;
+      }
+      if (access.status === 'takendown' && !access.isAdmin) {
+        res.status(410).json({ error: 'CommunityTakenDown', message: 'This community has been taken down.' });
+        return;
+      }
+    }
 
-    const result = await query<{ record: any }>(
+    const result = allowed ? await query<{ record: any }>(
       `SELECT record FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3`,
       [communityDid, ATTESTATION_COLLECTION, rkey]
-    );
+    ) : { rows: [] as Array<{ record: any }> };
 
     if (result.rows.length === 0) {
       const isLocal = communityResult.rows.length > 0;
@@ -96,6 +113,10 @@ export default async function verifyAttestation(req: AuthRequest, res: Response)
 
     const record = result.rows[0].record;
     const expired = record?.expiresAt ? new Date(record.expiresAt) < new Date() : false;
+    // Someone who may look only through viewing grants sees only the granted fields.
+    const claim = 'grantedFields' in verify && verify.grantedFields
+      ? filterGrantedFields((record?.claim ?? {}) as Record<string, unknown>, verify.grantedFields)
+      : record?.claim;
 
     res.status(200).json({
       valid: !expired,
@@ -105,7 +126,7 @@ export default async function verifyAttestation(req: AuthRequest, res: Response)
         subjectDid: record?.subjectDid,
         subjectHandle: record?.subjectHandle,
         type: record?.type,
-        claim: record?.claim,
+        claim,
         issuedAt: record?.issuedAt,
         expiresAt: record?.expiresAt,
       },

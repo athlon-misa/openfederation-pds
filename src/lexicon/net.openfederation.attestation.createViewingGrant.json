@@ -2,7 +2,7 @@
   "lexicon": 1,
   "id": "net.openfederation.attestation.createViewingGrant",
   "revision": 1,
-  "description": "Create a time-limited viewing grant for a private attestation. Only the attestation subject can create grants.",
+  "description": "Create a time-limited viewing grant for an attestation others cannot already see: a private attestation, or any attestation in a private community. Only the subject can create grants. The grantee can then verify the attestation (verifyAttestation, verifyCommitment) and redeem the grant (disclosure.redeemGrant), limited to grantedFields when given.",
   "defs": {
     "main": {
       "type": "procedure",

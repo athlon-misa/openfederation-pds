@@ -71,8 +71,10 @@ describe('Attestation + Disclosure', () => {
   it('step 3: verifyCommitment -> hash, no content', async () => {
     if (!plcAvailable) return;
 
-    const res = await xrpcGet(
+    // A private attestation: verifiable by members, the subject and grant holders.
+    const res = await xrpcAuthGet(
       'net.openfederation.attestation.verifyCommitment',
+      ctx.member.accessJwt,
       { communityDid: ctx.communityDid, rkey: privateRkey },
     );
 
