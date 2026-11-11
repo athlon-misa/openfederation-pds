@@ -5,10 +5,9 @@ import { query, withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { claimInvite, assertInviteUsable, InviteError } from '../auth/invites.js';
 import { issueEmailVerification } from '../email/verification.js';
-import { encryptKeyBytes } from '../auth/encryption.js';
 import { getPlcLog } from '../identity/plc-client.js';
 import { checkCustodyGenesis } from '../identity/custody-genesis.js';
-import { splitSecret } from '../vault/shamir.js';
+import { storeRotationKeyShares } from '../identity/custody-change.js';
 import { logVaultAudit } from '../vault/vault-store.js';
 import { consumeReservedSigningKey } from './com.atproto.server.reserveSigningKey.js';
 import { consumeReservedRotationKey } from './net.openfederation.account.reserveCustodyKey.js';
@@ -69,14 +68,8 @@ export default async function registerSelfCustody(req: Request, res: Response): 
         const pdsKey = await consumeReservedRotationKey(client, check.pdsRotationKey);
         if (!pdsKey) throw new RegistrationValidationError(400, 'PdsKeyNotReserved', 'The second rotation key was not reserved here (net.openfederation.account.reserveCustodyKey)');
         // Kept like a custodial key: shares 2 and 3, encrypted; the key itself is not stored.
-        const shares = splitSecret(pdsKey, 3, 2);
+        await storeRotationKeyShares(client, did, pdsKey);
         pdsKey.fill(0);
-        for (const index of [2, 3]) {
-          await client.query(
-            `INSERT INTO vault_shares (id, user_did, share_index, encrypted_share, share_holder, recovery_tier)
-             VALUES ($1, $2, $3, $4, 'vault', 1)`,
-            [crypto.randomUUID(), did, index, await encryptKeyBytes(Buffer.from(shares[index - 1], 'utf-8'), 'vault.share')]);
-        }
       }
 
       await insertUserWithRole(client, { userId, handle, email, passwordHash, did, status: 'pending', custodyMode: mode });
