@@ -1675,3 +1675,33 @@ parseTokenExpiry(tokenSet.expires_at, {
 ```
 
 Accepts: numbers (seconds or ms, auto-disambiguated at the 1e12 boundary), ISO-8601 strings, numeric strings, `Date` instances. Returns the configured fallback (default 1h from now) for everything else — never returns NaN.
+
+## Self-custody keys: `@open-federation/sdk/custody`
+
+For `assisted` and `self` accounts ([ADR-003](adr/ADR-003-custody-modes.md)). A separate
+entry point (ESM and CommonJS), not part of the `/sdk/v1.js` browser bundle. Nothing here
+talks to the PDS except `submitPlcOperation`, which talks to the PLC directory.
+
+```ts
+import {
+  generateCustodyPhrase, deriveCustodyKeys,          // 12 words → rotation key (m/1985'/0') + owner key (m/1985'/1')
+  buildCustodyGenesisOp, buildCustodyChangeOp,        // did:plc genesis, and custody changes (rotation keys by priority)
+  signPlcOperation, didForGenesisOp, cidForPlcOp, submitPlcOperation,
+  signOwnerRaw, createOwnerPasskey, signOwnerWithPasskey, verifyOwnerSignature, // owner signatures, raw or passkey
+  rememberPhraseWithPasskey, unlockPhraseWithPasskey, // phrase once per device, passkey every day (#251)
+} from '@open-federation/sdk/custody';
+
+const phrase = generateCustodyPhrase();              // show once; the person keeps it on paper
+const keys = deriveCustodyKeys(phrase);
+const op = signPlcOperation(buildCustodyGenesisOp({
+  mode: 'self', userRotationDidKey: keys.rotationDidKey,
+  atprotoDidKey: reservedSigningKey,                 // from com.atproto.server.reserveSigningKey
+  ownerDidKey: keys.ownerDidKey, handle, pdsEndpoint,
+}), keys.rotationPrivateKey);
+const did = didForGenesisOp(op);
+await submitPlcOperation(plcUrl, did, op);
+```
+
+Registering such an account with the PDS (`registerSelfCustody`) and changing modes
+through it are the next steps of ADR-003 and not available yet.
+
