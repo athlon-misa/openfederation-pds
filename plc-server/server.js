@@ -38,8 +38,10 @@ const run = async () => {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Accept');
+    // POST: a browser client (the dashboard's Move screen) submits an operation
+    // the DID's own rotation key signed; the directory verifies every operation.
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Accept, Content-Type');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });

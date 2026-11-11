@@ -59,6 +59,8 @@ import myCapabilities from '../api/net.openfederation.community.myCapabilities.j
 import updateSubjectStatus from '../api/com.atproto.admin.updateSubjectStatus.js';
 import requestAccountDelete from '../api/com.atproto.server.requestAccountDelete.js';
 import deleteOwnAccount from '../api/com.atproto.server.deleteAccount.js';
+import describeServer from '../api/com.atproto.server.describeServer.js';
+import getLatestCommit from '../api/com.atproto.sync.getLatestCommit.js';
 import getSubjectStatus from '../api/com.atproto.admin.getSubjectStatus.js';
 import adminDeleteAccount from '../api/com.atproto.admin.deleteAccount.js';
 import deactivateAccount from '../api/com.atproto.server.deactivateAccount.js';
@@ -396,6 +398,7 @@ const handlers = Object.freeze({
   'com.atproto.repo.describeRepo': { handler: describeRepo, whileDeactivated: true },
   'com.atproto.repo.listRecords': { handler: listRecords, whileDeactivated: true },
   'com.atproto.sync.getRepo': { handler: syncGetRepo, whileDeactivated: true },
+  'com.atproto.sync.getLatestCommit': { handler: getLatestCommit, whileDeactivated: true },
   'com.atproto.repo.uploadBlob': { handler: uploadBlob, whileDeactivated: true },
   'com.atproto.sync.getBlob': { handler: syncGetBlob, whileDeactivated: true },
   'com.atproto.sync.listBlobs': { handler: syncListBlobs, whileDeactivated: true },
@@ -457,6 +460,7 @@ const handlers = Object.freeze({
 
   // Account migration
   'com.atproto.server.createAccount': { handler: createAccount, limiter: createLimiter },
+  'com.atproto.server.describeServer': { handler: describeServer },
   'com.atproto.server.checkAccountStatus': { handler: checkAccountStatus, whileDeactivated: true },
   'com.atproto.server.requestAccountDelete': { handler: requestAccountDelete, limiter: createLimiter, whileDeactivated: true },
   'com.atproto.server.deleteAccount': { handler: deleteOwnAccount, limiter: createLimiter },

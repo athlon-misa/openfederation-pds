@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MoveCommunityCard } from '@/components/move/move-community-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable } from '@/components/data-table/data-table';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -272,6 +273,9 @@ export default function CommunityDetailPage() {
           {community.isOwner && !isTakenDown && (
             <TabsTrigger value="settings">Settings</TabsTrigger>
           )}
+          {community.isOwner && community.status === 'active' && community.didMethod === 'plc' && (
+            <TabsTrigger value="move">Move</TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="members" className="mt-4">
           <DataTable
@@ -298,6 +302,11 @@ export default function CommunityDetailPage() {
         {community.isOwner && !isTakenDown && (
           <TabsContent value="settings" className="mt-4">
             <CommunitySettingsForm community={community} onUpdated={() => {}} />
+          </TabsContent>
+        )}
+        {community.isOwner && community.status === 'active' && community.didMethod === 'plc' && (
+          <TabsContent value="move" className="mt-4">
+            <MoveCommunityCard communityDid={community.did} communityHandle={community.handle} />
           </TabsContent>
         )}
       </Tabs>

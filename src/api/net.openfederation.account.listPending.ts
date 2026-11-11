@@ -26,7 +26,12 @@ export default async function listPendingAccounts(req: AuthRequest, res: Respons
   );
 
   res.status(200).json({
-    users: result.rows,
+    users: result.rows.map((u) => ({
+      id: u.id,
+      handle: u.handle,
+      email: u.email,
+      createdAt: new Date(u.created_at).toISOString(),
+    })),
     limit,
     offset,
   });
