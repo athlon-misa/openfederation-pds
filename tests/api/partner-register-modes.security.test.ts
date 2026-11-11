@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Secp256k1Keypair } from '@atproto/crypto';
-import { api, getAdminToken, isPLCAvailable, uniqueHandle, xrpcAuthPost, xrpcPost } from './helpers.js';
+import { api, getAdminToken, isPLCAvailable, uniqueHandle, xrpcAuthPost, xrpcPost, hrefContaining } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import { config } from '../../src/config.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
@@ -70,8 +70,8 @@ describe('partner registration modes', () => {
       let link: URL | undefined;
       for (let i = 0; i < 50 && !link; i++) {
         const mail = [...inbox].reverse().find((m) => m.to === who.email && m.subject.includes('Verify'));
-        const found = mail?.html.match(/https?:\/\/[^"'\s<]+\/verify-email\?[^"'\s<]+/)?.[0];
-        if (found) link = new URL(found.replace(/&amp;/g, '&'));
+        const found = mail ? hrefContaining(mail.html, '/verify-email?') : undefined;
+        if (found) link = new URL(found);
         else await new Promise((r) => setTimeout(r, 100));
       }
       expect(link, 'verification email').toBeTruthy();

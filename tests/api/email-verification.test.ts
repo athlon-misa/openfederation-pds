@@ -10,8 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   api, xrpcPost, xrpcAuthGet, xrpcAuthPost,
-  createTestUser, isPLCAvailable, uniqueHandle,
-} from './helpers.js';
+  createTestUser, isPLCAvailable, uniqueHandle, hrefContaining } from './helpers.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
 import { config } from '../../src/config.js';
 import { query } from '../../src/db/client.js';
@@ -23,11 +22,12 @@ const inbox: Captured[] = [];
 function linkFor(email: string): { token: string; email: string } | null {
   const mail = [...inbox].reverse().find(m => m.to === email && m.subject.includes('Verify'));
   if (!mail) return null;
-  const m = mail.html.match(/\/verify-email\?token=([^&"]+)&amp;email=([^&"]+)|\/verify-email\?token=([^&"]+)&email=([^&"]+)/);
-  if (!m) return null;
-  const token = decodeURIComponent(m[1] ?? m[3]);
-  const addr = decodeURIComponent(m[2] ?? m[4]);
-  return { token, email: addr };
+  const href = hrefContaining(mail.html, '/verify-email?token=');
+  if (!href) return null;
+  const params = new URL(href, 'http://x').searchParams;
+  const token = params.get('token');
+  const addr = params.get('email');
+  return token && addr ? { token, email: addr } : null;
 }
 
 async function waitForMail(email: string, tries = 50): Promise<{ token: string; email: string }> {
