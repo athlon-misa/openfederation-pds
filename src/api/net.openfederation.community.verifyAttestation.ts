@@ -8,8 +8,9 @@ const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
 
 export default async function verifyAttestation(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const communityDid = req.query.communityDid as string;
-    const rkey = req.query.rkey as string;
+    // Strings only: a repeated parameter arrives as an array.
+    const communityDid = typeof req.query.communityDid === 'string' ? req.query.communityDid : '';
+    const rkey = typeof req.query.rkey === 'string' ? req.query.rkey : '';
 
     if (!communityDid || !rkey) {
       res.status(400).json({
