@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+### Minor Changes
+
+- b83c7c1: Custody tiers are named for what they are (#239): every tier is custodial. `SecurityLevel.tierName` is now `'custodial' | 'escrow-recorded' | 'key-exported'` and `SecurityLevel.pdsHoldsRotationKey` is new. `exportRecoveryKey()` now returns the account's PLC rotation key (`rotationKey`, base64) instead of a single Shamir share that could not be used on its own; `registerEscrow()` returns `shareStoredHere: true`.
+- 55a084b: `@open-federation/sdk/custody`: `buildCancelOp` cancels, within 72 hours, a PLC update signed by a lower-priority rotation key (an `assisted` account's own key undoing an update the server signed).
+- a07c39a: New entry point `@open-federation/sdk/custody` (ADR-003): phrase keys for `assisted` and `self` accounts, did:plc genesis and custody-change operations, owner signatures (raw secp256k1/P-256 and WebAuthn passkey), and passkey unlock of the phrase. ESM and CommonJS only; the `/sdk/v1.js` browser bundle is unchanged.
+- 2c1ccb9: `@open-federation/sdk/custody`: person-signed records (ADR-003, decision 11). `signRecord` / `signRecordWithPasskey` add `ownerSig` (the owner key's signature over the record's CID, DID and collection); `verifyOwnerRecord`, `recordCid` and `ownerRecordText` check it.
+- d3d6c57: `@open-federation/sdk/custody`: `plcOperationSigner(op, rotationKeys)` names the rotation key that signed a PLC operation, so a client can tell a change the person made from one a lower key (the server's backup in `assisted`) made and the person may cancel.
+
 ## 0.3.0
 
 ### Minor Changes
