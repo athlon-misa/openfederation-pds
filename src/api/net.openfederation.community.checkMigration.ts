@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
@@ -10,17 +11,34 @@ import { communityBlobCounts, missingAttestationKeys, recommendedCommunityCreden
 /**
  * How far a community's move here has come (#267).
  *
- * While the copy is still arriving this is open, because the owner checks it
- * before they have any standing here. Once the community is live it answers
- * only to those who may read the community: the counts below would otherwise
- * confirm a private community exists and how large it is.
+ * While the copy is still arriving it answers only the owner (signed in here,
+ * or by service auth from their own PDS), a PDS admin, or whoever holds the
+ * progress code migrateIn returned; anyone else gets the answer for a missing
+ * DID. Once the community is live it answers only to those who may read the
+ * community: the counts below would otherwise confirm a private community
+ * exists and how large it is.
  */
+/** While importing: the owner (signed in here or by service auth), an admin, or the progress code from migrateIn. */
+function importProgressAllowed(req: AuthRequest, c: { owner_did: string | null; migration_code_hash: string | null }): boolean {
+  if (req.auth?.roles?.includes('admin')) return true;
+  if (req.auth?.did && c.owner_did && req.auth.did === c.owner_did) return true;
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+  if (!code || !c.migration_code_hash) return false;
+  const given = createHash('sha256').update(code).digest();
+  return timingSafeEqual(given, Buffer.from(c.migration_code_hash, 'hex'));
+}
+
 export default async function checkMigration(req: AuthRequest, res: Response): Promise<void> {
   const did = String(req.query.did || '');
   try {
-    const c = (await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [did])).rows[0];
+    const c = (await query<{ status: string; owner_did: string | null; migration_code_hash: string | null }>(
+      'SELECT status, owner_did, migration_code_hash FROM communities WHERE did = $1', [did])).rows[0];
     const root = (await query<{ root_cid: string; rev: string }>('SELECT root_cid, rev FROM repo_roots WHERE did = $1', [did])).rows[0];
     if (!c || !root) {
+      res.status(404).json({ error: 'NotFound', message: 'No copy of this community here' });
+      return;
+    }
+    if (c.status === 'importing' && !importProgressAllowed(req, c)) {
       res.status(404).json({ error: 'NotFound', message: 'No copy of this community here' });
       return;
     }

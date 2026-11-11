@@ -136,11 +136,24 @@ describe('community migration (this PDS as the new home)', () => {
     expect((await query('SELECT 1 FROM members_unique WHERE community_did = $1 AND member_did = $2', [c.did, owner.did])).rows).toHaveLength(1);
     expect((await query('SELECT 1 FROM community_attestation_index WHERE community_did = $1', [c.did])).rows).toHaveLength(1);
 
-    const check = await xrpcGet('net.openfederation.community.checkMigration', { did: c.did });
+    // Progress is private while importing: anonymous callers get the answer
+    // for a missing DID; the progress code or the owner's signature opens it.
+    expect(typeof opened.body.progressCode).toBe('string');
+    const anonymous = await xrpcGet('net.openfederation.community.checkMigration', { did: c.did });
+    expect(anonymous.status).toBe(404);
+    expect(anonymous.body.error).toBe('NotFound');
+    const wrongCode = await xrpcGet('net.openfederation.community.checkMigration', { did: c.did, code: 'x'.repeat(43) });
+    expect(wrongCode.status).toBe(404);
+    const check = await xrpcGet('net.openfederation.community.checkMigration', { did: c.did, code: opened.body.progressCode });
+    expect(check.status).toBe(200);
     expect(check.body).toMatchObject({ status: 'importing', validDid: false, repoCommit: opened.body.repoCommit, members: 1, attestations: 1, missingAttestationKeys: 1 });
 
     // Not yet: the DID still points at the stub. Writes are refused meanwhile.
     const ownerAuth = (lxm: string) => signServiceAuthJwt({ keypair: owner.signingKey, iss: owner.did, aud: config.pds.serviceDid, exp: Math.floor(Date.now() / 1000) + 60, lxm });
+    const byOwner = await api.get('/xrpc/net.openfederation.community.checkMigration').query({ did: c.did })
+      .set('Authorization', `Bearer ${await ownerAuth('net.openfederation.community.checkMigration')}`);
+    expect(byOwner.status).toBe(200);
+    expect(byOwner.body.status).toBe('importing');
     const early = await api.post('/xrpc/net.openfederation.community.activate').set('Authorization', `Bearer ${await ownerAuth('net.openfederation.community.activate')}`).send({ did: c.did });
     expect(early.status).toBe(400);
     expect(early.body.error).toBe('IncompatibleDidDoc');

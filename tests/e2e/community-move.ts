@@ -40,13 +40,13 @@ export async function moveCommunity(p: {
 
   step('open');
   const proof = await signCommunityProof({ primaryRotationKeyBase64: p.primaryRotationKeyBase64, did: p.did, ownerDid: p.ownerDid, aud: p.newServiceDid, lxm: 'net.openfederation.community.migrateIn' });
-  const opened = await xrpc<{ repoCommit: string; recommended: Recommended }>(p.newPdsUrl, 'net.openfederation.community.migrateIn', {
+  const opened = await xrpc<{ repoCommit: string; recommended: Recommended; progressCode: string }>(p.newPdsUrl, 'net.openfederation.community.migrateIn', {
     jwt: proof, body: { did: p.did, handle: p.newHandle, ...(p.inviteCode ? { inviteCode: p.inviteCode } : {}) },
   });
 
   step('check');
   const status = await xrpc<{ repoCommit: string; indexedRecords: number; expectedBlobs: number; importedBlobs: number; recommended: Recommended }>(
-    p.newPdsUrl, 'net.openfederation.community.checkMigration', { query: { did: p.did } });
+    p.newPdsUrl, 'net.openfederation.community.checkMigration', { query: { did: p.did, code: opened.progressCode } });
   const oldRoot = await fetch(`${p.oldPdsUrl}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(p.did)}`).then(async (r) => (r.ok ? carRoot(new Uint8Array(await r.arrayBuffer())) : null));
   if (status.repoCommit !== opened.repoCommit || status.repoCommit !== oldRoot || status.indexedRecords === 0 || status.importedBlobs !== status.expectedBlobs) {
     throw new Error('The new PDS does not hold the community as the old one serves it; the DID was not changed');

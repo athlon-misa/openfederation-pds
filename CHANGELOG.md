@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `community.checkMigration` no longer shows an importing community's progress to anyone who knows its DID: only the owner (signed in here or by service auth), an admin, or the new `progressCode` that `community.migrateIn` returns (pass it as `code`). Migration 055.
+
 - A takedown no longer requires a prior export (`ExportRequired` is gone from `community.takedown` and `updateSubjectStatus`); the export window replaces it. Both endpoints now apply a standard takedown.
 - `community.export` and `account.export` refuse the owner during a hard takedown (`TakenDown`); admins can still export.
 - `community.delete` now also removes the community's blobs.

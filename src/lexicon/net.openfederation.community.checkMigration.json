@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.checkMigration",
-  "revision": 2,
+  "revision": 3,
   "description": "Progress of a community's move here (#267).",
   "defs": {
     "main": {
@@ -16,6 +16,10 @@
           "did": {
             "type": "string",
             "format": "did"
+          },
+          "code": {
+            "type": "string",
+            "description": "The progressCode from migrateIn. Needed while importing unless the caller is the owner or an admin."
           }
         }
       },
