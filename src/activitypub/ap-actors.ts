@@ -2,8 +2,10 @@
  * ActivityPub Actor Document Builder
  *
  * Generates minimal AP Group actors for communities that have linked
- * ActivityPub-compatible applications. These actors are discovery-only
- * (no inbox/outbox) — the PDS doesn't process AP messages.
+ * ActivityPub-compatible applications. These actors are discovery-only: the
+ * PDS doesn't process AP messages. They still name an inbox and an outbox,
+ * because ActivityPub §4.1 requires both and Mastodon drops an actor without
+ * an inbox; both are always-empty collections (see ap-routes.ts).
  */
 
 export interface CommunityInfo {
@@ -40,6 +42,8 @@ export function buildCommunityActor(
     url: `${serviceUrl}/communities/${community.did}`,
     summary: community.description || '',
     published: community.created_at,
+    inbox: `${actorId}/inbox`,
+    outbox: `${actorId}/outbox`,
     endpoints: {},
     attachment: applications.map((app) => ({
       type: 'PropertyValue',
