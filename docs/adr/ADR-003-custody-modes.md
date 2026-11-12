@@ -1,6 +1,6 @@
 # ADR-003: Identity custody modes, custodial and self (#251)
 
-**Status:** accepted, built (#361–#366 and the person-signed records PR) · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset) · **Issues:** #251 (daily unlock), #238 (recovery, later), #242 (write integrity)
+**Status:** accepted, built (#361–#366 and the person-signed records PR) · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset), 2026-11-13 (optional recovery key, decision 13) · **Issues:** #251 (daily unlock), #238 (recovery), #242 (write integrity)
 
 One OpenFederation codebase serves two kinds of installation:
 
@@ -45,7 +45,7 @@ which key, and in what order.
    | --- | --- | --- | --- |
    | `custodial` | the PDS's key | the PDS | nothing is lost: the user has no phrase |
    | `assisted` | 1. the user's key, 2. the PDS's key | the user; the PDS too, but the user can cancel the PDS's change within 72 hours | the PDS recovers the account |
-   | `self` | the user's key | only the user | the DID can never change again (#238) |
+   | `self` | the user's key | only the user | the DID can never change again, unless the person added a recovery key (decision 13) |
 
    Pseudonyms are `self` by construction. `assisted` is the AT Protocol recommendation of
    adding your own key above the PDS's: the PDS remains a safety net, and the person keeps
@@ -182,9 +182,10 @@ which key, and in what order.
       so a recovery started by someone else fails if the real person still has their
       phrase. **The PDS emails the account whenever it signs a PLC update**, so the veto is
       usable, with a link to the client's "cancel this change" flow.
-    - `self`: no recovery in v1. #238 tracks later options, none of which gives the PDS
-      recovery power. A `self` user who wants a safety net switches to `assisted`
-      (decision 5) while they still have their phrase.
+    - `self`: no recovery by default. A `self` (or `assisted`) account can add a recovery
+      key the person holds (decision 13); none of it gives the PDS recovery power. A `self`
+      user who wants the PDS as a safety net switches to `assisted` (decision 5) while they
+      still have their phrase.
 
 11. **Person-signed records** (option 1 of the write-integrity milestone, #242). The PDS
     holds the repo key, so it can write records as a user. Records that matter can carry
@@ -228,10 +229,59 @@ which key, and in what order.
       neutrally and let the user choose a device-only key over a synced one.
     - Losing the device is not losing the identity: the paper phrase restores it.
 
+13. **Optional recovery key for `self` and `assisted` (#238), decided 2026-11-13.** One
+    mechanism: a **second rotation key the person controls**, listed directly below their
+    phrase key.
+
+    | Mode | Rotation keys with a recovery key, by priority |
+    | --- | --- |
+    | `self` | 1. phrase key, 2. recovery key |
+    | `assisted` | 1. phrase key, 2. recovery key, 3. the PDS's backup key |
+
+    - **The PDS never holds it and isn't involved.** Adding, removing and using it are PLC
+      operations signed on the device (`addRecoveryKey`, `removeRecoveryKey`,
+      `recoverWithRecoveryKey` in `@open-federation/sdk/custody`). The only public trace is the
+      extra key in PLC; nothing on the PDS records that it exists or who holds it.
+    - **Adding and removing** are signed by the phrase key (the top key), and keep everything
+      else: owner key, `atproto` key, services, handle, the PDS's backup key.
+    - **Recovering:** the recovery key signs an update that puts a new phrase's rotation key
+      first and its owner key as `openfederation_owner`, keeps the recovery key (or a new one)
+      below it and the rest as before. Because the recovery key ranks below the phrase key, the
+      old phrase can cancel the update for 72 hours (`buildCancelOp`, as for the PDS's `assisted`
+      recovery), so a recovery someone else starts fails while the real person still has their
+      phrase. The custody mode and the login are unchanged.
+    - **The recovery phrase** is a separate device-generated 12-word phrase. It derives the key
+      at `m/1985'/2'`, a path the identity phrase never uses, so the two keys differ even if the
+      same words were used for both.
+    - **The PDS tolerates the extra key:** custody changes towards `self` and `assisted` keep it
+      directly below the phrase key; the PDS's `assisted` recovery replaces only the lost phrase
+      key and keeps it; a change to `custodial` removes it with the owner key (in `custodial`
+      only the PDS's key is listed). Sign-up keeps its exact key lists (decision 4): recovery is
+      added afterwards, including after `custodial` → `self` / `assisted`. The PDS caches no
+      owner or rotation key for these accounts, so nothing on it needs to follow a recovery.
+    - **Three ways to hold the key,** all optional, the person chooses one or none (no recovery
+      stays the default):
+      1. *Held whole:* the recovery phrase on paper or in a safe (built), or a hardware key.
+      2. *Social recovery:* the recovery key split k-of-n (Shamir) among people the person
+         chooses; shares are handed over outside OpenFederation and the PDS stores nothing
+         about who holds them.
+      3. *Newsroom institutional:* a split in which the newsroom holds one share and the person
+         the others, so the newsroom alone can never recover, even when it runs the PDS.
+
+      Options 2 and 3 (the SDK's split and combine, with a share format carrying threshold and
+      checksum) and the dashboard's Settings → Recovery are the next steps of #238. The threat
+      model per option, and the newsroom checklist in `docs/HARDENING.md`, come with them.
+    - **Limits:** whoever has the phrase can remove the recovery key or cancel a recovery, so
+      the recovery key helps against a *lost* phrase, not a stolen one. Whoever has the
+      recovery key can start a recovery at any time; the person must notice and cancel within
+      72 hours, and the PDS does not email about it (it never sees it), so the app should watch
+      the DID's PLC log. Pseudonyms stay without recovery.
+
 ## Out of scope
 
 - Self-custody of the repo signing key (impossible in AT Protocol).
-- Recovery for `self` accounts (#238).
+- Shamir-split recovery keys and the dashboard's recovery screens: the next steps of #238
+  (decision 13).
 - Rotating the user's own keys without changing mode. The user can sign such PLC updates
   with their rotation key; a client helper for it is a follow-up.
 
@@ -240,6 +290,8 @@ which key, and in what order.
 - **Whoever has the phrase of a `self` or `assisted` account controls the DID.** In
   `assisted` the PDS can recover from a lost phrase, but not from a stolen one: the thief
   holds the higher key and can cancel the recovery.
+- **A recovery key (decision 13) recovers a lost phrase, not a stolen one,** and its veto
+  works only if the person notices within 72 hours; the PDS never sees it to send a notice.
 - **The `assisted` veto only works if someone acts within 72 hours.** It depends on the
   PDS's email reaching the person and on the person still having their phrase.
 - **The PDS still holds the repo key.** It can write records as the user (made detectable

@@ -7,7 +7,7 @@ import { auditLog } from '../db/audit.js';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
 import { buildNextOp, signWithCustodialKey } from '../identity/plc-ops.js';
 import { verifyOwnerSignature, type OwnerSignature } from '../identity/owner-signature.js';
-import { CustodyChangeError, heldRotationDidKey, plcHistory, possessionText, unsignedCid } from '../identity/custody-change.js';
+import { CustodyChangeError, heldRotationDidKey, personHeldBelow, plcHistory, possessionText, unsignedCid } from '../identity/custody-change.js';
 import { noticeServerSignedUpdate } from '../identity/assisted-notice.js';
 
 const SECP256K1_DID_KEY = /^did:key:zQ3s[1-9A-HJ-NP-Za-km-z]+$/;
@@ -62,7 +62,8 @@ export default async function recoverAssistedAccount(req: AuthRequest, res: Resp
     const history = await plcHistory(did);
     const current = history[history.length - 1];
     const op = await buildNextOp(did, {
-      rotationKeys: [newRotation, held],
+      // The lost key goes; a recovery key the person added stays above this server's (#238).
+      rotationKeys: [newRotation, ...personHeldBelow(current.rotationKeys, held).filter((k) => k !== newRotation), held],
       verificationMethods: { ...current.verificationMethods, openfederation_owner: newOwner },
     });
     const operationCid = unsignedCid(op);

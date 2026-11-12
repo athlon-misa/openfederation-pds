@@ -63,6 +63,15 @@ export interface Plan {
 const DID_KEY = /^did:key:zQ3s[1-9A-HJ-NP-Za-km-z]+$/;
 const OWNER_DID_KEY = /^did:key:z(Q3s|Dn)[1-9A-HJ-NP-Za-km-z]+$/;
 
+/**
+ * The person's other rotation keys, by priority: everything after their
+ * phrase key except this PDS's key. Today that is the recovery key (#238,
+ * ADR-003 decision 13), if they added one.
+ */
+export function personHeldBelow(rotationKeys: string[], pdsKey: string | null): string[] {
+  return rotationKeys.slice(1).filter((k) => k !== pdsKey);
+}
+
 /** The next operation after `previous` that takes the account from `from` to `to`. */
 export function planChange(previous: SignedOp, from: CustodyMode, to: CustodyMode, held: string | null, inputs: ChangeInputs): Plan {
   if (from === to) throw new CustodyChangeError(400, 'InvalidRequest', `The account is already ${to}`);
@@ -80,11 +89,13 @@ export function planChange(previous: SignedOp, from: CustodyMode, to: CustodyMod
     vm.openfederation_owner = inputs.ownerDidKey;
     signer = 'pds';
   } else {
-    // The user's key is the first rotation key; they sign.
+    // The user's key is the first rotation key; they sign. A recovery key
+    // they added below it (#238) stays there towards self or assisted.
     const userKey = previous.rotationKeys[0];
+    const recovery = personHeldBelow(previous.rotationKeys, held);
     signer = 'user';
     if (to === 'self') {
-      rotationKeys = [userKey];
+      rotationKeys = [userKey, ...recovery];
     } else {
       let pdsKey = held;
       if (!pdsKey) {
@@ -92,7 +103,8 @@ export function planChange(previous: SignedOp, from: CustodyMode, to: CustodyMod
         pdsKey = inputs.pdsRotationDidKey;
         newPdsKey = pdsKey;
       }
-      rotationKeys = to === 'assisted' ? [userKey, pdsKey] : [pdsKey];
+      // custodial: the PDS's key alone; the recovery key goes with the owner key.
+      rotationKeys = to === 'assisted' ? [userKey, ...recovery, pdsKey] : [pdsKey];
       if (to === 'custodial') delete vm.openfederation_owner;
     }
   }
