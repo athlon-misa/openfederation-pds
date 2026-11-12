@@ -1,8 +1,9 @@
 /**
  * Stage demo, browser side. This page plays Elena's laptop: it runs the real
  * @open-federation/pseudonym code, so Night Desk's twelve words and key exist
- * only here. The demo server (run.ts) is used for setup, for reading the PDS
- * database and as the independent verifier.
+ * only here. The demo server (run.ts) is used for setup, for showing what the
+ * server (offline) or the public record (live) knows, and as the independent
+ * verifier.
  */
 import {
   fetchTokenKeys, collectTokens, loginWithPhrase, signPresence, createRevealBundle,
@@ -11,12 +12,24 @@ import {
   type CreationToken, type RevealBundle, type RememberedPhrase, type MoveStep,
 } from '../../../packages/openfederation-pseudonym/src/index.js';
 
+interface Check { id: string; label: string; ok: boolean | null; detail: string }
 interface Config {
-  pdsUrl: string; pdsBUrl: string; plcUrl: string; serviceDid: string; pdsBServiceDid: string; handleSuffix: string;
-  elena: { did: string; handle: string; name: string; email: string; accessJwt: string };
+  /** offline: the stack on this laptop. live: two real servers and the public directory. */
+  mode: 'offline' | 'live';
+  /** Live rehearsal: Night Desk's words are kept on this laptop for `npm run demo -- --cleanup`. */
+  rehearsal: boolean;
+  checks: Check[];
+  plcUrl: string;
+  /** Server A, Night Desk's first home; pdsServiceUrl is the endpoint DID documents name for it. */
+  pdsUrl: string; serviceDid: string; handleSuffix: string; pdsServiceUrl: string;
+  /** Server B, the new home, with its own handle domain. */
+  pdsBUrl: string; pdsBServiceDid: string; pdsBHandleSuffix: string;
+  elena: { did: string; handle: string; name: string; accessJwt: string };
   impostor: { did: string; name: string };
-  /** What this server has already been used for, possibly from another browser window. */
+  /** What this server has already been used for, possibly from another browser window (offline). */
   used: { passesCollected: boolean; pseudonymExists: boolean };
+  /** Live: this month's passes, kept on this laptop across resets. */
+  wallet: { epoch: string; tokens: CreationToken[]; spent: number } | null;
 }
 interface Saved {
   elenaDid: string;
@@ -81,6 +94,30 @@ async function sha256Hex(text: string): Promise<string> {
 /** Same derivation as the verifier in run.ts. */
 function challengeForWord(word: string): Promise<string> {
   return sha256Hex(`OpenNewsrooms stage challenge\n${word.trim().toLowerCase()}`);
+}
+
+/** A server's address without the scheme, for the screen. */
+function display(url: string): string {
+  return url.replace(/^https?:\/\//, '');
+}
+
+/** Elena's access token, fresh: the show can run longer than one token lasts. */
+async function elenaJwt(): Promise<string> {
+  return (await api<{ accessJwt: string }>('/api/elena-session')).accessJwt;
+}
+
+/** Live: keep the passes on this laptop (run.ts), so a reset or restart doesn't lose them. */
+async function keepWallet(): Promise<void> {
+  if (cfg?.mode !== 'live' || !saved?.tokens.length) return;
+  await api('/api/wallet', { tokens: saved.tokens, spent: saved.spent });
+  setLiveStatus();
+}
+
+/** Live header: which servers, pre-flight, passes left on this laptop. */
+function setLiveStatus(): void {
+  if (!cfg || cfg.mode !== 'live') return;
+  const passes = saved?.tokens.length ? `${saved.tokens.length - saved.spent} passes` : 'passes not collected';
+  setStatus('ready', `Live${cfg.rehearsal ? ' rehearsal' : ''} · ${display(cfg.pdsUrl)} → ${display(cfg.pdsBUrl)} · pre-flight green · ${passes}`);
 }
 
 function short(did: string): string {
@@ -218,7 +255,9 @@ function busy<T extends unknown[]>(btn: HTMLButtonElement, fn: (...a: T) => Prom
     try { await fn(...a); } catch (err) {
       console.error(err);
       const msg = err instanceof Error ? err.message : String(err);
-      if (/AlreadyCollected|AlreadyExists|HandleNotAvailable|already (taken|exists|in use)|InvalidToken|TokenSpent/i.test(msg)) {
+      if (cfg.mode === 'live' && /AlreadyCollected/.test(msg)) {
+        setStatus('failed', 'This account\u2019s passes for the month were collected elsewhere. Use a rehearsal account.');
+      } else if (cfg.mode === 'offline' && /AlreadyCollected|AlreadyExists|HandleNotAvailable|already (taken|exists|in use)|InvalidToken|TokenSpent/i.test(msg)) {
         showStale(true);
         setStatus('failed', 'This server was already used. Reset the demo.');
       } else {
@@ -231,9 +270,10 @@ function busy<T extends unknown[]>(btn: HTMLButtonElement, fn: (...a: T) => Prom
 
 $('btn-collect').addEventListener('click', busy($('btn-collect') as HTMLButtonElement, async () => {
   const keys = await fetchTokenKeys(cfg!.pdsUrl);
-  const tokens = await collectTokens({ pdsUrl: cfg!.pdsUrl, accessJwt: cfg!.elena.accessJwt, keys, count: 20 });
+  const tokens = await collectTokens({ pdsUrl: cfg!.pdsUrl, accessJwt: await elenaJwt(), keys, count: 20 });
   saved = { elenaDid: cfg!.elena.did, tokens, spent: 0 };
   save();
+  await keepWallet();
   renderAll();
 }));
 
@@ -245,7 +285,10 @@ $('btn-create').addEventListener('click', busy($('btn-create') as HTMLButtonElem
   const pause = () => new Promise((r) => setTimeout(r, 450));
   const c = cfg!;
   const token = saved!.tokens[saved!.spent];
-  const handle = `nightdesk${c.handleSuffix}`;
+  if (!token) throw new Error('No passes left this month');
+  // Free on both servers ("nightdesk" unless an earlier run kept it): it goes into the public entry.
+  const { label } = await api<{ label: string }>('/api/free-handle');
+  const handle = `${label}${c.handleSuffix}`;
 
   step('keys', 'busy'); await pause();
   const phrase = generatePseudonymPhrase();
@@ -260,9 +303,11 @@ $('btn-create').addEventListener('click', busy($('btn-create') as HTMLButtonElem
   const { signingKey } = await res.json() as { signingKey: string };
   const signed = signGenesisOp(buildPseudonymGenesisOp({
     ownerDidKey: keys.ownerDidKey, signingDidKey: signingKey, handle,
-    pdsEndpoint: c.pdsUrl, ownerDid: c.elena.did, commitmentSaltHex: keys.commitmentSaltHex,
+    pdsEndpoint: c.pdsServiceUrl, ownerDid: c.elena.did, commitmentSaltHex: keys.commitmentSaltHex,
   }), keys.ownerPrivateKey);
   const did = didForSignedOp(signed);
+  // Live rehearsal: keep the words before the DID exists anywhere, so cleanup can always find it.
+  if (c.rehearsal) await api('/api/rehearsal', { did, handle, phrase });
   const plc = await fetch(`${c.plcUrl}/${did}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signed) });
   if (!plc.ok) { step('plc', 'fail'); throw new Error(`Directory refused: ${await plc.text()}`); }
   step('plc', 'done');
@@ -276,8 +321,92 @@ $('btn-create').addEventListener('click', busy($('btn-create') as HTMLButtonElem
   saved!.spent += 1;
   saved!.nd = { did, handle: created.handle, phrase };
   save();
+  await keepWallet();
   renderAll();
 }));
+
+interface DatabaseView {
+  view: 'database';
+  accounts: { did: string; handle: string; email: string | null; kind: string; status: string; hasPassword: boolean; loginKey: string | null; auditEntries: number }[];
+  search: { tables: number; bothRows: number };
+  tokens: { batchesCollected: number; spent: number };
+}
+interface PublicEntry { at: string; kind: 'create' | 'update' | 'tombstone'; handle?: string; endpoint?: string; rotationKeys?: number; sealedNote?: boolean }
+interface PublicAccount {
+  did: string; handle?: string; endpoint: string; entries: PublicEntry[];
+  collections: { name: string; files: number }[]; namesOther: boolean;
+}
+interface PublicView {
+  view: 'public';
+  elena: PublicAccount; nightDesk: PublicAccount | null;
+  search: { entries: number; files: number };
+}
+
+/** Which view the Server screen shows: the server's own database (offline) or the public record (live). */
+function renderServerHead(kind: 'database' | 'public'): void {
+  $('server-kind').textContent = kind === 'database'
+    ? 'Database view · this laptop\u2019s server'
+    : 'Public view · no database access';
+  $('server-lede').textContent = kind === 'database'
+    ? 'Straight from the server\u2019s database, not a slide.'
+    : 'These are real servers, so we can\u2019t open their databases. This is what anyone can read, from their own phone: the public directory and the files.';
+}
+
+function card(label: string, title: string, rows: [string, string | null, string?][]): HTMLElement {
+  const el = document.createElement('article'); el.className = 'db-card';
+  const lab = document.createElement('p'); lab.className = 'label'; lab.textContent = label;
+  const h = document.createElement('h3'); h.textContent = title;
+  const dl = document.createElement('dl');
+  for (const [k, v, cls] of rows) {
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd');
+    dd.textContent = v ?? 'nothing recorded';
+    if (v === null || cls === 'none') dd.className = 'none';
+    if (cls === 'hit') dd.className = 'hit';
+    dl.append(dt, dd);
+  }
+  el.append(lab, h, dl);
+  return el;
+}
+
+function entryLine(e: PublicEntry): string {
+  const day = new Date(e.at).toISOString().slice(0, 16).replace('T', ' ');
+  if (e.kind === 'tombstone') return `${day} · retired`;
+  return `${day} · ${e.kind === 'create' ? 'created on' : 'moved to'} ${display(e.endpoint ?? '?')}${e.handle ? ` as ${e.handle}` : ''}`;
+}
+
+function renderPublicView(view: PublicView): void {
+  const grid = $('db-grid');
+  grid.innerHTML = '';
+  const people: [PublicAccount, boolean][] = [[view.elena, false], ...(view.nightDesk ? [[view.nightDesk, true] as [PublicAccount, boolean]] : [])];
+  for (const [a, isNd] of people) {
+    const files = a.collections.reduce((n, c) => n + c.files, 0);
+    const last = a.entries[a.entries.length - 1];
+    grid.appendChild(card(isNd ? 'public directory and files · Night Desk' : `public directory and files · ${cfg!.elena.name}`,
+      isNd ? 'Night Desk' : cfg!.elena.name, [
+        ['handle', a.handle ?? null],
+        ['did', short(a.did)],
+        ['lives at', a.endpoint ? display(a.endpoint) : null],
+        ['directory', `${a.entries.length} ${a.entries.length === 1 ? 'entry' : 'entries'}`],
+        ...a.entries.map((e, i) => [i === 0 ? 'history' : '', entryLine(e)] as [string, string]),
+        ...(isNd ? [['sealed note', last?.sealedNote ? 'locked inside the entry; it names nobody you can read' : null] as [string, string | null]] : []),
+        ['files', `${files} in ${a.collections.length} ${a.collections.length === 1 ? 'folder' : 'folders'}`],
+        ['names the other', a.namesOther ? 'yes' : 'nothing', a.namesOther ? 'hit' : 'none'],
+      ]));
+  }
+  const verdict = $('db-verdict');
+  verdict.hidden = !view.nightDesk;
+  if (view.nightDesk) {
+    verdict.innerHTML = '';
+    const bad = view.elena.namesOther || view.nightDesk.namesOther;
+    const s = document.createElement('strong');
+    s.textContent = bad ? 'The public record links the two accounts.' : 'Nothing in public connects Night Desk to Elena.';
+    const d = document.createElement('span');
+    d.textContent = `Read ${view.search.entries} directory entries and ${view.search.files} files, as anyone can: neither account names the other\u2019s DID or handle.`;
+    if (bad) d.textContent = `Read ${view.search.entries} directory entries and ${view.search.files} files: one names the other.`;
+    verdict.append(s, d);
+  }
+}
 
 async function lookInside(): Promise<void> {
   if (!cfg) return;
@@ -285,11 +414,10 @@ async function lookInside(): Promise<void> {
   btn.disabled = true;
   try {
     const q = saved?.nd ? `?pseudonym=${encodeURIComponent(saved.nd.did)}` : '';
-    const view = await api<{
-      accounts: { did: string; handle: string; email: string | null; kind: string; status: string; hasPassword: boolean; loginKey: string | null; auditEntries: number }[];
-      search: { tables: number; bothRows: number };
-      tokens: { batchesCollected: number; spent: number };
-    }>(`/api/server-view${q}`);
+    const result = await api<DatabaseView | PublicView>(`/api/server-view${q}`);
+    renderServerHead(result.view);
+    if (result.view === 'public') { renderPublicView(result); return; }
+    const view = result;
     const grid = $('db-grid');
     grid.innerHTML = '';
     const order = [cfg.elena.did, saved?.nd?.did].filter(Boolean) as string[];
@@ -540,7 +668,7 @@ async function showRepo(): Promise<void> {
   const base = home();
   try {
     const files = await readRepo(base, saved.nd.did);
-    $('repo-where').textContent = `On ${saved.movedTo ? 'the new home' : 'the server'} · ${base.replace('http://', '')}`;
+    $('repo-where').textContent = `On ${saved.movedTo ? 'the new home' : 'the server'} · ${display(base)}`;
     $('repo-count').textContent = `${files.length} files`;
     renderTree($('tree'), 'night-desk', files, openFile);
     const first = files.find((f) => f.folder === 'articles') ?? files[0];
@@ -576,8 +704,8 @@ $('btn-backup').addEventListener('click', busy($('btn-backup') as HTMLButtonElem
 
 function renderMove(): void {
   if (!cfg) return;
-  $('from-url').textContent = cfg.pdsUrl.replace('http://', '');
-  $('to-url').textContent = cfg.pdsBUrl.replace('http://', '');
+  $('from-url').textContent = display(cfg.pdsUrl);
+  $('to-url').textContent = display(cfg.pdsBUrl);
   const moved = !!saved?.movedTo;
   ($('btn-move') as HTMLButtonElement).disabled = moved || !saved?.nd;
   ($('btn-move') as HTMLButtonElement).textContent = moved ? 'Night Desk has moved' : 'Move Night Desk';
@@ -603,7 +731,8 @@ $('btn-move').addEventListener('click', busy($('btn-move') as HTMLButtonElement,
     const session = await moveAccount({
       oldPdsUrl: c.pdsUrl, oldServiceDid: c.serviceDid,
       newPdsUrl: c.pdsBUrl, newServiceDid: c.pdsBServiceDid,
-      plcUrl: c.plcUrl, phrase: nd.phrase, did: nd.did, newHandle: `${label}${c.handleSuffix}`,
+      // A handle under the new server's own domain (describeServer availableUserDomains).
+      plcUrl: c.plcUrl, phrase: nd.phrase, did: nd.did, newHandle: `${label}${c.pdsBHandleSuffix}`,
       onStep: async (s) => {
         const k = MOVE_ITEM[s];
         if (k === current) return;
@@ -622,12 +751,16 @@ $('btn-move').addEventListener('click', busy($('btn-move') as HTMLButtonElement,
     throw err;
   }
 
-  const doc = await (await fetch(`${c.plcUrl}/${nd.did}`)).json() as { service?: { serviceEndpoint: string }[] };
+  // The public directory names the new home and the handle under its domain.
+  const doc = await (await fetch(`${c.plcUrl}/${nd.did}`)).json() as { service?: { serviceEndpoint: string }[]; alsoKnownAs?: string[] };
   const endpoint = doc.service?.[0]?.serviceEndpoint ?? '';
-  const files = await readRepo(c.pdsBUrl, nd.did);
+  const newHandle = doc.alsoKnownAs?.find((a) => a.startsWith('at://'))?.slice(5);
+  if (newHandle) saved!.nd = { ...nd, handle: newHandle };
   save();
+  if (c.rehearsal) await api('/api/rehearsal', { did: nd.did, movedTo: c.pdsBUrl });
+  const files = await readRepo(c.pdsBUrl, nd.did);
   renderTree($('tree-b'), 'night-desk', files);
-  $('moved-line').textContent = `The public directory now says: Night Desk lives at ${endpoint.replace('http://', '')}. ${files.length} files arrived intact, and Night Desk is signed in there.`;
+  $('moved-line').textContent = `The public directory now says: Night Desk lives at ${display(endpoint)}, as ${saved!.nd!.handle}. ${files.length} files arrived intact, and Night Desk is signed in there.`;
   renderMove();
   renderPublish();
 }));
@@ -637,7 +770,7 @@ async function restoreMoved(): Promise<void> {
   try {
     const files = await readRepo(saved.movedTo, saved.nd.did);
     renderTree($('tree-b'), 'night-desk', files);
-    $('moved-line').textContent = `The public directory now says: Night Desk lives at ${saved.movedTo.replace('http://', '')}. ${files.length} files arrived intact.`;
+    $('moved-line').textContent = `The public directory now says: Night Desk lives at ${display(saved.movedTo)}, as ${saved.nd.handle}. ${files.length} files arrived intact.`;
   } catch { /* shown again after the next move */ }
 }
 
@@ -689,7 +822,7 @@ $('btn-reveal').addEventListener('click', busy($('btn-reveal') as HTMLButtonElem
   const c = cfg!;
   const nd = saved!.nd!;
   saved!.bundle = await createRevealBundle({
-    pdsUrl: c.pdsUrl, plcUrl: c.plcUrl, phrase: nd.phrase, pseudonymDid: nd.did, ownerDid: c.elena.did, ownerAccessJwt: c.elena.accessJwt,
+    pdsUrl: c.pdsUrl, plcUrl: c.plcUrl, phrase: nd.phrase, pseudonymDid: nd.did, ownerDid: c.elena.did, ownerAccessJwt: await elenaJwt(),
   });
   save();
   renderReveal();
@@ -713,9 +846,14 @@ $('btn-impostor').addEventListener('click', busy($('btn-impostor') as HTMLButton
 $('btn-reset').addEventListener('click', () => { $('reset-confirm').hidden = false; $('btn-reset').hidden = true; });
 $('btn-reset-no').addEventListener('click', () => { $('reset-confirm').hidden = true; $('btn-reset').hidden = false; });
 $('btn-stale-reset').addEventListener('click', () => { $('btn-reset-yes').click(); });
+$('btn-preflight-again').addEventListener('click', () => { $('btn-reset-yes').click(); });
+// Offline: rebuild the servers. Live: forget Night Desk in this browser and
+// run the pre-flight again; nothing on the servers is deleted (see --cleanup).
+// Live passes stay on this laptop: they can't be collected twice in a month.
 $('btn-reset-yes').addEventListener('click', async () => {
   $('reset-confirm').hidden = true; $('btn-reset').hidden = false;
   showStale(false);
+  $('preflight').hidden = true;
   try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
   saved = null; cfg = null;
   $<HTMLTextAreaElement>('login-words').value = '';
@@ -723,6 +861,7 @@ $('btn-reset-yes').addEventListener('click', async () => {
   $('verdict').hidden = true; $('verdict-note').textContent = '';
   $('db-grid').innerHTML = ''; $('db-verdict').hidden = true;
   $('checks').hidden = true; $('reveal-verdict').hidden = true;
+  document.querySelectorAll<HTMLElement>('#move-steps li').forEach((li) => { li.className = ''; });
   await api('/api/reset', {});
   show(0);
   void boot();
@@ -730,21 +869,65 @@ $('btn-reset-yes').addEventListener('click', async () => {
 
 // ---------- Boot ----------
 
+/** Live pre-flight: one line per check, shown when something is red. */
+function renderPreflight(checks: Check[], error: string): void {
+  const ul = $('preflight-list');
+  ul.innerHTML = '';
+  for (const c of checks) {
+    const li = document.createElement('li');
+    li.className = c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'unknown';
+    const b = document.createElement('b'); b.textContent = c.label;
+    li.append(b, ` \u00b7 ${c.detail}`);
+    ul.appendChild(li);
+  }
+  if (!checks.length) {
+    const li = document.createElement('li'); li.className = 'bad'; li.textContent = error; ul.appendChild(li);
+  }
+  $('preflight').hidden = false;
+}
+
+function preflightTitle(checks: Check[]): string {
+  return checks.map((c) => `${c.ok === true ? '\u2713' : c.ok === false ? '\u2717' : '\u2013'} ${c.label}: ${c.detail}`).join('\n');
+}
+
 async function boot(): Promise<void> {
   setStatus('busy', 'Starting the server…');
   for (;;) {
     try {
-      const s = await api<{ state: string; error: string }>('/api/status');
+      const s = await api<{ state: string; error: string; mode: string; checks: Check[] }>('/api/status');
       if (s.state === 'ready') break;
-      if (s.state === 'failed') { setStatus('failed', `Server failed: ${s.error.slice(0, 80)}`); return; }
+      if (s.state === 'failed') {
+        if (s.mode === 'live') {
+          setStatus('failed', 'Live pre-flight failed: use the offline demo');
+          $('status').title = preflightTitle(s.checks);
+          renderPreflight(s.checks, s.error);
+        } else {
+          setStatus('failed', `Server failed: ${s.error.slice(0, 80)}`);
+        }
+        return;
+      }
+      if (s.mode === 'live') setStatus('busy', 'Checking the live servers…');
     } catch { /* demo server restarting */ }
     await new Promise((r) => setTimeout(r, 700));
   }
   cfg = await api<Config>('/api/state');
   load();
   if (saved && saved.elenaDid !== cfg.elena.did) { saved = null; save(); }
-  showStale((cfg.used.passesCollected && !saved?.tokens.length) || (cfg.used.pseudonymExists && !saved?.nd));
-  setStatus('ready', 'Local server ready · offline');
+  if (cfg.mode === 'live') {
+    // Passes collected earlier this month on this laptop (kept by run.ts).
+    const w = cfg.wallet;
+    if (w && (!saved || !saved.tokens.length)) saved = { ...(saved ?? { elenaDid: cfg.elena.did }), tokens: w.tokens, spent: w.spent };
+    else if (w && saved && w.spent > saved.spent) saved.spent = w.spent;
+    save();
+    showStale(false);
+    setLiveStatus();
+    $('status').title = preflightTitle(cfg.checks);
+    $('reset-question').textContent = 'Forget Night Desk in this browser? Nothing on the servers is deleted.';
+  } else {
+    showStale((cfg.used.passesCollected && !saved?.tokens.length) || (cfg.used.pseudonymExists && !saved?.nd));
+    setStatus('ready', 'Local server ready · offline');
+    $('status').title = '';
+  }
   renderAll();
   if (screens[current].id === 'server') void lookInside();
   if (screens[current].id === 'files') void showRepo();

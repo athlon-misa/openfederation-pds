@@ -1,19 +1,28 @@
 /**
  * Stage demo launcher: `npm run demo`.
  *
- * Runs a private, offline stack on this laptop and serves the Open Newsrooms
- * stage app:
+ * Offline (the default) runs a private stack on this laptop and serves the
+ * Open Newsrooms stage app:
  *   - PLC directory, in memory (port 2683), so every reset starts empty
  *   - PDS on its own database, openfederation_pds_demo (port 8091)
  *   - a second PDS, "the new home" Night Desk can move to (port 8092)
  *   - the stage app and its small helper API (port 4747)
  *
- * The helper API only seeds Elena's account, reads the PDS database for the
- * "what the server knows" screen and runs the independent verifier. Pseudonym
- * keys are made and used in the browser; the phrase never reaches this process.
+ * Live (`npm run demo -- --live`, or DEMO_MODE=live) starts only the stage
+ * app and points it at two real servers and their PLC directory (defaults:
+ * pds.openfederation.net, pds.grvty.app, plc.openfederation.net). No admin or
+ * database access: Elena's and Marko's accounts come from demo/stage/.live.env.
+ *
+ * Cleanup (`npm run demo -- --cleanup`) deletes the accounts of rehearsal
+ * pseudonyms whose words were kept locally and tombstones their DIDs.
+ *
+ * The helper API seeds or signs in Elena, shows what the server (offline) or
+ * the public record (live) knows, and runs the independent verifier.
+ * Pseudonym keys are made and used in the browser; the phrase reaches this
+ * process only for rehearsal pseudonyms in live mode, to be cleaned up later.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createWriteStream, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
@@ -21,10 +30,22 @@ import * as dotenv from 'dotenv';
 import express from 'express';
 import * as esbuild from 'esbuild';
 import pg from 'pg';
+import { loginWithPhrase, signOwnerJwt, tombstone, type CreationToken } from '../../packages/openfederation-pseudonym/src/index.js';
+import { currentEpoch } from '../../packages/openfederation-pseudonym/src/formats.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 dotenv.config({ path: join(ROOT, '.env'), quiet: true });
+
+// ---------- Mode and configuration ----------
+
+const ARGS = process.argv.slice(2);
+function arg(name: string): string | undefined {
+  const a = ARGS.find((x) => x === `--${name}` || x.startsWith(`--${name}=`));
+  return a === undefined ? undefined : a.includes('=') ? a.slice(a.indexOf('=') + 1) : '';
+}
+const MODE: 'offline' | 'live' | 'cleanup' = arg('cleanup') !== undefined ? 'cleanup'
+  : arg('live') !== undefined || process.env.DEMO_MODE === 'live' ? 'live' : 'offline';
 
 const PORTS = {
   plc: Number(process.env.DEMO_PLC_PORT || 2683),
@@ -34,14 +55,35 @@ const PORTS = {
 };
 const DEMO_DB = process.env.DEMO_DB_NAME || 'openfederation_pds_demo';
 const DEMO_DB_B = `${DEMO_DB}_b`;
-const PLC_URL = `http://localhost:${PORTS.plc}`;
-const PDS_URL = `http://localhost:${PORTS.pds}`;
-const PDS_B_URL = `http://localhost:${PORTS.pdsB}`;
 const SERVICE_DID = 'did:web:localhost';
 const SERVICE_DID_B = `did:web:localhost%3A${PORTS.pdsB}`;
 const HANDLE_SUFFIX = '.opennewsrooms.demo';
 const ELENA = { handle: `elena${HANDLE_SUFFIX}`, name: 'Elena Petrova', email: 'elena@newsroom.demo' };
 const MARKO = { handle: 'marko', name: 'Marko', email: 'marko@newsroom.demo' };
+
+/** Live settings: demo/stage/.live.env (git-ignored), overridden by the environment. */
+const LIVE_ENV_FILE = process.env.DEMO_LIVE_ENV || join(HERE, '.live.env');
+/** Elena's passes and rehearsal words, kept on this laptop (git-ignored). */
+const LIVE_DIR = process.env.DEMO_LIVE_DIR || join(HERE, '.live');
+const WALLETS_FILE = join(LIVE_DIR, 'wallets.json');
+const REHEARSALS_FILE = join(LIVE_DIR, 'rehearsals.json');
+
+function liveEnv(): Record<string, string> {
+  const file = existsSync(LIVE_ENV_FILE) ? dotenv.parse(readFileSync(LIVE_ENV_FILE)) : {};
+  const fromEnv = Object.fromEntries(Object.entries(process.env).filter(([k, v]) => k.startsWith('DEMO_') && v !== undefined)) as Record<string, string>;
+  return { ...file, ...fromEnv };
+}
+const LIVE = liveEnv();
+const trimUrl = (u: string) => u.replace(/\/+$/, '');
+
+/** 0 for the show; N to rehearse with DEMO_REHEARSAL_<N>_* and keep the words for --cleanup. */
+const REHEARSAL = (() => {
+  const v = arg('rehearsal') ?? LIVE.DEMO_REHEARSAL ?? '';
+  if (v === '' && arg('rehearsal') !== undefined) return 1;
+  if (/^(true|yes|on)$/i.test(v)) return 1;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : 0;
+})();
 
 const db = {
   host: process.env.DB_HOST || 'localhost',
@@ -53,15 +95,89 @@ const db = {
 const LOG_DIR = join(HERE, '.logs');
 mkdirSync(LOG_DIR, { recursive: true });
 
-// ---------- Stack ----------
+/** A PDS as the stage app sees it: where it is and what it says about itself. */
+interface Server {
+  url: string;
+  /** Its DID: the audience of owner-key JWTs and phrase logins. */
+  serviceDid: string;
+  /** Its handle domain, from describeServer (e.g. ".grvty.app"). */
+  handleSuffix: string;
+  /** The endpoint a DID document names for it (getPublicConfig serviceUrl). */
+  serviceUrl: string;
+  config?: PublicConfig;
+}
+interface PublicConfig {
+  serviceUrl?: string; plcDirectoryUrl?: string;
+  migration?: { pseudonyms?: string };
+  identity?: { pseudonymsEnabled?: boolean; custodyAllowed?: string[] };
+}
+
+const stack = {
+  plcUrl: MODE === 'offline' ? `http://localhost:${PORTS.plc}` : trimUrl(LIVE.DEMO_PLC_URL || 'https://plc.openfederation.net'),
+  a: { url: MODE === 'offline' ? `http://localhost:${PORTS.pds}` : trimUrl(LIVE.DEMO_PDS_A_URL || 'https://pds.openfederation.net') } as Server,
+  b: { url: MODE === 'offline' ? `http://localhost:${PORTS.pdsB}` : trimUrl(LIVE.DEMO_PDS_B_URL || 'https://pds.grvty.app') } as Server,
+};
+
+// ---------- Small HTTP helpers ----------
+
+async function xrpc<T = any>(nsid: string, body?: unknown, jwt?: string, base = stack.a.url): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (jwt) headers.Authorization = `Bearer ${jwt}`;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${base}/xrpc/${nsid}`, body === undefined
+    ? { headers, signal: AbortSignal.timeout(15000) }
+    : { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`${nsid} failed (${res.status}): ${JSON.stringify(json)}`);
+  return json as T;
+}
+
+async function getJson<T = any>(url: string): Promise<T> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+async function session(identifier: string, password: string, base = stack.a.url): Promise<{ accessJwt: string; did: string; handle: string }> {
+  return xrpc('com.atproto.server.createSession', { identifier, password }, undefined, base);
+}
+
+/** Service DID, handle domain and public config, all read from the server itself. */
+async function describe(server: Server): Promise<void> {
+  const d = await xrpc<{ did: string; availableUserDomains?: string[] }>('com.atproto.server.describeServer', undefined, undefined, server.url);
+  const suffix = d.availableUserDomains?.[0];
+  if (!d.did || !suffix) throw new Error(`${server.url} did not describe itself`);
+  server.serviceDid = d.did;
+  server.handleSuffix = suffix.startsWith('.') ? suffix : `.${suffix}`;
+  server.config = await xrpc<PublicConfig>('net.openfederation.server.getPublicConfig', undefined, undefined, server.url).catch(() => undefined);
+  server.serviceUrl = trimUrl(server.config?.serviceUrl || server.url);
+}
+
+const host = (url: string) => url.replace(/^https?:\/\//, '');
+
+// ---------- People ----------
+
+interface Person { did: string; login: string; password: string; handle?: string }
+let elena: Person | null = null;
+let marko: { did: string } | null = null;
+let elenaCache: { accessJwt: string; did: string; handle: string; at: number } | null = null;
+
+/** A session for Elena, reused for ten minutes (access tokens last fifteen). */
+async function elenaSession(): Promise<{ accessJwt: string; did: string; handle: string }> {
+  if (!elena) throw new Error('Not ready');
+  if (elenaCache && Date.now() - elenaCache.at < 10 * 60 * 1000) return elenaCache;
+  const s = await session(elena.login, elena.password);
+  elenaCache = { ...s, at: Date.now() };
+  return s;
+}
+
+// ---------- Offline stack ----------
 
 let plc: ChildProcess | null = null;
 let pds: ChildProcess | null = null;
 let pdsB: ChildProcess | null = null;
 let admin = { handle: 'admin', email: 'admin@newsroom.demo', password: '' };
 let adminB = { ...admin };
-let elena: { did: string; password: string } | null = null;
-let marko: { did: string } | null = null;
 let pseudonymDids = new Set<string>();
 
 function strongPassword(): string {
@@ -120,22 +236,6 @@ async function freshDatabase(name: string): Promise<void> {
   }
 }
 
-async function xrpc<T = any>(nsid: string, body?: unknown, jwt?: string, base = PDS_URL): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (jwt) headers.Authorization = `Bearer ${jwt}`;
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const res = await fetch(`${base}/xrpc/${nsid}`, body === undefined
-    ? { headers }
-    : { method: 'POST', headers, body: JSON.stringify(body) });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`${nsid} failed (${res.status}): ${JSON.stringify(json)}`);
-  return json as T;
-}
-
-async function session(identifier: string, password: string, base = PDS_URL): Promise<{ accessJwt: string; did: string; handle: string }> {
-  return xrpc('com.atproto.server.createSession', { identifier, password }, undefined, base);
-}
-
 function startPds(name: string, port: number, database: string, serviceDid: string, who: typeof admin): ChildProcess {
   return start(name, ['--import', './scripts/register-ts-node.mjs', 'src/index.ts'], {
     ...process.env,
@@ -145,7 +245,7 @@ function startPds(name: string, port: number, database: string, serviceDid: stri
     PDS_HOSTNAME: 'localhost',
     PDS_SERVICE_URL: `http://localhost:${port}`,
     PDS_SERVICE_DID: serviceDid,
-    PLC_DIRECTORY_URL: PLC_URL,
+    PLC_DIRECTORY_URL: stack.plcUrl,
     HANDLE_SUFFIX,
     BOOTSTRAP_ADMIN_EMAIL: who.email,
     BOOTSTRAP_ADMIN_HANDLE: who.handle,
@@ -156,7 +256,7 @@ function startPds(name: string, port: number, database: string, serviceDid: stri
   });
 }
 
-async function seedAccount(adminJwt: string, handle: string, email: string): Promise<{ did: string; password: string }> {
+async function seedAccount(adminJwt: string, handle: string, email: string): Promise<Person> {
   const invite = await xrpc<{ code: string }>('net.openfederation.invite.create', { maxUses: 1 }, adminJwt);
   const password = strongPassword();
   const reg = await xrpc<{ userId?: string; id?: string }>('net.openfederation.account.register', {
@@ -164,7 +264,7 @@ async function seedAccount(adminJwt: string, handle: string, email: string): Pro
   });
   await xrpc('net.openfederation.account.approve', { userId: reg.userId || reg.id }, adminJwt);
   const s = await session(email, password);
-  return { did: s.did, password };
+  return { did: s.did, login: email, password, handle: s.handle };
 }
 
 /** Elena, the reporter, and Marko, who later tries to claim Night Desk as his. */
@@ -177,33 +277,187 @@ async function seedPeople(): Promise<void> {
 let state: 'starting' | 'ready' | 'resetting' | 'failed' = 'starting';
 let lastError = '';
 
+async function bringUpOffline(): Promise<void> {
+  await Promise.all([stop(pds), stop(pdsB), stop(plc)]);
+  await Promise.all([freshDatabase(DEMO_DB), freshDatabase(DEMO_DB_B)]);
+  admin = { ...admin, password: strongPassword() };
+  adminB = { ...admin, password: strongPassword() };
+  plc = start('plc', ['node_modules/@did-plc/server/dist/bin.js'], { ...process.env, PORT: String(PORTS.plc), DATABASE_URL: '' });
+  await waitFor(`${stack.plcUrl}/_health`, 'PLC directory');
+  pds = startPds('pds', PORTS.pds, DEMO_DB, SERVICE_DID, admin);
+  pdsB = startPds('pds-b', PORTS.pdsB, DEMO_DB_B, SERVICE_DID_B, adminB);
+  await Promise.all([waitFor(`${stack.a.url}/health`, 'PDS', 120000), waitFor(`${stack.b.url}/health`, 'Second PDS', 120000)]);
+  await Promise.all([describe(stack.a), describe(stack.b)]);
+  await seedPeople();
+}
+
+// ---------- Live: pre-flight ----------
+
+interface Check { id: string; label: string; ok: boolean | null; detail: string }
+let checks: Check[] = [];
+
+const OFFLINE_HINT = 'Start the offline demo instead: npm run demo';
+
+/** Everything the live run needs, checked with reads only (and one sign-in for Elena). */
+async function preflight(): Promise<Check[]> {
+  const out: Check[] = [];
+  const add = (id: string, label: string, ok: boolean | null, detail: string) => { out.push({ id, label, ok, detail }); };
+  const reach = async (id: string, label: string, server: Server) => {
+    try {
+      await describe(server);
+      add(id, `${label} reachable`, true, `${host(server.url)} · ${server.serviceDid} · handles ${server.handleSuffix}`);
+      return true;
+    } catch (err) {
+      add(id, `${label} reachable`, false, `${host(server.url)}: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  };
+  const [aUp, bUp] = await Promise.all([reach('a', 'Server A', stack.a), reach('b', 'Server B', stack.b)]);
+  try {
+    await getJson(`${stack.plcUrl}/_health`);
+    add('plc', 'Directory reachable', true, host(stack.plcUrl));
+  } catch (err) {
+    add('plc', 'Directory reachable', false, `${host(stack.plcUrl)}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  for (const [id, label, server, up] of [['a-config', 'Server A', stack.a, aUp], ['b-config', 'Server B', stack.b, bUp]] as const) {
+    if (!up) continue;
+    const c = server.config;
+    const ok = c?.identity?.pseudonymsEnabled === true && c?.migration?.pseudonyms === 'open';
+    add(id, `${label}: pseudonyms on, pseudonym moves open`, ok, c
+      ? `pseudonyms ${c.identity?.pseudonymsEnabled ? 'on' : 'off'}, moves ${c.migration?.pseudonyms ?? 'unknown'}`
+      : 'getPublicConfig did not answer');
+  }
+
+  const who = REHEARSAL ? `DEMO_REHEARSAL_${REHEARSAL}_` : 'DEMO_ELENA_';
+  const login = LIVE[`${who}HANDLE`] || LIVE[`${who}EMAIL`];
+  const password = LIVE[`${who}PASSWORD`];
+  const expectedDid = LIVE[`${who}DID`];
+  elena = null;
+  elenaCache = null;
+  if (!login || !password) {
+    add('elena', 'Elena can sign in', false, `${who}HANDLE and ${who}PASSWORD are not set in ${LIVE_ENV_FILE}`);
+  } else if (aUp) {
+    try {
+      // createSession looks handles up without the server's domain: "elena", not "elena.openfederation.net".
+      const signInAs = !login.includes('@') && login.endsWith(stack.a.handleSuffix) ? login.slice(0, -stack.a.handleSuffix.length) : login;
+      const s = await session(signInAs, password);
+      if (expectedDid && s.did !== expectedDid) throw new Error(`signed in as ${s.did}, but ${who}DID is ${expectedDid}`);
+      elena = { did: s.did, login: signInAs, password, handle: s.handle };
+      elenaCache = { ...s, at: Date.now() };
+      add('elena', `${REHEARSAL ? `Rehearsal account ${REHEARSAL}` : 'Elena'} can sign in`, true, `${s.handle} · ${s.did}`);
+    } catch (err) {
+      add('elena', 'Elena can sign in', false, err instanceof Error ? err.message.slice(0, 200) : String(err));
+    }
+  }
+
+  // The browser registers Night Desk with stack.plcUrl, and both servers must
+  // read the same directory: compare what each URL says about Elena's DID.
+  if (elena && aUp && bUp) {
+    const urls = [...new Set([stack.plcUrl, stack.a.config?.plcDirectoryUrl, stack.b.config?.plcDirectoryUrl]
+      .filter((u): u is string => !!u).map(trimUrl))];
+    try {
+      const docs = await Promise.all(urls.map((u) => getJson(`${u}/${elena!.did}/log/last`).then((j) => JSON.stringify(j))));
+      const same = docs.every((d) => d === docs[0]);
+      const last = JSON.parse(docs[0]) as { services?: { atproto_pds?: { endpoint?: string } } };
+      const endpoint = trimUrl(last.services?.atproto_pds?.endpoint ?? '');
+      const home = endpoint === stack.a.serviceUrl;
+      add('same-plc', 'Both servers use this directory', same && home, same
+        ? home ? `${urls.map(host).join(' = ')}; Elena lives on ${host(endpoint)}` : `Elena's DID names ${endpoint || 'no server'}, not server A`
+        : `${urls.map(host).join(', ')} disagree about Elena's DID`);
+    } catch (err) {
+      add('same-plc', 'Both servers use this directory', false, err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Marko's DID, for "Marko claims Night Desk". Only his public DID is needed.
+  marko = null;
+  const markoDid = LIVE.DEMO_MARKO_DID;
+  const markoHandle = LIVE.DEMO_MARKO_HANDLE;
+  if (markoDid) {
+    marko = { did: markoDid };
+    add('marko', 'Marko’s account known', true, markoDid);
+  } else if (markoHandle && aUp) {
+    try {
+      const r = await xrpc<{ did: string }>(`com.atproto.identity.resolveHandle?handle=${encodeURIComponent(markoHandle)}`);
+      marko = { did: r.did };
+      add('marko', 'Marko’s account known', true, `${markoHandle} · ${r.did}`);
+    } catch (err) {
+      add('marko', 'Marko’s account known', false, `${markoHandle}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    add('marko', 'Marko’s account known', false, `DEMO_MARKO_DID or DEMO_MARKO_HANDLE is not set in ${LIVE_ENV_FILE}`);
+  }
+
+  // Passes: the server cannot say how many are left (it never sees which
+  // were used); this laptop can, once it has collected them.
+  if (elena) {
+    const w = readWallet(elena.did);
+    if (w) {
+      const left = w.tokens.length - w.spent;
+      add('passes', 'Passes left this month', left > 0, `${left} of ${w.tokens.length} on this laptop`);
+    } else {
+      add('passes', 'Passes left this month', null, 'Not collected on this laptop yet this month; the Passes screen collects 20. A second collection in the same month is refused.');
+    }
+  }
+  if (REHEARSAL) {
+    add('rehearsal', 'Rehearsal: words kept for cleanup', true, `${REHEARSALS_FILE} · npm run demo -- --cleanup`);
+  }
+  return out;
+}
+
+async function bringUpLive(): Promise<void> {
+  checks = await preflight();
+  const red = checks.filter((c) => c.ok === false);
+  if (red.length) {
+    throw new Error(`Pre-flight: ${red.map((c) => `${c.label}: ${c.detail}`).join(' · ')}. ${OFFLINE_HINT}`);
+  }
+}
+
 async function bringUp(): Promise<void> {
   state = state === 'starting' ? 'starting' : 'resetting';
   elena = null;
   marko = null;
+  elenaCache = null;
   pseudonymDids = new Set();
   try {
-    await Promise.all([stop(pds), stop(pdsB), stop(plc)]);
-    await Promise.all([freshDatabase(DEMO_DB), freshDatabase(DEMO_DB_B)]);
-    admin = { ...admin, password: strongPassword() };
-    adminB = { ...admin, password: strongPassword() };
-    plc = start('plc', ['node_modules/@did-plc/server/dist/bin.js'], { ...process.env, PORT: String(PORTS.plc), DATABASE_URL: '' });
-    await waitFor(`${PLC_URL}/_health`, 'PLC directory');
-    pds = startPds('pds', PORTS.pds, DEMO_DB, SERVICE_DID, admin);
-    pdsB = startPds('pds-b', PORTS.pdsB, DEMO_DB_B, SERVICE_DID_B, adminB);
-    await Promise.all([waitFor(`${PDS_URL}/health`, 'PDS', 120000), waitFor(`${PDS_B_URL}/health`, 'Second PDS', 120000)]);
-    await seedPeople();
+    if (MODE === 'live') await bringUpLive(); else await bringUpOffline();
     state = 'ready';
     lastError = '';
-    console.log(`Ready. Open http://localhost:${PORTS.app}`);
+    console.log(`Ready (${MODE}). Open http://localhost:${PORTS.app}`);
   } catch (err) {
     state = 'failed';
     lastError = err instanceof Error ? err.message : String(err);
     console.error('Demo stack failed:', lastError);
   }
+  if (MODE === 'live') {
+    for (const c of checks) console.log(`  ${c.ok === true ? 'ok  ' : c.ok === false ? 'FAIL' : '--  '} ${c.label}: ${c.detail}`);
+  }
 }
 
-// ---------- What the server knows ----------
+// ---------- Live: what this laptop keeps ----------
+
+interface Wallet { epoch: string; tokens: CreationToken[]; spent: number }
+interface Rehearsal {
+  did: string; handle: string; phrase: string; plcUrl: string;
+  servers: { url: string; serviceDid: string }[];
+  createdAt: string; movedTo?: string; cleanedAt?: string;
+}
+
+function readJson<T>(file: string, fallback: T): T {
+  try { return JSON.parse(readFileSync(file, 'utf8')) as T; } catch { return fallback; }
+}
+function writeJson(file: string, value: unknown): void {
+  mkdirSync(LIVE_DIR, { recursive: true, mode: 0o700 });
+  writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+}
+
+/** This month's passes for an account, if this laptop collected them. */
+function readWallet(did: string): Wallet | null {
+  const w = readJson<Record<string, Wallet>>(WALLETS_FILE, {})[did];
+  return w && w.epoch === currentEpoch() ? w : null;
+}
+
+// ---------- What the server knows (offline: its database) ----------
 
 async function serverView(pseudonymDid: string | undefined) {
   if (!elena) throw new Error('Not seeded');
@@ -248,6 +502,142 @@ async function serverView(pseudonymDid: string | undefined) {
   }
 }
 
+// ---------- What anyone can see (live: the public record) ----------
+
+interface AuditEntry { createdAt: string; nullified: boolean; operation: Record<string, any> }
+
+/** One account's public record: its PLC history and the repository its DID points to. */
+async function publicRecord(did: string) {
+  const audit = (await getJson<AuditEntry[]>(`${stack.plcUrl}/${did}/log/audit`)).filter((e) => !e.nullified);
+  const entries = audit.map((e) => {
+    const op = e.operation;
+    if (op.type === 'plc_tombstone') return { at: e.createdAt, kind: 'tombstone' as const };
+    const handle = (op.alsoKnownAs as string[] | undefined)?.find((a) => a.startsWith('at://'))?.slice(5) ?? op.handle;
+    const endpoint = op.services?.atproto_pds?.endpoint ?? op.service;
+    return {
+      at: e.createdAt, kind: op.prev ? 'update' as const : 'create' as const, handle, endpoint,
+      rotationKeys: (op.rotationKeys as string[] | undefined)?.length ?? 0,
+      sealedNote: ((op.alsoKnownAs as string[] | undefined) ?? []).some((a) => a.startsWith('urn:openfederation:pseudonym-commitment:')),
+    };
+  });
+  const last = [...entries].reverse().find((e) => e.kind !== 'tombstone');
+  const endpoint = last && 'endpoint' in last ? trimUrl(last.endpoint ?? '') : '';
+  const collections: { name: string; files: number }[] = [];
+  const values: unknown[] = [];
+  if (endpoint) {
+    const repo = await getJson<{ collections: string[] }>(`${endpoint}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(did)}`);
+    for (const c of repo.collections) {
+      const r = await getJson<{ records: { value: unknown }[] }>(
+        `${endpoint}/xrpc/com.atproto.repo.listRecords?${new URLSearchParams({ repo: did, collection: c, limit: '100' })}`);
+      collections.push({ name: c, files: r.records.length });
+      values.push(...r.records.map((x) => x.value));
+    }
+  }
+  return {
+    did, handle: last && 'handle' in last ? last.handle : undefined, endpoint, entries, collections,
+    text: JSON.stringify([audit, values]),
+  };
+}
+
+async function publicView(pseudonymDid: string | undefined) {
+  if (!elena) throw new Error('Not ready');
+  const [e, n] = await Promise.all([publicRecord(elena.did), pseudonymDid ? publicRecord(pseudonymDid) : Promise.resolve(null)]);
+  const names = (text: string, who: { did: string; handle?: string }) =>
+    text.includes(who.did) || (!!who.handle && text.includes(who.handle));
+  const strip = ({ text: _t, ...rest }: Awaited<ReturnType<typeof publicRecord>>) => rest;
+  return {
+    elena: { ...strip(e), namesOther: n ? names(e.text, n) : false },
+    nightDesk: n ? { ...strip(n), namesOther: names(n.text, e) } : null,
+    search: {
+      entries: e.entries.length + (n?.entries.length ?? 0),
+      files: [e, n].reduce((s, x) => s + (x?.collections.reduce((t, c) => t + c.files, 0) ?? 0), 0),
+    },
+  };
+}
+
+// ---------- Handles ----------
+
+/** Is `label` free on this server (under its own handle domain)? */
+async function handleFree(server: Server, label: string): Promise<boolean> {
+  const res = await fetch(`${server.url}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(label + server.handleSuffix)}`,
+    { signal: AbortSignal.timeout(15000) });
+  if (res.ok) return false;
+  if (res.status === 400 || res.status === 404) return true;
+  throw new Error(`resolveHandle on ${host(server.url)} answered ${res.status}`);
+}
+
+/**
+ * Night Desk's handle label, free on both servers: "nightdesk" for the show,
+ * "nightdesk-rehearsal" for rehearsals, numbered when an earlier run kept it.
+ * The label goes into the PLC genesis, so it is checked before anything is written.
+ */
+async function freeLabel(): Promise<string> {
+  const base = REHEARSAL ? 'nightdesk-rehearsal' : 'nightdesk';
+  for (let i = 1; i <= 50; i++) {
+    const label = i === 1 ? base : `${base}-${i}`;
+    if (await handleFree(stack.a, label) && await handleFree(stack.b, label)) return label;
+  }
+  throw new Error('No free Night Desk handle; run npm run demo -- --cleanup');
+}
+
+// ---------- Cleanup ----------
+
+const DELETE_ACCOUNT = 'com.atproto.server.deleteAccount';
+
+/** Delete a pseudonym's account on one server with its own owner key. */
+async function deletePseudonymAccount(server: { url: string; serviceDid: string }, r: Rehearsal): Promise<'deleted' | 'none'> {
+  const attempt = async () => {
+    const jwt = signOwnerJwt({ phrase: r.phrase, did: r.did, aud: server.serviceDid, lxm: DELETE_ACCOUNT });
+    const res = await fetch(`${server.url}/xrpc/${DELETE_ACCOUNT}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` }, body: JSON.stringify({ did: r.did }),
+    });
+    const json = await res.json().catch(() => ({})) as { error?: string; message?: string };
+    return { ok: res.ok, status: res.status, error: json.error ?? '', message: json.message ?? '' };
+  };
+  let out = await attempt();
+  // A deactivated copy the DID still names (a move stopped half way): switch it back on, then delete.
+  if (!out.ok && out.error === 'AccountDeactivated') {
+    const s = await loginWithPhrase({ pdsUrl: server.url, phrase: r.phrase, expectedServiceDid: server.serviceDid });
+    await xrpc('com.atproto.server.activateAccount', {}, s.accessJwt, server.url);
+    out = await attempt();
+  }
+  if (out.ok) return 'deleted';
+  // No pseudonym with this DID here: the server asks for a password instead.
+  if (out.status === 400 && /password and token are required/.test(out.message)) return 'none';
+  throw new Error(`${host(server.url)} refused (${out.status}): ${out.error} ${out.message}`.trim());
+}
+
+async function cleanup(): Promise<void> {
+  const dry = arg('dry-run') !== undefined;
+  const all = readJson<Rehearsal[]>(REHEARSALS_FILE, []);
+  const todo = all.filter((r) => !r.cleanedAt);
+  console.log(`${todo.length} rehearsal pseudonym${todo.length === 1 ? '' : 's'} to clean up (${REHEARSALS_FILE})${dry ? ', dry run' : ''}`);
+  let failed = 0;
+  for (const r of todo) {
+    console.log(`\n${r.handle}  ${r.did}  (created ${r.createdAt}${r.movedTo ? `, moved to ${host(r.movedTo)}` : ''})`);
+    if (dry) { for (const s of r.servers) console.log(`  would delete on ${host(s.url)}`); console.log(`  would tombstone on ${host(r.plcUrl)}`); continue; }
+    try {
+      // Accounts first: deleteAccount checks the owner key against the DID's current rotation keys.
+      for (const s of r.servers) console.log(`  ${host(s.url)}: ${await deletePseudonymAccount(s, r)}`);
+      try {
+        await tombstone({ plcUrl: r.plcUrl, did: r.did, phrase: r.phrase });
+        console.log(`  ${host(r.plcUrl)}: tombstoned`);
+      } catch (err) {
+        if (!(err instanceof Error && /AlreadyTombstoned/.test(err.message))) throw err;
+        console.log(`  ${host(r.plcUrl)}: already tombstoned`);
+      }
+      r.cleanedAt = new Date().toISOString();
+      // The words are no longer needed once the DID is gone.
+      r.phrase = '';
+      writeJson(REHEARSALS_FILE, all);
+    } catch (err) {
+      failed++;
+      console.error(`  failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  if (failed) { console.error(`\n${failed} not cleaned; run the command again.`); process.exitCode = 1; }
+}
+
 // ---------- App server ----------
 
 /** The audience's word becomes the 64-hex challenge. The device derives it the same way (app/main.ts). */
@@ -267,51 +657,104 @@ async function bundle(): Promise<void> {
   await ctx.watch();
 }
 
+function fail(res: express.Response, err: unknown, status = 500): void {
+  res.status(status).json({ error: err instanceof Error ? err.message : String(err) });
+}
+
 async function main(): Promise<void> {
+  if (MODE === 'cleanup') { await cleanup(); return; }
   await bundle();
   const { verifyPresence, fetchGenesisOp, verifyRevealBundle } = await import('../../src/identity/pseudonym/verify.js');
 
   const app = express();
-  app.use(express.json({ limit: '64kb' }));
+  app.use(express.json({ limit: '256kb' }));
   app.use(express.static(join(HERE, 'public'), { extensions: ['html'] }));
 
   app.get('/api/status', (_req, res) => {
-    res.json({ state, error: lastError });
+    res.json({ state, error: lastError, mode: MODE, checks });
   });
 
   app.get('/api/state', async (_req, res) => {
     if (state !== 'ready' || !elena) return res.status(503).json({ state, error: lastError });
     try {
-      const s = await session(ELENA.email, elena.password);
-      const client = new pg.Client({ ...db, database: DEMO_DB });
-      await client.connect();
-      let used: { passesCollected: boolean; pseudonymExists: boolean };
-      try {
-        const b = await client.query('SELECT count(*)::int AS n FROM pseudonym_token_batches');
-        const p = await client.query("SELECT count(*)::int AS n FROM users WHERE auth_type = 'pseudonym'");
-        used = { passesCollected: b.rows[0].n > 0, pseudonymExists: p.rows[0].n > 0 };
-      } finally {
-        await client.end();
+      const s = await elenaSession();
+      let used = { passesCollected: false, pseudonymExists: false };
+      if (MODE === 'offline') {
+        const client = new pg.Client({ ...db, database: DEMO_DB });
+        await client.connect();
+        try {
+          const b = await client.query('SELECT count(*)::int AS n FROM pseudonym_token_batches');
+          const p = await client.query("SELECT count(*)::int AS n FROM users WHERE auth_type = 'pseudonym'");
+          used = { passesCollected: b.rows[0].n > 0, pseudonymExists: p.rows[0].n > 0 };
+        } finally {
+          await client.end();
+        }
       }
       res.json({
-        used,
-        pdsUrl: PDS_URL, pdsBUrl: PDS_B_URL, plcUrl: PLC_URL, serviceDid: SERVICE_DID, pdsBServiceDid: SERVICE_DID_B, handleSuffix: HANDLE_SUFFIX,
-        elena: { did: s.did, handle: s.handle, name: ELENA.name, email: ELENA.email, accessJwt: s.accessJwt },
+        mode: MODE, rehearsal: REHEARSAL > 0, used, checks,
+        plcUrl: stack.plcUrl,
+        pdsUrl: stack.a.url, serviceDid: stack.a.serviceDid, handleSuffix: stack.a.handleSuffix, pdsServiceUrl: stack.a.serviceUrl,
+        pdsBUrl: stack.b.url, pdsBServiceDid: stack.b.serviceDid, pdsBHandleSuffix: stack.b.handleSuffix,
+        elena: { did: s.did, handle: s.handle, name: ELENA.name, accessJwt: s.accessJwt },
         impostor: { did: marko!.did, name: MARKO.name },
+        wallet: MODE === 'live' ? readWallet(s.did) : null,
       });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      fail(res, err);
     }
+  });
+
+  /** A fresh access token for Elena, for steps that come a while after the page loaded. */
+  app.get('/api/elena-session', async (_req, res) => {
+    try { res.json({ accessJwt: (await elenaSession()).accessJwt }); } catch (err) { fail(res, err); }
+  });
+
+  app.get('/api/free-handle', async (_req, res) => {
+    try { res.json({ label: await freeLabel() }); } catch (err) { fail(res, err); }
   });
 
   app.get('/api/server-view', async (req, res) => {
     try {
       const did = typeof req.query.pseudonym === 'string' && req.query.pseudonym.startsWith('did:plc:') ? req.query.pseudonym : undefined;
       if (did) pseudonymDids.add(did);
-      res.json(await serverView(did));
+      if (MODE === 'live') res.json({ view: 'public', ...(await publicView(did)) });
+      else res.json({ view: 'database', ...(await serverView(did)) });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      fail(res, err);
     }
+  });
+
+  // Live: Elena's passes stay on this laptop across resets and restarts.
+  app.post('/api/wallet', (req, res) => {
+    if (MODE !== 'live' || !elena) return res.status(404).json({ error: 'Live mode only' });
+    const { tokens, spent } = req.body ?? {};
+    if (!Array.isArray(tokens) || !tokens.length || typeof spent !== 'number' || spent < 0 || spent > tokens.length) {
+      return res.status(400).json({ error: 'tokens and spent are required' });
+    }
+    const all = readJson<Record<string, Wallet>>(WALLETS_FILE, {});
+    all[elena.did] = { epoch: (tokens[0] as CreationToken).epoch, tokens, spent };
+    writeJson(WALLETS_FILE, all);
+    res.json({ ok: true });
+  });
+
+  // Live rehearsals only: keep the words so --cleanup can delete and tombstone later.
+  app.post('/api/rehearsal', (req, res) => {
+    if (MODE !== 'live' || !REHEARSAL) return res.status(403).json({ error: 'Words are kept only in a live rehearsal' });
+    const { did, handle, phrase, movedTo } = req.body ?? {};
+    if (typeof did !== 'string' || !did.startsWith('did:plc:')) return res.status(400).json({ error: 'did is required' });
+    const all = readJson<Rehearsal[]>(REHEARSALS_FILE, []);
+    const existing = all.find((r) => r.did === did);
+    if (existing) {
+      if (typeof movedTo === 'string') existing.movedTo = movedTo;
+    } else {
+      if (typeof phrase !== 'string' || typeof handle !== 'string') return res.status(400).json({ error: 'handle and phrase are required' });
+      all.push({
+        did, handle, phrase, plcUrl: stack.plcUrl, createdAt: new Date().toISOString(),
+        servers: [stack.a, stack.b].map((s) => ({ url: s.url, serviceDid: s.serviceDid })),
+      });
+    }
+    writeJson(REHEARSALS_FILE, all);
+    res.json({ ok: true });
   });
 
   // The independent verifier: it knows only the pseudonym's DID, the word the
@@ -324,7 +767,7 @@ async function main(): Promise<void> {
     }
     try {
       const challenge = challengeForWord(word);
-      const genesisOp = await fetchGenesisOp(pseudonymDid, { plcUrl: PLC_URL });
+      const genesisOp = await fetchGenesisOp(pseudonymDid, { plcUrl: stack.plcUrl });
       if (!genesisOp) return res.json({ valid: false, error: 'Not found in the directory', challenge });
       const valid = await verifyPresence({ pseudonymDid, genesisOp, challenge, signature });
       res.json({ valid, challenge, directoryKey: (genesisOp as { rotationKeys?: string[] }).rotationKeys?.[0] });
@@ -337,12 +780,14 @@ async function main(): Promise<void> {
   // plus both DIDs resolved from the PLC directory.
   app.post('/api/verify-reveal', async (req, res) => {
     try {
-      res.json(await verifyRevealBundle(req.body?.bundle, { online: true, plcUrl: PLC_URL }));
+      res.json(await verifyRevealBundle(req.body?.bundle, { online: true, plcUrl: stack.plcUrl }));
     } catch (err) {
       res.json({ valid: false, checks: [], error: err instanceof Error ? err.message : String(err) });
     }
   });
 
+  // Offline: rebuild the databases and directory. Live: forget this run's
+  // state here and run the pre-flight again; nothing on the servers changes.
   app.post('/api/reset', (_req, res) => {
     if (state === 'resetting' || state === 'starting') return res.json({ state });
     state = 'resetting';
@@ -351,7 +796,7 @@ async function main(): Promise<void> {
   });
 
   app.listen(PORTS.app, '127.0.0.1', () => {
-    console.log(`Stage app: http://localhost:${PORTS.app} (starting the stack…)`);
+    console.log(`Stage app: http://localhost:${PORTS.app} (${MODE === 'live' ? `live: ${host(stack.a.url)} → ${host(stack.b.url)}, running the pre-flight` : 'starting the stack'}…)`);
   });
   await bringUp();
 }

@@ -253,3 +253,12 @@ main { position: relative; min-height: 0; }
 .route .arrow { font-size: 2em; color: var(--red); }
 .route .mono { font-size: .85em; overflow-wrap: anywhere; }
 .moved-line { font-size: 1.1em; line-height: 1.35; border-left: 3px solid var(--red); padding-left: 14px; }
+
+/* Live pre-flight: which checks failed */
+.preflight { align-items: flex-start; }
+.preflight-list { list-style: none; margin: 6px 0; padding: 0; font-family: var(--mono); font-size: 13px; display: grid; gap: 4px; }
+.preflight-list li::before { display: inline-block; width: 1.4em; }
+.preflight-list li.ok::before { content: "\2713"; }
+.preflight-list li.bad::before { content: "\2717"; }
+.preflight-list li.unknown::before { content: "\2013"; }
+.preflight-list li.ok { opacity: .75; }

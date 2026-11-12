@@ -60,6 +60,9 @@ data/
 
 # Stage demo build output and logs
 demo/stage/.logs/
+# Stage demo live mode: accounts, passes and rehearsal words (never committed)
+demo/stage/.live.env
+demo/stage/.live/
 
 # Second PDS log from migration E2E tests
 tests/e2e/.logs/
