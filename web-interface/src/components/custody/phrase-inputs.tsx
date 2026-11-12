@@ -51,26 +51,59 @@ export function NewPhrase({ onReady }: { onReady: (phrase: string) => void }) {
   );
 }
 
+/**
+ * The phrase as typed or pasted. Numbering copied along with the words
+ * ("1. apple 2. river") is dropped; anything else wrong is said, so the
+ * Continue button is never disabled without a reason.
+ */
+function readPhrase(text: string): { phrase: string } | { problem: string | null } {
+  const words = text.trim().toLowerCase().split(/\s+/).filter((w) => w && !/^\d+[.)]?$/.test(w));
+  if (words.length === 0) return { problem: null };
+  if (words.length !== 12) return { problem: `That is ${words.length} word${words.length === 1 ? '' : 's'}; the phrase has 12.` };
+  try {
+    return { phrase: normalizePhrase(words.join(' ')) };
+  } catch {
+    return { problem: 'These 12 words are not a valid phrase. Check the spelling of each word, and that they are in order: 1 to 12, row by row as they were shown.' };
+  }
+}
+
+/** Why a passkey unlock failed, in words that say what to do next. */
+function unlockError(err: unknown): string {
+  const name = err instanceof Error ? (err.name === 'Error' ? err.message : err.name) : String(err);
+  console.warn('[custody] passkey unlock failed:', err);
+  switch (name) {
+    case 'NotAllowedError':
+    case 'PasskeyCancelled':
+      return 'The passkey prompt was cancelled or timed out. Try again, or type the phrase instead.';
+    case 'PasskeyPrfUnsupported':
+      return 'This passkey cannot unlock phrases (its password manager does not support PRF). Type the phrase instead.';
+    case 'UnlockFailed':
+      return 'This passkey did not open the phrase saved on this device. Type the phrase instead.';
+    default:
+      return `The passkey could not unlock the phrase (${name}). Type it instead.`;
+  }
+}
+
 /** The account's existing phrase: typed, or unlocked with the passkey remembered on this device. */
 export function ExistingPhrase({ did, onReady }: { did: string; onReady: (phrase: string) => void }) {
   const remembered = loadRemembered(did) as RememberedPhrase | null;
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  let valid = false;
-  try { normalizePhrase(text); valid = true; } catch { valid = false; }
+  const typed = readPhrase(text);
   return (
     <div className="space-y-3">
       {remembered && (
         <Button type="button" variant="outline" onClick={async () => {
           setError(null);
-          try { onReady(await unlockPhraseWithPasskey(remembered)); } catch { setError('The passkey could not unlock the phrase. Type it instead.'); }
+          try { onReady(await unlockPhraseWithPasskey(remembered)); } catch (err) { setError(unlockError(err)); }
         }}>Unlock with this device&apos;s passkey</Button>
       )}
       <div className="space-y-2">
         <Label htmlFor="existing-phrase">Your 12 words</Label>
         <Textarea id="existing-phrase" autoComplete="off" spellCheck={false} className="font-mono" value={text} onChange={(e) => setText(e.target.value)} />
       </div>
-      <Button type="button" disabled={!valid} onClick={() => onReady(normalizePhrase(text))}>Continue</Button>
+      {'problem' in typed && typed.problem && <p className="text-sm text-muted-foreground">{typed.problem}</p>}
+      <Button type="button" disabled={!('phrase' in typed)} onClick={() => 'phrase' in typed && onReady(typed.phrase)}>Continue</Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
