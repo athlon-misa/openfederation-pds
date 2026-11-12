@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.federation.listPeerCommunities",
-  "revision": 2,
-  "description": "Generated XRPC contract for net.openfederation.federation.listPeerCommunities.",
+  "revision": 3,
+  "description": "Deprecated: use net.openfederation.community.discover, which lists this server's communities and its peers' together, with per-peer status. Still served. Communities listed by the configured peers, none hosted here, with peer health.",
   "defs": {
     "main": {
       "type": "query",
-      "description": "Generated contract for net.openfederation.federation.listPeerCommunities.",
+      "description": "Deprecated: use net.openfederation.community.discover.",
       "parameters": {
         "type": "params",
         "properties": {}

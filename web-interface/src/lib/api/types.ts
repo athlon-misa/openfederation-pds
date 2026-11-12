@@ -343,25 +343,31 @@ export interface PeerInfo {
   activeCommunities?: number;
 }
 
-export interface PeerCommunity {
+/** net.openfederation.community.discover#communityView */
+export interface DiscoveredCommunity {
   did: string;
   handle: string;
-  didMethod: 'plc' | 'web';
   displayName: string;
   description: string;
-  visibility: 'public' | 'private';
-  joinPolicy: 'open' | 'approval';
   memberCount: number;
-  createdAt: string;
+  /** Base URL of the PDS that hosts the community. */
   pdsUrl: string;
-  pdsHostname: string;
-  webUrl: string | null;
+  /** local: hosted on this server. peer: listed by a peer, not verified further. */
+  source: 'local' | 'peer' | (string & {});
 }
 
-export interface ListPeerCommunitiesResponse {
-  communities: PeerCommunity[];
-  peers: PeerInfo[];
-  cachedAt: string;
+/** net.openfederation.community.discover#peerStatus */
+export interface DiscoveryPeerStatus {
+  url: string;
+  status: 'ok' | 'failed' | (string & {});
+  communityCount?: number;
+  error?: string;
+}
+
+export interface DiscoverCommunitiesResponse {
+  communities: DiscoveredCommunity[];
+  cursor?: string;
+  peers: DiscoveryPeerStatus[];
 }
 
 export interface ListPeersResponse {

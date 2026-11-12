@@ -3371,7 +3371,7 @@ export const lexiconContracts = {
   'net.openfederation.disclosure.grantStatus': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.disclosure.redeemGrant': { revision: 2, errors: ["Forbidden", "GrantExpired", "GrantRevoked", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.disclosure.revokeGrant': { revision: 1, errors: ["AlreadyRevoked", "Forbidden", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.federation.listPeerCommunities': { revision: 2, errors: [] as const },
+  'net.openfederation.federation.listPeerCommunities': { revision: 3, errors: [] as const },
   'net.openfederation.federation.listPeers': { revision: 2, errors: [] as const },
   'net.openfederation.forum.createPost': { revision: 7, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ProbationLimit", "ThreadNotFound"] as const },
   'net.openfederation.forum.createThread': { revision: 6, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ProbationLimit"] as const },

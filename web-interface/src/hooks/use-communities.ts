@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   listMyCommunities,
   getCommunity,
@@ -12,7 +12,7 @@ import {
   resolveJoinRequest,
   removeMember,
   deleteCommunity,
-  listPeerCommunities,
+  discoverCommunities,
 } from '@/lib/api/communities';
 import { unwrapApi } from '@/lib/api/unwrap';
 
@@ -23,7 +23,7 @@ export const communityKeys = {
   members: (did: string, limit: number, offset: number) => ['communities', 'members', did, { limit, offset }] as const,
   joinRequests: (did: string, limit: number, offset: number) => ['communities', 'joinRequests', did, { limit, offset }] as const,
   explore: (limit: number, offset: number, mode: string) => ['communities', 'explore', { limit, offset, mode }] as const,
-  peerCommunities: ['communities', 'peer'] as const,
+  discover: (limit: number, cursor: string, q: string) => ['communities', 'discover', { limit, cursor, q }] as const,
 };
 
 export function useMyCommunitiesQuery(limit = 50, offset = 0) {
@@ -138,10 +138,12 @@ export function useDeleteCommunityMutation() {
   });
 }
 
-export function usePeerCommunitiesQuery() {
+/** community.discover: this server's and its peers' public communities. */
+export function useDiscoverCommunitiesQuery(limit: number, cursor?: string, q?: string) {
   return useQuery({
-    queryKey: communityKeys.peerCommunities,
-    queryFn: async () => unwrapApi(await listPeerCommunities()),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: communityKeys.discover(limit, cursor ?? '', q ?? ''),
+    queryFn: async () => unwrapApi(await discoverCommunities({ limit, cursor, q })),
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000, // 1 minute; the server caches peers too
   });
 }
