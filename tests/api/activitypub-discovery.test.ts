@@ -15,7 +15,7 @@
  *
  * Private-community stripping is covered by federation-privacy.test.ts.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import crypto from 'crypto';
 import {
   api, xrpcGet, xrpcAuthPost, createTestUser, isPLCAvailable, uniqueHandle,
@@ -64,7 +64,11 @@ describe('ActivityPub discovery (#80)', () => {
   let communityHandle: string;
   let linkedRkey: string;
 
+  const previousWebUi = config.federation.webUiUrl;
+  afterAll(() => { config.federation.webUiUrl = previousWebUi; });
+
   beforeAll(async () => {
+    config.federation.webUiUrl = 'https://web.example.test';
     plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
 
@@ -203,6 +207,8 @@ describe('ActivityPub discovery (#80)', () => {
 
       const profile = wf.body.links.find((l: any) => l.rel === 'http://webfinger.net/rel/profile-page');
       expect(profile?.type).toBe('text/html');
+      // The page lives in the web UI; the PDS serves none.
+      expect(profile?.href).toBe(`https://web.example.test/communities/${communityDid}`);
     });
 
     it('the actor fetched with Mastodon\'s Accept header is an actor Mastodon accepts', async () => {
