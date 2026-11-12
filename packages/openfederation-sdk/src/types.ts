@@ -451,3 +451,101 @@ export interface CustodialSecret {
   createdAt: string;
   updatedAt: string;
 }
+
+// ── Community discovery ─────────────────────────────
+
+export interface DiscoverCommunitiesOptions {
+  /** 1–100, default 50. */
+  limit?: number;
+  /** The `cursor` of the previous page. */
+  cursor?: string;
+  /** Case-insensitive text filter on handle, display name and description (at most 100 characters). */
+  q?: string;
+}
+
+export interface DiscoveredCommunity {
+  did: string;
+  handle: string;
+  /** The handle when the community has no display name. */
+  displayName: string;
+  /** Cut to 300 characters. */
+  description: string;
+  /** As reported by the community's home server. */
+  memberCount: number;
+  /** Base URL of the PDS that hosts the community. */
+  pdsUrl: string;
+  /**
+   * Origin of the hosting server's dashboard, when it publishes one; the
+   * community's page is `{webUrl}/communities/{did}`. Checked by the PDS to be
+   * an http(s) origin; still check before building a link.
+   */
+  webUrl?: string;
+  /** `local`: hosted on the server asked. `peer`: listed by a peer, not verified further. */
+  source: 'local' | 'peer' | (string & {});
+}
+
+export interface DiscoveryPeerStatus {
+  /** The peer's base URL. */
+  url: string;
+  status: 'ok' | 'failed' | (string & {});
+  /** When ok: communities this peer contributed after deduplication. */
+  communityCount?: number;
+  /** When failed: `Timeout`, `Unreachable`, `BlockedUrl`, `HttpError`, `InvalidResponse` or `ResponseTooLarge`. */
+  error?: string;
+}
+
+export interface DiscoverCommunitiesResult {
+  communities: DiscoveredCommunity[];
+  /** Present when there are more results. */
+  cursor?: string;
+  /** Every peer asked, and whether it answered. */
+  peers: DiscoveryPeerStatus[];
+}
+
+// ── Activity timeline ───────────────────────────────
+
+export interface UserTimelineOptions {
+  /** 1–100, default 30. */
+  limit?: number;
+  /** The `cursor` of the previous page. */
+  cursor?: string;
+}
+
+/** Which fields are present depends on the entry's kind. */
+export interface ActivitySummary {
+  handle?: string;
+  role?: string;
+  title?: string;
+  name?: string;
+  startsAt?: string;
+  action?: string;
+  targetCollection?: string;
+  status?: string;
+}
+
+export interface ActivityEntry {
+  /** Unique across communities; the tie-breaker in the sort order. */
+  id: string;
+  /** `member.joined`, `joinRequest.created`, `proposal.created`, `event.created`, `forum.thread.created`; skip kinds you do not know. */
+  kind: string;
+  /** Community DID. */
+  community: string;
+  /** Who did it; absent for an event, which the community publishes. */
+  actor?: string;
+  /** The record's at-uri, when there is one. */
+  uri?: string;
+  cid?: string;
+  /** UTC with microseconds; the sort key, newest first. */
+  createdAt: string;
+  summary?: ActivitySummary;
+}
+
+export interface UserTimeline {
+  entries: ActivityEntry[];
+  /** Absent on the last page. */
+  cursor?: string;
+  /** Communities whose PDS did not answer: their activity is missing from this page. */
+  unreachable: string[];
+  /** Peer PDS URLs that could not be asked which communities the user belongs to there. */
+  unreachablePeers: string[];
+}

@@ -17,7 +17,7 @@ import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { assertPublicHttpsUrl, OutboundFetchError, readLimitedText } from '../security/outbound-fetch.js';
 import { resolvePeerUrls, staticPeerSource, type PeerSource } from './peer-sources.js';
-import { cleanText, isPeerDid, isPeerHandle } from './peer-data.js';
+import { cleanText, isPeerDid, isPeerHandle, safeHttpOrigin } from './peer-data.js';
 
 export const WELL_KNOWN_COMMUNITIES_PATH = '/.well-known/openfederation-communities.json';
 export const DIRECTORY_VERSION = 1;
@@ -41,11 +41,18 @@ export interface DirectoryEntry {
   memberCount: number;
   /** Base URL of the PDS that hosts the community. */
   pdsUrl: string;
+  /**
+   * Origin of the hosting server's dashboard, where `/communities/{did}` is
+   * the community's page. Set on peer entries from the peer's `pds.webUrl`
+   * (validated); never part of an entry in the published document.
+   */
+  webUrl?: string;
 }
 
 export interface CommunityDirectory {
   version: number;
-  pds: { url: string; hostname: string };
+  /** `webUrl`: this server's dashboard origin (WEB_UI_URL); absent when unset. Additive to version 1. */
+  pds: { url: string; hostname: string; webUrl?: string };
   generatedAt: string;
   communities: DirectoryEntry[];
 }
@@ -94,10 +101,17 @@ export async function listLocalDirectoryEntries(): Promise<DirectoryEntry[]> {
   }));
 }
 
+/** This server's dashboard origin, from WEB_UI_URL; null when unset or not http(s). */
+export function localWebUrl(): string | null {
+  const raw = config.federation.webUiUrl.trim();
+  return raw ? safeHttpOrigin(raw) : null;
+}
+
 export async function buildLocalDirectory(): Promise<CommunityDirectory> {
+  const webUrl = localWebUrl();
   return {
     version: DIRECTORY_VERSION,
-    pds: { url: config.pds.serviceUrl, hostname: config.pds.hostname },
+    pds: { url: config.pds.serviceUrl, hostname: config.pds.hostname, ...(webUrl ? { webUrl } : {}) },
     generatedAt: new Date().toISOString(),
     communities: await listLocalDirectoryEntries(),
   };
@@ -109,14 +123,21 @@ export async function buildLocalDirectory(): Promise<CommunityDirectory> {
  * Validate a peer's document. Throws when the document as a whole is not a
  * directory; drops entries that are malformed or that the peer marks as not
  * public. `pdsUrl` is always the peer we fetched from, whatever it claims.
+ * The peer's dashboard URL (`pds.webUrl`) is kept only as an http(s) origin
+ * without credentials (`safeHttpOrigin`); anything else is dropped.
  */
 export function parsePeerDirectory(data: unknown, peerUrl: string): DirectoryEntry[] {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('not an object');
-  const doc = data as { version?: unknown; communities?: unknown };
+  const doc = data as { version?: unknown; pds?: unknown; communities?: unknown };
   if (typeof doc.version !== 'number' || !Number.isInteger(doc.version) || doc.version < 1) {
     throw new Error('missing version');
   }
   if (!Array.isArray(doc.communities)) throw new Error('missing communities');
+
+  const pds = doc.pds && typeof doc.pds === 'object' && !Array.isArray(doc.pds)
+    ? doc.pds as Record<string, unknown>
+    : null;
+  const webUrl = pds ? safeHttpOrigin(pds.webUrl) : null;
 
   const out: DirectoryEntry[] = [];
   const seen = new Set<string>();
@@ -140,6 +161,7 @@ export function parsePeerDirectory(data: unknown, peerUrl: string): DirectoryEnt
       description: cleanText(e.description, MAX_DESCRIPTION_LENGTH),
       memberCount,
       pdsUrl: peerUrl,
+      ...(webUrl ? { webUrl } : {}),
     });
   }
   return out;
@@ -294,10 +316,11 @@ export async function discoverCommunities(): Promise<DiscoveryResult> {
 
   const seen = new Set<string>();
   const communities: DiscoveredCommunity[] = [];
+  const ownWebUrl = localWebUrl();
   for (const c of local) {
     if (seen.has(c.did)) continue;
     seen.add(c.did);
-    communities.push({ ...c, source: 'local' });
+    communities.push({ ...c, ...(ownWebUrl ? { webUrl: ownWebUrl } : {}), source: 'local' });
   }
 
   const peers: DiscoveryResult['peers'] = [];

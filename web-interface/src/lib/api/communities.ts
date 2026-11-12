@@ -3,13 +3,13 @@ import type {
   CommunityCreateResponse,
   CommunityDetail,
   CommunityExportData,
+  DiscoverCommunitiesResponse,
   JoinCommunityResponse,
   LeaveCommunityResponse,
   ListAllCommunitiesResponse,
   ListCommunitiesResponse,
   ListJoinRequestsResponse,
   ListMembersResponse,
-  ListPeerCommunitiesResponse,
   ListPeersResponse,
   ResolveJoinRequestResponse,
   SuspendCommunityResponse,
@@ -131,9 +131,16 @@ export async function deleteCommunity(did: string) {
   });
 }
 
-export async function listPeerCommunities() {
-  return xrpc<ListPeerCommunitiesResponse>('net.openfederation.federation.listPeerCommunities', {
+/** Public communities on this server and its peers (community.discover); no auth. */
+export async function discoverCommunities(opts: { limit?: number; cursor?: string; q?: string } = {}) {
+  const params: Record<string, string> = {};
+  if (opts.limit !== undefined) params.limit = String(opts.limit);
+  if (opts.cursor) params.cursor = opts.cursor;
+  if (opts.q) params.q = opts.q;
+  return xrpc<DiscoverCommunitiesResponse>('net.openfederation.community.discover', {
     method: 'GET',
+    params,
+    noAuth: true,
   });
 }
 

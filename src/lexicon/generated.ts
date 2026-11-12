@@ -900,6 +900,7 @@ export type NetOpenfederationCommunityDiscoverOutput = {
   "description": string;
   "memberCount": number;
   "pdsUrl": string;
+  "webUrl"?: string;
   "source": string;
 }>;
   "cursor"?: string;
@@ -3316,7 +3317,7 @@ export const lexiconContracts = {
   'net.openfederation.community.delete': { revision: 2, errors: ["CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.deleteAttestation': { revision: 5, errors: ["AttestationNotFound", "AttestationTypeNotAllowed", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.deleteRole': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceDenied", "NotFound", "NotMember", "RoleInUse", "RoleNotFound"] as const },
-  'net.openfederation.community.discover': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.community.discover': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.export': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "TakenDown"] as const },
   'net.openfederation.community.get': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.getDelegation': { revision: 2, errors: ["CommunityTakenDown", "NotFound"] as const },
@@ -3371,7 +3372,7 @@ export const lexiconContracts = {
   'net.openfederation.disclosure.grantStatus': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.disclosure.redeemGrant': { revision: 2, errors: ["Forbidden", "GrantExpired", "GrantRevoked", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.disclosure.revokeGrant': { revision: 1, errors: ["AlreadyRevoked", "Forbidden", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.federation.listPeerCommunities': { revision: 2, errors: [] as const },
+  'net.openfederation.federation.listPeerCommunities': { revision: 3, errors: [] as const },
   'net.openfederation.federation.listPeers': { revision: 2, errors: [] as const },
   'net.openfederation.forum.createPost': { revision: 7, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ProbationLimit", "ThreadNotFound"] as const },
   'net.openfederation.forum.createThread': { revision: 6, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ProbationLimit"] as const },

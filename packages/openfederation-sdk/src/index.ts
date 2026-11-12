@@ -68,6 +68,16 @@ export type {
   // Tier upgrades
   UpgradeTierOptions,
   UpgradeTierResult,
+  // Community discovery
+  DiscoverCommunitiesOptions,
+  DiscoverCommunitiesResult,
+  DiscoveredCommunity,
+  DiscoveryPeerStatus,
+  // Activity timeline
+  UserTimelineOptions,
+  UserTimeline,
+  ActivityEntry,
+  ActivitySummary,
 } from './types.js';
 export {
   verifySignInAssertion,
