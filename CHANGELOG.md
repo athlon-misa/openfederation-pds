@@ -9,16 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dashboard: "Forgot password?"** on the sign-in page leads to a page that emails a reset link. The server could always do this; the dashboard had no way to ask.
+
 - **Dashboard: custody screens** ([ADR-003](docs/adr/ADR-003-custody-modes.md)). Settings → Identity custody shows the account's mode and switches to any mode the server allows: a new 12-word phrase is shown once and three words asked back; moving away from `custodial` proves the new keys, other directions are signed in the browser and sent to PLC. It lists changes to the identity in the last 72 hours and cancels one the server's backup key signed, with the phrase from before. An `assisted` account that lost its phrase recovers with a new one after the operator's identity check. Sign-up offers `custodial`, `assisted` or `self` when the server allows more than one and creates the DID in the browser. Admin → Users gains **Verify identity** (emailed code, read back to the operator). The phrase can be unlocked with a passkey on the device instead of typed.
 
 - **`@open-federation/sdk/custody`: `plcOperationSigner(op, rotationKeys)`** names the rotation key that signed a PLC operation, so a client can tell a change the person made from one the server's backup key made in `assisted`, which the person may still cancel.
 
 ### Changed
 
+- **Dashboard: the custody choice at sign-up is unmistakable.** The selected option is outlined and marked Selected, and the button names the mode that will be created.
 - **Passkey unlock works with password-manager extensions** (`@open-federation/sdk/custody`, `@open-federation/pseudonym`). The PRF output is read in the forms extensions such as 1Password return it, output shorter than 32 bytes is refused, and the key always comes from a passkey sign-in, as unlocking does. A phrase remembered with an earlier version needs remembering again.
 - **Dashboard: phrase entry and passkey unlock say what went wrong.** A typed phrase that is not accepted says why (word count, or a misspelled or misordered word), and a copy pasted with its numbering is accepted. A failed passkey unlock says whether the prompt was cancelled, the passkey cannot unlock phrases, or it did not open the saved phrase.
 - **Development without SMTP prints whole emails.** The console copy of an unsent email stopped after 200 characters, which cut the 64-character identity-verification code and left out links that sit only in a button. It now prints all of the text and every link. Production still logs only that an email was not sent.
 - **Custody changes and assisted recovery use the login rate limit** (`AUTH_RATE_LIMIT`, 20 per 15 minutes per IP) instead of the creation limit (10 per hour). `identity.prepareCustodyChange`, `finalizeCustodyChange` and `recoverAssistedAccount` check the password like a login, and a single change takes two calls, so the creation limit ran out after a few changes from one address.
+
+### Fixed
+
+- **Deleting an account that had created or revoked a partner API key failed.** The key's `created_by` / `revoked_by` referenced the user with no delete rule; they are now cleared and the key kept (migration 058).
 
 ## [1.5.0] - 2026-11-12
 
