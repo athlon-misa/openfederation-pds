@@ -1724,3 +1724,115 @@ Person-signed records (decision 11): `signRecord(record, { did, collection }, (t
 `net.openfederation.identity.verifyRecord?uri=at://…`. Apps should show "signed by the person"
 only for records that verify.
 
+The next three sections are the client side of [When the operator is the risk](HARDENING.md#when-the-operator-is-the-risk).
+
+### Watching the repository
+
+The PDS holds the repo signing key, so its operator can write records as the person.
+`RepoWatcher` notices: it keeps what this device wrote and compares it with the account's
+public repository (`com.atproto.sync.getLatestCommit`, then `getRepo` when the commit moved).
+
+```ts
+import { RepoWatcher, LocalStorageAdapter, verifyRepoCommit } from '@open-federation/sdk/custody';
+
+const watcher = new RepoWatcher({
+  source: pdsUrl,                     // or a relay / mirror that serves com.atproto.sync.getRepo
+  storage: new LocalStorageAdapter(), // default: in memory
+  collections: ['app.bsky.feed.post'], // optional; default all
+});
+await watcher.check(did);             // first time: 'baseline', today's state is taken as expected
+
+// Write through the watcher, so the device's own commits are recorded:
+await watcher.write(client, 'com.atproto.repo.createRecord', { repo: did, collection, record });
+// Or after a write made any other way:
+watcher.recordWriteResult('com.atproto.repo.createRecord', input, output);
+// Or by hand: watcher.recordOwnCommit(did, { writes: [{ action: 'create', collection, rkey, cid }] });
+
+const result = await watcher.check(did);                         // 'clean' | 'unknown-changes'
+const viaRelay = await watcher.check(did, { source: relayUrl }); // what everyone else sees
+for (const commit of result.unknownCommits) {
+  // commit.rev, commit.cid, commit.time (claimed by the PDS), commit.since (last good commit)
+  // commit.changes: [{ path, collection, rkey, action: 'create' | 'update' | 'delete', cid, expectedCid }]
+  // keep result.car: the repository as served, signed
+}
+watcher.acknowledge(did, result);     // only if the person says the changes are theirs
+```
+
+What to know:
+
+- **A hostile PDS can lie to the client that asks it**, for example by showing the person their
+  repository without the forged record while serving it to everyone else. Check a second
+  source too: a relay or mirror that serves `com.atproto.sync.getLatestCommit` and `getRepo`
+  for the account (not every relay does), or a second PDS you trust to mirror it.
+- A check sees the repository as it is now, not every commit. Several forged commits between
+  two checks come back as one report, and a forged record removed again before the next
+  check is not seen. For every commit, follow the firehose (`com.atproto.sync.subscribeRepos`
+  at a relay) and call `check` when it shows a new commit for the DID.
+- Unknown changes are reported again on every check until `acknowledge` accepts them.
+- Writes from the person's other devices, or ones the PDS makes for them through other
+  endpoints, look unknown too. Share the storage between devices, record those writes with
+  `recordOwnCommit`, or limit `collections` to what the person writes only from this app.
+- The device must record its writes; a write it made but didn't record is reported.
+
+### Leaving a PDS without its help
+
+An `assisted` or `self` account holds the top rotation key of its DID. With the phrase, the
+person signs the PLC update that points the DID at another PDS and that PDS's repo signing key.
+No PDS takes part: PLC checks the signature. From that moment the old PDS's key no longer signs
+for the account, and readers resolve it at the new home.
+
+```ts
+import { deriveCustodyKeys, leavePds, copyRepo } from '@open-federation/sdk/custody';
+
+const keys = deriveCustodyKeys(phrase);
+await leavePds({
+  plcUrl, did, rotationPrivateKey: keys.rotationPrivateKey,
+  pdsEndpoint: newPdsUrl,
+  atprotoDidKey: newSigningKey,       // the new PDS's key for the account (reserveSigningKey / getRecommendedDidCredentials)
+  handle: newHandle,                  // optional
+});
+```
+
+`leavePds` builds the update from the DID's current state (`buildLeaveOp`), keeps the owner key,
+and by default lists **only the person's rotation key**: an `assisted` account becomes `self`, so
+the old PDS's backup key can no longer change the DID (`keepOtherRotationKeys: true` keeps it).
+It refuses before sending anything if the key is not one of the DID's rotation keys, and checks
+PLC shows the result.
+
+The repository: `copyRepo({ did, toUrl, accessJwt, fromUrl, car? })` imports it into the new PDS
+(`com.atproto.repo.importRepo`, then every blob it lists as missing) with a session for the
+account there. It takes the public `getRepo` of `fromUrl`, or a CAR you saved earlier (every
+`RepoWatcher` check that downloads returns one). Which order works depends on the new PDS:
+
+- The usual order is the dashboard's Move flow: open the account at the new PDS, copy the
+  repository, then change the DID. Use it when there is time. A PDS that only accepts a
+  repository signed by the DID's current key needs the copy *before* `leavePds`.
+- In an emergency, `leavePds` first: it cuts the old operator off at once, and the repository
+  can follow.
+
+Into another OpenFederation PDS today, a `self` account can't complete a move on its own:
+`com.atproto.server.createAccount` accepts proof by rotation key only from pseudonyms (user
+accounts need service auth from the old PDS), `com.atproto.identity.signPlcOperation` on the
+old PDS refuses `self` accounts (it holds no key), and `importRepo` accepts only a repository
+signed by the DID's current `atproto` key. `leavePds` still cuts off the old operator; the
+account then needs a new home that accepts it. Pseudonyms move without help already
+(`moveAccount` in `@open-federation/pseudonym`).
+
+### Evidence of a forged record
+
+A forged record is provable after the fact:
+
+- **It is signed by the PDS.** Every commit is signed with the DID's `atproto` key, which the
+  PDS holds. `verifyRepoCommit(commit, atprotoDidKey)` checks a commit from a `RepoWatcher`
+  report (or from `readRepoCar(car)`) against the key the DID document listed at the time (PLC's
+  `/<did>/log/audit` has every past key). So the commit is attributable to whoever held that key.
+- **It is not signed by the person.** A record the person signed carries `ownerSig`, made with
+  the owner key only they hold; `verifyOwnerRecord` fails for a forged one (`NotSigned`, or
+  `CidMismatch` if a signed record was altered). Apps that show "signed by the person" only for
+  verified records never show a forgery that way.
+- **It stays in the history.** The commit is published, copied by relays and archives, and the
+  CAR a `RepoWatcher` check returned is a signed copy the person keeps. The operator can delete
+  the record with another commit, but not the copies already made.
+- **The time is the PDS's claim.** A commit's `rev` names a time (`revToTime`), chosen by the
+  PDS; a relay's or your own record of when you first saw it is independent.
+

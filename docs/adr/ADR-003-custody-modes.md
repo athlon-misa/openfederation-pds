@@ -205,8 +205,10 @@ which key, and in what order.
       public `net.openfederation.identity.verifyRecord` for apps that don't resolve DIDs;
       the authorship-claim lexicon declares `ownerSig` as optional.
     - Apps show "signed by the person" only for verified records. Forgery becomes
-      detectable and provable, not prevented. Options 2 (#240) and 3 (#241) are decided
-      later.
+      detectable and provable, not prevented. Option 3 (#241) adds operational
+      protections: self-hosting guidance, repo monitoring and leaving with the person's
+      own key (`docs/HARDENING.md`, "When the operator is the risk"). Option 2 (#240), a
+      user-signed repo, is parked as a later opt-in setting.
 
 12. **Daily unlock (#251): the phrase once per device, a passkey every day.**
     - Setting up or recovering a device: type the phrase once.

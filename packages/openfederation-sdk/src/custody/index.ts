@@ -10,3 +10,6 @@ export * from './owner-signature.js';
 export * from './device-unlock.js';
 export { didKeyFor, parseDidKey, base64UrlEncode, base64UrlDecode, type KeyCurve } from './encoding.js';
 export * from './owner-record.js';
+export * from './repo-watch.js';
+export * from './leave.js';
+export { MemoryStorageAdapter, LocalStorageAdapter, type StorageAdapter } from '../storage.js';
