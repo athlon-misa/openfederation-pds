@@ -318,9 +318,9 @@ if (cursor) await ofd.discoverCommunities({ q: 'chess', limit: 20, cursor });
 | `cursor` | `string` | — | The `cursor` of the previous page |
 | `q` | `string` | — | Case-insensitive filter on handle, display name and description (at most 100 characters) |
 
-**Result:** `communities` (`did`, `handle`, `displayName`, `description`, `memberCount`, `pdsUrl`, `source`), `cursor` when there are more, and `peers`: every peer asked, with `status` `ok` (and `communityCount`) or `failed` (and `error`: `Timeout`, `Unreachable`, `BlockedUrl`, `HttpError`, `InvalidResponse`, `ResponseTooLarge`). A peer that fails never fails the call.
+**Result:** `communities` (`did`, `handle`, `displayName`, `description`, `memberCount`, `pdsUrl`, `webUrl?`, `source`), `cursor` when there are more, and `peers`: every peer asked, with `status` `ok` (and `communityCount`) or `failed` (and `error`: `Timeout`, `Unreachable`, `BlockedUrl`, `HttpError`, `InvalidResponse`, `ResponseTooLarge`). A peer that fails never fails the call.
 
-`pdsUrl` is an http(s) origin checked by the PDS; still build links only from `http:`/`https:` values.
+`webUrl`, when present, is the hosting server's dashboard origin: link to the community at `${webUrl}/communities/${encodeURIComponent(did)}`. `pdsUrl` is the PDS (an API server, not a page to send people to). Both are http(s) origins checked by the PDS; still build links only from `http:`/`https:` values.
 
 **Errors:** `ValidationError` (400) for a malformed `limit`, `cursor` or `q`.
 

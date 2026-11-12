@@ -40,8 +40,10 @@ function client(signedIn: boolean): OpenFederationClient {
 
 const discovered = {
   communities: [
-    { did: 'did:plc:here', handle: 'here.example', displayName: 'Here', description: '', memberCount: 3, pdsUrl: SERVER, source: 'local' },
-    { did: 'did:plc:there', handle: 'there.peer', displayName: 'There', description: 'x', memberCount: 9, pdsUrl: 'https://peer.example', source: 'peer' },
+    { did: 'did:plc:here', handle: 'here.example', displayName: 'Here', description: '', memberCount: 3, pdsUrl: SERVER, webUrl: 'https://dash.pds.example', source: 'local' },
+    { did: 'did:plc:there', handle: 'there.peer', displayName: 'There', description: 'x', memberCount: 9, pdsUrl: 'https://peer.example', webUrl: 'https://dash.peer.example', source: 'peer' },
+    // A peer that publishes no dashboard: no webUrl.
+    { did: 'did:plc:bare', handle: 'bare.peer', displayName: 'Bare', description: '', memberCount: 1, pdsUrl: 'https://bare.example', source: 'peer' },
   ],
   cursor: '50',
   peers: [
@@ -65,6 +67,8 @@ describe('SDK discoverCommunities', () => {
     expect(new Headers(calls[0].init?.headers).get('authorization')).toBeNull();
     expect(result).toEqual(discovered);
     expect(result.communities[1].source).toBe('peer');
+    expect(result.communities[1].webUrl).toBe('https://dash.peer.example');
+    expect(result.communities[2].webUrl).toBeUndefined();
     expect(result.peers[1]).toEqual({ url: 'https://down.example', status: 'failed', error: 'Timeout' });
   });
 

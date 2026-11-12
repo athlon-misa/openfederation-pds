@@ -474,6 +474,12 @@ export interface DiscoveredCommunity {
   memberCount: number;
   /** Base URL of the PDS that hosts the community. */
   pdsUrl: string;
+  /**
+   * Origin of the hosting server's dashboard, when it publishes one; the
+   * community's page is `{webUrl}/communities/{did}`. Checked by the PDS to be
+   * an http(s) origin; still check before building a link.
+   */
+  webUrl?: string;
   /** `local`: hosted on the server asked. `peer`: listed by a peer, not verified further. */
   source: 'local' | 'peer' | (string & {});
 }

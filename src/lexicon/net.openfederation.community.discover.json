@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.discover",
-  "revision": 1,
+  "revision": 2,
   "description": "Discover public communities across OpenFederation servers: this server's own plus those published by the peers it is configured with (FEDERATION_PEERS), deduplicated by DID. No authentication.",
   "defs": {
     "main": {
@@ -82,6 +82,11 @@
           "type": "string",
           "format": "uri",
           "description": "Base URL of the PDS that hosts the community."
+        },
+        "webUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Origin of the hosting server's dashboard, when it publishes one: the community's page is {webUrl}/communities/{did}. For a peer, the peer's own claim, kept only as an http(s) origin."
         },
         "source": {
           "type": "string",

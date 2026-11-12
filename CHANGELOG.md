@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Dashboard: Explore → Federated uses `community.discover`.** It lists this server's public communities and its peers' together, each marked with where it lives, searches on the server, pages with the cursor, and names the peers that did not answer and why. Links to a peer are built only from http(s) URLs.
+- **Dashboard: Explore → Federated uses `community.discover`.** It lists this server's public communities and its peers' together, each marked with where it lives, searches on the server, pages with the cursor, and names the peers that did not answer and why. A peer's community links to its page on the peer's dashboard; without a valid dashboard URL the card says where it is hosted, without a link.
+- **Discovery names each server's dashboard.** `/.well-known/openfederation-communities.json` gains an optional `pds.webUrl` (this server's `WEB_UI_URL` origin; left out when unset; still version 1), and `community.discover` entries an optional `webUrl`: this server's for local communities, the peer's for peer ones, kept only when it is an http(s) origin without credentials. The SDK's `DiscoveredCommunity` has it too.
 - **`net.openfederation.federation.listPeerCommunities` is deprecated** in favour of `community.discover`. It is still served.
 - **Indexes for activity timelines** (`migrate-059-activity-indexes.sql`). Pending join requests, proposals and calendar events, and visible forum threads are indexed by community and creation time, so later timeline pages read only the rows older than the cursor. The indexes are partial and hold only the rows the feed reads.
 - **Dashboard: the custody choice at sign-up is unmistakable.** The selected option is outlined and marked Selected, and the button names the mode that will be created.

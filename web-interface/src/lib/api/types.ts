@@ -352,6 +352,8 @@ export interface DiscoveredCommunity {
   memberCount: number;
   /** Base URL of the PDS that hosts the community. */
   pdsUrl: string;
+  /** Origin of the hosting server's dashboard; the community's page is {webUrl}/communities/{did}. */
+  webUrl?: string;
   /** local: hosted on this server. peer: listed by a peer, not verified further. */
   source: 'local' | 'peer' | (string & {});
 }

@@ -55,10 +55,13 @@ describe('community discovery across servers (#41)', () => {
   let slowPeer: Peer;
   let garbagePeer: Peer;
   let hugePeer: Peer;
+  let badWebPeer: Peer;
   const savedPeers = config.federation.peerUrls;
   const savedEnabled = config.federation.enabled;
   const savedTimeout = config.federation.peerTimeoutMs;
   const savedTtl = config.federation.cacheTtlMs;
+  const savedWebUi = config.federation.webUiUrl;
+  const LOCAL_WEB_UI = 'http://dash.local.test:3001';
 
   beforeAll(async () => {
     plcAvailable = await isPLCAvailable();
@@ -91,7 +94,8 @@ describe('community discovery across servers (#41)', () => {
       if (req.url !== WELL_KNOWN) { res.writeHead(404); res.end(); return; }
       sendJson(res, {
         version: 1,
-        pds: { url: 'https://claims-to-be-elsewhere.example' },
+        // webUrl: the peer's dashboard; kept as an origin, the path dropped.
+        pds: { url: 'https://claims-to-be-elsewhere.example', webUrl: 'https://dash.peer.test/ignored/path' },
         communities: [
           { did: 'did:web:chess.peer.test', handle: 'chess.peer.test', displayName: 'Peer Chess Club', description: 'Chess on another server', memberCount: 12 },
           { did: 'did:web:knitting.peer.test', handle: 'knitting.peer.test', displayName: 'Peer Knitting', description: 'Yarn', memberCount: 3 },
@@ -113,14 +117,26 @@ describe('community discovery across servers (#41)', () => {
       res.writeHead(200, { 'content-type': 'text/html' });
       res.end('<html>not json</html>');
     });
+    // A peer whose dashboard URL is not http(s): the URL is dropped, the community kept.
+    badWebPeer = await startPeer((req, res) => {
+      if (req.url !== WELL_KNOWN) { res.writeHead(404); res.end(); return; }
+      sendJson(res, {
+        version: 1,
+        pds: { url: 'https://x.example', webUrl: 'javascript:alert(1)' },
+        communities: [
+          { did: 'did:web:badweb.peer.test', handle: 'badweb.peer.test', displayName: 'Bad Web Link', description: '', memberCount: 2 },
+        ],
+      });
+    });
     hugePeer = await startPeer((_req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ version: 1, communities: [], padding: 'x'.repeat(2 * 1024 * 1024) }));
     });
 
     config.federation.enabled = true;
-    config.federation.peerUrls = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url];
+    config.federation.peerUrls = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url, badWebPeer.url];
     config.federation.peerTimeoutMs = 500;
+    config.federation.webUiUrl = `${LOCAL_WEB_UI}/`;
     config.federation.cacheTtlMs = 60_000;
     _clearDiscoveryCache();
   });
@@ -130,8 +146,9 @@ describe('community discovery across servers (#41)', () => {
     config.federation.enabled = savedEnabled;
     config.federation.peerTimeoutMs = savedTimeout;
     config.federation.cacheTtlMs = savedTtl;
+    config.federation.webUiUrl = savedWebUi;
     _clearDiscoveryCache();
-    await Promise.all([goodPeer, slowPeer, garbagePeer, hugePeer].filter(Boolean).map((p) => p.close()));
+    await Promise.all([goodPeer, slowPeer, garbagePeer, hugePeer, badWebPeer].filter(Boolean).map((p) => p.close()));
   });
 
   describe('well-known document', () => {
@@ -151,6 +168,26 @@ describe('community discovery across servers (#41)', () => {
         pdsUrl: config.pds.serviceUrl,
       });
       expect(typeof mine.handle).toBe('string');
+    });
+
+    it('names this server\'s dashboard (WEB_UI_URL) as pds.webUrl, an origin', async () => {
+      if (!plcAvailable) return;
+      const res = await api.get(WELL_KNOWN);
+      expect(res.status).toBe(200);
+      expect(res.body.pds.webUrl).toBe(LOCAL_WEB_UI);
+      expect(res.body.version).toBe(1);
+    });
+
+    it('leaves pds.webUrl out when WEB_UI_URL is unset', async () => {
+      if (!plcAvailable) return;
+      config.federation.webUiUrl = '';
+      try {
+        const res = await api.get(WELL_KNOWN);
+        expect(res.status).toBe(200);
+        expect('webUrl' in res.body.pds).toBe(false);
+      } finally {
+        config.federation.webUiUrl = `${LOCAL_WEB_UI}/`;
+      }
     });
 
     it('never contains a private community', async () => {
@@ -192,6 +229,7 @@ describe('community discovery across servers (#41)', () => {
       const byDid = new Map(res.body.communities.map((c: any) => [c.did, c]));
       expect(byDid.get(publicDid)).toMatchObject({
         displayName: PUBLIC_NAME, pdsUrl: config.pds.serviceUrl, source: 'local', memberCount: 1,
+        webUrl: LOCAL_WEB_UI,
       });
       expect(byDid.get('did:web:chess.peer.test')).toEqual({
         did: 'did:web:chess.peer.test',
@@ -201,8 +239,15 @@ describe('community discovery across servers (#41)', () => {
         memberCount: 12,
         // Stamped with the server we fetched from, not what the peer claimed.
         pdsUrl: goodPeer.url,
+        // The peer's dashboard origin, from its pds.webUrl.
+        webUrl: 'https://dash.peer.test',
         source: 'peer',
       });
+      // A non-http(s) dashboard URL is dropped; the community is still listed.
+      const badWeb = byDid.get('did:web:badweb.peer.test') as any;
+      expect(badWeb).toMatchObject({ source: 'peer', pdsUrl: badWebPeer.url });
+      expect('webUrl' in badWeb).toBe(false);
+      expect(JSON.stringify(res.body)).not.toContain('javascript:');
       expect(byDid.has('did:web:knitting.peer.test')).toBe(true);
 
       // Untrusted peer data: no private, no claim over a community hosted here, no malformed.
@@ -293,7 +338,7 @@ describe('community discovery across servers (#41)', () => {
         expect(res.body.communities.some((c: any) => c.did === publicDid)).toBe(true);
         expect(res.body.communities.some((c: any) => c.did === privateDid)).toBe(false);
       } finally {
-        config.federation.peerUrls = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url];
+        config.federation.peerUrls = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url, badWebPeer.url];
         _clearDiscoveryCache();
       }
     });

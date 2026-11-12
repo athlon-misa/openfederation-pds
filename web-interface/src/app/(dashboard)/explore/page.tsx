@@ -93,10 +93,14 @@ function LocalTab() {
 
 function DiscoveredCommunityCard({ community }: { community: DiscoveredCommunity }) {
   const isLocal = community.source === 'local';
-  // Where the community lives. A peer's URL is only linked when it is plain
-  // http(s); the server checks this too, but the page never builds a link
-  // from anything else.
-  const home = httpUrl(community.pdsUrl);
+  // Where the community lives. A peer's community page is on the peer's
+  // dashboard ({webUrl}/communities/{did}); it is linked only when webUrl is
+  // plain http(s). The server checks this too, but the page never builds a
+  // link from anything else, and never links to the PDS (an API server).
+  const dashboard = httpUrl(community.webUrl);
+  const peerHref = dashboard
+    ? `${dashboard.origin}/communities/${encodeURIComponent(community.did)}`
+    : null;
   const hostname = hostLabel(community.pdsUrl);
   const localHref = `/communities/${encodeURIComponent(community.did)}`;
 
@@ -108,6 +112,16 @@ function DiscoveredCommunityCard({ community }: { community: DiscoveredCommunity
             <Link href={localHref} className="hover:underline">
               <CardTitle className="text-lg">{community.displayName}</CardTitle>
             </Link>
+          ) : peerHref ? (
+            <a
+              href={peerHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline flex items-center gap-1.5"
+            >
+              <CardTitle className="text-lg">{community.displayName}</CardTitle>
+              <ExternalLink className="size-3.5 text-muted-foreground" />
+            </a>
           ) : (
             <CardTitle className="text-lg">{community.displayName}</CardTitle>
           )}
@@ -133,14 +147,14 @@ function DiscoveredCommunityCard({ community }: { community: DiscoveredCommunity
             <Link href={localHref} className="text-xs text-primary hover:underline">
               View & Join
             </Link>
-          ) : home ? (
+          ) : peerHref ? (
             <a
-              href={home.href}
+              href={peerHref}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-primary hover:underline flex items-center gap-1"
             >
-              Hosted on {hostname} <ExternalLink className="size-3" />
+              View & Join on {hostname} <ExternalLink className="size-3" />
             </a>
           ) : (
             <p className="text-xs text-muted-foreground">Hosted on {hostname}</p>

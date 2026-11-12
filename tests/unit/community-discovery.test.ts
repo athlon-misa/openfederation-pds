@@ -59,6 +59,17 @@ describe('resolvePeerUrls', () => {
 });
 
 describe('parsePeerDirectory (peer data is untrusted)', () => {
+  it("keeps the peer's dashboard URL (pds.webUrl) only as an http(s) origin without credentials", () => {
+    const webUrlOf = (webUrl: unknown) =>
+      parsePeerDirectory({ version: 1, pds: { webUrl }, communities: [entry()] }, PEER)[0].webUrl;
+    expect(webUrlOf('https://dash.peer.example/some/path?x=1')).toBe('https://dash.peer.example');
+    expect(webUrlOf('http://localhost:3001')).toBe('http://localhost:3001');
+    for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'ftp://x.example', 'https://u:p@x.example', 'not a url', 42, null, {}]) {
+      expect(webUrlOf(bad), String(bad)).toBeUndefined();
+    }
+    expect(parsePeerDirectory({ version: 1, pds: 'nope', communities: [entry()] }, PEER)[0].webUrl).toBeUndefined();
+  });
+
   it('accepts a well-formed document and stamps the peer it came from', () => {
     const parsed = parsePeerDirectory({ version: 1, communities: [entry({ pdsUrl: 'https://elsewhere.example' })] }, PEER);
     expect(parsed).toEqual([{
