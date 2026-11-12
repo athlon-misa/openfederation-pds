@@ -11,6 +11,7 @@ import {
   xrpcPost,
   getAdminToken,
   xrpcAuthPost,
+  xrpcAuthGet,
   createTestUser,
   isPLCAvailable,
   uniqueHandle,
@@ -328,6 +329,22 @@ describe('submitProof Endpoint', () => {
       oracleKey = credRes.body.key;
       // Proofs are checked against the community's governance contract.
       await setTestGovernanceContract(communityDid);
+    });
+
+    // listCredentials passed Postgres Date objects straight through, which the
+    // lexicon output check rejects (createdAt must be a datetime string), so
+    // the endpoint answered every call that found a credential with a 500.
+    it('lists the credential, with its dates as datetime strings', async () => {
+      if (!plcAvailable) return;
+      const res = await xrpcAuthGet('net.openfederation.oracle.listCredentials', adminToken, { communityDid });
+      expect(res.status).toBe(200);
+      expect(res.body.credentials).toHaveLength(1);
+      const [credential] = res.body.credentials;
+      expect(credential).toMatchObject({ communityDid, name: 'Test Proof Oracle', status: 'active', proofsSubmitted: 0 });
+      expect(typeof credential.createdAt).toBe('string');
+      expect(Number.isNaN(Date.parse(credential.createdAt))).toBe(false);
+      // Never used yet: no lastUsedAt rather than a null the lexicon does not allow.
+      expect(credential).not.toHaveProperty('lastUsedAt');
     });
 
     it('does not call a proof verified when no adapter is registered', async () => {

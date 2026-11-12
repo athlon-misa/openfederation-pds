@@ -10,6 +10,8 @@ A practical guide for running and writing tests for the OpenFederation PDS.
 - **PostgreSQL 15** — required for integration and E2E tests
 - **PLC directory** — required for integration tests that create users (creates real `did:plc` identities) and all E2E tests. Run locally via `npm run plc:dev` (port 2582).
 - **`.env` file** configured with valid `AUTH_JWT_SECRET`, `KEY_ENCRYPTION_SECRET`, and `DB_*` variables. Copy from `.env.example` as a starting point.
+- **Foundry's `anvil`** (optional) — `tests/api/wallet-evm-anvil.test.ts` and `tests/api/governance-oracle-anvil.test.ts` start a local Ethereum node on a free port (`tests/api/anvil.ts`) and send real transactions to it; the governance file also starts the PDS entry point in a child process with `CHAIN_ADAPTERS` pointing at that node. They skip when anvil is not found (`ANVIL_BIN`, then `PATH`, then `~/.foundry/bin/anvil`); `ANVIL_BIN=none` skips them on purpose.
+- **Solana devnet** (opt-in) — `SOLANA_DEVNET_TEST=1` runs `tests/api/wallet-solana-devnet.test.ts` against the public devnet. Without the faucet it still checks that devnet accepts the signatures; confirming transfers needs a devnet airdrop.
 
 ---
 
