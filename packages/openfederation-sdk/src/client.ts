@@ -13,6 +13,7 @@ import type {
   WalletSignTransactionOptions, WalletSignTransactionResult,
   SiwofChallengeResponse, SiwofAssertResponse, SignInWithOpenFederationOptions,
   UpgradeTierOptions, UpgradeTierResult,
+  DiscoverCommunitiesOptions, DiscoverCommunitiesResult, UserTimelineOptions, UserTimeline,
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
@@ -431,6 +432,44 @@ export class OpenFederationClient implements AuthProvider {
       throw errorFromResponse(res.status, body);
     }
     return res.json() as Promise<WalletResolution>;
+  }
+
+  // ── Communities & Activity ──────────────────────────
+
+  /**
+   * Public communities on this server and on the peers it federates with,
+   * deduplicated by DID. Each says where it lives (`pdsUrl`, `source`);
+   * `peers` says which peers answered. A peer that fails never fails the call.
+   * Public endpoint — no authentication required.
+   */
+  async discoverCommunities(opts: DiscoverCommunitiesOptions = {}): Promise<DiscoverCommunitiesResult> {
+    const params: Record<string, string> = {};
+    if (opts.limit !== undefined) params.limit = String(opts.limit);
+    if (opts.cursor) params.cursor = opts.cursor;
+    if (opts.q) params.q = opts.q;
+    // A plain request, not `this.fetch`: discovery is for anyone, signed in or not.
+    const res = await globalThis.fetch(xrpcUrl(this.serverUrl, 'net.openfederation.community.discover', params));
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw errorFromResponse(res.status, body);
+    }
+    return res.json() as Promise<DiscoverCommunitiesResult>;
+  }
+
+  /**
+   * The signed-in user's timeline: recent activity across every community
+   * they belong to, on this server and on its peers, newest first.
+   * `unreachable` / `unreachablePeers` name what did not answer in time; the
+   * page is built from what did.
+   */
+  async getUserTimeline(opts: UserTimelineOptions = {}): Promise<UserTimeline> {
+    const params: Record<string, string> = {};
+    if (opts.limit !== undefined) params.limit = String(opts.limit);
+    if (opts.cursor) params.cursor = opts.cursor;
+    return this.fetch('net.openfederation.activity.getUserTimeline', {
+      method: 'GET',
+      params,
+    }) as Promise<UserTimeline>;
   }
 
   // ── Vault & Recovery ────────────────────────────────

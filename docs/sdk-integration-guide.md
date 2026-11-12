@@ -289,6 +289,78 @@ await ofd.fetch('com.atproto.repo.putRecord', {
 - `AuthenticationError` (401) — not authenticated, or session expired after retry
 - Any error from the PDS response is mapped to the appropriate error class
 
+### `ofd.discoverCommunities(options?)`
+
+Public communities on this PDS and on the peers it federates with (`FEDERATION_PEERS`), deduplicated by DID. Calls `net.openfederation.community.discover`. No sign-in needed.
+
+Returns: `Promise<DiscoverCommunitiesResult>`
+
+```typescript
+const { communities, cursor, peers } = await ofd.discoverCommunities({ q: 'chess', limit: 20 });
+
+for (const c of communities) {
+  // source: 'local' (hosted on this PDS) or 'peer' (listed by a peer, not verified further)
+  console.log(c.displayName, c.memberCount, c.source, c.pdsUrl);
+}
+
+const silent = peers.filter((p) => p.status === 'failed');
+if (silent.length) console.log(`${silent.length} server(s) didn't answer`, silent.map((p) => p.error));
+
+// Next page
+if (cursor) await ofd.discoverCommunities({ q: 'chess', limit: 20, cursor });
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `limit` | `number` | `50` | 1–100 |
+| `cursor` | `string` | — | The `cursor` of the previous page |
+| `q` | `string` | — | Case-insensitive filter on handle, display name and description (at most 100 characters) |
+
+**Result:** `communities` (`did`, `handle`, `displayName`, `description`, `memberCount`, `pdsUrl`, `source`), `cursor` when there are more, and `peers`: every peer asked, with `status` `ok` (and `communityCount`) or `failed` (and `error`: `Timeout`, `Unreachable`, `BlockedUrl`, `HttpError`, `InvalidResponse`, `ResponseTooLarge`). A peer that fails never fails the call.
+
+`pdsUrl` is an http(s) origin checked by the PDS; still build links only from `http:`/`https:` values.
+
+**Errors:** `ValidationError` (400) for a malformed `limit`, `cursor` or `q`.
+
+### `ofd.getUserTimeline(options?)`
+
+The signed-in user's timeline: recent activity across every community they belong to, on this PDS and on its peers, newest first. Calls `net.openfederation.activity.getUserTimeline`.
+
+Returns: `Promise<UserTimeline>`
+
+```typescript
+const { entries, cursor, unreachable, unreachablePeers } = await ofd.getUserTimeline({ limit: 30 });
+
+for (const e of entries) {
+  switch (e.kind) {
+    case 'member.joined':        console.log(`${e.summary?.handle} joined ${e.community}`); break;
+    case 'forum.thread.created': console.log(`New thread: ${e.summary?.title}`); break;
+    case 'event.created':        console.log(`Event: ${e.summary?.name} at ${e.summary?.startsAt}`); break;
+    default: break; // skip kinds you don't know
+  }
+}
+
+if (unreachable.length || unreachablePeers.length) {
+  // Some communities' activity is missing from this page.
+}
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `limit` | `number` | `30` | 1–100 |
+| `cursor` | `string` | — | The `cursor` of the previous page |
+
+**Result:** `entries` (`id`, `kind`, `community`, `actor?`, `uri?`, `cid?`, `createdAt`, `summary?`), `cursor` (absent on the last page), `unreachable` (community DIDs whose PDS did not answer in time) and `unreachablePeers` (peer URLs that could not be asked). Kinds today: `member.joined`, `joinRequest.created` (owners and admins only), `proposal.created`, `event.created`, `forum.thread.created`.
+
+**Errors:**
+- `AuthenticationError` — not signed in (thrown before any request), or the session expired after a retry
+- `ValidationError` (400) — a cursor the server did not hand out
+- `ForbiddenError` (403) — the account is not hosted on this PDS
+
 ### `ofd.loginWithATProto(handle | options)`
 
 Redirect the browser to the PDS OAuth flow for existing ATProto users. Use this alongside `register()` if you want to support both new and existing users.
