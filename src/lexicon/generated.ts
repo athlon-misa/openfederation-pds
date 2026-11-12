@@ -827,6 +827,31 @@ export type NetOpenfederationCommunityDeleteRoleOutput = {
 };
 export type NetOpenfederationCommunityDeleteRoleError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "Forbidden" | "GovernanceDenied" | "NotFound" | "NotMember" | "RoleInUse" | "RoleNotFound";
 
+export type NetOpenfederationCommunityDiscoverInput = {
+  "limit"?: number;
+  "cursor"?: string;
+  "q"?: string;
+};
+export type NetOpenfederationCommunityDiscoverOutput = {
+  "communities": Array<{
+  "did": string;
+  "handle": string;
+  "displayName": string;
+  "description": string;
+  "memberCount": number;
+  "pdsUrl": string;
+  "source": string;
+}>;
+  "cursor"?: string;
+  "peers": Array<{
+  "url": string;
+  "status": string;
+  "communityCount"?: number;
+  "error"?: string;
+}>;
+};
+export type NetOpenfederationCommunityDiscoverError = "InvalidRequest";
+
 export type NetOpenfederationCommunityExportInput = {
   "did": string;
 };
@@ -2570,6 +2595,7 @@ export interface LexiconInputMap {
   'net.openfederation.community.delete': NetOpenfederationCommunityDeleteInput;
   'net.openfederation.community.deleteAttestation': NetOpenfederationCommunityDeleteAttestationInput;
   'net.openfederation.community.deleteRole': NetOpenfederationCommunityDeleteRoleInput;
+  'net.openfederation.community.discover': NetOpenfederationCommunityDiscoverInput;
   'net.openfederation.community.export': NetOpenfederationCommunityExportInput;
   'net.openfederation.community.get': NetOpenfederationCommunityGetInput;
   'net.openfederation.community.getDelegation': NetOpenfederationCommunityGetDelegationInput;
@@ -2786,6 +2812,7 @@ export interface LexiconOutputMap {
   'net.openfederation.community.delete': NetOpenfederationCommunityDeleteOutput;
   'net.openfederation.community.deleteAttestation': NetOpenfederationCommunityDeleteAttestationOutput;
   'net.openfederation.community.deleteRole': NetOpenfederationCommunityDeleteRoleOutput;
+  'net.openfederation.community.discover': NetOpenfederationCommunityDiscoverOutput;
   'net.openfederation.community.export': NetOpenfederationCommunityExportOutput;
   'net.openfederation.community.get': NetOpenfederationCommunityGetOutput;
   'net.openfederation.community.getDelegation': NetOpenfederationCommunityGetDelegationOutput;
@@ -3002,6 +3029,7 @@ export interface LexiconErrorMap {
   'net.openfederation.community.delete': NetOpenfederationCommunityDeleteError;
   'net.openfederation.community.deleteAttestation': NetOpenfederationCommunityDeleteAttestationError;
   'net.openfederation.community.deleteRole': NetOpenfederationCommunityDeleteRoleError;
+  'net.openfederation.community.discover': NetOpenfederationCommunityDiscoverError;
   'net.openfederation.community.export': NetOpenfederationCommunityExportError;
   'net.openfederation.community.get': NetOpenfederationCommunityGetError;
   'net.openfederation.community.getDelegation': NetOpenfederationCommunityGetDelegationError;
@@ -3220,6 +3248,7 @@ export const lexiconContracts = {
   'net.openfederation.community.delete': { revision: 2, errors: ["CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.deleteAttestation': { revision: 5, errors: ["AttestationNotFound", "AttestationTypeNotAllowed", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.deleteRole': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceDenied", "NotFound", "NotMember", "RoleInUse", "RoleNotFound"] as const },
+  'net.openfederation.community.discover': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.community.export': { revision: 2, errors: ["Forbidden", "InvalidRequest", "NotFound", "TakenDown"] as const },
   'net.openfederation.community.get': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.getDelegation': { revision: 2, errors: ["CommunityTakenDown", "NotFound"] as const },

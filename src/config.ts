@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { resolveIdentityPolicy } from './identity/custody-policy.js';
+import { parseFederationPeers, mergePeerLists } from './federation/peer-sources.js';
 
 // quiet: dotenv 17 prints an informational banner to stdout on every load,
 // which corrupts machine-readable output from the ofc CLI. Loading is unchanged.
@@ -105,12 +106,22 @@ export const config = {
   // Federation / peer PDS discovery
   federation: {
     enabled: process.env.FEDERATION_PEERS_ENABLED !== 'false',
-    peerUrls: (process.env.PEER_PDS_URLS || '')
-      .split(',')
-      .map(u => u.trim())
-      .filter(Boolean)
-      .filter(u => u !== (process.env.PDS_SERVICE_URL || '')), // exclude self
+    // FEDERATION_PEERS (validated; invalid values stop the server) plus the
+    // older PEER_PDS_URLS, kept as it was so existing deployments keep working.
+    peerUrls: mergePeerLists(
+      parseFederationPeers(process.env.FEDERATION_PEERS, {
+        isProduction: process.env.NODE_ENV === 'production',
+        selfUrl: process.env.PDS_SERVICE_URL || '',
+      }),
+      (process.env.PEER_PDS_URLS || '')
+        .split(',')
+        .map(u => u.trim())
+        .filter(Boolean)
+        .filter(u => u !== (process.env.PDS_SERVICE_URL || '')), // exclude self
+    ),
     cacheTtlMs: parseInt(process.env.FEDERATION_CACHE_TTL_MS || '300000', 10), // 5 min
+    // How long one peer gets to answer community discovery before it counts as failed.
+    peerTimeoutMs: parseInt(process.env.FEDERATION_PEER_TIMEOUT_MS || '3000', 10),
     webUiUrl: process.env.WEB_UI_URL || '',
   },
 
@@ -234,6 +245,7 @@ export const config = {
     createPerHour: parseInt(process.env.CREATE_RATE_LIMIT || '10', 10),
     walletSignPerMin: parseInt(process.env.WALLET_SIGN_RATE_LIMIT || '60', 10),
     serviceAuthPerMin: parseInt(process.env.SERVICE_AUTH_RATE_LIMIT || '60', 10),
+    discoveryPerMin: parseInt(process.env.DISCOVERY_RATE_LIMIT || '60', 10),
   },
 };
 

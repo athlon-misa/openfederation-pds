@@ -96,6 +96,18 @@ describe('federation privacy (#85)', () => {
     expect(authedDids).not.toContain(communityDid);
   });
 
+  it('the community directory and discover leave it out (#41)', async () => {
+    if (!plcAvailable) return;
+    const doc = await api.get('/.well-known/openfederation-communities.json');
+    expect(doc.status).toBe(200);
+    expect(doc.text).not.toContain(communityDid);
+    expect(doc.text).not.toContain(SECRET_NAME);
+
+    const found = await xrpcGet('net.openfederation.community.discover', { limit: '100' });
+    expect(found.status).toBe(200);
+    expect(JSON.stringify(found.body)).not.toContain(communityDid);
+  });
+
   it('listMembers refuses an outsider', async () => {
     if (!plcAvailable) return;
     const res = await xrpcAuthGet('net.openfederation.community.listMembers', outsider.accessJwt, { did: communityDid });

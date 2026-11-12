@@ -1,0 +1,163 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.discover",
+  "revision": 1,
+  "description": "Discover public communities across OpenFederation servers: this server's own plus those published by the peers it is configured with (FEDERATION_PEERS), deduplicated by DID. No authentication.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "List public communities on this server and its peers. A peer that does not answer is reported in `peers`, never fails the request.",
+      "parameters": {
+        "type": "params",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50,
+            "description": "Maximum number of communities to return."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque pagination cursor from a previous response."
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Case-insensitive text filter on handle, display name and description."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#output"
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "limit, cursor or q is malformed."
+        }
+      ]
+    },
+    "communityView": {
+      "type": "object",
+      "required": [
+        "did",
+        "handle",
+        "displayName",
+        "description",
+        "memberCount",
+        "pdsUrl",
+        "source"
+      ],
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did",
+          "description": "The community DID."
+        },
+        "handle": {
+          "type": "string",
+          "description": "The community handle."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Display name; the handle when the community has none."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Short description, cut to 300 characters."
+        },
+        "memberCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of members, as reported by the home server."
+        },
+        "pdsUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of the PDS that hosts the community."
+        },
+        "source": {
+          "type": "string",
+          "knownValues": [
+            "local",
+            "peer"
+          ],
+          "description": "local: hosted on this server. peer: listed by a peer and not verified further."
+        }
+      }
+    },
+    "peerStatus": {
+      "type": "object",
+      "required": [
+        "url",
+        "status"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The peer's base URL."
+        },
+        "status": {
+          "type": "string",
+          "knownValues": [
+            "ok",
+            "failed"
+          ]
+        },
+        "communityCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "When ok: communities this peer contributed after deduplication."
+        },
+        "error": {
+          "type": "string",
+          "knownValues": [
+            "Timeout",
+            "Unreachable",
+            "BlockedUrl",
+            "HttpError",
+            "InvalidResponse",
+            "ResponseTooLarge"
+          ],
+          "description": "When failed: why."
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": [
+        "communities",
+        "peers"
+      ],
+      "properties": {
+        "communities": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#communityView"
+          }
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Present when there are more results."
+        },
+        "peers": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#peerStatus"
+          },
+          "description": "Every peer asked, and whether it answered."
+        }
+      }
+    }
+  }
+}

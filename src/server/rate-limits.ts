@@ -36,7 +36,7 @@ export const createLimiter = rateLimit({
 
 export const discoveryLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 minute
-  max: 60,               // 60 discovery requests per minute per IP
+  max: config.rateLimits.discoveryPerMin,  // 60/min per IP by default
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many discovery requests, please try again later' },
