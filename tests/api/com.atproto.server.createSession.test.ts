@@ -24,6 +24,25 @@ describe('com.atproto.server.createSession', () => {
     expect(res.body.active).toBe(true);
   });
 
+  it('logs in with the full handle, as AT Protocol clients send it', async () => {
+    // Accounts store the short handle; clients sign in with handle + this
+    // server's domain (e.g. elena.openfederation.net), in any letter case.
+    const res = await xrpcPost('com.atproto.server.createSession', {
+      identifier: `${handle}${config.handleSuffix}`.toUpperCase(),
+      password,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('handle', handle);
+  });
+
+  it('does not strip another server\'s domain from the handle', async () => {
+    const res = await xrpcPost('com.atproto.server.createSession', {
+      identifier: `${handle}.other-server.example`,
+      password,
+    });
+    expect(res.status).toBe(401);
+  });
+
   it('should return JWT-formatted access token', async () => {
     const res = await xrpcPost('com.atproto.server.createSession', {
       identifier: handle,

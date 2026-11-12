@@ -3,7 +3,7 @@ import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { verifyPassword } from '../auth/password.js';
 import { issueSession } from '../auth/session-issue.js';
-import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
+import { localHandle, normalizeEmail } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
 
@@ -25,7 +25,7 @@ export default async function createSession(req: Request, res: Response): Promis
 
     const identifier = input.identifier.includes('@')
       ? normalizeEmail(input.identifier)
-      : normalizeHandle(input.identifier);
+      : localHandle(input.identifier);
 
     // What goes into the audit log for a failed login. The raw field is
     // whatever was typed, which is sometimes a password pasted into the wrong
