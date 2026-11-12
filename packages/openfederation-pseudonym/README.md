@@ -76,6 +76,18 @@ const session = await moveAccount({
 
 It opens the account at the new PDS, copies the repository (`sync.getRepo` → `com.atproto.repo.importRepo`) and the blobs its records reference (`copyMissingBlobs`: `repo.listMissingBlobs` → `sync.getBlob` → `repo.uploadBlob`), and only signs the PLC update once the new PDS reports the exact repository the old one exported and every blob. The update uses the new PDS's recommended credentials (endpoint, signing key, handle) and keeps the rotation key and the commitment. Then it activates the account there, logs in, and deactivates the old account. A failure before the PLC update leaves the pseudonym working where it was. Moving to a PDS that still holds a copy from an earlier stay signs in to that copy (deactivated accounts keep a limited session) and refills it, so moving back works the same way.
 
+## Retiring a pseudonym
+
+A pseudonym's DID stays in the PLC directory after its accounts are deleted. `tombstone` ends it for good: it signs a `plc_tombstone` operation with the phrase (the DID's only rotation key) and posts it, after which the DID resolves to nothing.
+
+```ts
+import { tombstone } from '@open-federation/pseudonym';
+
+await tombstone({ plcUrl, did, phrase }); // the signed { type: 'plc_tombstone', prev, sig } PLC accepted
+```
+
+Delete the pseudonym's accounts first (`com.atproto.server.deleteAccount` with a JWT from `signOwnerJwt`, `lxm` = that method): servers check that JWT against the DID's current rotation keys, and a tombstoned DID has none. `tombstone` refuses, before posting anything, when the DID is already tombstoned or the phrase is not its rotation key. `buildTombstoneOp` and `signTombstoneOp` are the building blocks.
+
 ## Reveal
 
 Revealing is always the owner's choice. Build a bundle with `createRevealBundle` (needs the phrase and the owner's session; the PDS signs the owner half through `signLink`), then pick a mode.
