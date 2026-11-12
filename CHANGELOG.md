@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Deleting an account that had created or revoked a partner API key failed.** The key's `created_by` / `revoked_by` referenced the user with no delete rule; they are now cleared and the key kept (migration 058).
+- **`net.openfederation.oracle.listCredentials` answered 500 whenever it found a credential.** It returned the database's timestamps as Date objects, which the lexicon's output check refuses; `createdAt` and `lastUsedAt` are now datetime strings, and a credential never used has no `lastUsedAt`. Found while checking on-chain governance against a local Ethereum node (#76): tests now start anvil when Foundry is installed and check the oracle flow and `asEthersSigner()` transactions on it (#78), with an opt-in Solana devnet test (`SOLANA_DEVNET_TEST=1`).
 
 ## [1.5.0] - 2026-11-12
 

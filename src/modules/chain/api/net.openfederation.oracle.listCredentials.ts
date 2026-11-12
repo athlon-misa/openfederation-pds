@@ -23,9 +23,11 @@ export default async function listOracleCredentials(req: AuthRequest, res: Respo
 
     const result = await query<{
       id: string; community_did: string; key_prefix: string; name: string;
-      status: string; proofs_submitted: number; last_used_at: string | null; created_at: string;
+      status: string; proofs_submitted: number; last_used_at: Date | null; created_at: Date;
     }>(sql, params);
 
+    // Postgres hands timestamps back as Date objects; the lexicon says
+    // datetime strings, and a never-used credential has no lastUsedAt at all.
     const credentials = result.rows.map(row => ({
       id: row.id,
       communityDid: row.community_did,
@@ -33,8 +35,8 @@ export default async function listOracleCredentials(req: AuthRequest, res: Respo
       name: row.name,
       status: row.status,
       proofsSubmitted: row.proofs_submitted,
-      lastUsedAt: row.last_used_at,
-      createdAt: row.created_at,
+      ...(row.last_used_at ? { lastUsedAt: new Date(row.last_used_at).toISOString() } : {}),
+      createdAt: new Date(row.created_at).toISOString(),
     }));
 
     res.status(200).json({ credentials });
