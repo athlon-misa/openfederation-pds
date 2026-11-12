@@ -4,6 +4,7 @@ import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { discoveryLimiter } from './rate-limits.js';
 import { communityFederationView } from '../federation/privacy.js';
+import { buildLocalDirectory } from '../federation/community-discovery.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { decryptKeyBytes } from '../auth/encryption.js';
 import { buildSecurityTxt, securityContactsFromEnv } from './security-txt.js';
@@ -150,6 +151,21 @@ export function createWellKnownRouter(): Router {
       contacts: securityContactsFromEnv(process.env.SECURITY_CONTACT),
       serviceUrl: config.pds.serviceUrl,
     }));
+  });
+
+  // Cross-server community discovery (#41): this server's public communities,
+  // fetched by peers for net.openfederation.community.discover. Same
+  // public-only filter as community.listAll; never includes peers' lists.
+  router.get('/openfederation-communities.json', discoveryLimiter, async (_req: Request, res: Response) => {
+    try {
+      const directory = await buildLocalDirectory();
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.status(200).json(directory);
+    } catch (err) {
+      console.error('Error serving community directory:', err);
+      res.status(500).json({ error: 'InternalServerError', message: 'Failed to list communities' });
+    }
   });
 
   router.get('/webfinger', discoveryLimiter, async (req: Request, res: Response) => {

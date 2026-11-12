@@ -109,7 +109,20 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Takedown policy ([FAIR-USE.md](FAIR-USE.md)), accounts and communities alike: `standard` (owner gets a private export link, deleted after 30 days, reminder 7 days before) or `hard` (no owner export, 90-day legal hold, then deleted); daily sweep in `src/moderation/takedown.ts`
 - `com.atproto.identity.resolveHandle` — local + external cross-PDS resolution (DNS TXT → HTTPS well-known, 1h cache)
 - Well-known: `/.well-known/did.json` (PDS service DID, secp256k1, encrypted in `pds_service_keys`; falls through to community at hostname), `/.well-known/webfinger`
+- Cross-server community discovery ([#41](https://github.com/athlon-misa/openfederation-pds/issues/41)): `/.well-known/openfederation-communities.json` and `net.openfederation.community.discover`; design below
 - Private communities are gated on read (`requireCommunityReadable` / `requireRepoReadable`, `831285b`, 2026-07-10) at this PDS only. **This PDS is not yet federating to any external relay or AppView** — no production federation network is deployed. Before that federation is turned on, private-community DIDs still need to be excluded (or only sent to relays honoring the same gating) — tracked in [#85](https://github.com/athlon-misa/openfederation-pds/issues/85)
+
+### Cross-server community discovery (#41)
+
+**Mechanism: peer list + well-known.** No central service and no gossip. Each PDS publishes its own public communities at `/.well-known/openfederation-communities.json` (`version`, `pds`, `generatedAt`, `communities[]` with DID, handle, display name, short description, member count, home PDS URL). `net.openfederation.community.discover` returns this PDS's list followed by each peer's, deduplicated by DID, with the status of every peer asked. A peer's list is never re-published, so nothing travels further than one hop.
+
+**Opting in** is one variable: `FEDERATION_PEERS=https://a.example,https://b.example`. A new deployment publishes its well-known document from the start; other servers see it once they add it to their own list.
+
+**Peers are untrusted.** Each fetch has a timeout (`FEDERATION_PEER_TIMEOUT_MS`, 3 s), a 1 MiB size cap, no redirects, and at most 1000 entries; in production the URL must be https and resolve to a public address (`assertPublicHttpsUrl`). Every entry is validated (DID, handle, integer member count; text cut to 128 / 300 characters), entries marked as not public are dropped, and `pdsUrl` is always the peer that was fetched, whatever it claims. A peer can never speak for a DID this PDS hosts, so it cannot surface one of our private communities or rename a public one. Answers are cached per peer for `FEDERATION_CACHE_TTL_MS` (failures for 30 s at most); one peer failing never fails the request. What a peer says about its own communities (names, member counts) is reported as `source: 'peer'` and not verified further.
+
+**A central directory later** plugs in where peers come from, not where they are fetched: `src/federation/peer-sources.ts` defines `PeerSource` (`listPeers(): Promise<string[]>`), and `peerSources()` in `src/federation/community-discovery.ts` returns the list consulted; today it holds only the `FEDERATION_PEERS` source. A directory would be one more `PeerSource` that returns the servers it knows; fetching, validation, caching and merging stay as they are. The directory itself could be an ordinary consumer of the same well-known documents.
+
+**Not built:** pagination of peer documents (each peer's first 1000 entries are used), verifying peer-reported data against PLC or the community repo, and a dashboard screen.
 
 ## On-chain governance — **needs-validation** ([#76](https://github.com/athlon-misa/openfederation-pds/issues/76))
 

@@ -74,6 +74,7 @@ See `.env.example` for the full list. Critical ones:
 | `ORACLE_TRUST_UNVERIFIED_PROOFS` | No | Default off; `true` accepts a governance proof for a chain with no adapter on the oracle's word |
 | `EMAIL_VERIFICATION_POLICY` | No | `off` / `advisory` (default) / `require-for-write` / `require-for-login` — what an unverified email blocks |
 | `WALLET_CONSENT_MAX_HOURS` | No | Default 24; longest a custodial signing consent may last (default consent 1h). Consents are approved by the user on `/wallet/consent/:id` |
+| `FEDERATION_PEERS` | No | Comma-separated base URLs of other OpenFederation PDSes whose public communities `community.discover` merges in (https in production; invalid values stop the server). Unset: this PDS's communities only. Older `PEER_PDS_URLS` is merged in; `FEDERATION_PEERS_ENABLED=false` turns peer fetching off |
 | `SECURITY_CONTACT` | No | Comma-separated emails or https URLs for `/.well-known/security.txt`; the project advisory form is always listed |
 
 ## Security imperatives

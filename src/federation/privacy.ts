@@ -16,6 +16,7 @@
  *   community read endpoints            requireCommunityReadable / per-handler
  *   community.listAll                   hard-filtered to public in SQL
  *   federation peer exchange            peers request visibility=public
+ *   community directory + discover      public-only SQL (community-discovery.ts)
  *   /.well-known/webfinger              federationView() — existence visible,
  *   /ap/actor/:did                      content stripped (ADR-001 §discovery)
  *

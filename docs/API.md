@@ -70,6 +70,8 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.community.create` | Approved | Create a new community |
 | GET  | `net.openfederation.community.get` | No | Get community details (auth optional for membership info) |
 | GET  | `net.openfederation.community.listAll` | Yes | List public communities (or all for admin) |
+| GET  | `net.openfederation.community.discover` | No | Public communities here and on the peers in `FEDERATION_PEERS`, deduplicated by DID (#41). Params `limit` (1–100, default 50), `cursor`, `q` (text filter on handle, name, description). Returns `communities[]` (`did`, `handle`, `displayName`, `description`, `memberCount`, `pdsUrl`, `source`: `local` / `peer`), `cursor` when there is more, and `peers[]` (`url`, `status`: `ok` / `failed`, `communityCount` or `error`: `Timeout`, `Unreachable`, `BlockedUrl`, `HttpError`, `InvalidResponse`, `ResponseTooLarge`). A failed peer never fails the request |
+| GET  | `/.well-known/openfederation-communities.json` | No | This PDS's public communities for peers to fetch: `{ version: 1, pds: { url, hostname }, generatedAt, communities: [{ did, handle, displayName, description, memberCount, pdsUrl }] }`. Same filter as unauthenticated `listAll`, at most 1000 entries, descriptions cut to 300 characters; never includes what peers list |
 | GET  | `net.openfederation.community.listMine` | Yes | List communities user belongs to |
 | POST | `net.openfederation.community.update` | Owner | Update community settings |
 | POST | `net.openfederation.community.join` | Approved | Join or request to join a community |

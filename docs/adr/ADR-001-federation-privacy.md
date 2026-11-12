@@ -49,6 +49,7 @@ is the reference answer. Existing surfaces and where they enforce:
 | community read endpoints (get, listMembers, forum, calendar…) | `requireCommunityReadable` / per-handler visibility checks |
 | `net.openfederation.community.listAll` | public-only SQL filter |
 | peer federation (`peer-cache`) | requests `visibility=public`; source filters regardless |
+| `/.well-known/openfederation-communities.json`, `community.discover` | public-only SQL filter; peer entries for any DID hosted here, or marked non-public, are dropped |
 | `/ap/actor/:did` | `communityFederationView` — stripped when private |
 | `/.well-known/webfinger` | `communityFederationView` — no content links when private |
 | `/nodeinfo/2.1`, `getPublicConfig` | aggregate counts only, no per-community data |
