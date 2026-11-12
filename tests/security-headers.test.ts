@@ -43,7 +43,9 @@ function fetch(path: string, options: { method?: string; headers?: Record<string
 before(async () => {
   // Start the app on a random port (avoids conflict with running server)
   await new Promise<void>((resolve) => {
-    server = app.listen(0, () => {
+    // 127.0.0.1, the address requests go to — a wildcard bind can be
+    // shadowed by another local process on macOS (#370).
+    server = app.listen(0, '127.0.0.1', () => {
       const addr = server.address() as { port: number };
       baseUrl = `http://127.0.0.1:${addr.port}`;
       resolve();

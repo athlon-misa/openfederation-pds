@@ -19,7 +19,9 @@
  * retry-on-error workaround could never have covered.
  */
 import { describe, it, expect } from 'vitest';
-import { api, xrpcGet } from './helpers.js';
+import net from 'node:net';
+import type { AddressInfo } from 'node:net';
+import { api, testServer, xrpcGet } from './helpers.js';
 
 /** Set by our own middleware on every response, before any route runs. */
 const OUR_HEADER = 'x-content-type-options';
@@ -49,5 +51,23 @@ describe('responses come from our server (#222)', () => {
     expect(res.status).toBe(404);
     expect(res.headers[OUR_HEADER]).toBeDefined();
     expect(res.body.error).toBe('MethodNotFound');
+  });
+
+  it('cannot be shadowed by another listener on 127.0.0.1 (#370)', async () => {
+    // supertest connects to 127.0.0.1. Bound to the wildcard, the test server
+    // lost every request to any process that later bound 127.0.0.1:<port>
+    // (macOS routes to the more specific socket): a Codex app-server answered
+    // 401 to the whole email-webhook file. Bound to the exact address, a
+    // second bind there is refused.
+    const { address, port } = testServer.address() as AddressInfo;
+    expect(address).toBe('127.0.0.1');
+
+    const intruder = net.createServer();
+    const outcome = await new Promise<string>((resolve) => {
+      intruder.once('error', (err: NodeJS.ErrnoException) => resolve(err.code ?? String(err)));
+      intruder.listen(port, '127.0.0.1', () => resolve('bound'));
+    });
+    if (outcome === 'bound') await new Promise<void>((r) => intruder.close(() => r()));
+    expect(outcome).toBe('EADDRINUSE');
   });
 });
