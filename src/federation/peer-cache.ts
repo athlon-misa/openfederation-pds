@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { isPrivateHost } from './remote-verify.js';
 import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
+import { cleanText, isPeerDid, isPeerHandle, peerCount, safeHttpOrigin } from './peer-data.js';
 
 export const MAX_PEER_RESPONSE_BYTES = 256 * 1024;
 export const MAX_COMMUNITIES_PER_PEER = 100;
@@ -47,6 +48,38 @@ export interface PeerCommunity {
   pdsUrl: string;
   pdsHostname: string;
   webUrl: string | null;
+}
+
+/**
+ * One entry from a peer's listAll, checked: a real DID and handle, public
+ * only, known enums, cleaned text, an integer member count, a parseable date.
+ * Anything else is dropped. Where it lives is the peer we asked, not a claim.
+ */
+export function toPeerCommunity(raw: unknown, peerUrl: string, peerHostname: string, webUrl: string | null): PeerCommunity | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const c = raw as Record<string, unknown>;
+  if (!isPeerDid(c.did) || !isPeerHandle(c.handle)) return null;
+  if (c.visibility !== undefined && c.visibility !== 'public') return null;
+  const memberCount = c.memberCount === undefined ? 0 : peerCount(c.memberCount);
+  if (memberCount === null) return null;
+  const createdAt = typeof c.createdAt === 'string' && !Number.isNaN(Date.parse(c.createdAt))
+    ? new Date(c.createdAt).toISOString()
+    : null;
+  if (!createdAt) return null;
+  return {
+    did: c.did,
+    handle: c.handle,
+    didMethod: c.did.startsWith('did:plc:') ? 'plc' : 'web',
+    displayName: cleanText(c.displayName, 128) || c.handle,
+    description: cleanText(c.description, 300),
+    visibility: 'public',
+    joinPolicy: c.joinPolicy === 'approval' ? 'approval' : 'open',
+    memberCount,
+    createdAt,
+    pdsUrl: peerUrl,
+    pdsHostname: peerHostname,
+    webUrl,
+  };
 }
 
 // --- Peer communities cache ---
@@ -101,20 +134,10 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
 
             const webUrl = peerWebUrls.get(peerUrl) || null;
 
-            return data.communities.slice(0, MAX_COMMUNITIES_PER_PEER).map((c: any): PeerCommunity => ({
-              did: c.did,
-              handle: c.handle,
-              didMethod: c.didMethod,
-              displayName: c.displayName || c.handle,
-              description: c.description || '',
-              visibility: c.visibility || 'public',
-              joinPolicy: c.joinPolicy || 'open',
-              memberCount: c.memberCount || 0,
-              createdAt: c.createdAt,
-              pdsUrl: peerUrl,
-              pdsHostname: peerHostname,
-              webUrl,
-            }));
+            return data.communities
+              .map((c: unknown) => toPeerCommunity(c, peerUrl, peerHostname, webUrl))
+              .filter((c): c is PeerCommunity => c !== null)
+              .slice(0, MAX_COMMUNITIES_PER_PEER);
           } finally {
             clearTimeout(timeout);
           }
@@ -198,12 +221,15 @@ export async function getCachedPeerInfo(): Promise<PeerInfo[]> {
               return { hostname: peerHostname, serviceUrl: peerUrl, webUrl: null, healthy: false };
             }
 
+            // The peer is who we configured, whatever it says it is; only a
+            // plain http(s) web UI link is taken from it, as an origin.
+            const activeCommunities = peerCount(data.stats?.activeCommunities);
             return {
-              hostname: data.hostname || peerHostname,
-              serviceUrl: data.serviceUrl || peerUrl,
-              webUrl: data.webUrl || null,
+              hostname: peerHostname,
+              serviceUrl: peerUrl,
+              webUrl: safeHttpOrigin(data.webUrl),
               healthy: true,
-              activeCommunities: data.stats?.activeCommunities,
+              ...(activeCommunities !== null ? { activeCommunities } : {}),
             };
           } catch {
             return { hostname: peerHostname, serviceUrl: peerUrl, webUrl: null, healthy: false };

@@ -11,9 +11,9 @@ async function loadPeerCache(peerUrls = peer) {
 
 function community(index: number) {
   return {
-    did: `did:plc:community${index}`,
+    did: `did:web:community-${index}.example`,
     handle: `community-${index}.example`,
-    didMethod: 'plc',
+    didMethod: 'web',
     displayName: `Community ${index}`,
     description: '',
     visibility: 'public',
@@ -82,7 +82,7 @@ describe('peer cache outbound fetches', () => {
     const { getCachedPeerCommunities } = await loadPeerCache();
 
     await expect(getCachedPeerCommunities()).resolves.toMatchObject({
-      communities: Array.from({ length: 100 }, (_, index) => ({ did: `did:plc:community${index}` })),
+      communities: Array.from({ length: 100 }, (_, index) => ({ did: `did:web:community-${index}.example` })),
     });
   });
 
@@ -98,7 +98,49 @@ describe('peer cache outbound fetches', () => {
     const { getCachedPeerCommunities } = await loadPeerCache(peers.join(','));
 
     const result = await getCachedPeerCommunities();
-    expect(result.communities[0]).toMatchObject({ did: 'did:plc:community0' });
+    expect(result.communities[0]).toMatchObject({ did: 'did:web:community-0.example' });
     expect(result.communities).toHaveLength(500);
+  });
+
+  it('keeps only valid public entries and never trusts the peer for links or its own identity', async () => {
+    const fetchMock = vi.fn((url: URL) => {
+      if (url.pathname.endsWith('getPublicConfig')) {
+        // A hostile peer: a script link as its web UI, and someone else's identity.
+        return Promise.resolve(jsonResponse({
+          hostname: 'pds.openfederation.net', serviceUrl: 'https://pds.openfederation.net',
+          webUrl: 'javascript:alert(1)//', stats: { activeCommunities: 3 },
+        }));
+      }
+      return Promise.resolve(jsonResponse({ communities: [
+        community(1),
+        { ...community(2), visibility: 'private' },
+        { ...community(3), did: 'javascript:alert(1)' },
+        { ...community(4), handle: '<img src=x>' },
+        { ...community(5), memberCount: -4 },
+        { ...community(6), displayName: 'Bell\u0007 ring', joinPolicy: 'whatever' },
+      ] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { getCachedPeerCommunities, getCachedPeerInfo } = await loadPeerCache();
+
+    expect(await getCachedPeerInfo()).toEqual([
+      { hostname: '1.1.1.1', serviceUrl: peer, webUrl: null, healthy: true, activeCommunities: 3 },
+    ]);
+    const { communities } = await getCachedPeerCommunities();
+    expect(communities.map((c) => c.did)).toEqual(['did:web:community-1.example', 'did:web:community-6.example']);
+    expect(communities[1]).toMatchObject({ displayName: 'Bell  ring', joinPolicy: 'open', webUrl: null, pdsUrl: peer });
+  });
+
+  it('keeps an http(s) web UI link from the peer, as its origin', async () => {
+    const fetchMock = vi.fn((url: URL) => {
+      if (url.pathname.endsWith('getPublicConfig')) {
+        return Promise.resolve(jsonResponse({ webUrl: 'https://web.peer.example/some/path?x=1' }));
+      }
+      return Promise.resolve(jsonResponse({ communities: [community(1)] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { getCachedPeerCommunities } = await loadPeerCache();
+    const { communities } = await getCachedPeerCommunities();
+    expect(communities[0].webUrl).toBe('https://web.peer.example');
   });
 });
