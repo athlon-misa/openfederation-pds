@@ -12,4 +12,5 @@ export { didKeyFor, parseDidKey, base64UrlEncode, base64UrlDecode, type KeyCurve
 export * from './owner-record.js';
 export * from './repo-watch.js';
 export * from './leave.js';
+export * from './recovery.js';
 export { MemoryStorageAdapter, LocalStorageAdapter, type StorageAdapter } from '../storage.js';
