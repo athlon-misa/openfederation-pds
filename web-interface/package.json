@@ -15,7 +15,7 @@
     "@noble/curves": "1.9.7",
     "@noble/hashes": "1.8.0",
     "@open-federation/pseudonym": "0.1.0",
-    "@open-federation/sdk": "0.4.0",
+    "@open-federation/sdk": "0.4.1",
     "@tanstack/react-query": "^5.107.1",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
