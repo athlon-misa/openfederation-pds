@@ -179,6 +179,12 @@ CREATE INDEX IF NOT EXISTS idx_records_governance_objection_proposal
     ON records_index ((record->>'community'), (record->>'proposalRkey'))
     WHERE collection = 'net.openfederation.governance.objection';
 
+-- Activity feed (#42): proposals and calendar events by community, newest
+-- first, so a cursor page's time bound is an index condition (migrate-059).
+CREATE INDEX IF NOT EXISTS idx_records_activity_created
+    ON records_index (community_did, collection, created_at DESC)
+    WHERE collection IN ('net.openfederation.community.proposal', 'community.lexicon.calendar.event');
+
 -- Members Unique table: enforces one membership per DID per community
 -- This prevents duplicate memberships as per the schema fix in documentation
 CREATE TABLE IF NOT EXISTS members_unique (
@@ -221,6 +227,10 @@ CREATE TABLE IF NOT EXISTS join_requests (
 
 CREATE INDEX idx_join_requests_community ON join_requests(community_did);
 CREATE INDEX idx_join_requests_status ON join_requests(community_did, status);
+-- Activity feed (#42): pending requests by community, newest first (migrate-059).
+CREATE INDEX IF NOT EXISTS idx_join_requests_pending_created
+    ON join_requests (community_did, created_at DESC)
+    WHERE status = 'pending';
 
 -- Signing keys table: stores encrypted signing keys for community repos
 CREATE TABLE IF NOT EXISTS signing_keys (
@@ -637,6 +647,10 @@ CREATE TABLE IF NOT EXISTS forum_threads (
 );
 CREATE INDEX IF NOT EXISTS idx_forum_threads_community
     ON forum_threads(community_did, last_activity DESC);
+-- Activity feed (#42): visible threads by community, newest first (migrate-059).
+CREATE INDEX IF NOT EXISTS idx_forum_threads_community_created
+    ON forum_threads (community_did, created_at DESC)
+    WHERE hidden = false;
 
 -- Forum posts: aggregation index for community forum posts
 CREATE TABLE IF NOT EXISTS forum_posts (
