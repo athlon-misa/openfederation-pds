@@ -174,10 +174,20 @@ describe('community discovery across servers (#41)', () => {
       if (!plcAvailable) return;
       _clearDiscoveryCache();
       const started = Date.now();
+      // Every page: the shared test database can hold more local communities
+      // than one page, and local entries come first.
       const res = await xrpcGet('net.openfederation.community.discover', { limit: '100' });
       expect(res.status).toBe(200);
       // The slow peer is cut off by the timeout, not waited on.
       expect(Date.now() - started).toBeLessThan(5000);
+      const all = [...res.body.communities];
+      for (let cursor = res.body.cursor; cursor; ) {
+        const next = await xrpcGet('net.openfederation.community.discover', { limit: '100', cursor });
+        expect(next.status).toBe(200);
+        all.push(...next.body.communities);
+        cursor = next.body.cursor;
+      }
+      res.body.communities = all;
 
       const byDid = new Map(res.body.communities.map((c: any) => [c.did, c]));
       expect(byDid.get(publicDid)).toMatchObject({
@@ -225,16 +235,31 @@ describe('community discovery across servers (#41)', () => {
 
     it('pages with limit and cursor without repeats', async () => {
       if (!plcAvailable) return;
-      const all = await xrpcGet('net.openfederation.community.discover', { limit: '100' });
-      const total = all.body.communities.length;
+      // Page sizes 100 and 7 must give the same list, each DID once. The
+      // shared test database may hold many local communities, so neither run
+      // assumes the whole list fits in one page.
+      const walk = async (limit: string): Promise<string[]> => {
+        const out: string[] = [];
+        let next: string | undefined;
+        for (let i = 0; i < 1000; i++) {
+          const page = await xrpcGet('net.openfederation.community.discover', next ? { limit, cursor: next } : { limit });
+          expect(page.status).toBe(200);
+          expect(page.body.communities.length).toBeLessThanOrEqual(Number(limit));
+          out.push(...page.body.communities.map((c: any) => c.did));
+          next = page.body.cursor;
+          if (!next) break;
+        }
+        return out;
+      };
+      const total = (await walk('100')).length;
       const seen: string[] = [];
       let cursor: string | undefined;
-      for (let i = 0; i < 200; i++) {
-        const params: Record<string, string> = { limit: '2' };
+      for (let i = 0; i < 1000; i++) {
+        const params: Record<string, string> = { limit: '7' };
         if (cursor) params.cursor = cursor;
         const page = await xrpcGet('net.openfederation.community.discover', params);
         expect(page.status).toBe(200);
-        expect(page.body.communities.length).toBeLessThanOrEqual(2);
+        expect(page.body.communities.length).toBeLessThanOrEqual(7);
         seen.push(...page.body.communities.map((c: any) => c.did));
         cursor = page.body.cursor;
         if (!cursor) break;

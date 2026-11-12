@@ -245,6 +245,7 @@ export const config = {
     createPerHour: parseInt(process.env.CREATE_RATE_LIMIT || '10', 10),
     walletSignPerMin: parseInt(process.env.WALLET_SIGN_RATE_LIMIT || '60', 10),
     serviceAuthPerMin: parseInt(process.env.SERVICE_AUTH_RATE_LIMIT || '60', 10),
+    discoveryPerMin: parseInt(process.env.DISCOVERY_RATE_LIMIT || '60', 10),
   },
 };
 
