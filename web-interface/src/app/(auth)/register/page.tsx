@@ -221,9 +221,9 @@ export default function RegisterPage() {
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Who holds the key to your identity</legend>
               {modes.map((m) => (
-                <label key={m} className={`flex cursor-pointer gap-3 rounded-md border p-3 text-sm ${mode === m ? 'border-primary bg-muted' : ''}`}>
+                <label key={m} className={`flex cursor-pointer gap-3 rounded-md border p-3 text-sm ${mode === m ? 'border-primary bg-muted ring-2 ring-primary' : 'opacity-80'}`}>
                   <input type="radio" name="custody" value={m} checked={mode === m} onChange={() => { setMode(m); setPhrase(null); }} className="mt-1" />
-                  <span><span className="font-medium">{MODE_TEXT[m].title}</span><span className="block text-muted-foreground">{MODE_TEXT[m].what}</span></span>
+                  <span><span className="font-medium">{MODE_TEXT[m].title}</span>{mode === m && <span className="ml-2 text-xs font-medium text-primary">Selected</span>}<span className="block text-muted-foreground">{MODE_TEXT[m].what}</span></span>
                 </label>
               ))}
             </fieldset>
@@ -231,7 +231,7 @@ export default function RegisterPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Registering...' : 'Register'}
+            {loading ? 'Registering...' : modes.length > 1 ? `Register (${MODE_TEXT[mode].title})` : 'Register'}
           </Button>
           <p className="text-sm text-muted-foreground">
             Already have an account?{' '}
