@@ -4,6 +4,7 @@ import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { discoveryLimiter } from './rate-limits.js';
 import { communityFederationView } from '../federation/privacy.js';
+import { communityProfileUrl } from '../activitypub/ap-actors.js';
 import { buildLocalDirectory } from '../federation/community-discovery.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { decryptKeyBytes } from '../auth/encryption.js';
@@ -169,6 +170,9 @@ export function createWellKnownRouter(): Router {
   });
 
   router.get('/webfinger', discoveryLimiter, async (req: Request, res: Response) => {
+    // RFC 7033 §5: WebFinger servers MUST send this on every response, so
+    // browser-based clients can resolve accounts. Nothing here is credentialed.
+    res.setHeader('Access-Control-Allow-Origin', '*');
     try {
       const resource = req.query.resource as string;
       if (!resource) {
@@ -258,11 +262,12 @@ export function createWellKnownRouter(): Router {
           // points to is served stripped, and the profile page is not
           // advertised (#85, ADR-001).
           apActorUrl = `${config.pds.serviceUrl}/ap/actor/${did}`;
-          if (await communityFederationView(did) === 'public') {
+          const profileUrl = communityProfileUrl(config.federation.webUiUrl, did);
+          if (profileUrl && await communityFederationView(did) === 'public') {
             links.push({
               rel: 'http://webfinger.net/rel/profile-page',
               type: 'text/html',
-              href: `${config.pds.serviceUrl}/communities/${did}`,
+              href: profileUrl,
             });
           }
         }

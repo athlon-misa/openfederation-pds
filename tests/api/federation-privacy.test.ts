@@ -11,12 +11,13 @@
  * resolves — but nothing past existence (profile content, members, records,
  * repo bytes, backing AP instances) leaves the membership gate.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   api, xrpcGet, xrpcAuthGet, xrpcAuthPost,
   createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { communityFederationView } from '../../src/federation/privacy.js';
+import { config } from '../../src/config.js';
 
 type User = { accessJwt: string; did: string; handle: string };
 
@@ -30,7 +31,14 @@ describe('federation privacy (#85)', () => {
   let communityDid: string;
   let communityHandle: string;
 
+  // The profile-page link exists only when there is a web UI to link to, so
+  // configure one: otherwise "a private community advertises no profile
+  // page" would pass for the wrong reason.
+  const previousWebUi = config.federation.webUiUrl;
+  afterAll(() => { config.federation.webUiUrl = previousWebUi; });
+
   beforeAll(async () => {
+    config.federation.webUiUrl = 'https://web.example.test';
     plcAvailable = await isPLCAvailable();
     if (!plcAvailable) return;
 

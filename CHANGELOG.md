@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deleting an account that had created or revoked a partner API key failed.** The key's `created_by` / `revoked_by` referenced the user with no delete rule; they are now cleared and the key kept (migration 058).
 - **`net.openfederation.oracle.listCredentials` answered 500 whenever it found a credential.** It returned the database's timestamps as Date objects, which the lexicon's output check refuses; `createdAt` and `lastUsedAt` are now datetime strings, and a credential never used has no `lastUsedAt`. Found while checking on-chain governance against a local Ethereum node (#76): tests now start anvil when Foundry is installed and check the oracle flow and `asEthersSigner()` transactions on it (#78), with an opt-in Solana devnet test (`SOLANA_DEVNET_TEST=1`).
 
+- **ActivityPub discovery, checked with real AP software** (#80). Tests now discover a community with Fedify (WebFinger, actor, key, inbox and outbox), expand the actor with jsonld.js and validate NodeInfo against the published 2.1 schema; `AP_LIVE_TEST=1` runs the same checks read-only against production. They found three faults:
+  - WebFinger sent no `Access-Control-Allow-Origin`, which RFC 7033 requires, so browser-based clients could not resolve a community. It now sends `*`, as do the NodeInfo documents and the ActivityPub actor and collections.
+  - The actor's linked-application attachments (`PropertyValue`) used terms its `@context` did not define, so JSON-LD software such as Fedify dropped them. The actor now declares the schema.org terms Mastodon uses.
+  - The actor's `url` and the WebFinger profile-page link pointed at `/communities/{did}` on the PDS, which serves no such page. They now point at the web UI (`WEB_UI_URL`) and are left out when it is not set.
+
 ## [1.5.0] - 2026-11-12
 
 ### Added

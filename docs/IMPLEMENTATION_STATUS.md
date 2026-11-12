@@ -137,7 +137,9 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Code: `src/activitypub/` — `Group` actor JSON-LD for communities (with always-empty `inbox`/`outbox`; inbox deliveries get 405), enhanced WebFinger, NodeInfo 2.1
 - XRPC endpoints registered: `linkApplication`, `unlinkApplication`, `listApplications`, `verifyMembership`
 - Controlled by `ACTIVITYPUB_ENABLED` (default: enabled)
-- `tests/api/activitypub-discovery.test.ts` walks Mastodon's discovery checks (WebFinger → actor → WebFinger back) and NodeInfo 2.1 schema constraints locally; not yet fetched by a running Mastodon instance
+- `tests/api/activitypub-discovery.test.ts` walks Mastodon's discovery checks (WebFinger → actor → WebFinger back) and NodeInfo 2.1 schema constraints locally
+- `tests/api/activitypub-interop.test.ts` has Fedify discover the community over HTTP (WebFinger, `Group` actor, RSA key, inbox/outbox, attachments), expands the actor with jsonld.js, and validates NodeInfo with Ajv against the vendored 2.1 schema; `AP_LIVE_TEST=1` repeats it read-only against production (no community there has linked applications yet). Not yet fetched by a running Mastodon instance
+- The actor `url` and WebFinger profile-page link are the web UI's community page (`WEB_UI_URL`), omitted when unset
 
 ## Lexicons — **shipped**
 

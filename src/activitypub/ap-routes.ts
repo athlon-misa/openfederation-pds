@@ -13,7 +13,7 @@ import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { communityFederationView } from '../federation/privacy.js';
 import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
-import { buildCommunityActor, type ApplicationRecord } from './ap-actors.js';
+import { buildCommunityActor, communityProfileUrl, type ApplicationRecord } from './ap-actors.js';
 import { SERVER_VERSION } from '../server/server-version.js';
 
 const router = Router();
@@ -195,9 +195,11 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
       applications,
       config.pds.serviceUrl,
       publicKeyPem,
+      communityProfileUrl(config.federation.webUiUrl, communityRow.did),
     );
 
     res.setHeader('Content-Type', 'application/activity+json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.json(actor);
   } catch (err) {
     console.error('Error serving AP actor:', err);
@@ -223,6 +225,7 @@ for (const box of ['inbox', 'outbox'] as const) {
         return;
       }
       res.setHeader('Content-Type', 'application/activity+json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.json({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: `${config.pds.serviceUrl}/ap/actor/${did}/${box}`,
@@ -249,7 +252,10 @@ router.post('/ap/actor/:did/inbox', (_req: Request, res: Response) => {
  * GET /.well-known/nodeinfo
  * NodeInfo discovery document.
  */
+// Public, credential-free discovery documents: readable cross-origin, so a
+// browser-based client can read them as it would WebFinger's (RFC 7033 §5).
 router.get('/.well-known/nodeinfo', (_req: Request, res: Response) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.json({
     links: [
       {
@@ -274,6 +280,7 @@ router.get('/nodeinfo/2.1', async (_req: Request, res: Response) => {
     // AT Protocol, and validating crawlers reject a document naming one, so
     // AT Protocol is declared in `metadata`, which the schema leaves open.
     res.setHeader('Content-Type', 'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.send(JSON.stringify({
       version: '2.1',
       software: {
