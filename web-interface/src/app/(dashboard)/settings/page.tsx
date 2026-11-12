@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { changePassword } from '@/lib/api/account';
 import { toast } from 'sonner';
 import { MoveAccountCard } from '@/components/move/move-account-card';
+import { CustodyCard } from '@/components/custody/custody-card';
 
 export default function SettingsPage() {
   const handle = useAuthStore((s) => s.handle);
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const did = useAuthStore((s) => s.did);
   const roles = useAuthStore((s) => s.roles);
   const status = useAuthStore((s) => s.status);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
 
@@ -159,6 +161,8 @@ export default function SettingsPage() {
             </form>
           </CardContent>
         </Card>
+
+        {did && handle && accessToken && status === 'approved' && <CustodyCard did={did} handle={handle} accessToken={accessToken} />}
 
         {did && handle && email && status === 'approved' && <MoveAccountCard did={did} handle={handle} email={email} />}
       </div>
