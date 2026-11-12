@@ -17,6 +17,7 @@ import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { assertPublicHttpsUrl, OutboundFetchError, readLimitedText } from '../security/outbound-fetch.js';
 import { resolvePeerUrls, staticPeerSource, type PeerSource } from './peer-sources.js';
+import { cleanText, isPeerDid, isPeerHandle } from './peer-data.js';
 
 export const WELL_KNOWN_COMMUNITIES_PATH = '/.well-known/openfederation-communities.json';
 export const DIRECTORY_VERSION = 1;
@@ -104,17 +105,6 @@ export async function buildLocalDirectory(): Promise<CommunityDirectory> {
 
 // ── Peer documents (untrusted) ──────────────────────────────────
 
-const DID_PATTERN = /^did:(?:plc:[a-z2-7]{24}|web:[a-zA-Z0-9._%-]+(?::[a-zA-Z0-9._%-]+)*)$/;
-const HANDLE_PATTERN = /^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$/;
-// eslint-disable-next-line no-control-regex
-const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/g;
-
-function cleanText(value: unknown, max: number): string {
-  if (typeof value !== 'string') return '';
-  const text = value.replace(CONTROL_CHARS, ' ').trim();
-  return text.length > max ? text.slice(0, max) : text;
-}
-
 /**
  * Validate a peer's document. Throws when the document as a whole is not a
  * directory; drops entries that are malformed or that the peer marks as not
@@ -134,8 +124,7 @@ export function parsePeerDirectory(data: unknown, peerUrl: string): DirectoryEnt
     if (out.length >= MAX_ENTRIES_PER_PEER) break;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
     const e = raw as Record<string, unknown>;
-    if (typeof e.did !== 'string' || e.did.length > 2048 || !DID_PATTERN.test(e.did)) continue;
-    if (typeof e.handle !== 'string' || e.handle.length > 253 || !HANDLE_PATTERN.test(e.handle)) continue;
+    if (!isPeerDid(e.did) || !isPeerHandle(e.handle)) continue;
     if (e.visibility !== undefined && e.visibility !== 'public') continue;
     let memberCount = 0;
     if (e.memberCount !== undefined) {

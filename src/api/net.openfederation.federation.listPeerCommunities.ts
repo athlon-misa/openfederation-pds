@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { getCachedPeerCommunities, getCachedPeerInfo } from '../federation/peer-cache.js';
+import { query } from '../db/client.js';
 
 /**
  * net.openfederation.federation.listPeerCommunities
  *
  * GET, no auth required.
  * Returns communities from all configured peer PDS servers, plus peer health info.
+ * A peer never speaks for a community hosted here, public or private: its
+ * entries for our DIDs are dropped (as in community.discover, #41).
  */
 export default async function listPeerCommunities(_req: Request, res: Response): Promise<void> {
   try {
@@ -14,8 +17,15 @@ export default async function listPeerCommunities(_req: Request, res: Response):
       getCachedPeerInfo(),
     ]);
 
+    const dids = communitiesResult.communities.map((c) => c.did);
+    const hostedHere = new Set<string>();
+    if (dids.length > 0) {
+      const hosted = await query<{ did: string }>('SELECT did FROM communities WHERE did = ANY($1)', [dids]);
+      for (const row of hosted.rows) hostedHere.add(row.did);
+    }
+
     res.status(200).json({
-      communities: communitiesResult.communities,
+      communities: communitiesResult.communities.filter((c) => !hostedHere.has(c.did)),
       peers,
       cachedAt: communitiesResult.cachedAt
         ? new Date(communitiesResult.cachedAt).toISOString()

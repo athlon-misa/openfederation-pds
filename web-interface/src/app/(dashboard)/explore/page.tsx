@@ -90,7 +90,9 @@ function LocalTab() {
 }
 
 function PeerCommunityCard({ community }: { community: PeerCommunity }) {
-  const communityUrl = community.webUrl
+  // A peer's web link is only followed when it is plain http(s); the server
+  // checks this too, but the page never builds a link from anything else.
+  const communityUrl = community.webUrl && /^https?:\/\//i.test(community.webUrl)
     ? `${community.webUrl}/communities/${encodeURIComponent(community.did)}`
     : null;
 
