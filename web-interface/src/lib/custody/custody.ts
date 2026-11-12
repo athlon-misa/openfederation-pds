@@ -78,7 +78,7 @@ export interface IdentityChange {
    * person signed with the top key can't be cancelled.
    */
   cancellable: boolean;
-  /** The server's backup key signed it (in assisted: a recovery or a server-signed move). */
+  /** A key below the phrase key signed it: the server's backup key (assisted) or the person's recovery key (#238). */
   signedByLowerKey: boolean;
 }
 

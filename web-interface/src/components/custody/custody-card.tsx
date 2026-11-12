@@ -176,7 +176,7 @@ export function CustodyCard({ did, handle, accessToken }: { did: string; handle:
             {changes.map((c) => (
               <div key={c.cid} className="flex items-start justify-between gap-4 rounded-md border p-3 text-sm">
                 <div>
-                  <span>{new Date(c.createdAt).toLocaleString()}: {c.summary.join(', ')}{c.signedByLowerKey ? ' — signed by this server, not by you' : ''}</span>
+                  <span>{new Date(c.createdAt).toLocaleString()}: {c.summary.join(', ')}{c.signedByLowerKey ? ' — not signed with your phrase (this server\'s backup key or your recovery key)' : ''}</span>
                   <span className="block font-mono text-xs text-muted-foreground">{c.cid}</span>
                 </div>
                 {c.cancellable && <Button type="button" variant="outline" onClick={() => { setMessage(null); setCancelling(c); }}>Cancel this change</Button>}

@@ -52,8 +52,9 @@ export interface LeaveResult {
  *
  * By default the new rotation keys are the person's key alone: an
  * `assisted` account becomes `self`, so the old PDS's lower key can no
- * longer change the DID. Pass `keepOtherRotationKeys` to keep the list as
- * it is.
+ * longer change the DID. Pass `recoveryDidKey` to keep the person's
+ * recovery key (#238) below theirs, or `keepOtherRotationKeys` to keep the
+ * list as it is.
  */
 export async function leavePds(p: {
   plcUrl: string;
@@ -63,6 +64,8 @@ export async function leavePds(p: {
   atprotoDidKey: string;
   handle?: string;
   keepOtherRotationKeys?: boolean;
+  /** The person's recovery key (recovery.ts), kept directly below their key when the DID lists it. */
+  recoveryDidKey?: string;
   fetch?: typeof globalThis.fetch;
 }): Promise<LeaveResult> {
   const doFetch = p.fetch ?? ((...args: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...args));
@@ -75,7 +78,8 @@ export async function leavePds(p: {
 
   const myKey = didKeyFor('secp256k1', secp256k1.getPublicKey(p.rotationPrivateKey, true));
   if (!previous.rotationKeys.includes(myKey)) throw new Error('This key is not a rotation key of the DID; PLC would refuse the update');
-  const rotationKeys = p.keepOtherRotationKeys ? previous.rotationKeys : [myKey];
+  const keepRecovery = p.recoveryDidKey && p.recoveryDidKey !== myKey && previous.rotationKeys.includes(p.recoveryDidKey);
+  const rotationKeys = p.keepOtherRotationKeys ? previous.rotationKeys : [myKey, ...(keepRecovery ? [p.recoveryDidKey!] : [])];
 
   const operation = signPlcOperation(buildLeaveOp({
     previous, pdsEndpoint: p.pdsEndpoint, atprotoDidKey: p.atprotoDidKey, rotationKeys, handle: p.handle,

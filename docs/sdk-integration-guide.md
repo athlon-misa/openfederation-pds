@@ -1796,6 +1796,57 @@ Person-signed records (decision 11): `signRecord(record, { did, collection }, (t
 `net.openfederation.identity.verifyRecord?uri=at://…`. Apps should show "signed by the person"
 only for records that verify.
 
+### Optional recovery key
+
+A `self` or `assisted` account can add a second rotation key the person holds, directly below
+the phrase key ([ADR-003](adr/ADR-003-custody-modes.md), decision 13): `self` becomes
+`[phraseKey, recoveryKey]`, `assisted` becomes `[phraseKey, recoveryKey, pdsBackupKey]`. The PDS
+never holds it and takes no part: these are PLC operations signed on the device. No recovery
+key is the default.
+
+```ts
+import {
+  deriveCustodyKeys, generateCustodyPhrase, generateRecoveryPhrase, deriveRecoveryKey,
+  addRecoveryKey, removeRecoveryKey, recoverWithRecoveryKey,
+} from '@open-federation/sdk/custody';
+
+// Set up, with the identity phrase. The recovery phrase is a separate 12 words (m/1985'/2'):
+const recoveryPhrase = generateRecoveryPhrase();   // show once; kept apart from the identity phrase
+const { recoveryDidKey } = deriveRecoveryKey(recoveryPhrase);
+const keys = deriveCustodyKeys(phrase);
+await addRecoveryKey({ plcUrl, did, rotationPrivateKey: keys.rotationPrivateKey, mode: 'self', recoveryDidKey });
+
+// Phrase lost: a new phrase, and the recovery key signs it in.
+const fresh = deriveCustodyKeys(generateCustodyPhrase());
+const { previous, cancelUntil } = await recoverWithRecoveryKey({
+  plcUrl, did, recoveryPrivateKey: deriveRecoveryKey(recoveryPhrase).recoveryPrivateKey,
+  newRotationDidKey: fresh.rotationDidKey, newOwnerDidKey: fresh.ownerDidKey,
+  // newRecoveryDidKey,              // optional: replace the recovery key at the same time
+});
+```
+
+- `addRecoveryKey` is signed by the phrase key, which must be the DID's first rotation key. It
+  refuses when the DID already lists more rotation keys than `mode` has without recovery (one
+  for `self`, two for `assisted`). Everything else stays: owner key, `atproto` key, services,
+  handle, the PDS's backup key.
+- `removeRecoveryKey({ plcUrl, did, rotationPrivateKey, mode })` takes it out, with the phrase;
+  the recovery phrase isn't needed.
+- `recoverWithRecoveryKey` puts the new phrase's rotation key first and its owner key as
+  `openfederation_owner`, keeps the recovery key (or `newRecoveryDidKey`) below it, and keeps the
+  rest. The lost phrase key goes. The custody mode does not change, and nothing changes on the
+  PDS: login is still the password.
+- The recovery key ranks below the phrase key, so until `cancelUntil` (72 hours) the old phrase
+  can cancel a recovery someone else started: `signPlcOperation(buildCancelOp(previous), keys.rotationPrivateKey)`.
+  The PDS does not email about it (it is not involved); the app should watch the DID's PLC log.
+  After cancelling a recovery you didn't make, remove the recovery key: whoever has it can try again.
+- Each call reads the DID's current operation from PLC, checks the key can sign, submits, and
+  reads the result back. `buildAddRecoveryKeyOp`, `buildRemoveRecoveryKeyOp`, `buildRecoveryOp`
+  and `recoveryKeyOf(rotationKeys, mode)` are the pieces, for apps that sign elsewhere.
+- `leavePds({ …, recoveryDidKey })` keeps the recovery key below the person's key when moving.
+- Custody changes on the PDS keep the recovery key in place towards `self` and `assisted`, and
+  the PDS's assisted recovery keeps it too. A change to `custodial` takes it out, with the
+  owner key: in `custodial` only the PDS's key is listed.
+
 The next three sections are the client side of [When the operator is the risk](HARDENING.md#when-the-operator-is-the-risk).
 
 ### Watching the repository
@@ -1867,7 +1918,8 @@ await leavePds({
 
 `leavePds` builds the update from the DID's current state (`buildLeaveOp`), keeps the owner key,
 and by default lists **only the person's rotation key**: an `assisted` account becomes `self`, so
-the old PDS's backup key can no longer change the DID (`keepOtherRotationKeys: true` keeps it).
+the old PDS's backup key can no longer change the DID (`keepOtherRotationKeys: true` keeps it;
+`recoveryDidKey` keeps a [recovery key](#optional-recovery-key) below the person's).
 It refuses before sending anything if the key is not one of the DID's rotation keys, and checks
 PLC shows the result.
 
