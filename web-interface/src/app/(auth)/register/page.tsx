@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { registerAccount } from '@/lib/api/auth';
+import { MODE_TEXT, identityPolicy, registerWithOwnKeys, type CustodyMode } from '@/lib/custody/custody';
+import { NewPhrase } from '@/components/custody/phrase-inputs';
 import { isValidHandle, isValidEmail, isStrongPassword, passwordValidationMessage } from '@/lib/validators';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +18,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 
+const THIS_PDS = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+
 const ERROR_MESSAGES: Record<string, string> = {
+  CustodyModeNotAllowed: 'This server does not allow that kind of account.',
   AccountExists: 'An account with this handle or email already exists.',
   InviteRequired: 'An invite code is required to register.',
   InviteInvalid: 'The invite code is invalid.',
@@ -33,6 +38,21 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // Custody modes this server offers (ADR-003). Only shown when there is a choice.
+  const [modes, setModes] = useState<CustodyMode[]>(['custodial']);
+  const [mode, setMode] = useState<CustodyMode>('custodial');
+  const [choosingPhrase, setChoosingPhrase] = useState(false);
+  // Kept after a failed attempt: the person already wrote it down.
+  const [phrase, setPhrase] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void identityPolicy(THIS_PDS).then((policy) => {
+      if (!alive || !policy) return;
+      setModes(policy.custodyAllowed);
+      setMode(policy.custodyDefault);
+    });
+    return () => { alive = false; };
+  }, []);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -57,6 +77,11 @@ export default function RegisterPage() {
     setError('');
     if (!validate()) return;
 
+    if (mode !== 'custodial') {
+      if (phrase) { void finishWithPhrase(phrase); return; } // a retry: same phrase
+      setChoosingPhrase(true); // the phrase first; registration follows in finishWithPhrase
+      return;
+    }
     setLoading(true);
     const result = await registerAccount(handle, email, password, inviteCode || undefined);
 
@@ -67,6 +92,36 @@ export default function RegisterPage() {
     }
     setLoading(false);
   };
+
+  async function finishWithPhrase(chosen: string) {
+    setPhrase(chosen);
+    setLoading(true);
+    setError('');
+    try {
+      await registerWithOwnKeys({ pdsUrl: THIS_PDS, mode: mode as 'assisted' | 'self', phrase: chosen, handle, email, password, inviteCode: inviteCode || undefined });
+      setSuccess(true);
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      setError((err.code && ERROR_MESSAGES[err.code]) || err.message);
+      setChoosingPhrase(false);
+    }
+    setLoading(false);
+  }
+
+  if (choosingPhrase && !success) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Your 12 words</CardTitle>
+          <CardDescription>{MODE_TEXT[mode].what}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loading ? <p className="text-sm">Creating your identity…</p> : <NewPhrase onReady={finishWithPhrase} />}
+          {!loading && <Button type="button" variant="ghost" onClick={() => setChoosingPhrase(false)}>Back</Button>}
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (success) {
     return (
@@ -162,6 +217,17 @@ export default function RegisterPage() {
               <p className="text-xs text-destructive">{fieldErrors.inviteCode}</p>
             )}
           </div>
+          {modes.length > 1 && (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Who holds the key to your identity</legend>
+              {modes.map((m) => (
+                <label key={m} className={`flex cursor-pointer gap-3 rounded-md border p-3 text-sm ${mode === m ? 'border-primary bg-muted' : ''}`}>
+                  <input type="radio" name="custody" value={m} checked={mode === m} onChange={() => { setMode(m); setPhrase(null); }} className="mt-1" />
+                  <span><span className="font-medium">{MODE_TEXT[m].title}</span><span className="block text-muted-foreground">{MODE_TEXT[m].what}</span></span>
+                </label>
+              ))}
+            </fieldset>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={loading}>

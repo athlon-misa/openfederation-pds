@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dashboard: custody screens** ([ADR-003](docs/adr/ADR-003-custody-modes.md)). Settings → Identity custody shows the account's mode and switches to any mode the server allows: a new 12-word phrase is shown once and three words asked back; moving away from `custodial` proves the new keys, other directions are signed in the browser and sent to PLC. It lists changes to the identity in the last 72 hours and cancels one the server's backup key signed, with the phrase from before. An `assisted` account that lost its phrase recovers with a new one after the operator's identity check. Sign-up offers `custodial`, `assisted` or `self` when the server allows more than one and creates the DID in the browser. Admin → Users gains **Verify identity** (emailed code, read back to the operator). The phrase can be unlocked with a passkey on the device instead of typed.
+
 - **`@open-federation/sdk/custody`: `plcOperationSigner(op, rotationKeys)`** names the rotation key that signed a PLC operation, so a client can tell a change the person made from one the server's backup key made in `assisted`, which the person may still cancel.
 
 ### Changed

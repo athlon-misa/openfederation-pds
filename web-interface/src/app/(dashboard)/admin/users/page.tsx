@@ -19,6 +19,7 @@ import { StatusBadge } from '@/components/status-badge';
 import { RoleBadge } from '@/components/role-badge';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { TakedownDialog } from '@/components/takedown-dialog';
+import { VerifyIdentityDialog } from '@/components/verify-identity-dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -76,6 +77,7 @@ export default function AdminUsersPage() {
   const unsuspendMutation = useUnsuspendAccountMutation();
   const reverseTakedownMutation = useAdminReverseTakedownMutation();
   const [takedownTarget, setTakedownTarget] = useState<{ did: string; handle: string } | null>(null);
+  const [verifyTarget, setVerifyTarget] = useState<{ did: string; handle: string } | null>(null);
   const exportMutation = useExportAccountMutation();
   const deleteMutation = useDeleteAccountMutation();
   const updateRolesMutation = useUpdateRolesMutation();
@@ -186,6 +188,11 @@ export default function AdminUsersPage() {
                 setEditedRoles(new Set(u.roles));
               }}>
                 Roles
+              </Button>
+            )}
+            {callerIsAdmin && u.status === 'approved' && !isTargetAdmin && (
+              <Button size="sm" variant="outline" onClick={() => setVerifyTarget({ did: u.did, handle: u.handle })}>
+                Verify identity
               </Button>
             )}
             {u.status === 'approved' && !isTargetAdmin && (
@@ -374,6 +381,8 @@ export default function AdminUsersPage() {
           )}
         </ConfirmDialog>
       )}
+
+      <VerifyIdentityDialog target={verifyTarget} onClose={() => setVerifyTarget(null)} />
 
       <TakedownDialog
         target={takedownTarget ? { ...takedownTarget, kind: 'account' } : null}
