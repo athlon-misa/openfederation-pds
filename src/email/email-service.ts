@@ -64,18 +64,28 @@ export type EmailSender = (to: string, subject: string, html: string) => Promise
 let testSender: EmailSender | null = null;
 
 /** The first `max` characters of an email's text, tags dropped. Linear: no regex over the body. */
-function previewText(html: string, max: number): string {
-  let out = '';
+/**
+ * An email as a developer reads it in the console: the whole text without
+ * tags, one line per text line, then every link target, since a button's
+ * link is only in its href. Linear scans, no regexes over the body.
+ */
+function developmentText(html: string): string {
+  let text = '';
   let inTag = false;
   for (const ch of html) {
-    if (ch === '<') inTag = true;
+    if (ch === '<') { inTag = true; text += ' '; }
     else if (ch === '>' && inTag) inTag = false;
-    else if (!inTag) {
-      out += ch;
-      if (out.length >= max) break;
-    }
+    else if (!inTag) text += ch;
   }
-  return out;
+  const lines = text.split('\n').map((l) => l.split(' ').filter(Boolean).join(' ')).filter(Boolean);
+  const links: string[] = [];
+  for (let i = html.indexOf('href="'); i !== -1; i = html.indexOf('href="', i + 6)) {
+    const end = html.indexOf('"', i + 6);
+    if (end === -1) break;
+    const link = html.slice(i + 6, end);
+    if (!links.includes(link)) links.push(link);
+  }
+  return [...lines, ...links.map((l) => `Link: ${l}`)].join('\n    ');
 }
 
 /** Pass null to restore the real transport. Test-only. */
@@ -216,10 +226,11 @@ export async function sendEmail(
       // body of a reset or verification email carries a link that works.
       console.log(`[EMAIL] not sent (no SMTP configured): ${purpose}`);
     } else {
-      // Development: print it, so a developer can follow the link.
+      // Development: print all of it, so a developer can follow the link or
+      // read back a code (an identity-verification code is 64 characters).
       console.log(`[EMAIL] To: ${to}`);
       console.log(`[EMAIL] Subject: ${subject}`);
-      console.log('[EMAIL] Body: %s...', previewText(html, 200));
+      console.log('[EMAIL] Body:\n    %s', developmentText(html));
     }
     await recordDelivery({ recipient: to, purpose, status: 'not-configured', attempts: 0 });
     return { outcome: 'not-configured' };
