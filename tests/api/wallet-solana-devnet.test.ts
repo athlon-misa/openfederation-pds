@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import bs58 from 'bs58';
+import { readFileSync } from 'node:fs';
 import {
   Connection,
+  Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
   SystemProgram,
   Transaction,
+  sendAndConfirmTransaction,
 } from '@solana/web3.js';
 import { createClient } from '../../packages/openfederation-sdk/src/index.js';
 import type { OpenFederationClient } from '../../packages/openfederation-sdk/src/client.js';
@@ -16,9 +19,11 @@ import { createTestUser, grantWalletConsent, isPLCAvailable, uniqueHandle } from
 
 // Issue #78: `asSolanaSigner()` signs Solana transactions the public devnet
 // accepts. Opt-in (SOLANA_DEVNET_TEST=1): it talks to a public network and
-// depends on its airdrop faucet, so the normal suite never runs it.
+// needs devnet funding, so the normal suite never runs it.
 //
 //   SOLANA_DEVNET_TEST=1 TEST_DB_NAME=... npx vitest run tests/api/wallet-solana-devnet.test.ts
+//   SOLANA_DEVNET_FUNDER_KEYPAIR=/path/to/devnet-only-keypair.json bypasses
+//   the RPC faucet by funding the fresh SDK wallet from that account.
 //
 // Devnet only, fresh keys only: the wallets are made here through the SDK — a
 // Tier 2 wallet that signs client-side, and a Tier 1 wallet the PDS signs for
@@ -30,11 +35,11 @@ import { createTestUser, grantWalletConsent, isPLCAvailable, uniqueHandle } from
 //      unfunded wallet is refused only for having no funds; the same
 //      transaction with one signature byte changed is refused as a
 //      signature failure.
-//   2. Confirmation (needs the faucet): the Tier 2 wallet is airdropped devnet
-//      SOL, sends a self-transfer, and funds the Tier 1 wallet, which sends a
-//      self-transfer of its own. Each is confirmed on devnet. When the faucet
-//      refuses (it is rate-limited, and sometimes closed to RPC requests),
-//      these fail and say so.
+//   2. Confirmation (needs funding): the Tier 2 wallet is funded from
+//      SOLANA_DEVNET_FUNDER_KEYPAIR or an RPC airdrop, sends a self-transfer,
+//      and funds the Tier 1 wallet, which sends a self-transfer of its own.
+//      Each is confirmed on devnet. Missing funds or a refused airdrop fail
+//      the tests explicitly.
 //
 // Needs the PLC directory.
 
@@ -75,7 +80,7 @@ describe.skipIf(!enabled)('asSolanaSigner against Solana devnet (opt-in)', () =>
     expect(await connection.getGenesisHash()).toBe(DEVNET_GENESIS);
 
     plcAvailable = await isPLCAvailable();
-    if (!plcAvailable) return;
+    if (!plcAvailable) throw new Error('Solana devnet verification requires a running PLC directory (npm run plc:dev)');
     user = await createTestUser(uniqueHandle('sol-devnet'));
     client = createClient({ serverUrl: config.pds.serviceUrl, partnerKey: 'ofp_unused', storage: 'memory', autoRefresh: false });
     await client.login({ identifier: user.handle, password: PASSWORD });
@@ -163,11 +168,25 @@ describe.skipIf(!enabled)('asSolanaSigner against Solana devnet (opt-in)', () =>
     }, 60_000);
   }
 
-  it('Tier 2: a self-transfer signed client-side is confirmed on devnet (needs the faucet)', async () => {
+  it('Tier 2: a self-transfer signed client-side is confirmed on devnet (needs funding)', async () => {
     if (!plcAvailable) return;
-    const drop = await airdrop(connection, tier2.key, LAMPORTS_PER_SOL / 10);
+    const keypairFile = process.env.SOLANA_DEVNET_FUNDER_KEYPAIR;
+    let funding: string;
+    if (keypairFile) {
+      const funder = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(keypairFile, 'utf8'))));
+      const lamports = 20_000_000;
+      const balance = await connection.getBalance(funder.publicKey, 'confirmed');
+      if (balance < lamports + 5000) {
+        throw new Error(`Fund devnet account ${funder.publicKey.toBase58()} via https://faucet.solana.com/ (needs at least 0.020005 devnet SOL)`);
+      }
+      funding = await sendAndConfirmTransaction(connection, new Transaction().add(
+        SystemProgram.transfer({ fromPubkey: funder.publicKey, toPubkey: tier2.key, lamports }),
+      ), [funder], { commitment: 'confirmed' });
+    } else {
+      funding = await airdrop(connection, tier2.key, LAMPORTS_PER_SOL / 10);
+    }
     // eslint-disable-next-line no-console
-    console.log(`[#78] devnet airdrop to Tier 2 wallet ${tier2.key.toBase58()}: ${drop}`);
+    console.log(`[#78] devnet funding to Tier 2 wallet ${tier2.key.toBase58()}: ${funding}`);
 
     const signature = await sendAndConfirm(tier2.signer, tier2.key, tier2.key, 1000);
     const confirmed = await connection.getTransaction(signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 });
@@ -177,10 +196,10 @@ describe.skipIf(!enabled)('asSolanaSigner against Solana devnet (opt-in)', () =>
     console.log(`[#78] Tier 2 Solana self-transfer confirmed on devnet: ${signature}`);
   }, 120_000);
 
-  it('Tier 1: the PDS signs a self-transfer under an approved consent, confirmed on devnet (needs the faucet)', async () => {
+  it('Tier 1: the PDS signs a self-transfer under an approved consent, confirmed on devnet (needs funding)', async () => {
     if (!plcAvailable) return;
     if ((await connection.getBalance(tier2.key)) === 0) {
-      throw new Error('The Tier 2 wallet was not funded (devnet faucet refused); nothing to fund the Tier 1 wallet from');
+      throw new Error('The Tier 2 wallet was not funded; nothing to fund the Tier 1 wallet from');
     }
     // Funded from the Tier 2 wallet (above the rent-exempt minimum) rather
     // than asking the rate-limited faucet twice.
