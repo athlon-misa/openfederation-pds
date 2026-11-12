@@ -93,7 +93,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "@did-plc/server": "^0.0.1",
-    "@solana/web3.js": "^1.99.0",
+    "@solana/web3.js": "^3.2.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
