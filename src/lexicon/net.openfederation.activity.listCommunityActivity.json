@@ -1,0 +1,172 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.activity.listCommunityActivity",
+  "revision": 1,
+  "description": "Recent activity in one or more communities hosted on this PDS, newest first. What another PDS calls, with service-auth for the viewer, to build that viewer's timeline.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Merged activity of the listed communities, newest first. Requires authentication: a session, an OAuth token, or a service-auth token (lxm net.openfederation.activity.listCommunityActivity) signed by the viewer's DID. A public community is listed for any authenticated caller; a private one only for its members, its owner and PDS admins. Join requests are listed only to the community's owner and PDS admins. A community that cannot be listed (not hosted here, not active, private and the caller is not a member, taken down) is returned in `unavailable`, all with the same answer.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "community"
+        ],
+        "properties": {
+          "community": {
+            "type": "array",
+            "maxLength": 25,
+            "items": {
+              "type": "string",
+              "format": "did"
+            },
+            "description": "Community DIDs, up to 25. Repeat the parameter for each."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "cursor": {
+            "type": "string",
+            "description": "From a previous page of this method or of getUserTimeline: the two share one cursor format."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "entries",
+            "unavailable"
+          ],
+          "properties": {
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#entry"
+              }
+            },
+            "cursor": {
+              "type": "string",
+              "description": "Pass back to fetch the next page. Absent on the last page."
+            },
+            "unavailable": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "did"
+              },
+              "description": "Requested communities that were not listed."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "No community, more than 25, or a cursor this server did not hand out."
+        },
+        {
+          "name": "Unauthorized",
+          "description": "Authentication is required."
+        }
+      ]
+    },
+    "entry": {
+      "type": "object",
+      "description": "One thing that happened in a community, built from records and indexes the community already has. Nothing is written to produce it.",
+      "required": [
+        "id",
+        "kind",
+        "community",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique across communities: the record's at-uri, or for an entry with no record a namespaced key. The tie-breaker in the sort order."
+        },
+        "kind": {
+          "type": "string",
+          "knownValues": [
+            "member.joined",
+            "joinRequest.created",
+            "proposal.created",
+            "event.created",
+            "forum.thread.created"
+          ],
+          "description": "What happened. Clients should skip kinds they do not know."
+        },
+        "community": {
+          "type": "string",
+          "format": "did"
+        },
+        "actor": {
+          "type": "string",
+          "format": "did",
+          "description": "Who did it: the member who joined or asked to, the proposer, the thread's author. Absent for an event, which the community publishes."
+        },
+        "uri": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "The record, when there is one. A join request has none."
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the community's PDS recorded it, UTC with microseconds. The sort key."
+        },
+        "summary": {
+          "type": "ref",
+          "ref": "#summary"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "A few fields to render a line without fetching the record. Which are present depends on kind.",
+      "properties": {
+        "handle": {
+          "type": "string",
+          "description": "member.joined, joinRequest.created: the person's handle."
+        },
+        "role": {
+          "type": "string",
+          "description": "member.joined: the role they hold."
+        },
+        "title": {
+          "type": "string",
+          "description": "forum.thread.created: the thread title."
+        },
+        "name": {
+          "type": "string",
+          "description": "event.created: the event name."
+        },
+        "startsAt": {
+          "type": "string",
+          "description": "event.created: when the event starts, as the record gives it."
+        },
+        "action": {
+          "type": "string",
+          "description": "proposal.created: write or delete."
+        },
+        "targetCollection": {
+          "type": "string",
+          "description": "proposal.created: the collection the proposal would change."
+        },
+        "status": {
+          "type": "string",
+          "description": "proposal.created: the proposal's status now. event.created: the event's status, if set."
+        }
+      }
+    }
+  }
+}

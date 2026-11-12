@@ -214,6 +214,22 @@ Moderation (`hidePost`/`hideThread`) requires the dedicated `community.forum.mod
 
 \* Gated by community visibility — see note above.
 
+## OpenFederation Activity Timelines
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| GET | `net.openfederation.activity.getUserTimeline` | Yes (local account; not service-auth) | Activity across every community the caller belongs to, here and on configured peers, newest first. `limit` (1–100, default 30), `cursor`. Returns `entries`, `cursor?`, `unreachable` (community DIDs whose PDS did not answer in time) and `unreachablePeers` (peer URLs that could not be asked) |
+| GET | `net.openfederation.activity.listCommunityActivity` | Yes (session, OAuth or service-auth) | Merged activity of up to 25 communities hosted here (`community`, repeated), `limit`, `cursor`. Returns `entries`, `cursor?` and `unavailable`: requested communities not listed, whether missing, not active, or private and the caller is not a member, all answered alike |
+
+An entry is `{ id, kind, community, actor?, uri?, cid?, createdAt, summary? }`. `kind` is one of `member.joined`, `joinRequest.created`, `proposal.created`, `event.created`, `forum.thread.created`; `summary` carries a few display fields (`handle`, `role`, `title`, `name`, `startsAt`, `action`, `targetCollection`, `status`). The cursor is opaque and the same for both methods.
+
+**Design (#42).** Home-PDS fan-out, no push index and no AppView. The caller's own PDS reads the communities it hosts straight from the database, in one query: the member rows (`members_unique`), pending join requests, proposal and calendar-event records (`records_index`) and forum threads (`forum_threads`). Nothing new is written to produce activity. For each peer in `FEDERATION_PEERS` (the same list `community.discover` uses) it asks, in parallel and with a service-auth token signed by the caller's key (`aud` = the peer's service DID from `describeServer`, `lxm` = the method), `community.listMine` for the caller's memberships there (kept only when the community's DID document names that peer as its PDS) and then `activity.listCommunityActivity` for their activity. Entries are merged newest first by the time the community's PDS recorded them (UTC, microseconds), ties broken by `id` in byte order, so a cursor (`createdAt|id`) is stable.
+
+- **Privacy** is decided by the PDS that hosts the community, per request: a public community for any authenticated caller, a private one for its members, owner and PDS admins (the rules of `requireCommunityReadable`); join requests for the owner and PDS admins only (as `listJoinRequests`); hidden forum threads never. Taken-down, importing and moved copies are not served. Entries from a peer are kept only for communities that peer was asked about, and their fields are bounded.
+- **Caching:** each community's feed for 10 s (after the access check, so it is only handed to viewers who may read it); a peer's answer for 10 s and the caller's memberships on a peer for `FEDERATION_CACHE_TTL_MS` (default 5 min), per caller.
+- **Limits:** up to 100 communities hosted here (most recently joined) and 100 per peer (calls of 25). A peer gets 450 ms; one that does not answer is left out of that page and named in the response, and its call finishes in the background (up to 5 s) to fill the cache. Paging past a page that missed a peer does not bring that peer's skipped entries back.
+- **Not covered:** memberships in communities on PDSes that are not configured peers (a membership is a record in the community's repo, and joining writes nothing on the member's side, so the home PDS cannot learn of them otherwise); forum posts, RSVPs and votes as activity; push notifications. Measured with 20 memberships hosted here: p95 about 12 ms uncached (`tests/api/net.openfederation.activity.timeline.test.ts`).
+
 ## OpenFederation Pseudonyms
 
 Anonymous accounts that the owner can later reveal. The PDS never stores or logs which account owns a pseudonym. Design: `docs/superpowers/specs/2026-10-08-pseudonyms-design.md`; client library: `packages/openfederation-pseudonym`. Pseudonym endpoints write no `audit_log` entries, and pseudonym accounts are refused (indistinguishably) by email, password and recovery flows. Pseudonyms are ordinary `did:plc` accounts with `auth_type='pseudonym'`.
