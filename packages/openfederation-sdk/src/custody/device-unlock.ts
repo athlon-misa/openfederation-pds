@@ -49,11 +49,25 @@ async function aesKey(prfOutput: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', raw as BufferSource, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 
+/**
+ * The PRF output as bytes, or null when there is none worth using. Browsers
+ * return an ArrayBuffer; password-manager extensions do not always: 1Password
+ * returns a plain array of numbers. Anything shorter than 32 bytes (a PRF
+ * output's length) is refused, never padded: a key derived from no bytes is
+ * the same for everyone and protects nothing.
+ */
 function prfFirst(cred: PublicKeyCredential): Uint8Array | null {
-  const prf = (cred.getClientExtensionResults() as { prf?: { results?: { first?: BufferSource } } }).prf;
+  const prf = (cred.getClientExtensionResults() as { prf?: { results?: { first?: unknown } } }).prf;
   const first = prf?.results?.first;
-  if (!first) return null;
-  return first instanceof ArrayBuffer ? new Uint8Array(first) : new Uint8Array(first.buffer, first.byteOffset, first.byteLength);
+  let bytes: Uint8Array | null = null;
+  if (first instanceof ArrayBuffer || Object.prototype.toString.call(first) === '[object ArrayBuffer]') {
+    bytes = new Uint8Array(first as ArrayBuffer);
+  } else if (ArrayBuffer.isView(first)) {
+    bytes = new Uint8Array(first.buffer, first.byteOffset, first.byteLength);
+  } else if (Array.isArray(first) && first.every((b) => Number.isInteger(b) && b >= 0 && b <= 255)) {
+    bytes = Uint8Array.from(first as number[]);
+  }
+  return bytes && bytes.length >= 32 ? bytes : null;
 }
 
 async function evaluatePrf(credentials: Credentials, credentialId: Uint8Array, salt: Uint8Array, rpId?: string): Promise<Uint8Array> {
@@ -74,8 +88,8 @@ async function evaluatePrf(credentials: Credentials, credentialId: Uint8Array, s
 
 /**
  * Create a passkey on this device and encrypt the phrase with it. Asks for
- * Touch ID (or similar) once, or twice on authenticators that only answer PRF
- * when signing in.
+ * Touch ID (or similar) twice: once to create the passkey, once to sign in
+ * with it, which gives the key that seals the phrase.
  *
  * `userName` is what the device's password manager shows. Synced passkeys
  * carry it to that account, so for a pseudonym pick something neutral.
@@ -105,7 +119,11 @@ export async function rememberPhraseWithPasskey(p: {
   if (ext?.enabled === false) throw new Error('PasskeyPrfUnsupported');
   const credentialIdBytes = new Uint8Array(created.rawId);
   const credentialId = base64UrlEncode(credentialIdBytes);
-  const prf = prfFirst(created) ?? await evaluatePrf(credentials, credentialIdBytes, salt, p.rpId);
+  // The key always comes from a sign-in, as it will when unlocking. Some
+  // authenticators answer PRF at creation from a different secret than at
+  // sign-in (CTAP hmac-secret keeps one without and one with user
+  // verification), and a phrase sealed with that answer never opens.
+  const prf = await evaluatePrf(credentials, credentialIdBytes, salt, p.rpId);
   const iv = random(12);
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: iv as BufferSource, additionalData: aad(credentialId) as BufferSource },

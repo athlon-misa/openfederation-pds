@@ -9,6 +9,8 @@ import { p256 } from '@noble/curves/p256';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { hmac } from '@noble/hashes/hmac';
+import { hkdf } from '@noble/hashes/hkdf';
+import { utf8ToBytes } from '@noble/hashes/utils';
 import {
   generateCustodyPhrase, deriveCustodyKeys, buildCustodyGenesisOp, buildCustodyChangeOp, signPlcOperation,
   didForGenesisOp, cidForPlcOp, submitPlcOperation, signOwnerRaw, verifyOwnerSignature as sdkVerify, plcOperationSigner,
@@ -177,22 +179,26 @@ describe('owner signatures, signed by the SDK and checked by the server', () => 
 });
 
 describe('passkey unlock (decision 12)', () => {
-  function fakeAuthenticator() {
+  /** `otherSecretAtCreate`: answers PRF at creation from another secret than sign-ins use (#251). */
+  function fakeAuthenticator(otherSecretAtCreate = false, prfAsArray = false) {
     const secrets = new Map<string, Uint8Array>();
     const asBytes = (b: BufferSource) => (b instanceof ArrayBuffer ? new Uint8Array(b) : new Uint8Array(b.buffer, b.byteOffset, b.byteLength));
     const cred = (id: Uint8Array, prf: unknown) => ({ rawId: id.buffer.slice(id.byteOffset, id.byteOffset + id.byteLength), getClientExtensionResults: () => prf });
     return {
-      async create() {
+      async create(o: CredentialCreationOptions) {
         const id = crypto.getRandomValues(new Uint8Array(16));
         secrets.set(Buffer.from(id).toString('hex'), crypto.getRandomValues(new Uint8Array(32)));
-        return cred(id, { prf: { enabled: true } });
+        if (!otherSecretAtCreate) return cred(id, { prf: { enabled: true } });
+        const salt = (o.publicKey!.extensions as { prf: { eval: { first: BufferSource } } }).prf.eval.first;
+        return cred(id, { prf: { enabled: true, results: { first: hmac(sha256, crypto.getRandomValues(new Uint8Array(32)), asBytes(salt)) } } });
       },
       async get(o: CredentialRequestOptions) {
         const id = asBytes(o.publicKey!.allowCredentials![0].id);
         const secret = secrets.get(Buffer.from(id).toString('hex'));
         if (!secret) throw new Error('NotAllowedError');
         const salt = (o.publicKey!.extensions as { prf: { eval: { first: BufferSource } } }).prf.eval.first;
-        return cred(id, { prf: { results: { first: hmac(sha256, secret, asBytes(salt)) } } });
+        const out = hmac(sha256, secret, asBytes(salt));
+        return cred(id, { prf: { results: { first: prfAsArray ? Array.from(out) : out } } });
       },
     } as unknown as Pick<CredentialsContainer, 'create' | 'get'>;
   }
@@ -202,5 +208,24 @@ describe('passkey unlock (decision 12)', () => {
     const stored = await rememberPhraseWithPasskey({ phrase: FIXED, rpName: 'Test', userName: 'me', credentials });
     expect(await unlockPhraseWithPasskey(stored, { credentials })).toBe(FIXED);
     expect(await pseudonymUnlock(stored, { credentials })).toBe(FIXED);
+  });
+
+  it('uses PRF output given as a plain array (1Password), and the pseudonym package reads it too', async () => {
+    const credentials = fakeAuthenticator(false, true);
+    const stored = await rememberPhraseWithPasskey({ phrase: FIXED, rpName: 'Test', userName: 'me', credentials });
+    expect(await unlockPhraseWithPasskey(stored, { credentials })).toBe(FIXED);
+    expect(await pseudonymUnlock(stored, { credentials })).toBe(FIXED);
+    // Sealed under the authenticator's secret: the key from zero PRF bytes must not open it.
+    const raw = hkdf(sha256, new Uint8Array(0), utf8ToBytes('openfederation-remembered-phrase'), utf8ToBytes('aes-256-gcm-v1'), 32);
+    const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+    await expect(crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: Buffer.from(stored.iv, 'base64url'), additionalData: utf8ToBytes(`openfederation-remembered-phrase-v1\n${stored.credentialId}`) },
+      key, Buffer.from(stored.ciphertext, 'base64url'))).rejects.toThrow();
+  });
+
+  it('unlocks when the PRF answer at creation differs from the one at sign-in', async () => {
+    const credentials = fakeAuthenticator(true);
+    const stored = await rememberPhraseWithPasskey({ phrase: FIXED, rpName: 'Test', userName: 'me', credentials });
+    expect(await unlockPhraseWithPasskey(stored, { credentials })).toBe(FIXED);
   });
 });

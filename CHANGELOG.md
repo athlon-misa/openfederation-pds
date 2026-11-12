@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Passkey unlock works with password-manager extensions** (`@open-federation/sdk/custody`, `@open-federation/pseudonym`). The PRF output is read in the forms extensions such as 1Password return it, output shorter than 32 bytes is refused, and the key always comes from a passkey sign-in, as unlocking does. A phrase remembered with an earlier version needs remembering again.
+- **Dashboard: phrase entry and passkey unlock say what went wrong.** A typed phrase that is not accepted says why (word count, or a misspelled or misordered word), and a copy pasted with its numbering is accepted. A failed passkey unlock says whether the prompt was cancelled, the passkey cannot unlock phrases, or it did not open the saved phrase.
 - **Development without SMTP prints whole emails.** The console copy of an unsent email stopped after 200 characters, which cut the 64-character identity-verification code and left out links that sit only in a button. It now prints all of the text and every link. Production still logs only that an email was not sent.
 - **Custody changes and assisted recovery use the login rate limit** (`AUTH_RATE_LIMIT`, 20 per 15 minutes per IP) instead of the creation limit (10 per hour). `identity.prepareCustodyChange`, `finalizeCustodyChange` and `recoverAssistedAccount` check the password like a login, and a single change takes two calls, so the creation limit ran out after a few changes from one address.
 
