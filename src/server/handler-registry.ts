@@ -96,6 +96,8 @@ import getPublicConfig from '../api/net.openfederation.server.getPublicConfig.js
 import listPeers from '../api/net.openfederation.federation.listPeers.js';
 import listPeerCommunities from '../api/net.openfederation.federation.listPeerCommunities.js';
 import discoverCommunities from '../api/net.openfederation.community.discover.js';
+import getUserTimeline from '../api/net.openfederation.activity.getUserTimeline.js';
+import listCommunityActivity from '../api/net.openfederation.activity.listCommunityActivity.js';
 import setExternalKey from '../api/net.openfederation.identity.setExternalKey.js';
 import listExternalKeys from '../api/net.openfederation.identity.listExternalKeys.js';
 import getExternalKey from '../api/net.openfederation.identity.getExternalKey.js';
@@ -259,6 +261,11 @@ const handlers = Object.freeze({
   'net.openfederation.federation.listPeers': { handler: listPeers, limiter: discoveryLimiter },
   'net.openfederation.federation.listPeerCommunities': { handler: listPeerCommunities, limiter: discoveryLimiter },
   'net.openfederation.community.discover': { handler: discoverCommunities, limiter: discoveryLimiter },
+
+  // Activity timelines (#42): home-PDS fan-out across memberships
+  'net.openfederation.activity.getUserTimeline': { handler: getUserTimeline },
+  'net.openfederation.activity.listCommunityActivity': { handler: listCommunityActivity },
+
   'net.openfederation.account.resolveExternal': { handler: resolveExternal },
   'net.openfederation.community.listMine': { handler: listMyCommunities },
   'net.openfederation.community.get': { handler: getCommunity },

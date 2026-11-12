@@ -64,6 +64,14 @@ describe('lexicon runtime validators', () => {
     }
   });
 
+  it('reads a query array parameter given once as a one-element array', () => {
+    const nsid = 'net.openfederation.activity.listCommunityActivity';
+    expect(validateXrpcInput(nsid, { community: 'did:plc:one' }).ok).toBe(true);
+    expect(validateXrpcInput(nsid, { community: ['did:plc:one', 'did:plc:two'] }).ok).toBe(true);
+    // A procedure body is JSON: there a string is not an array.
+    expect(validateXrpcInput('net.openfederation.community.join', { did: 'did:plc:c', tags: 'captain' }).ok).toBe(false);
+  });
+
   it('can validate lexicon-declared outputs', () => {
     const result = validateXrpcOutput('net.openfederation.community.join', {
       status: 'joined',

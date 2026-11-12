@@ -174,6 +174,11 @@ function validateAgainstSchema(
   }
 
   if (type === 'array') {
+    // A query-string array is the parameter repeated (`?a=1&a=2`); written
+    // once, it arrives as a plain string. That is a one-element array.
+    if (options.allowStringNumbers && typeof value === 'string') {
+      value = [value];
+    }
     if (!Array.isArray(value)) {
       return invalid(`${path} must be an array`);
     }

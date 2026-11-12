@@ -501,6 +501,66 @@ export type NetOpenfederationAccountUpdateRolesInput = JsonObject;
 export type NetOpenfederationAccountUpdateRolesOutput = JsonObject;
 export type NetOpenfederationAccountUpdateRolesError = "NotFound";
 
+export type NetOpenfederationActivityGetUserTimelineInput = {
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationActivityGetUserTimelineOutput = {
+  "entries": Array<{
+  "id": string;
+  "kind": string;
+  "community": string;
+  "actor"?: string;
+  "uri"?: string;
+  "cid"?: string;
+  "createdAt": string;
+  "summary"?: {
+  "handle"?: string;
+  "role"?: string;
+  "title"?: string;
+  "name"?: string;
+  "startsAt"?: string;
+  "action"?: string;
+  "targetCollection"?: string;
+  "status"?: string;
+};
+}>;
+  "cursor"?: string;
+  "unreachable": Array<string>;
+  "unreachablePeers": Array<string>;
+};
+export type NetOpenfederationActivityGetUserTimelineError = "Forbidden" | "InvalidRequest" | "Unauthorized";
+
+export type NetOpenfederationActivityListCommunityActivityInput = {
+  "community": Array<string>;
+  "limit"?: number;
+  "cursor"?: string;
+};
+export type NetOpenfederationActivityListCommunityActivityOutput = {
+  "entries": Array<{
+  "id": string;
+  "kind": string;
+  "community": string;
+  "actor"?: string;
+  "uri"?: string;
+  "cid"?: string;
+  "createdAt": string;
+  "summary"?: {
+  "handle"?: string;
+  "role"?: string;
+  "title"?: string;
+  "name"?: string;
+  "startsAt"?: string;
+  "action"?: string;
+  "targetCollection"?: string;
+  "status"?: string;
+};
+}>;
+  "cursor"?: string;
+  "unavailable": Array<string>;
+};
+export type NetOpenfederationActivityListCommunityActivityError = "InvalidRequest" | "Unauthorized";
+
 export type NetOpenfederationAdminCreateExportScheduleInput = {
   "communityDid": string;
   "interval": string;
@@ -2568,6 +2628,8 @@ export interface LexiconInputMap {
   'net.openfederation.account.revokeSession': NetOpenfederationAccountRevokeSessionInput;
   'net.openfederation.account.updateProfile': NetOpenfederationAccountUpdateProfileInput;
   'net.openfederation.account.updateRoles': NetOpenfederationAccountUpdateRolesInput;
+  'net.openfederation.activity.getUserTimeline': NetOpenfederationActivityGetUserTimelineInput;
+  'net.openfederation.activity.listCommunityActivity': NetOpenfederationActivityListCommunityActivityInput;
   'net.openfederation.admin.createExportSchedule': NetOpenfederationAdminCreateExportScheduleInput;
   'net.openfederation.admin.createVerificationChallenge': NetOpenfederationAdminCreateVerificationChallengeInput;
   'net.openfederation.admin.deleteExportSchedule': NetOpenfederationAdminDeleteExportScheduleInput;
@@ -2785,6 +2847,8 @@ export interface LexiconOutputMap {
   'net.openfederation.account.revokeSession': NetOpenfederationAccountRevokeSessionOutput;
   'net.openfederation.account.updateProfile': NetOpenfederationAccountUpdateProfileOutput;
   'net.openfederation.account.updateRoles': NetOpenfederationAccountUpdateRolesOutput;
+  'net.openfederation.activity.getUserTimeline': NetOpenfederationActivityGetUserTimelineOutput;
+  'net.openfederation.activity.listCommunityActivity': NetOpenfederationActivityListCommunityActivityOutput;
   'net.openfederation.admin.createExportSchedule': NetOpenfederationAdminCreateExportScheduleOutput;
   'net.openfederation.admin.createVerificationChallenge': NetOpenfederationAdminCreateVerificationChallengeOutput;
   'net.openfederation.admin.deleteExportSchedule': NetOpenfederationAdminDeleteExportScheduleOutput;
@@ -3002,6 +3066,8 @@ export interface LexiconErrorMap {
   'net.openfederation.account.revokeSession': NetOpenfederationAccountRevokeSessionError;
   'net.openfederation.account.updateProfile': NetOpenfederationAccountUpdateProfileError;
   'net.openfederation.account.updateRoles': NetOpenfederationAccountUpdateRolesError;
+  'net.openfederation.activity.getUserTimeline': NetOpenfederationActivityGetUserTimelineError;
+  'net.openfederation.activity.listCommunityActivity': NetOpenfederationActivityListCommunityActivityError;
   'net.openfederation.admin.createExportSchedule': NetOpenfederationAdminCreateExportScheduleError;
   'net.openfederation.admin.createVerificationChallenge': NetOpenfederationAdminCreateVerificationChallengeError;
   'net.openfederation.admin.deleteExportSchedule': NetOpenfederationAdminDeleteExportScheduleError;
@@ -3221,6 +3287,8 @@ export const lexiconContracts = {
   'net.openfederation.account.revokeSession': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.updateProfile': { revision: 2, errors: ["InvalidBlobRef", "InvalidRequest"] as const },
   'net.openfederation.account.updateRoles': { revision: 1, errors: ["NotFound"] as const },
+  'net.openfederation.activity.getUserTimeline': { revision: 1, errors: ["Forbidden", "InvalidRequest", "Unauthorized"] as const },
+  'net.openfederation.activity.listCommunityActivity': { revision: 1, errors: ["InvalidRequest", "Unauthorized"] as const },
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
   'net.openfederation.admin.createVerificationChallenge': { revision: 3, errors: ["EmailDeliveryFailed", "NoEmail", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },

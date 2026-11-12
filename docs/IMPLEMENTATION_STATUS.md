@@ -108,6 +108,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - `sync.getRepo` (full repo as CAR stream) — federation-critical
 - Account lifecycle: suspend, unsuspend, takedown, deactivate, activate, export, delete (all ATProto-compatible)
 - Takedown policy ([FAIR-USE.md](FAIR-USE.md)), accounts and communities alike: `standard` (owner gets a private export link, deleted after 30 days, reminder 7 days before) or `hard` (no owner export, 90-day legal hold, then deleted); daily sweep in `src/moderation/takedown.ts`
+- Activity timelines ([#42](https://github.com/athlon-misa/openfederation-pds/issues/42)): `activity.getUserTimeline` (home-PDS fan-out over the caller's memberships, here and on configured peers via service-auth) and `activity.listCommunityActivity` (per-PDS, privacy enforced by the hosting PDS); design in [API.md](API.md#openfederation-activity-timelines). Memberships on non-peer PDSes are not reached
 - `com.atproto.identity.resolveHandle` — local + external cross-PDS resolution (DNS TXT → HTTPS well-known, 1h cache)
 - Well-known: `/.well-known/did.json` (PDS service DID, secp256k1, encrypted in `pds_service_keys`; falls through to community at hostname), `/.well-known/webfinger`
 - Cross-server community discovery ([#41](https://github.com/athlon-misa/openfederation-pds/issues/41)): `/.well-known/openfederation-communities.json` and `net.openfederation.community.discover`; design below
