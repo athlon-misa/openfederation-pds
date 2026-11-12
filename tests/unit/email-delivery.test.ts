@@ -156,14 +156,14 @@ describe('sendEmail without SMTP configured', () => {
 
 describe('sendEmail without SMTP: what reaches the logs', () => {
   const RESET_LINK = 'https://pds.example.test/reset-password?token=s3cr3t-reset-token';
-  async function logsOf(production: boolean): Promise<string> {
+  async function logsOf(production: boolean, html = `<p>Click <a href="${RESET_LINK}">${RESET_LINK}</a></p>`): Promise<string> {
     const lines: string[] = [];
     const spy = vi.spyOn(console, 'log').mockImplementation((...args) => { lines.push(args.join(' ')); });
     const wasProduction = config.env.isProduction;
     config.email.enabled = false;
     config.env.isProduction = production;
     try {
-      await sendEmail('reader@example.test', 'Reset your password', `<p>Click <a href="${RESET_LINK}">${RESET_LINK}</a></p>`, 'password-reset');
+      await sendEmail('reader@example.test', 'Reset your password', html, 'password-reset');
     } finally {
       config.email.enabled = true;
       config.env.isProduction = wasProduction;
@@ -184,6 +184,18 @@ describe('sendEmail without SMTP: what reaches the logs', () => {
     const logged = await logsOf(false);
     expect(logged).toContain('reader@example.test');
     expect(logged).toContain('s3cr3t-reset-token');
+  });
+
+  it('in development prints the whole message: a code far into the body, and links that are only in a button', async () => {
+    const code = 'ab'.repeat(32); // 64 characters, like the identity-verification code
+    const html = `<html><body style="font-family: sans-serif; max-width: 600px;"><h2>Identity Verification</h2>
+      <p>Hi <strong>reader</strong>,</p><p>A PDS administrator has requested identity verification for your account.</p>
+      <p>Your verification code is:</p><div style="letter-spacing: 2px;">${code}</div>
+      <p><a href="${RESET_LINK}" style="padding: 1rem;">Reset password</a></p></body></html>`;
+    const logged = await logsOf(false, html);
+    expect(logged).toContain(code);
+    expect(logged).toContain(RESET_LINK);
+    expect(logged).not.toContain('<div');
   });
 });
 

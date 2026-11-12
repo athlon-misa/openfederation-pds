@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Development without SMTP prints whole emails.** The console copy of an unsent email stopped after 200 characters, which cut the 64-character identity-verification code and left out links that sit only in a button. It now prints all of the text and every link. Production still logs only that an email was not sent.
 - **Custody changes and assisted recovery use the login rate limit** (`AUTH_RATE_LIMIT`, 20 per 15 minutes per IP) instead of the creation limit (10 per hour). `identity.prepareCustodyChange`, `finalizeCustodyChange` and `recoverAssistedAccount` check the password like a login, and a single change takes two calls, so the creation limit ran out after a few changes from one address.
 
 ## [1.5.0] - 2026-11-12
