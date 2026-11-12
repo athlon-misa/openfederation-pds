@@ -6,7 +6,9 @@ import { gracefulShutdown } from '../../src/server/shutdown.js';
 function listen(handler: http.RequestListener): Promise<http.Server> {
   return new Promise((resolve) => {
     const server = http.createServer(handler);
-    server.listen(0, () => resolve(server));
+    // 127.0.0.1, the address the requests go to (#370: a wildcard bind can be
+    // shadowed by another local process on macOS).
+    server.listen(0, '127.0.0.1', () => resolve(server));
   });
 }
 

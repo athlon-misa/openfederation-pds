@@ -19,8 +19,18 @@ import { app } from '../../src/server/index.js';
  * churn — and the collision window — stops existing.
  *
  * `unref()` so a live listener never keeps the vitest worker alive.
+ *
+ * Bound to 127.0.0.1, not the wildcard (#370). supertest always connects to
+ * `127.0.0.1:<port>`, and `listen(0)` with no host binds `[::]` (dual stack).
+ * On macOS another process may still bind `127.0.0.1:<that port>` and the
+ * kernel routes 127.0.0.1 connections to the more specific socket — so a
+ * local daemon that picked our port after we did silently took every request
+ * of the file. Captured responders: a Codex app-server (`401`, empty body, on
+ * every path — the email-webhook and getAdminToken-in-beforeAll failures) and
+ * Adobe CCLibrary (`405`, the #222 capture). With the exact address bound,
+ * such a bind gets EADDRINUSE instead, and a wildcard bind loses to ours.
  */
-const server = app.listen(0);
+const server = app.listen(0, '127.0.0.1');
 // A server-side pull (a community arriving from here, #267) must reach this
 // process at the URL the DIDs it creates carry, so the public URL follows the
 // port the test server actually got.
