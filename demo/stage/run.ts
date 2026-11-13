@@ -18,8 +18,11 @@
  *
  * The helper API seeds or signs in Elena, shows what the server (offline) or
  * the public record (live) knows, and runs the independent verifier.
- * Pseudonym keys are made and used in the browser; the phrase reaches this
+ * Night Desk's keys are made and used in the browser; its phrase reaches this
  * process only for rehearsal pseudonyms in live mode, to be cleaned up later.
+ * Elena's identity phrase (a `self` account) is kept here in memory and given
+ * to the page to sign her half of the reveal; Marko's Late Shift (the
+ * custodial contrast) is made and kept here.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -30,8 +33,15 @@ import * as dotenv from 'dotenv';
 import express from 'express';
 import * as esbuild from 'esbuild';
 import pg from 'pg';
-import { loginWithPhrase, signOwnerJwt, tombstone, type CreationToken } from '../../packages/openfederation-pseudonym/src/index.js';
+import {
+  loginWithPhrase, signOwnerJwt, tombstone, fetchTokenKeys, collectTokens, createRevealBundle,
+  generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
+  checkPresence, challengeForWord, verifyRevealBundle, type CreationToken,
+} from '../../packages/openfederation-pseudonym/src/index.js';
 import { currentEpoch } from '../../packages/openfederation-pseudonym/src/formats.js';
+import {
+  generateCustodyPhrase, deriveCustodyKeys, buildCustodyGenesisOp, signPlcOperation, didForGenesisOp, submitPlcOperation,
+} from '../../packages/openfederation-sdk/src/custody/index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
@@ -60,6 +70,10 @@ const SERVICE_DID_B = `did:web:localhost%3A${PORTS.pdsB}`;
 const HANDLE_SUFFIX = '.opennewsrooms.demo';
 const ELENA = { handle: `elena${HANDLE_SUFFIX}`, name: 'Elena Petrova', email: 'elena@newsroom.demo' };
 const MARKO = { handle: 'marko', name: 'Marko', email: 'marko@newsroom.demo' };
+/** Marko's own pseudonym, for the custodial contrast on the Reveal screen. */
+const LATE_SHIFT = { label: 'lateshift', name: 'Late Shift' };
+/** The audience's word becomes a challenge with this context, here, in the browser and on /verify. */
+const PRESENCE_CONTEXT = 'OpenNewsrooms stage challenge';
 
 /** Live settings: demo/stage/.live.env (git-ignored), overridden by the environment. */
 const LIVE_ENV_FILE = process.env.DEMO_LIVE_ENV || join(HERE, '.live.env');
@@ -163,9 +177,17 @@ const host = (url: string) => url.replace(/^https?:\/\//, '');
 
 // ---------- People ----------
 
-interface Person { did: string; login: string; password: string; handle?: string }
+type Custody = 'custodial' | 'assisted' | 'self';
+interface Person {
+  did: string; login: string; password: string; handle?: string;
+  /** custodial: her server signs her half of a reveal. assisted/self: her own owner key does. */
+  custody: Custody;
+  /** assisted/self: her identity phrase, kept in memory for the session; the browser signs with it. Never logged. */
+  phrase?: string;
+}
 let elena: Person | null = null;
-let marko: { did: string } | null = null;
+/** Marko: his DID always; his sign-in only when the custodial contrast can run. */
+let marko: { did: string; login?: string; password?: string } | null = null;
 let elenaCache: { accessJwt: string; did: string; handle: string; at: number } | null = null;
 
 /** A session for Elena, reused for ten minutes (access tokens last fifteen). */
@@ -262,6 +284,7 @@ function startPds(name: string, port: number, database: string, serviceDid: stri
   });
 }
 
+/** A custodial account: the server makes and holds its keys. */
 async function seedAccount(adminJwt: string, handle: string, email: string): Promise<Person> {
   const invite = await xrpc<{ code: string }>('net.openfederation.invite.create', { maxUses: 1 }, adminJwt);
   const password = strongPassword();
@@ -270,14 +293,41 @@ async function seedAccount(adminJwt: string, handle: string, email: string): Pro
   });
   await xrpc('net.openfederation.account.approve', { userId: reg.userId || reg.id }, adminJwt);
   const s = await session(email, password);
-  return { did: s.did, login: email, password, handle: s.handle };
+  return { did: s.did, login: email, password, handle: s.handle, custody: 'custodial' };
 }
 
-/** Elena, the reporter, and Marko, who later tries to claim Night Desk as his. */
+/**
+ * A `self` account (ADR-003), registered the way the dashboard does it
+ * (registerWithOwnKeys): a twelve-word phrase made here, its rotation key
+ * first and only in the DID, its owner key as openfederation_owner, the
+ * signing key reserved on the server; then registerSelfCustody and approval.
+ */
+async function seedSelfAccount(adminJwt: string, label: string, email: string): Promise<Person> {
+  const phrase = generateCustodyPhrase();
+  const keys = deriveCustodyKeys(phrase);
+  const { signingKey } = await xrpc<{ signingKey: string }>('com.atproto.server.reserveSigningKey', {});
+  const genesis = signPlcOperation(buildCustodyGenesisOp({
+    mode: 'self', userRotationDidKey: keys.rotationDidKey, atprotoDidKey: signingKey, ownerDidKey: keys.ownerDidKey,
+    handle: `${label}${stack.a.handleSuffix}`, pdsEndpoint: stack.a.serviceUrl,
+  }), keys.rotationPrivateKey);
+  const did = didForGenesisOp(genesis);
+  await submitPlcOperation(stack.plcUrl, did, genesis);
+  const invite = await xrpc<{ code: string }>('net.openfederation.invite.create', { maxUses: 1 }, adminJwt);
+  const password = strongPassword();
+  const reg = await xrpc<{ id: string }>('net.openfederation.account.registerSelfCustody', {
+    did, mode: 'self', handle: label, email, password, inviteCode: invite.code,
+  });
+  await xrpc('net.openfederation.account.approve', { userId: reg.id }, adminJwt);
+  const s = await session(email, password);
+  return { did: s.did, login: email, password, handle: s.handle, custody: 'self', phrase };
+}
+
+/** Elena, the reporter (her own keys), and Marko (custodial), who later tries to claim Night Desk as his. */
 async function seedPeople(): Promise<void> {
   const adminJwt = (await session(admin.handle, admin.password)).accessJwt;
-  elena = await seedAccount(adminJwt, ELENA.handle.slice(0, -HANDLE_SUFFIX.length), ELENA.email);
-  marko = { did: (await seedAccount(adminJwt, MARKO.handle, MARKO.email)).did };
+  elena = await seedSelfAccount(adminJwt, ELENA.handle.slice(0, -HANDLE_SUFFIX.length), ELENA.email);
+  const m = await seedAccount(adminJwt, MARKO.handle, MARKO.email);
+  marko = { did: m.did, login: m.login, password: m.password };
 }
 
 let state: 'starting' | 'ready' | 'resetting' | 'failed' = 'starting';
@@ -348,12 +398,39 @@ async function preflight(): Promise<Check[]> {
       const signInAs = !login.includes('@') && login.endsWith(stack.a.handleSuffix) ? login.slice(0, -stack.a.handleSuffix.length) : login;
       const s = await session(signInAs, password);
       if (expectedDid && s.did !== expectedDid) throw new Error(`signed in as ${s.did}, but ${who}DID is ${expectedDid}`);
-      elena = { did: s.did, login: signInAs, password, handle: s.handle };
+      // Her server says which custody mode the account has; it decides who signs her half of the reveal.
+      const level = await xrpc<{ custodyMode?: Custody | null }>('net.openfederation.account.getSecurityLevel', undefined, s.accessJwt);
+      elena = { did: s.did, login: signInAs, password, handle: s.handle, custody: level.custodyMode ?? 'custodial' };
       elenaCache = { ...s, at: Date.now() };
-      add('elena', `${REHEARSAL ? `Rehearsal account ${REHEARSAL}` : 'Elena'} can sign in`, true, `${s.handle} · ${s.did}`);
+      add('elena', `${REHEARSAL ? `Rehearsal account ${REHEARSAL}` : 'Elena'} can sign in`, true, `${s.handle} · ${s.did} · ${elena.custody}`);
     } catch (err) {
       add('elena', 'Elena can sign in', false, err instanceof Error ? err.message.slice(0, 200) : String(err));
     }
+  }
+
+  // A `self` or `assisted` Elena signs her half of the reveal with her own
+  // owner key, from her identity phrase: check the phrase is this DID's.
+  if (elena && elena.custody !== 'custodial') {
+    const phrase = LIVE[`${who}PHRASE`];
+    const label = 'Elena’s own key matches her DID';
+    if (!phrase) {
+      add('elena-keys', label, false, `${elena.custody} account: ${who}PHRASE (her twelve-word identity phrase) is not set in ${LIVE_ENV_FILE}`);
+    } else {
+      try {
+        const keys = deriveCustodyKeys(phrase);
+        const data = await getJson<{ rotationKeys: string[]; verificationMethods: Record<string, string> }>(`${stack.plcUrl}/${elena.did}/data`);
+        const rotationOk = data.rotationKeys[0] === keys.rotationDidKey;
+        const ownerOk = data.verificationMethods.openfederation_owner === keys.ownerDidKey;
+        if (rotationOk && ownerOk) elena.phrase = phrase;
+        add('elena-keys', label, rotationOk && ownerOk, rotationOk && ownerOk
+          ? `${elena.custody}: the phrase holds the DID’s first rotation key and its owner key; Elena signs her half herself`
+          : `${who}PHRASE does not match ${elena.did}: ${rotationOk ? '' : 'first rotation key differs; '}${ownerOk ? '' : 'owner key differs'}`.replace(/; $/, ''));
+      } catch (err) {
+        add('elena-keys', label, false, err instanceof Error && err.message === 'InvalidPhrase' ? `${who}PHRASE is not a valid twelve-word phrase` : String(err instanceof Error ? err.message : err));
+      }
+    }
+  } else if (elena) {
+    add('elena-keys', 'Elena’s half of the reveal', null, 'custodial account: her server signs it with the key it holds for her (“signed by the server’s key”)');
   }
 
   // The browser registers Night Desk with stack.plcUrl, and both servers must
@@ -394,6 +471,29 @@ async function preflight(): Promise<Check[]> {
     add('marko', 'Marko’s account known', false, `DEMO_MARKO_DID or DEMO_MARKO_HANDLE is not set in ${LIVE_ENV_FILE}`);
   }
 
+  // The custodial contrast: Marko reveals his own pseudonym, signed by his
+  // server's key. Optional; it needs his sign-in.
+  if (marko && aUp) {
+    const login = LIVE.DEMO_MARKO_HANDLE;
+    const password = LIVE.DEMO_MARKO_PASSWORD;
+    if (!login || !password) {
+      add('marko-contrast', 'Custodial contrast (Marko)', null, 'Off: set DEMO_MARKO_HANDLE and DEMO_MARKO_PASSWORD to show a reveal signed by the server’s key');
+    } else {
+      try {
+        const signInAs = !login.includes('@') && login.endsWith(stack.a.handleSuffix) ? login.slice(0, -stack.a.handleSuffix.length) : login;
+        const s = await session(signInAs, password);
+        if (s.did !== marko.did) throw new Error(`signed in as ${s.did}, not ${marko.did}`);
+        const level = await xrpc<{ custodyMode?: Custody | null }>('net.openfederation.account.getSecurityLevel', undefined, s.accessJwt);
+        const custodial = (level.custodyMode ?? 'custodial') === 'custodial';
+        if (custodial) marko = { ...marko, login: signInAs, password };
+        add('marko-contrast', 'Custodial contrast (Marko)', custodial ? true : null, custodial ? `${s.handle} can sign in; custodial` : `Off: Marko’s account is ${level.custodyMode}, not custodial`);
+      } catch (err) {
+        // Optional: never blocks the show.
+        add('marko-contrast', 'Custodial contrast (Marko)', null, `Off: ${err instanceof Error ? err.message.slice(0, 200) : String(err)}`);
+      }
+    }
+  }
+
   // Passes: the server cannot say how many are left (it never sees which
   // were used); this laptop can, once it has collected them.
   if (elena) {
@@ -425,6 +525,7 @@ async function bringUp(): Promise<void> {
   marko = null;
   elenaCache = null;
   pseudonymDids = new Set();
+  contrast = null;
   try {
     if (MODE === 'live') await bringUpLive(); else await bringUpOffline();
     state = 'ready';
@@ -447,6 +548,8 @@ interface Rehearsal {
   did: string; handle: string; phrase: string; plcUrl: string;
   servers: { url: string; serviceDid: string }[];
   createdAt: string; movedTo?: string; cleanedAt?: string;
+  /** 'contrast': Marko's Late Shift, kept for every run until --cleanup; ownerDid is Marko's. */
+  role?: 'contrast'; ownerDid?: string;
 }
 
 function readJson<T>(file: string, fallback: T): T {
@@ -581,13 +684,83 @@ async function handleFree(server: Server, label: string): Promise<boolean> {
  * "nightdesk-rehearsal" for rehearsals, numbered when an earlier run kept it.
  * The label goes into the PLC genesis, so it is checked before anything is written.
  */
-async function freeLabel(): Promise<string> {
-  const base = REHEARSAL ? 'nightdesk-rehearsal' : 'nightdesk';
+async function freeLabel(name = 'nightdesk'): Promise<string> {
+  const base = REHEARSAL ? `${name}-rehearsal` : name;
   for (let i = 1; i <= 50; i++) {
     const label = i === 1 ? base : `${base}-${i}`;
     if (await handleFree(stack.a, label) && await handleFree(stack.b, label)) return label;
   }
-  throw new Error('No free Night Desk handle; run npm run demo -- --cleanup');
+  throw new Error(`No free ${name} handle; run npm run demo -- --cleanup`);
+}
+
+// ---------- The custodial contrast: Marko's own pseudonym ----------
+
+/**
+ * Late Shift, Marko's pseudonym on server A. Marko is custodial, so his half
+ * of its reveal is signed by his server's key: the contrast to Elena's.
+ * Offline it is made once per stack; live, once per laptop (its words are
+ * kept in rehearsals.json, so --cleanup removes it like a rehearsal).
+ */
+let contrast: { did: string; handle: string; phrase: string } | null = null;
+
+async function markoSession(): Promise<{ accessJwt: string; did: string }> {
+  if (!marko?.login || !marko.password) {
+    throw new Error('The custodial contrast is off: set DEMO_MARKO_HANDLE and DEMO_MARKO_PASSWORD');
+  }
+  return session(marko.login, marko.password);
+}
+
+/** One of Marko's passes for this month: collected here (offline) or kept on this laptop (live). */
+async function markoPass(accessJwt: string): Promise<{ token: CreationToken; spent: () => void }> {
+  const did = marko!.did;
+  let wallet = MODE === 'live' ? readWallet(did) : null;
+  if (!wallet) {
+    const tokens = await collectTokens({ pdsUrl: stack.a.url, accessJwt, keys: await fetchTokenKeys(stack.a.url), count: 20 });
+    wallet = { epoch: tokens[0].epoch, tokens, spent: 0 };
+  }
+  const w = wallet;
+  const keep = () => { if (MODE === 'live') { const all = readJson<Record<string, Wallet>>(WALLETS_FILE, {}); all[did] = w; writeJson(WALLETS_FILE, all); } };
+  keep();
+  const token = w.tokens[w.spent];
+  if (!token) throw new Error('Marko has no passes left this month');
+  return { token, spent: () => { w.spent += 1; keep(); } };
+}
+
+async function lateShift(): Promise<NonNullable<typeof contrast>> {
+  if (contrast) return contrast;
+  if (!marko) throw new Error('Not ready');
+  if (MODE === 'live') {
+    const kept = readJson<Rehearsal[]>(REHEARSALS_FILE, [])
+      .find((r) => r.role === 'contrast' && r.ownerDid === marko!.did && !r.cleanedAt && r.plcUrl === stack.plcUrl && r.phrase);
+    if (kept) return (contrast = { did: kept.did, handle: kept.handle, phrase: kept.phrase });
+  }
+  const s = await markoSession();
+  const pass = await markoPass(s.accessJwt);
+  const label = MODE === 'live' ? await freeLabel(LATE_SHIFT.label) : LATE_SHIFT.label;
+  const handle = `${label}${stack.a.handleSuffix}`;
+  const phrase = generatePseudonymPhrase();
+  const keys = derivePseudonymKeys(phrase);
+  const { signingKey } = await xrpc<{ signingKey: string }>('com.atproto.server.reserveSigningKey', {});
+  const signed = signGenesisOp(buildPseudonymGenesisOp({
+    ownerDidKey: keys.ownerDidKey, signingDidKey: signingKey, handle,
+    pdsEndpoint: stack.a.serviceUrl, ownerDid: marko.did, commitmentSaltHex: keys.commitmentSaltHex,
+  }), keys.ownerPrivateKey);
+  const did = didForSignedOp(signed);
+  if (MODE === 'live') {
+    // Kept before the DID exists anywhere, so cleanup can always find it.
+    const all = readJson<Rehearsal[]>(REHEARSALS_FILE, []);
+    all.push({
+      did, handle, phrase, plcUrl: stack.plcUrl, createdAt: new Date().toISOString(), role: 'contrast', ownerDid: marko.did,
+      servers: [stack.a, stack.b].map((x) => ({ url: x.url, serviceDid: x.serviceDid })),
+    });
+    writeJson(REHEARSALS_FILE, all);
+  }
+  const plcRes = await fetch(`${stack.plcUrl}/${did}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signed) });
+  if (!plcRes.ok) throw new Error(`Directory refused Late Shift: ${await plcRes.text()}`);
+  // No Authorization header, as for Night Desk.
+  await xrpc('net.openfederation.pseudonym.createAccount', { did, token: pass.token });
+  pass.spent();
+  return (contrast = { did, handle, phrase });
 }
 
 // ---------- Cleanup ----------
@@ -650,10 +823,8 @@ async function cleanup(): Promise<void> {
 
 // ---------- App server ----------
 
-/** The audience's word becomes the 64-hex challenge. The device derives it the same way (app/main.ts). */
-function challengeForWord(word: string): string {
-  return crypto.createHash('sha256').update(`OpenNewsrooms stage challenge\n${word.trim().toLowerCase()}`).digest('hex');
-}
+/** Where audience phones check proofs (live only): the dashboard's public verifier. */
+const VERIFIER_URL = LIVE.DEMO_VERIFIER_URL || 'https://beta.openfederation.net/verify';
 
 async function bundle(): Promise<void> {
   const ctx = await esbuild.context({
@@ -674,7 +845,6 @@ function fail(res: express.Response, err: unknown, status = 500): void {
 async function main(): Promise<void> {
   if (MODE === 'cleanup') { await cleanup(); return; }
   await bundle();
-  const { verifyPresence, fetchGenesisOp, verifyRevealBundle } = await import('../../src/identity/pseudonym/verify.js');
 
   const app = express();
   app.use(express.json({ limit: '256kb' }));
@@ -705,8 +875,12 @@ async function main(): Promise<void> {
         plcUrl: stack.plcUrl,
         pdsUrl: stack.a.url, serviceDid: stack.a.serviceDid, handleSuffix: stack.a.handleSuffix, pdsServiceUrl: stack.a.serviceUrl,
         pdsBUrl: stack.b.url, pdsBServiceDid: stack.b.serviceDid, pdsBHandleSuffix: stack.b.handleSuffix,
-        elena: { did: s.did, handle: s.handle, name: ELENA.name, accessJwt: s.accessJwt },
-        impostor: { did: marko!.did, name: MARKO.name },
+        elena: { did: s.did, handle: s.handle, name: ELENA.name, accessJwt: s.accessJwt, custody: elena.custody },
+        impostor: { did: marko!.did, name: MARKO.name, contrast: !!marko!.login },
+        contrastName: LATE_SHIFT.name,
+        // Phones can only reach the verifier when the servers are public.
+        verifierUrl: MODE === 'live' ? VERIFIER_URL : null,
+        presenceContext: PRESENCE_CONTEXT,
         wallet: MODE === 'live' ? readWallet(s.did) : null,
       });
     } catch (err) {
@@ -717,6 +891,16 @@ async function main(): Promise<void> {
   /** A fresh access token for Elena, for steps that come a while after the page loaded. */
   app.get('/api/elena-session', async (_req, res) => {
     try { res.json({ accessJwt: (await elenaSession()).accessJwt }); } catch (err) { fail(res, err); }
+  });
+
+  /**
+   * Elena's identity phrase, for her laptop (this page) to sign her half of
+   * the reveal: only for an account that holds its own keys, only to
+   * localhost (the app listens on 127.0.0.1). Never logged.
+   */
+  app.get('/api/elena-phrase', (_req, res) => {
+    if (!elena || elena.custody === 'custodial' || !elena.phrase) return res.status(404).json({ error: 'Elena’s server signs for her (custodial)' });
+    res.set('Cache-Control', 'no-store').json({ phrase: elena.phrase });
   });
 
   app.get('/api/free-handle', async (_req, res) => {
@@ -775,24 +959,30 @@ async function main(): Promise<void> {
     if (!isPlcDid(pseudonymDid) || typeof word !== 'string' || !word.trim() || typeof signature !== 'string') {
       return res.status(400).json({ error: 'pseudonymDid, word and signature are required' });
     }
-    try {
-      const challenge = challengeForWord(word);
-      const genesisOp = await fetchGenesisOp(pseudonymDid, { plcUrl: stack.plcUrl });
-      if (!genesisOp) return res.json({ valid: false, error: 'Not found in the directory', challenge });
-      const valid = await verifyPresence({ pseudonymDid, genesisOp, challenge, signature });
-      res.json({ valid, challenge, directoryKey: (genesisOp as { rotationKeys?: string[] }).rotationKeys?.[0] });
-    } catch (err) {
-      res.json({ valid: false, error: err instanceof Error ? err.message : String(err) });
-    }
+    // The same code as the /verify page on the audience's phones (@open-federation/pseudonym).
+    const challenge = challengeForWord(word, PRESENCE_CONTEXT);
+    res.json({ ...(await checkPresence({ plcUrl: stack.plcUrl, pseudonymDid, challenge, signature })), challenge });
   });
 
   // Checks a reveal the way `ofc pseudonym verify --online` does: the bundle,
-  // plus both DIDs resolved from the PLC directory.
+  // plus both DIDs resolved from the PLC directory. Same code as /verify.
   app.post('/api/verify-reveal', async (req, res) => {
+    res.json(await verifyRevealBundle(req.body?.bundle, { online: true, plcUrl: stack.plcUrl }));
+  });
+
+  // The custodial contrast: Marko reveals his own pseudonym, Late Shift. His
+  // server signs his half (net.openfederation.pseudonym.signLink).
+  app.post('/api/contrast-reveal', async (_req, res) => {
     try {
-      res.json(await verifyRevealBundle(req.body?.bundle, { online: true, plcUrl: stack.plcUrl }));
+      if (state !== 'ready' || !marko) throw new Error('Not ready');
+      const c = await lateShift();
+      const s = await markoSession();
+      const bundle = await createRevealBundle({
+        pdsUrl: stack.a.url, plcUrl: stack.plcUrl, phrase: c.phrase, pseudonymDid: c.did, ownerDid: marko.did, ownerAccessJwt: s.accessJwt,
+      });
+      res.json({ bundle, handle: c.handle });
     } catch (err) {
-      res.json({ valid: false, checks: [], error: err instanceof Error ? err.message : String(err) });
+      fail(res, err);
     }
   });
 

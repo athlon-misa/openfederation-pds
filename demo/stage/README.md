@@ -13,7 +13,9 @@ Offline:
 | Second PDS, "the new home" | 8092 | Database `openfederation_pds_demo_b`; Night Desk moves here on the Move screen |
 | Stage app | 4747 | Bound to localhost |
 
-The browser plays Elena's laptop. It runs the real `@open-federation/pseudonym` code, so Night Desk's twelve words and key exist only in the page. The demo server (`run.ts`) seeds Elena's account and Marko's (the impostor) offline or signs Elena in live, shows what the server knows (offline: the PDS database; live: the public record), and acts as the independent verifier for the in-person proof.
+The browser plays Elena's laptop. It runs the real `@open-federation/pseudonym` code, so Night Desk's twelve words and key exist only in the page. The demo server (`run.ts`) seeds Elena's account and Marko's (the impostor) offline or signs Elena in live, shows what the server knows (offline: the PDS database; live: the public record), and acts as the independent verifier for the in-person proof and the reveal. It verifies with the same code (`verifyRevealBundle`, `checkPresence` from the pseudonym package) as the public `/verify` page the audience's phones open.
+
+Offline, Elena is a `self` account (ADR-003), registered the way the dashboard does it: a twelve-word identity phrase made on the demo server, its rotation key the only one in her DID and its owner key named `openfederation_owner`, then `registerSelfCustody` and approval. The demo server keeps the phrase in memory for the session and hands it to the page (`/api/elena-phrase`, localhost only) when Elena signs her half of the reveal. Marko is custodial.
 
 ## Run it
 
@@ -42,8 +44,8 @@ Nothing starts locally except the stage app, and it has no admin or database acc
 
 Copy `demo/stage/live.env.example` to `demo/stage/.live.env` (git-ignored) and fill it in. The accounts are created once by hand on server A and approved there:
 
-- **Elena** (`DEMO_ELENA_HANDLE`, `DEMO_ELENA_PASSWORD`, `DEMO_ELENA_DID`): kept fresh for the show. The handle may be given with or without the server's domain. Until the self-custody act (#389 item 4) is built, Elena must be `custodial`: the Reveal screen asks her server to sign (`signLink`), which a `self` or `assisted` account refuses.
-- **Marko** (`DEMO_MARKO_DID`, or `DEMO_MARKO_HANDLE` resolved on A): only his public DID is used.
+- **Elena** (`DEMO_ELENA_HANDLE`, `DEMO_ELENA_PASSWORD`, `DEMO_ELENA_DID`): kept fresh for the show. The handle may be given with or without the server's domain. For the self-custody act, create her as `self` (Settings → custody on the dashboard, or sign up with own keys) and add her twelve-word identity phrase as `DEMO_ELENA_PHRASE`: her own key signs her half of the reveal and the verifier says *signed by the person*. The phrase stays in `.live.env` and in the stage app's memory; it is never logged. A custodial Elena still works (no phrase needed): her server signs (`signLink`) and the screen says *signed by the server's key*. The mode is read from her server (`getSecurityLevel`).
+- **Marko** (`DEMO_MARKO_DID`, or `DEMO_MARKO_HANDLE` resolved on A): his public DID is all "Marko claims Night Desk" needs. Optionally `DEMO_MARKO_HANDLE` and `DEMO_MARKO_PASSWORD` (custodial account) turn on the contrast: Marko reveals his own pseudonym, Late Shift, made once on A with one of his passes.
 - **Rehearsal accounts** (`DEMO_REHEARSAL_1_*`, `DEMO_REHEARSAL_2_*`, …): used instead of Elena's for rehearsals.
 
 Environment variables of the same name override the file; `DEMO_LIVE_ENV` points at another file and `DEMO_LIVE_DIR` at another folder for what the laptop keeps.
@@ -61,9 +63,10 @@ On start, and again on "Reset demo", `run.ts` checks with reads only, plus one s
 
 - server A, server B and the PLC directory answer (`describeServer`, `/_health`); each server's service DID and handle domain are read from `describeServer`, never assumed;
 - A's and B's `getPublicConfig` say pseudonyms are on and pseudonym moves are `open`;
-- Elena (or the rehearsal account) can sign in on A, as the DID in `.live.env`;
+- Elena (or the rehearsal account) can sign in on A, as the DID in `.live.env`, and her custody mode (`getSecurityLevel`);
+- for a `self` or `assisted` Elena: `DEMO_ELENA_PHRASE` (or `DEMO_REHEARSAL_<N>_PHRASE`) holds her DID's first rotation key and its `openfederation_owner` key in the directory;
 - the directory the stage app writes to, and each server's `plcDirectoryUrl`, return the same entry for Elena, and it names server A;
-- Marko's DID is known;
+- Marko's DID is known; the custodial contrast is on when Marko can sign in and is custodial (optional: shown as off, never red);
 - passes left this month. The server can't tell (it never sees which passes were used), so this counts the passes kept on this laptop; before the month's first collection it shows as unknown, not red.
 
 All green: the header says `Live · pds.openfederation.net → pds.grvty.app · pre-flight green · N passes` (hover it for every check). Anything red: a banner lists the checks and says to start the offline demo instead; "Check again" reruns them.
@@ -85,7 +88,7 @@ npm run demo -- --cleanup --dry-run    # list what would be removed
 npm run demo -- --cleanup
 ```
 
-For each rehearsal pseudonym not yet cleaned, it deletes its accounts on A and B with its own words (`com.atproto.server.deleteAccount` with an owner-key JWT; a deactivated copy whose DID still names that server is switched back on first), then tombstones its DID (`tombstone` from `@open-federation/pseudonym`). Accounts go first: servers check the owner key against the DID's current rotation keys, which a tombstoned DID no longer has. The words are erased from the file once the DID is gone; a failed entry is retried on the next run. Show runs keep no words, so they can't be cleaned up this way.
+Marko's Late Shift is kept in the same file (created once, reused by every run), so cleanup removes it too and the next run makes a new one. For each rehearsal pseudonym not yet cleaned, it deletes its accounts on A and B with its own words (`com.atproto.server.deleteAccount` with an owner-key JWT; a deactivated copy whose DID still names that server is switched back on first), then tombstones its DID (`tombstone` from `@open-federation/pseudonym`). Accounts go first: servers check the owner key against the DID's current rotation keys, which a tombstoned DID no longer has. The words are erased from the file once the DID is gone; a failed entry is retried on the next run. Show runs keep no words, so they can't be cleaned up this way.
 
 ## The screens
 
@@ -96,11 +99,22 @@ For each rehearsal pseudonym not yet cleaned, it deletes its accounts on A and B
 5. **Publish**: Night Desk signs in with the twelve words alone. "Remember on this laptop" creates a passkey and stores the words encrypted under its PRF output (`rememberPhraseWithPasskey`, #251). "Sign out", then "Unlock with Touch ID" signs in again without typing anything. Night Desk then publishes an authorship claim (a fingerprint of the article).
 6. **Files**: Night Desk's repository shown as folders and files, read live from the PDS (`describeRepo`, `listRecords`). Pick a file to open it. "Download a backup" saves the whole repository as one CAR file (`com.atproto.sync.getRepo`).
 7. **Move**: Night Desk moves to the second PDS with `moveAccount` from `@open-federation/pseudonym`, in the standard AT Protocol order, driven only by its twelve words: the new server opens a deactivated account (`com.atproto.server.createAccount`, proved with the owner key), the repository is copied (`sync.getRepo` → `com.atproto.repo.importRepo`, verified by the new server), the new server confirms it (`checkAccountStatus`), the words sign a PLC update with the new server's recommended credentials, the account is activated there and the old server's account is deactivated. Night Desk is then signed in at the new home: Publish and Files use it from then on.
-8. **Reveal**: Elena makes a reveal bundle and the verifier checks it online, as `ofc pseudonym verify --online` does: VALID, "Night Desk belongs to Elena Petrova". "Marko claims Night Desk" swaps Marko's account into Elena's proof: INVALID.
-9. **In person**: someone in the audience calls out a word. Night Desk's words sign it, and the verifier checks the signature against Night Desk's key in PLC: VALID. "A stranger tries" signs with new random words: INVALID.
+8. **Reveal**: Elena makes a reveal bundle and the verifier checks it online, as `ofc pseudonym verify --online` does: VALID, "Night Desk belongs to Elena Petrova". With a `self` Elena her own key signs her half in the page (`ownerSigner`, from her identity phrase), and the screen says *Signed by Elena herself … her server never had it* (`ownerAttestation: person`). "Marko claims Night Desk" swaps Marko's account into Elena's proof: INVALID. "Marko reveals his own pen name" (when the contrast is on) checks a custodial reveal: VALID, *Signed by the server's key* (`pds-held-key`). Live, a QR code opens the last-checked proof on the audience's phones.
+9. **In person**: someone in the audience calls out a word. Night Desk's words sign it, and the verifier checks the signature against Night Desk's key in PLC: VALID. "A stranger tries" signs with new random words: INVALID. Live, a QR code lets phones check the same signature themselves.
 10. **Next**: what was shown, and what comes next.
 
 The "sealed note" on the Reveal screen is the commitment in Night Desk's genesis operation; "the opener" is the commitment salt. The audience's word on the In person screen becomes the 64-hex presence challenge as `sha256("OpenNewsrooms stage challenge\n" + word)`, computed separately by the page and the verifier.
+
+### Audience phones: `/verify`
+
+Live, the In person and Reveal screens show a QR code for the public verifier on the dashboard, `https://beta.openfederation.net/verify` (`DEMO_VERIFIER_URL`). The proof rides in the URL fragment (`#…`), which browsers never send to a server, so no log sees it:
+
+- in person: `#w=<word>&d=<did without did:plc:>&s=<signature>`;
+- reveal: `#r=2&p=<pseudonym>&o=<owner>&t=<issued, ms>&k=o|a&ps=<pseudonym signature>&os=<owner signature>&s=<salt>`. The genesis operation and the owner's key are left out: the phone reads both from the directory. About 340 characters, a version 12–13 QR code.
+
+The phone checks it on its own against the PLC directory the dashboard's PDS names (`getPublicConfig.plcDirectoryUrl`, else plc.openfederation.net), with the same code as the demo server, and says VALID or INVALID, who (by handle), and for a reveal whether the person or the server's key signed. Nothing goes through the laptop. "Marko claims Night Desk" and "A stranger tries" make codes too; phones say INVALID.
+
+Offline there is no QR code: phones can't reach the laptop's servers, and the screen says so. To try the page locally, run the dashboard with `npm run dev` in `web-interface/` and open `http://localhost:3001/verify?plc=http://localhost:2582#…` (`?plc=` works in development only), or set `DEMO_VERIFIER_URL` to that address for a live rehearsal against local servers.
 
 Generated twelve-word phrases never contain crypto-, money- or security-sounding words (`PHRASE_AVOID_WORDS` in the pseudonym package).
 
@@ -110,7 +124,8 @@ Generated twelve-word phrases never contain crypto-, money- or security-sounding
 - Offline show: wifi off (the demo needs none). `npm run demo` started at least a minute before; status in the header is green. Press "Reset demo" once, then go back to the start screen.
 - Live show:
   - Test the venue network: open pds.openfederation.net, pds.grvty.app and plc.openfederation.net from the laptop on the venue wifi (and a phone hotspot as backup).
-  - `npm run demo -- --live`: pre-flight green on both servers, with passes left for Elena.
+  - `npm run demo -- --live`: pre-flight green on both servers, with passes left for Elena; for a `self` Elena, "Elena's own key matches her DID" green.
+  - Scan a QR code (In person and Reveal) with two different phones, on the venue wifi and on mobile data: each says VALID within a few seconds, and *Signed by the person* for Elena's reveal. Check the code scans from the back of the room; zoom the browser if not.
   - Start the offline demo as a hot spare on other ports, in a second terminal: `DEMO_APP_PORT=4848 DEMO_PLC_PORT=2783 DEMO_PDS_PORT=8191 DEMO_PDS_B_PORT=8192 npm run demo`, open in a second browser window.
   - Rehearse with `--rehearsal`, never with Elena's show account; then `npm run demo -- --cleanup`.
 - Browser full screen; check the text is readable from the back of the room. Zoom with the browser if needed.
@@ -122,6 +137,4 @@ Generated twelve-word phrases never contain crypto-, money- or security-sounding
 
 - Blobs (images) are not moved yet (#264); Night Desk has none in the demo.
 - OAuth is disabled on both offline demo servers because they run on `localhost`. The demo doesn't use it.
-
-
-Elena's account is custodial, so her half of the reveal is signed by a key the PDS holds, and the Reveal screen says so. The Night Desk half and the sealed note do not depend on the PDS. Showing self-custody waits for identity custody modes.
+- A reveal signed with a passkey (a `webauthn` owner signature) is too long for a QR code; the demo signs with the key from Elena's phrase.
