@@ -309,6 +309,19 @@ export type NetOpenfederationAccountConfirmPasswordResetOutput = {
 };
 export type NetOpenfederationAccountConfirmPasswordResetError = "InvalidToken" | "WeakPassword";
 
+export type NetOpenfederationAccountDisableDeviceSigningInput = undefined;
+export type NetOpenfederationAccountDisableDeviceSigningOutput = {
+  "deviceSigning": boolean;
+};
+export type NetOpenfederationAccountDisableDeviceSigningError = "AtprotoKeyNotServer" | "UpstreamFailure";
+
+export type NetOpenfederationAccountEnableDeviceSigningInput = undefined;
+export type NetOpenfederationAccountEnableDeviceSigningOutput = {
+  "deviceSigning": boolean;
+  "atprotoKey": string;
+};
+export type NetOpenfederationAccountEnableDeviceSigningError = "AtprotoKeyNotDevice" | "CustodyModeNotSupported" | "DeviceSigningNotAllowed" | "UpstreamFailure";
+
 export type NetOpenfederationAccountExportInput = {
   "did"?: string;
 };
@@ -340,6 +353,8 @@ export type NetOpenfederationAccountGetSecurityLevelOutput = {
   "upgradePath"?: string;
   "pdsHoldsRotationKey"?: boolean;
   "custodyMode"?: string;
+  "deviceSigning"?: boolean;
+  "deviceSigningKey"?: string;
 };
 export type NetOpenfederationAccountGetSecurityLevelError = "NotFound";
 
@@ -2355,6 +2370,35 @@ export type NetOpenfederationPseudonymSignLinkOutput = {
 };
 export type NetOpenfederationPseudonymSignLinkError = "Forbidden" | "InvalidStatement" | "SelfCustodyAccount" | "Unauthorized";
 
+export type NetOpenfederationRepoPrepareCommitInput = {
+  "repo"?: string;
+  "writes": Array<unknown>;
+};
+export type NetOpenfederationRepoPrepareCommitOutput = {
+  "handle": string;
+  "did": string;
+  "rev": string;
+  "prevRoot": string;
+  "unsignedCommit": string;
+  "newBlocks": Array<unknown>;
+  "writes": Array<unknown>;
+  "expiresAt": string;
+};
+export type NetOpenfederationRepoPrepareCommitError = "DeviceSigningOff" | "ProbationLimit" | "RecordNotFound" | "TooManyPendingCommits" | "UseDedicatedEndpoint";
+
+export type NetOpenfederationRepoSubmitCommitInput = {
+  "handle": string;
+  "sig": string;
+};
+export type NetOpenfederationRepoSubmitCommitOutput = {
+  "commit": {
+  "cid": string;
+  "rev": string;
+};
+  "writes": Array<unknown>;
+};
+export type NetOpenfederationRepoSubmitCommitError = "CommitExpired" | "DeviceSigningOff" | "InvalidSignature" | "RepoHeadMoved" | "UnknownCommit" | "UpstreamFailure";
+
 export type NetOpenfederationServerGetConfigInput = undefined;
 export type NetOpenfederationServerGetConfigOutput = {
   "service": string;
@@ -2651,6 +2695,8 @@ export interface LexiconInputMap {
   'net.openfederation.account.changePassword': NetOpenfederationAccountChangePasswordInput;
   'net.openfederation.account.completeRecovery': NetOpenfederationAccountCompleteRecoveryInput;
   'net.openfederation.account.confirmPasswordReset': NetOpenfederationAccountConfirmPasswordResetInput;
+  'net.openfederation.account.disableDeviceSigning': NetOpenfederationAccountDisableDeviceSigningInput;
+  'net.openfederation.account.enableDeviceSigning': NetOpenfederationAccountEnableDeviceSigningInput;
   'net.openfederation.account.export': NetOpenfederationAccountExportInput;
   'net.openfederation.account.getProfile': NetOpenfederationAccountGetProfileInput;
   'net.openfederation.account.getSecurityLevel': NetOpenfederationAccountGetSecurityLevelInput;
@@ -2807,6 +2853,8 @@ export interface LexiconInputMap {
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysInput;
   'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkInput;
   'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkInput;
+  'net.openfederation.repo.prepareCommit': NetOpenfederationRepoPrepareCommitInput;
+  'net.openfederation.repo.submitCommit': NetOpenfederationRepoSubmitCommitInput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigInput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigInput;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogInput;
@@ -2871,6 +2919,8 @@ export interface LexiconOutputMap {
   'net.openfederation.account.changePassword': NetOpenfederationAccountChangePasswordOutput;
   'net.openfederation.account.completeRecovery': NetOpenfederationAccountCompleteRecoveryOutput;
   'net.openfederation.account.confirmPasswordReset': NetOpenfederationAccountConfirmPasswordResetOutput;
+  'net.openfederation.account.disableDeviceSigning': NetOpenfederationAccountDisableDeviceSigningOutput;
+  'net.openfederation.account.enableDeviceSigning': NetOpenfederationAccountEnableDeviceSigningOutput;
   'net.openfederation.account.export': NetOpenfederationAccountExportOutput;
   'net.openfederation.account.getProfile': NetOpenfederationAccountGetProfileOutput;
   'net.openfederation.account.getSecurityLevel': NetOpenfederationAccountGetSecurityLevelOutput;
@@ -3027,6 +3077,8 @@ export interface LexiconOutputMap {
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysOutput;
   'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkOutput;
   'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkOutput;
+  'net.openfederation.repo.prepareCommit': NetOpenfederationRepoPrepareCommitOutput;
+  'net.openfederation.repo.submitCommit': NetOpenfederationRepoSubmitCommitOutput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigOutput;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigOutput;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogOutput;
@@ -3091,6 +3143,8 @@ export interface LexiconErrorMap {
   'net.openfederation.account.changePassword': NetOpenfederationAccountChangePasswordError;
   'net.openfederation.account.completeRecovery': NetOpenfederationAccountCompleteRecoveryError;
   'net.openfederation.account.confirmPasswordReset': NetOpenfederationAccountConfirmPasswordResetError;
+  'net.openfederation.account.disableDeviceSigning': NetOpenfederationAccountDisableDeviceSigningError;
+  'net.openfederation.account.enableDeviceSigning': NetOpenfederationAccountEnableDeviceSigningError;
   'net.openfederation.account.export': NetOpenfederationAccountExportError;
   'net.openfederation.account.getProfile': NetOpenfederationAccountGetProfileError;
   'net.openfederation.account.getSecurityLevel': NetOpenfederationAccountGetSecurityLevelError;
@@ -3247,6 +3301,8 @@ export interface LexiconErrorMap {
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysError;
   'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkError;
   'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkError;
+  'net.openfederation.repo.prepareCommit': NetOpenfederationRepoPrepareCommitError;
+  'net.openfederation.repo.submitCommit': NetOpenfederationRepoSubmitCommitError;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigError;
   'net.openfederation.server.getPublicConfig': NetOpenfederationServerGetPublicConfigError;
   'net.openfederation.vault.auditLog': NetOpenfederationVaultAuditLogError;
@@ -3313,9 +3369,11 @@ export const lexiconContracts = {
   'net.openfederation.account.changePassword': { revision: 2, errors: ["AccountLocked", "InvalidPassword", "NotFound", "WeakPassword"] as const },
   'net.openfederation.account.completeRecovery': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
   'net.openfederation.account.confirmPasswordReset': { revision: 1, errors: ["InvalidToken", "WeakPassword"] as const },
+  'net.openfederation.account.disableDeviceSigning': { revision: 1, errors: ["AtprotoKeyNotServer", "UpstreamFailure"] as const },
+  'net.openfederation.account.enableDeviceSigning': { revision: 1, errors: ["AtprotoKeyNotDevice", "CustodyModeNotSupported", "DeviceSigningNotAllowed", "UpstreamFailure"] as const },
   'net.openfederation.account.export': { revision: 5, errors: ["ExportTooLarge", "Forbidden", "NotFound", "TakenDown"] as const },
   'net.openfederation.account.getProfile': { revision: 2, errors: ["InvalidRequest", "ProfileNotFound", "RepoNotFound", "RepoTakendown"] as const },
-  'net.openfederation.account.getSecurityLevel': { revision: 5, errors: ["NotFound"] as const },
+  'net.openfederation.account.getSecurityLevel': { revision: 6, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },
   'net.openfederation.account.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
@@ -3469,8 +3527,10 @@ export const lexiconContracts = {
   'net.openfederation.pseudonym.getTokenKeys': { revision: 2, errors: [] as const },
   'net.openfederation.pseudonym.link': { revision: 2, errors: [] as const },
   'net.openfederation.pseudonym.signLink': { revision: 2, errors: ["Forbidden", "InvalidStatement", "SelfCustodyAccount", "Unauthorized"] as const },
+  'net.openfederation.repo.prepareCommit': { revision: 1, errors: ["DeviceSigningOff", "ProbationLimit", "RecordNotFound", "TooManyPendingCommits", "UseDedicatedEndpoint"] as const },
+  'net.openfederation.repo.submitCommit': { revision: 1, errors: ["CommitExpired", "DeviceSigningOff", "InvalidSignature", "RepoHeadMoved", "UnknownCommit", "UpstreamFailure"] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
-  'net.openfederation.server.getPublicConfig': { revision: 4, errors: [] as const },
+  'net.openfederation.server.getPublicConfig': { revision: 5, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },
   'net.openfederation.vault.exportRecoveryKey': { revision: 4, errors: ["SelfCustodyAccount", "ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
   'net.openfederation.vault.getCustodialSecret': { revision: 4, errors: ["NotFound", "WalletAddressRequired"] as const },

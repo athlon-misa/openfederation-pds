@@ -21,6 +21,7 @@ import type { Keypair } from '@atproto/crypto';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { assertServerMaySign, isDeviceSigningOn } from '../repo/device-signing-state.js';
 import { atprotoKeyHistory } from '../identity/account-migration.js';
 import {
   authorSignatureValid, recordAuthor, withoutAuthorSignature, type AuthorSignature,
@@ -93,6 +94,10 @@ export async function writeMemberContent(opts: {
   /** Skip the visibility lookup when the caller already knows. */
   private?: boolean;
 }): Promise<StoredMemberContent> {
+  // Both branches sign with the author's repo key (a commit in their repo, or
+  // `authorSig` on a record in the community's). Under device signing (#240)
+  // that key is no longer theirs to the network, and not the server's to use.
+  await assertServerMaySign(opts.authorDid);
   const rkey = opts.rkey ?? RepoEngine.generateTid();
   const authorKeypair = await getKeypairForDid(opts.authorDid);
   const inCommunityRepo = opts.private ?? await isPrivateCommunity(opts.communityDid);
@@ -129,6 +134,16 @@ export async function relocateMemberContent(communityDid: string): Promise<{ thr
   const counts = { threads: 0, posts: 0, rsvps: 0, votes: 0, objections: 0 };
   const elsewhere = `at://${communityDid}/%`;
 
+  // An author whose device signs their repo (#240): the server can neither
+  // re-sign their record nor delete it from their repo, so it stays where it
+  // is (it was public until now anyway) for their device to remove. One such
+  // member must not stop the community from going private.
+  const deviceSigners = new Map<string, boolean>();
+  const serverMaySignFor = async (did: string): Promise<boolean> => {
+    if (!deviceSigners.has(did)) deviceSigners.set(did, await isDeviceSigningOn(did));
+    return !deviceSigners.get(did);
+  };
+
   const sourceRecord = async (uri: string): Promise<Record<string, unknown> | null> => {
     const [, , repo, collection, rkey] = uri.split('/');
     const row = await query<{ record: Record<string, unknown> }>(
@@ -148,6 +163,7 @@ export async function relocateMemberContent(communityDid: string): Promise<{ thr
     [communityDid, elsewhere],
   );
   for (const thread of threads.rows) {
+    if (!(await serverMaySignFor(thread.author_did))) continue;
     const record = await sourceRecord(thread.uri);
     if (!record) continue;
     const stored = await writeMemberContent({
@@ -165,6 +181,7 @@ export async function relocateMemberContent(communityDid: string): Promise<{ thr
     [communityDid, elsewhere],
   );
   for (const post of posts.rows) {
+    if (!(await serverMaySignFor(post.author_did))) continue;
     const source = await sourceRecord(post.uri);
     if (!source) continue;
     const record: Record<string, unknown> = {
@@ -190,6 +207,7 @@ export async function relocateMemberContent(communityDid: string): Promise<{ thr
     [`at://${communityDid}/%`, elsewhere],
   );
   for (const rsvp of rsvps.rows) {
+    if (!(await serverMaySignFor(rsvp.attendee_did))) continue;
     const record = await sourceRecord(rsvp.uri);
     if (!record) continue;
     const stored = await writeMemberContent({
@@ -224,6 +242,7 @@ export async function relocateMemberContent(communityDid: string): Promise<{ thr
   );
   for (const [rows, collection] of [[openVotes.rows, VOTE_COLLECTION], [objections.rows, OBJECTION_COLLECTION]] as const) {
     for (const row of rows) {
+      if (!(await serverMaySignFor(row.repo))) continue;
       await writeMemberContent({
         communityDid, authorDid: row.repo, collection, record: row.record, rkey: row.rkey, private: true,
       });

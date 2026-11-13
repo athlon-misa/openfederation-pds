@@ -3,6 +3,7 @@ import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 import { auditLog } from '../db/audit.js';
 import { query, withAdvisoryLock } from '../db/client.js';
 import {
@@ -63,6 +64,13 @@ export default async function voteOnProposal(req: AuthRequest, res: Response): P
       req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.governance.write'
     );
     if (!hasPermission) return;
+
+    // A vote is a record in the voter's own repo. When their device signs that
+    // repo (#240) the server cannot write it, and counting a vote nobody can
+    // sign would leave an unevidenced name in the tally. Refused before
+    // anything changes. (A delegator with device signing is left out of the
+    // count by canRecordVote, as one with no repo is.)
+    if (await respondIfDeviceSigning(res, req.auth!.did)) return;
 
     // Lazy timelock evaluation, before the per-proposal lock is taken: any
     // proposal in this community whose contest window has elapsed is applied

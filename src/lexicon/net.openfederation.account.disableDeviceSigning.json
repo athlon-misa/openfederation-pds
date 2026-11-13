@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.disableDeviceSigning",
+  "revision": 1,
+  "description": "Device signing (#240, ADR-003 decision 14): let this server sign the account's commits again. Only once PLC names this server's repo key (com.atproto.identity.getRecommendedDidCredentials) as the DID's atproto key again, through a PLC update the person signs with their rotation key. Drops prepared commits. Idempotent.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Turn device signing off for the caller's account.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "deviceSigning"
+          ],
+          "properties": {
+            "deviceSigning": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "AtprotoKeyNotServer",
+          "description": "PLC does not name this server's key as the DID's atproto key yet."
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The PLC directory could not be read."
+        }
+      ]
+    }
+  }
+}

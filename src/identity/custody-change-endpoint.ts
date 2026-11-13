@@ -16,14 +16,20 @@ interface Account { id: string; did: string; handle: string; email: string | nul
 /** Shared checks: a local, approved account with a custody mode, the right password, an allowed target. */
 export async function authorize(req: AuthRequest, res: Response): Promise<{ account: Account; target: CustodyMode } | null> {
   if (!requireAuth(req, res) || !requireLocalAccount(req, res) || !requireApprovedUser(req, res)) return null;
-  const row = (await query<{ id: string; handle: string; email: string | null; password_hash: string | null; custody_mode: string | null }>(
-    'SELECT id, handle, email, password_hash, custody_mode FROM users WHERE did = $1', [req.auth!.did])).rows[0];
+  const row = (await query<{ id: string; handle: string; email: string | null; password_hash: string | null; custody_mode: string | null; device_signing: boolean }>(
+    'SELECT id, handle, email, password_hash, custody_mode, device_signing FROM users WHERE did = $1', [req.auth!.did])).rows[0];
   if (!row || !isCustodyMode(row.custody_mode) || !row.password_hash) {
     throw new CustodyChangeError(400, 'InvalidRequest', 'This account has no custody mode to change');
   }
   const target = req.body?.targetMode;
   if (!isCustodyMode(target)) throw new CustodyChangeError(400, 'InvalidRequest', 'targetMode must be custodial, assisted or self');
   if (!config.identity.custodyAllowed.includes(target)) throw new CustodyChangeError(403, 'CustodyModeNotAllowed', `This server does not allow ${target} accounts`);
+  // Custodial accounts cannot have device signing (#240): the change keeps the
+  // DID's atproto key, which would leave a custodial account whose repo only
+  // its device can write.
+  if (target === 'custodial' && row.device_signing) {
+    throw new CustodyChangeError(403, 'DeviceSigningRequired', 'Turn device signing off first (point the DID back at this server\'s key, then disableDeviceSigning)');
+  }
   const check = await checkPasswordWithLockout(row.id, row.password_hash, typeof req.body?.password === 'string' ? req.body.password : '');
   if (!check.ok) {
     if (check.reason === 'locked') throw new CustodyChangeError(429, 'AccountLocked', `Too many failed attempts. Try again in ${check.retryAfterSeconds} seconds.`);

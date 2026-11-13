@@ -3,6 +3,7 @@ import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 import { auditLog } from '../db/audit.js';
 import { query, withAdvisoryLock } from '../db/client.js';
 import { putProposalRecord } from '../governance/proposal-resolution.js';
@@ -58,6 +59,10 @@ export default async function objectToProposal(req: AuthRequest, res: Response):
       req as AuthRequest & { auth: AuthContext }, res, communityDid, 'community.governance.write'
     );
     if (!hasPermission) return;
+
+    // The objection is a record the objector signs; under device signing (#240)
+    // the server cannot make it. Refused before anything changes.
+    if (await respondIfDeviceSigning(res, req.auth!.did)) return;
 
     // Any window that has already elapsed is applied first, outside the lock
     // this handler takes below. A late objection must find the change applied,

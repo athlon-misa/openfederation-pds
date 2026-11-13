@@ -46,8 +46,10 @@ export default async function getSecurityLevel(req: AuthRequest, res: Response):
       recovery_tier: number;
       recovery_email_verified: boolean;
       custody_mode: string | null;
+      device_signing: boolean;
+      device_signing_key: string | null;
     }>(
-      'SELECT recovery_tier, recovery_email_verified, custody_mode FROM users WHERE did = $1',
+      'SELECT recovery_tier, recovery_email_verified, custody_mode, device_signing, device_signing_key FROM users WHERE did = $1',
       [userDid]
     );
 
@@ -83,6 +85,9 @@ export default async function getSecurityLevel(req: AuthRequest, res: Response):
       recoveryTier,
       // ADR-003: custodial, assisted or self; null when no rotation key is held here or by the user.
       custodyMode: user.custody_mode,
+      // #240: the device signs the repo; this server cannot write to it.
+      deviceSigning: user.device_signing === true,
+      deviceSigningKey: user.device_signing_key,
       tierName: tierName(recoveryTier),
       // True whenever this server can rebuild the rotation key on its own.
       pdsHoldsRotationKey: await holdsRotationKey(userDid),

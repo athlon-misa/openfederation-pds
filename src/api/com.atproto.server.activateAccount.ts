@@ -6,7 +6,8 @@ import { auditLog } from '../db/audit.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 import { config } from '../config.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
-import { currentPlcState, pointsHere } from '../identity/account-migration.js';
+import { currentPlcState, accountPointsHere } from '../identity/account-migration.js';
+import { isDeviceSigningOn } from '../repo/device-signing-state.js';
 
 /**
  * com.atproto.server.activateAccount
@@ -76,7 +77,8 @@ export default async function activateAccount(req: AuthRequest, res: Response): 
     }
     if (state !== null) {
       const keypair = await getKeypairForDid(userDid);
-      if (!pointsHere(state, config.pds.serviceUrl, keypair.did())) {
+      // With device signing (#240) the DID names the device's key, not ours.
+      if (!accountPointsHere(state, config.pds.serviceUrl, keypair.did(), await isDeviceSigningOn(userDid))) {
         res.status(400).json({
           error: 'IncompatibleDidDoc',
           message: 'The DID does not point to this PDS and its signing key; update it in the PLC directory first',

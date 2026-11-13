@@ -22,12 +22,18 @@ export interface IdentityPolicy {
   custodyDefault: CustodyMode;
   /** New pseudonyms (tokens, creation, moving in). Existing ones keep working. */
   pseudonymsEnabled: boolean;
+  /**
+   * Whether `self` and `assisted` accounts may turn on device signing (#240):
+   * their device holds the repo signing key and this server only prepares
+   * commits. Off unless the `privacy` profile or DEVICE_SIGNING_ALLOWED says so.
+   */
+  deviceSigningAllowed: boolean;
 }
 
 const PROFILE_DEFAULTS: Record<IdentityProfile | 'none', Omit<IdentityPolicy, 'profile'>> = {
-  none: { custodyAllowed: [...CUSTODY_MODES], custodyDefault: 'custodial', pseudonymsEnabled: true },
-  community: { custodyAllowed: [...CUSTODY_MODES], custodyDefault: 'custodial', pseudonymsEnabled: false },
-  privacy: { custodyAllowed: [...CUSTODY_MODES], custodyDefault: 'self', pseudonymsEnabled: true },
+  none: { custodyAllowed: [...CUSTODY_MODES], custodyDefault: 'custodial', pseudonymsEnabled: true, deviceSigningAllowed: false },
+  community: { custodyAllowed: [...CUSTODY_MODES], custodyDefault: 'custodial', pseudonymsEnabled: false, deviceSigningAllowed: false },
+  privacy: { custodyAllowed: [...CUSTODY_MODES], custodyDefault: 'self', pseudonymsEnabled: true, deviceSigningAllowed: true },
 };
 
 export function isCustodyMode(value: unknown): value is CustodyMode {
@@ -72,7 +78,14 @@ export function resolveIdentityPolicy(env: Record<string, string | undefined>): 
     pseudonymsEnabled = rawPseudonyms === 'true';
   }
 
-  return { profile, custodyAllowed, custodyDefault, pseudonymsEnabled };
+  let deviceSigningAllowed = base.deviceSigningAllowed;
+  const rawDeviceSigning = env.DEVICE_SIGNING_ALLOWED?.trim();
+  if (rawDeviceSigning) {
+    if (rawDeviceSigning !== 'true' && rawDeviceSigning !== 'false') throw new Error('DEVICE_SIGNING_ALLOWED must be "true" or "false"');
+    deviceSigningAllowed = rawDeviceSigning === 'true';
+  }
+
+  return { profile, custodyAllowed, custodyDefault, pseudonymsEnabled, deviceSigningAllowed };
 }
 
 export class CustodyPolicyError extends Error {

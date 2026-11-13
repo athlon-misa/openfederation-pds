@@ -13,6 +13,9 @@ import {
   WriteOpAction,
   getFullRepo,
   cidForRecord,
+  cborToLex,
+  BlockMap,
+  CidSet,
 } from '@atproto/repo';
 import type {
   RecordCreateOp,
@@ -23,16 +26,61 @@ import type { Keypair } from '@atproto/crypto';
 import type { PoolClient } from 'pg';
 import { PgBlockstore, RepoConcurrentWriteError } from './pg-blockstore.js';
 import { query } from '../db/client.js';
+import { assertServerMaySign } from './device-signing-state.js';
+import { HttpError } from '../xrpc/errors.js';
 
 import { MEMBER_COLLECTION, projectMemberRow } from '../community/projections.js';
 
-type IndexOp = {
+export type IndexOp = {
   action: WriteOpAction;
   collection: string;
   rkey: string;
   record?: Record<string, unknown>;
   cid?: string;
 };
+
+export type BatchOp =
+  | { action: 'write'; collection: string; rkey: string; record: Record<string, unknown> }
+  | { action: 'delete'; collection: string; rkey: string };
+
+export type BatchResult = Array<{ collection: string; rkey: string; uri: string; cid?: string }>;
+
+/**
+ * A commit built for the account's device to sign (#240): everything
+ * `PgBlockstore.applyCommit` needs except the commit block, which only exists
+ * once the signature does.
+ */
+export interface PreparedDeviceCommit {
+  /** The root the commit was built on; it applies only while this is still the root. */
+  prevRoot: string;
+  since: string | null;
+  rev: string;
+  /** DAG-CBOR of the unsigned commit `{did, version, data, rev, prev}`: exactly what the device signs. */
+  unsigned: Uint8Array;
+  /** New MST nodes and record blocks (not the commit block). */
+  newBlocks: Array<[cid: string, bytes: Uint8Array]>;
+  removedCids: string[];
+  indexOps: IndexOp[];
+  results: BatchResult;
+}
+
+/**
+ * Stands in for the repo key while `Repo.formatCommit` builds a commit for the
+ * device: it keeps the bytes `formatCommit` asks to have signed and returns a
+ * placeholder signature, whose commit block is then thrown away.
+ */
+function capturingSigner(): { keypair: Keypair; captured: () => Uint8Array } {
+  let bytes: Uint8Array | null = null;
+  const keypair: Keypair = {
+    jwtAlg: 'ES256K',
+    did: () => 'did:key:unsigned',
+    sign: async (msg: Uint8Array) => { bytes = new Uint8Array(msg); return new Uint8Array(64); },
+  };
+  return {
+    keypair,
+    captured: () => { if (!bytes) throw new Error('formatCommit did not ask for a signature'); return bytes; },
+  };
+}
 
 /**
  * One writer at a time per repo, in this process. A commit is "load the root,
@@ -86,6 +134,8 @@ export class RepoEngine {
     }));
 
     await serializeRepoWrite(this.did, async () => {
+      // The server never signs for an account whose device holds the repo key (#240).
+      await assertServerMaySign(this.did);
       const commit = await Repo.formatInitCommit(this.storage, this.did, keypair, createOps);
       await this.storage.applyCommit(commit, client => this.applyIndexOps(client, indexOps));
     });
@@ -104,6 +154,10 @@ export class RepoEngine {
     plan: () => Promise<{ writeOps: RecordWriteOp[]; indexOps: IndexOp[]; result: T }>,
   ): Promise<T> {
     return serializeRepoWrite(this.did, async () => {
+      // The server never signs for an account whose device holds the repo key
+      // (#240): the commit would not verify against the DID, and making it at
+      // all would be the server speaking for the person.
+      await assertServerMaySign(this.did);
       for (let attempt = 1; ; attempt++) {
         const repo = await Repo.load(this.storage);
         const { writeOps, indexOps, result } = await plan();
@@ -219,6 +273,106 @@ export class RepoEngine {
 
       return { writeOps, indexOps, result };
     });
+  }
+
+  /**
+   * Build a commit for the account's device to sign (#240), on the current
+   * root, without signing it. The MST work is `Repo.formatCommit`'s own: it
+   * runs with a stand-in signer that records the exact bytes it would sign,
+   * and the placeholder commit block it makes is dropped.
+   *
+   * Nothing is stored; `applyDeviceCommit` applies the result once the device
+   * has signed `unsigned`, and only while `prevRoot` is still the root.
+   * Create or update is decided from `records_index`, as for server writes;
+   * deleting a record that is not there is refused here rather than failing
+   * inside the tree.
+   */
+  async prepareDeviceCommit(ops: BatchOp[]): Promise<PreparedDeviceCommit> {
+    if (ops.length === 0) throw new HttpError(400, 'InvalidRequest', 'No writes to prepare');
+    const keys = ops.map((op) => `${op.collection}/${op.rkey}`);
+    if (new Set(keys).size !== keys.length) {
+      throw new HttpError(400, 'InvalidRequest', 'A commit may touch each record only once');
+    }
+    const cids = new Map<string, string>();
+    for (const op of ops) {
+      if (op.action === 'write') cids.set(`${op.collection}/${op.rkey}`, (await cidForRecord(op.record)).toString());
+    }
+
+    return serializeRepoWrite(this.did, async () => {
+      const repo = await Repo.load(this.storage);
+      const rows = await query<{ collection: string; rkey: string }>(
+        `SELECT collection, rkey FROM records_index
+         WHERE community_did = $1 AND (collection || '/' || rkey) = ANY($2)`,
+        [this.did, keys],
+      );
+      const existing = new Set(rows.rows.map((row) => `${row.collection}/${row.rkey}`));
+
+      const writeOps: RecordWriteOp[] = [];
+      const indexOps: IndexOp[] = [];
+      const results: BatchResult = [];
+      for (const op of ops) {
+        const key = `${op.collection}/${op.rkey}`;
+        const uri = `at://${this.did}/${key}`;
+        if (op.action === 'delete') {
+          if (!existing.has(key)) throw new HttpError(400, 'RecordNotFound', `No record at ${uri}`);
+          writeOps.push({ action: WriteOpAction.Delete, collection: op.collection, rkey: op.rkey });
+          indexOps.push({ action: WriteOpAction.Delete, collection: op.collection, rkey: op.rkey });
+          results.push({ collection: op.collection, rkey: op.rkey, uri });
+          continue;
+        }
+        const action = existing.has(key) ? WriteOpAction.Update : WriteOpAction.Create;
+        const cid = cids.get(key)!;
+        writeOps.push({ action, collection: op.collection, rkey: op.rkey, record: op.record });
+        indexOps.push({ action, collection: op.collection, rkey: op.rkey, record: op.record, cid });
+        results.push({ collection: op.collection, rkey: op.rkey, uri, cid });
+      }
+
+      const signer = capturingSigner();
+      const commit = await repo.formatCommit(writeOps, signer.keypair);
+      commit.newBlocks.delete(commit.cid); // the placeholder-signed commit block
+      if (!commit.prev) throw new Error('A prepared commit always follows an existing root');
+      return {
+        prevRoot: commit.prev.toString(),
+        since: commit.since,
+        rev: commit.rev,
+        unsigned: signer.captured(),
+        newBlocks: [...commit.newBlocks].map(([cid, bytes]) => [cid.toString(), bytes] as [string, Uint8Array]),
+        removedCids: commit.removedCids.toList().map((cid) => cid.toString()),
+        indexOps,
+        results,
+      };
+    });
+  }
+
+  /**
+   * Apply a prepared commit with the device's signature (#240): the commit
+   * block is `{...unsigned, sig}`, encoded as `Repo.formatCommit` encodes it.
+   * The caller has already checked `sig` against the DID's current `atproto`
+   * key. The root moves only if it is still `prevRoot` (`PgBlockstore.applyCommit`
+   * compares and swaps); otherwise this throws `RepoConcurrentWriteError`.
+   * `records_index` changes in the same transaction, as for every write.
+   */
+  async applyDeviceCommit(prepared: PreparedDeviceCommit, sig: Uint8Array): Promise<{ cid: string; rev: string }> {
+    const unsigned = cborToLex(prepared.unsigned) as Record<string, unknown>;
+    if (unsigned.did !== this.did || unsigned.rev !== prepared.rev) {
+      throw new Error('The prepared commit does not belong to this repo');
+    }
+    const blocks = new BlockMap();
+    for (const [cid, bytes] of prepared.newBlocks) blocks.set(CID.parse(cid), bytes);
+    const commitCid = await blocks.add({ ...unsigned, sig } as Parameters<BlockMap['add']>[0]);
+    const commit: CommitData = {
+      cid: commitCid,
+      rev: prepared.rev,
+      since: prepared.since,
+      prev: CID.parse(prepared.prevRoot),
+      newBlocks: blocks,
+      relevantBlocks: blocks,
+      removedCids: new CidSet(prepared.removedCids.map((cid) => CID.parse(cid))),
+    };
+    await serializeRepoWrite(this.did, () =>
+      this.storage.applyCommit(commit, (client) => this.applyIndexOps(client, prepared.indexOps)),
+    );
+    return { cid: commitCid.toString(), rev: prepared.rev };
   }
 
   /**

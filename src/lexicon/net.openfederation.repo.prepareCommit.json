@@ -1,0 +1,114 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.repo.prepareCommit",
+  "revision": 1,
+  "description": "Device signing (#240): build the commit for a set of writes to the caller's own repository on its current root, without signing it. Returns the bytes the device must sign (the commit's DAG-CBOR without sig), the new blocks so the device can check what it signs, and a handle for net.openfederation.repo.submitCommit. Only for accounts with device signing on. The prepared commit is bound to the account and to the root it was built on, expires after 5 minutes, and an account may hold at most 8 at once.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Prepare an unsigned commit for the account's device to sign.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "writes"
+          ],
+          "properties": {
+            "repo": {
+              "type": "string",
+              "format": "did",
+              "description": "The caller's own DID (optional)."
+            },
+            "writes": {
+              "type": "array",
+              "maxLength": 200,
+              "description": "As com.atproto.repo.applyWrites: { action: 'create' | 'update' | 'delete' (or $type com.atproto.repo.applyWrites#create etc.), collection, rkey (optional for create: a TID is chosen), value (create and update) }. createRecord, putRecord and deleteRecord are one-write batches.",
+              "items": {
+                "type": "unknown"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "handle",
+            "did",
+            "rev",
+            "prevRoot",
+            "unsignedCommit",
+            "newBlocks",
+            "writes",
+            "expiresAt"
+          ],
+          "properties": {
+            "handle": {
+              "type": "string",
+              "description": "Opaque id of the prepared commit, for submitCommit."
+            },
+            "did": {
+              "type": "string",
+              "format": "did"
+            },
+            "rev": {
+              "type": "string",
+              "description": "The commit's revision (a TID)."
+            },
+            "prevRoot": {
+              "type": "string",
+              "description": "CID of the commit this one follows (the repo's current root)."
+            },
+            "unsignedCommit": {
+              "type": "string",
+              "description": "Base64 DAG-CBOR of {did, version: 3, data, rev, prev: null}: sign exactly these bytes with the DID's atproto key (secp256k1 or P-256, ECDSA over SHA-256, compact 64 bytes, low-S)."
+            },
+            "newBlocks": {
+              "type": "array",
+              "description": "The new MST nodes and record blocks, { cid, bytes (base64) }, so the device can check the new tree holds exactly its writes before signing.",
+              "items": {
+                "type": "unknown"
+              }
+            },
+            "writes": {
+              "type": "array",
+              "description": "Per write: { collection, rkey, uri, cid (create and update) }.",
+              "items": {
+                "type": "unknown"
+              }
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "datetime"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "DeviceSigningOff",
+          "description": "Device signing is not on for this account; write with com.atproto.repo.*."
+        },
+        {
+          "name": "UseDedicatedEndpoint",
+          "description": "Records in this collection are written only through their dedicated endpoint."
+        },
+        {
+          "name": "RecordNotFound",
+          "description": "A delete names a record that does not exist."
+        },
+        {
+          "name": "TooManyPendingCommits",
+          "description": "The account already holds the maximum number of prepared commits."
+        },
+        {
+          "name": "ProbationLimit",
+          "description": "A new pseudonym reached its daily write limit."
+        }
+      ]
+    }
+  }
+}

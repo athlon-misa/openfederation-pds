@@ -16,6 +16,7 @@
 
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { isDeviceSigningOn } from '../repo/device-signing-state.js';
 
 export { OBJECTION_COLLECTION } from './decision-rules.js';
 import { OBJECTION_COLLECTION, PROPOSAL_COLLECTION, proposalUri } from './decision-rules.js';
@@ -53,6 +54,8 @@ export interface ObjectionRecordResult {
  * repo" is a verdict, a failed lookup is not.
  */
 export async function canRecordObjection(objectorDid: string): Promise<boolean> {
+  // As for votes: under device signing (#240) the server cannot sign it.
+  if (await isDeviceSigningOn(objectorDid)) return false;
   return new RepoEngine(objectorDid).hasRepo();
 }
 

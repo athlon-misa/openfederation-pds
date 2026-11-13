@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.enableDeviceSigning",
+  "revision": 1,
+  "description": "Device signing (#240, ADR-003 decision 14): record that the account's device signs its repository. Call after the PLC update (signed with the person's rotation key) that names the device key as the DID's atproto key. Turned on only when PLC names a key that is not one of this server's keys for the DID; from then on every server-side write into the account's repo refuses with DeviceSigningRequired. Self and assisted accounts only, where the installation allows it (getPublicConfig identity.deviceSigningAllowed). Idempotent.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Turn device signing on for the caller's account.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "deviceSigning",
+            "atprotoKey"
+          ],
+          "properties": {
+            "deviceSigning": {
+              "type": "boolean"
+            },
+            "atprotoKey": {
+              "type": "string",
+              "description": "The did:key PLC names as the DID's atproto key."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "DeviceSigningNotAllowed",
+          "description": "This server does not offer device signing."
+        },
+        {
+          "name": "CustodyModeNotSupported",
+          "description": "Only self and assisted accounts can have device signing."
+        },
+        {
+          "name": "AtprotoKeyNotDevice",
+          "description": "PLC still names this server's key (or no usable key) as the DID's atproto key."
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The PLC directory could not be read."
+        }
+      ]
+    }
+  }
+}

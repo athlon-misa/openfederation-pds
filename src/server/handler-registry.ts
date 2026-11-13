@@ -25,6 +25,10 @@ import prepareCustodyChange from '../api/net.openfederation.identity.prepareCust
 import finalizeCustodyChange from '../api/net.openfederation.identity.finalizeCustodyChange.js';
 import registerSelfCustody from '../api/net.openfederation.account.registerSelfCustody.js';
 import reserveCustodyKey from '../api/net.openfederation.account.reserveCustodyKey.js';
+import enableDeviceSigning from '../api/net.openfederation.account.enableDeviceSigning.js';
+import disableDeviceSigning from '../api/net.openfederation.account.disableDeviceSigning.js';
+import prepareCommit from '../api/net.openfederation.repo.prepareCommit.js';
+import submitCommit from '../api/net.openfederation.repo.submitCommit.js';
 import registerAccount from '../api/net.openfederation.account.register.js';
 import approveAccount from '../api/net.openfederation.account.approve.js';
 import rejectAccount from '../api/net.openfederation.account.reject.js';
@@ -250,6 +254,12 @@ const handlers = Object.freeze({
   'net.openfederation.identity.prepareCustodyChange': { handler: prepareCustodyChange, limiter: authLimiter },
   'net.openfederation.identity.finalizeCustodyChange': { handler: finalizeCustodyChange, limiter: authLimiter },
   'net.openfederation.account.reserveCustodyKey': { handler: reserveCustodyKey, limiter: createLimiter },
+  // Device signing (#240): turning it on or off reads PLC; prepare and submit
+  // are ordinary writes and take only the global limit, like createRecord.
+  'net.openfederation.account.enableDeviceSigning': { handler: enableDeviceSigning, limiter: authLimiter },
+  'net.openfederation.account.disableDeviceSigning': { handler: disableDeviceSigning, limiter: authLimiter },
+  'net.openfederation.repo.prepareCommit': { handler: prepareCommit },
+  'net.openfederation.repo.submitCommit': { handler: submitCommit },
   'net.openfederation.account.approve': { handler: approveAccount },
   'net.openfederation.account.reject': { handler: rejectAccount },
   'net.openfederation.account.listPending': { handler: listPendingAccounts },

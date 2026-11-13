@@ -1,0 +1,92 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.repo.submitCommit",
+  "revision": 1,
+  "description": "Device signing (#240): apply a commit prepared by net.openfederation.repo.prepareCommit with the device's signature over exactly its unsignedCommit bytes. The signature is checked against the DID's current atproto key, read from PLC on every call. The commit applies only while the repository's root is still the one it was built on. A handle can be submitted once, by the account that prepared it.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Submit a device-signed commit.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "handle",
+            "sig"
+          ],
+          "properties": {
+            "handle": {
+              "type": "string",
+              "description": "From prepareCommit."
+            },
+            "sig": {
+              "type": "string",
+              "description": "Base64 compact (64-byte, low-S) ECDSA signature over unsignedCommit."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "commit",
+            "writes"
+          ],
+          "properties": {
+            "commit": {
+              "type": "object",
+              "required": [
+                "cid",
+                "rev"
+              ],
+              "properties": {
+                "cid": {
+                  "type": "string"
+                },
+                "rev": {
+                  "type": "string"
+                }
+              }
+            },
+            "writes": {
+              "type": "array",
+              "description": "Per write: { collection, rkey, uri, cid (create and update) }.",
+              "items": {
+                "type": "unknown"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "UnknownCommit",
+          "description": "No such prepared commit for this account: already submitted, or never prepared here."
+        },
+        {
+          "name": "CommitExpired",
+          "description": "The prepared commit expired; prepare again."
+        },
+        {
+          "name": "DeviceSigningOff",
+          "description": "Device signing is off for this account (or PLC names this server's key again, which turns it off)."
+        },
+        {
+          "name": "InvalidSignature",
+          "description": "The signature does not verify against the DID's current atproto key."
+        },
+        {
+          "name": "RepoHeadMoved",
+          "description": "The repository changed since the commit was prepared; prepare again."
+        },
+        {
+          "name": "UpstreamFailure",
+          "description": "The PLC directory could not be read."
+        }
+      ]
+    }
+  }
+}

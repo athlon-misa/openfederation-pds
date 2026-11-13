@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.getSecurityLevel",
-  "revision": 5,
+  "revision": 6,
   "description": "Get the account's custody status. All tiers are custodial (this server holds the rotation key); the tier records an escrow provider on record and whether the user has exported their own copy of the key.",
   "defs": {
     "main": {
@@ -52,6 +52,14 @@
                 "self"
               ],
               "description": "Who holds the account's PLC rotation key (ADR-003). Absent or null when neither this server nor the user holds one here (external accounts)."
+            },
+            "deviceSigning": {
+              "type": "boolean",
+              "description": "True when the account's device signs its repository (#240): this server cannot write to it."
+            },
+            "deviceSigningKey": {
+              "type": "string",
+              "description": "The device key PLC named when device signing was turned on; null when off."
             }
           }
         }

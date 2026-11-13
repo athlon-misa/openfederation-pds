@@ -1,6 +1,7 @@
 import { query, withAdvisoryLock } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { assertServerMaySign, isDeviceSigningOn } from '../repo/device-signing-state.js';
 import type { AuthContext } from '../auth/types.js';
 import { resolveDisplayFields, batchResolveOptionalDisplayFields } from '../community/display-projection.js';
 import { createNotification } from '../notification/index.js';
@@ -25,6 +26,8 @@ export async function sendContactRequest(
   if (note !== undefined && note !== null && (typeof note !== 'string' || note.length > MAX_NOTE_LENGTH)) {
     throw Object.assign(new Error(`note must be text of at most ${MAX_NOTE_LENGTH} characters`), { code: 'InvalidRequest', status: 400 });
   }
+  // The request is a record in the caller's repo (#240: their device signs it).
+  await assertServerMaySign(callerDid);
 
   // A request can only be accepted by an account on this PDS (acceptance
   // writes to both repositories), so one addressed to anything else can never
@@ -129,6 +132,14 @@ export async function respondToContactRequest(
     }
     const { from_did: fromDid } = reqRow.rows[0];
 
+    // Accepting writes a contact record into both repos; neither can be
+    // written by the server when that person's device signs it (#240).
+    // Checked before anything is written, so no half-made contact is left.
+    if (action === 'accept') {
+      await assertServerMaySign(callerDid);
+      await assertServerMaySign(fromDid, 'The person who sent this request signs their repository on their own device, so the server cannot add the contact to it; they must add it themselves');
+    }
+
     // Every step below checks whether it has already been done, and the
     // request row is removed last. If something fails part-way the request is
     // still there, and responding again finishes the job without repeating
@@ -144,7 +155,9 @@ export async function respondToContactRequest(
       'SELECT 1 FROM records_index WHERE community_did = $1 AND collection = $2 AND rkey = $3',
       [fromDid, REQUEST_COLLECTION, rkey],
     );
-    if (requestRecord.rows.length > 0) {
+    // If the requester's device signs their repo (#240), their request record
+    // stays for their device to delete; the request itself is still resolved.
+    if (requestRecord.rows.length > 0 && !(await isDeviceSigningOn(fromDid))) {
       const fromEngine = new RepoEngine(fromDid);
       await fromEngine.deleteRecord(await getKeypairForDid(fromDid), REQUEST_COLLECTION, rkey);
     }
@@ -196,6 +209,8 @@ export async function removeContact(auth: AuthContext, subject: string): Promise
     throw Object.assign(new Error('No accepted contact relationship with the given DID'), { code: 'NotFound', status: 404 });
   }
   const callerContactRkey = callerRow.rows[0].rkey;
+  // The caller's contact record is in their repo (#240: their device signs it).
+  await assertServerMaySign(callerDid);
 
   const subjectRow = await query<{ rkey: string }>(
     'SELECT rkey FROM contacts WHERE user_did = $1 AND contact_did = $2',
@@ -428,6 +443,7 @@ export async function withdrawContactRequest(
   if (row.rows.length === 0) {
     throw Object.assign(new Error('No outgoing request with the given rkey, or already resolved'), { code: 'NotFound', status: 404 });
   }
+  await assertServerMaySign(callerDid); // #240
 
   const engine = new RepoEngine(callerDid);
   const keypair = await getKeypairForDid(callerDid);
@@ -442,6 +458,10 @@ export async function blockContact(auth: AuthContext, subject: string): Promise<
   const callerDid = auth.did!;
   if (!subject) throw Object.assign(new Error('Missing subject'), { code: 'InvalidRequest', status: 400 });
   if (subject === callerDid) throw Object.assign(new Error('Cannot block yourself'), { code: 'InvalidRequest', status: 400 });
+  // The block is a record in the caller's repo (#240), refused before any
+  // contact or request is removed. The other side's records are removed best
+  // effort, which skips a repo whose device signs it.
+  await assertServerMaySign(callerDid);
 
   // Remove any existing contact in either direction
   const existingContact = await query<{ rkey: string; side: string }>(
@@ -518,6 +538,7 @@ export async function unblockContact(auth: AuthContext, subject: string): Promis
   if (row.rows.length === 0) {
     throw Object.assign(new Error('The given DID is not blocked'), { code: 'NotFound', status: 404 });
   }
+  await assertServerMaySign(callerDid); // #240
 
   const engine = new RepoEngine(callerDid);
   const keypair = await getKeypairForDid(callerDid);

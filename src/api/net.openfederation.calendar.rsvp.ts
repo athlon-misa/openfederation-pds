@@ -5,6 +5,7 @@ import { indexRsvp, CALENDAR_RSVP, CALENDAR_EVENT } from '../forum/forum-index.j
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { writeMemberContent, deleteMemberContent, isPrivateCommunity } from '../forum/member-content.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 
 const STATUSES = ['going', 'interested', 'notgoing'];
 
@@ -42,6 +43,9 @@ export default async function rsvp(req: AuthRequest, res: Response): Promise<voi
     }
 
     const attendeeDid = req.auth!.did;
+    // An RSVP is in the attendee's repo, or (private community) signed with
+    // their repo key: neither is the server's to make under device signing (#240).
+    if (await respondIfDeviceSigning(res, attendeeDid)) return;
     const createdAt = new Date().toISOString();
     const record = { subject: event, status, createdAt };
 
