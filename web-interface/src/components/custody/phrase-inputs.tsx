@@ -9,7 +9,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { loadRemembered } from '@/lib/custody/custody';
 
 /** A new phrase: shown once, then three of its words are asked back. */
-export function NewPhrase({ onReady }: { onReady: (phrase: string) => void }) {
+export function NewPhrase({ onReady, intro }: {
+  onReady: (phrase: string) => void;
+  /** What the words are for; by default, the identity phrase. */
+  intro?: string;
+}) {
   const [phrase] = useState(() => generateCustodyPhrase());
   const words = phrase.split(' ');
   const [stage, setStage] = useState<'show' | 'check'>('show');
@@ -26,7 +30,7 @@ export function NewPhrase({ onReady }: { onReady: (phrase: string) => void }) {
   if (stage === 'show') {
     return (
       <div className="space-y-3">
-        <p className="text-sm">Write these 12 words on paper, in order, and keep them safe. They are the key to your identity; this page will not show them again.</p>
+        <p className="text-sm">{intro ?? 'Write these 12 words on paper, in order, and keep them safe. They are the key to your identity; this page will not show them again.'}</p>
         <ol className="grid grid-cols-3 gap-2 rounded-md border p-3 font-mono text-sm" aria-label="Your 12 words">
           {words.map((w, i) => <li key={i}><span className="text-muted-foreground">{i + 1}.</span> {w}</li>)}
         </ol>
@@ -105,6 +109,22 @@ export function ExistingPhrase({ did, onReady }: { did: string; onReady: (phrase
       {'problem' in typed && typed.problem && <p className="text-sm text-muted-foreground">{typed.problem}</p>}
       <Button type="button" disabled={!('phrase' in typed)} onClick={() => 'phrase' in typed && onReady(typed.phrase)}>Continue</Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+/** A 12-word phrase other than the identity phrase (the backup recovery phrase), typed or pasted. */
+export function TypedPhrase({ id, label, action = 'Continue', onReady }: { id: string; label: string; action?: string; onReady: (phrase: string) => void }) {
+  const [text, setText] = useState('');
+  const typed = readPhrase(text);
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <Label htmlFor={id}>{label}</Label>
+        <Textarea id={id} autoComplete="off" spellCheck={false} className="font-mono" value={text} onChange={(e) => setText(e.target.value)} />
+      </div>
+      {'problem' in typed && typed.problem && <p className="text-sm text-muted-foreground">{typed.problem}</p>}
+      <Button type="button" disabled={!('phrase' in typed)} onClick={() => 'phrase' in typed && onReady(typed.phrase)}>{action}</Button>
     </div>
   );
 }
