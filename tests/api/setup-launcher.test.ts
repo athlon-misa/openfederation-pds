@@ -51,7 +51,10 @@ function baseEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
 }
 
 function start(env: NodeJS.ProcessEnv) {
-  const child = spawn(process.execPath, ['--import', './scripts/register-ts-node.mjs', 'src/index.ts'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  // The child must not read the developer's .env from the repo root: only the
+  // environment each test builds may configure it.
+  const isolated = { ...env, DOTENV_CONFIG_PATH: join(ROOT, 'tests', 'fixtures', 'no-such-dotenv-file') };
+  const child = spawn(process.execPath, ['--import', './scripts/register-ts-node.mjs', 'src/index.ts'], { cwd: ROOT, env: isolated, stdio: ['ignore', 'pipe', 'pipe'] });
   children.push(child);
   let output = '';
   child.stdout!.on('data', (d) => { output += d; });

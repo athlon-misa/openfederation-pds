@@ -6,7 +6,8 @@ import { loadSettingsFile, runSetupIfNeeded } from './setup/launcher.js';
 
 async function main() {
   try {
-    dotenv.config({ quiet: true });
+    // DOTENV_CONFIG_PATH (dotenv's own convention) picks another file, e.g. none in tests.
+    dotenv.config({ quiet: true, path: process.env.DOTENV_CONFIG_PATH || undefined });
     loadSettingsFile(process.env);
     await runSetupIfNeeded(process.env);
 
