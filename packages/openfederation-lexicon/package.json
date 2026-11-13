@@ -23,7 +23,8 @@
   },
   "scripts": {
     "build": "tsup",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "node -e \"const fs=require('fs');const missing=['dist/index.js','schemas'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('Not built, refusing to publish: '+missing.join(', '));process.exit(1)}\""
   },
   "peerDependencies": {
     "@atproto/lexicon": ">=0.4.0"

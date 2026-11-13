@@ -1,7 +1,7 @@
 {
   "name": "@open-federation/sdk",
   "version": "0.6.0",
-  "description": "Vanilla JS SDK for OpenFederation PDS — registration, login, and session management",
+  "description": "Vanilla JS SDK for OpenFederation PDS \u2014 registration, login, and session management",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -45,7 +45,8 @@
   "scripts": {
     "build": "tsup && cp src/global.d.ts dist/global.d.ts",
     "dev": "tsup --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "node -e \"const fs=require('fs');const missing=['dist/index.js','dist/custody.js'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('Not built, refusing to publish: '+missing.join(', '));process.exit(1)}\""
   },
   "devDependencies": {
     "tsup": "^8.0.0",

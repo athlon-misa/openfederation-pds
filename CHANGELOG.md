@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`@open-federation/pseudonym` was published without its code.** The release built the other packages but not this one, so versions 0.1.0 to 0.3.0 contain only `package.json` and the README. The release now builds it, and every published package refuses to publish (`prepublishOnly`) when its built files are missing.
 - **Signing in with the full handle failed.** Accounts store the short handle, and AT Protocol clients send the full one (`elena.openfederation.net`), which matched nothing. Sign-in and the password-reset request now drop this server's own handle domain, in any letter case; another server's domain is left alone.
 - **Custody changes and the server's `assisted` recovery keep a recovery key** (#238). `identity.prepareCustodyChange` / `finalizeCustodyChange` rebuilt the rotation keys as the phrase key alone (`self`) or the phrase key and the server's key (`assisted`), so a change between the two dropped any other key the person had listed; `identity.recoverAssistedAccount` did the same when replacing a lost phrase key. Both now keep the person's other keys directly below their phrase key. A change to `custodial` still lists only the server's key. The dashboard's identity history no longer says a change not signed with the phrase was "signed by this server": it may be the person's recovery key.
 
