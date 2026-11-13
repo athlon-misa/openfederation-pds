@@ -34,12 +34,12 @@ export function StepList({ steps, current, failed, done }: {
 export function policyNote(policy: MigrationPolicy | undefined, what: 'accounts' | 'communities', target: TargetInfo | null): { text: string; blocked: boolean; needsInvite: boolean } {
   if (!target) return { text: '', blocked: false, needsInvite: false };
   if (!target.migration) {
-    return { text: 'This server publishes no move policy (it may not be an OpenFederation PDS). It may refuse the move; nothing changes here if it does.', blocked: false, needsInvite: false };
+    return { text: `That server does not say whether it accepts ${what} moving in (it may not be an OpenFederation server). It may refuse the move; nothing changes here if it does.`, blocked: false, needsInvite: false };
   }
   switch (policy) {
-    case 'open': return { text: `This server accepts ${what} moving in.`, blocked: false, needsInvite: false };
-    case 'invite': return { text: `This server accepts ${what} moving in with an invite code from it. Ask its operator for one.`, blocked: false, needsInvite: true };
-    case 'closed': return { text: `This server does not accept ${what} moving in.`, blocked: true, needsInvite: false };
-    default: return { text: 'This server did not say whether it accepts this move.', blocked: false, needsInvite: false };
+    case 'open': return { text: `That server accepts ${what} moving in.`, blocked: false, needsInvite: false };
+    case 'invite': return { text: `That server accepts ${what} moving in with an invite code from it. Ask the people who run it for one.`, blocked: false, needsInvite: true };
+    case 'closed': return { text: `That server does not accept ${what} moving in.`, blocked: true, needsInvite: false };
+    default: return { text: 'That server did not say whether it accepts this move.', blocked: false, needsInvite: false };
   }
 }

@@ -9,13 +9,13 @@ import { MoveError, call, type TargetInfo } from './xrpc';
 
 export const ACCOUNT_STEPS = [
   { id: 'open', label: 'Open the account at the new server' },
-  { id: 'copy', label: 'Copy the repository' },
+  { id: 'copy', label: 'Copy your posts and records' },
   { id: 'blobs', label: 'Copy files' },
   { id: 'check', label: 'Check the new server has everything' },
   { id: 'sign', label: 'Confirm with the emailed code' },
-  { id: 'point', label: 'Point your DID at the new server' },
+  { id: 'point', label: 'Point your identity at the new server (cannot be undone from here)' },
   { id: 'activate', label: 'Switch on the new account' },
-  { id: 'retire', label: 'Switch off the copy here' },
+  { id: 'retire', label: 'Switch off the old copy here' },
 ] as const;
 export type AccountStep = (typeof ACCOUNT_STEPS)[number]['id'];
 /** Steps after which the DID has changed: a failure from here on is not "nothing changed". */
@@ -74,7 +74,7 @@ export async function moveAccount(p: {
     p.target.url, 'com.atproto.server.checkAccountStatus', { jwt: opened.accessJwt });
   const latest = await call<{ cid: string }>(p.oldPdsUrl, 'com.atproto.sync.getLatestCommit', { query: { did: p.did } });
   if ((status.repoCommit && status.repoCommit !== latest.cid) || status.indexedRecords === 0 || status.importedBlobs !== status.expectedBlobs) {
-    throw new MoveError('The new server does not hold exactly what this server serves; your DID was not changed');
+    throw new MoveError('The new server does not hold exactly what this server has; your identity was not changed');
   }
 
   p.onStep('sign');
