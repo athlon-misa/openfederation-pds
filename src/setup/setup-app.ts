@@ -22,7 +22,6 @@ import { writeConfigFile, removeConfigFile, probeConfigLocation } from './config
 import type { SetupStore } from './setup-store.js';
 import { hashPassword } from '../auth/password.js';
 import { parseCookies } from '../auth/credential-rules.js';
-import { assertPublicHttpsUrl } from '../security/outbound-fetch.js';
 
 type Env = Record<string, string | undefined>;
 
@@ -54,7 +53,7 @@ const HEADERS: [string, string][] = [
   ['X-Frame-Options', 'DENY'],
   ['Referrer-Policy', 'no-referrer'],
   ['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
-  ['Content-Security-Policy', "default-src 'none'; script-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"],
+  ['Content-Security-Policy', "default-src 'none'; script-src 'self'; connect-src 'self' https: http:; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"],
   ['Cache-Control', 'no-store'],
 ];
 
@@ -144,7 +143,6 @@ export function createSetupApp(options: SetupAppOptions) {
   const instanceId = randomBytes(16).toString('hex');
   const sendTestEmail = options.sendTestEmail ?? defaultSendTestEmail;
   const resolveHost = options.resolveHost ?? defaultResolveHost;
-  const fetchImpl = options.fetchImpl ?? fetch;
   let finished = false;
 
   const app = express();
@@ -310,22 +308,10 @@ export function createSetupApp(options: SetupAppOptions) {
     const records = dnsRecords({ publicHost, handleDomain, dashboardOrigin }, env.RAILWAY_PUBLIC_DOMAIN || null, env.SETUP_DASHBOARD_HOST || null);
 
     const checks: Array<{ label: string; ok: boolean | null; detail: string }> = [];
-    let reachesHere = false;
-    try {
-      // In production only a public https address is fetched, so the check
-      // can't be pointed at this machine's or the network's internal services.
-      const target = allowLocalHttp ? new URL(`${pub.origin}/setup/api/ping`) : await assertPublicHttpsUrl(`${pub.origin}/setup/api/ping`);
-      const ping = await fetchImpl(target.toString(), { redirect: 'manual', signal: AbortSignal.timeout(5000) });
-      const body = (await ping.json().catch(() => ({}))) as { instance?: string };
-      reachesHere = body.instance === instanceId;
-      checks.push({
-        label: 'Server address.',
-        ok: reachesHere,
-        detail: reachesHere ? `${pub.origin} leads to this server.` : `${pub.origin} answers, but it is a different server. Check the record for ${publicHost}.`,
-      });
-    } catch {
-      checks.push({ label: 'Server address.', ok: false, detail: `${pub.origin} cannot be reached yet. If you just added its record, wait a few minutes and check again.` });
-    }
+    // Whether the address leads to *this* server is checked by the person's
+    // own browser (it fetches the ping URL and compares the instance id), so
+    // this server never fetches an address someone typed into the form.
+    const addressCheck = { url: `${pub.origin}/setup/api/ping`, instance: instanceId, origin: pub.origin, host: publicHost };
 
     const serverAddresses = new Set(await resolveHost(publicHost));
     const probeName = `check-${randomBytes(4).toString('hex')}.${handleDomain}`;
@@ -345,7 +331,7 @@ export function createSetupApp(options: SetupAppOptions) {
       const found = (await resolveHost(dashHost)).length > 0;
       checks.push({ label: 'Dashboard address.', ok: found, detail: found ? `${dashHost} is set up.` : `${dashHost} does not lead anywhere yet.` });
     }
-    res.json({ records, checks });
+    res.json({ records, checks, addressCheck });
   });
 
   app.post('/setup/api/test-email', json, requireJson, requireClaim, async (req, res) => {

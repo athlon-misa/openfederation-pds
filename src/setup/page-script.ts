@@ -218,6 +218,21 @@ export const SETUP_SCRIPT = `(function () {
     container.appendChild(ul);
   }
 
+  function pingAddress(a) {
+    var label = 'Server address.';
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 5000) : null;
+    return fetch(a.url, { mode: 'cors', cache: 'no-store', credentials: 'omit', signal: controller ? controller.signal : undefined })
+      .then(function (res) { return res.json(); })
+      .then(function (body) {
+        var here = body && body.instance === a.instance;
+        return { label: label, ok: here, detail: here ? a.origin + ' leads to this server.' : a.origin + ' answers, but it is a different server. Check the record for ' + a.host + '.' };
+      }, function () {
+        return { label: label, ok: false, detail: a.origin + ' cannot be reached yet. If you just added its record, wait a few minutes and check again.' };
+      })
+      .then(function (check) { if (timer) clearTimeout(timer); return check; });
+  }
+
   function checkDns() {
     readSection('addresses');
     var out = $('dns-output');
@@ -230,9 +245,14 @@ export const SETUP_SCRIPT = `(function () {
       if (r.data.errors) { showErrors(form('addresses'), r.data.errors); out.textContent = 'Fix the addresses above first.'; return; }
       if (!r.ok) { out.textContent = r.data.message || 'The check did not work. Try again.'; return; }
       renderRecords(out, r.data.records);
-      out.appendChild(el('h3', { text: 'What we found just now' }));
-      renderChecks(out, r.data.checks);
-      button.textContent = 'Check again';
+      var heading = el('h3', { text: 'What we found just now' });
+      out.appendChild(heading);
+      // This browser asks the address whether it is this server; the server
+      // itself never fetches an address typed into the form.
+      pingAddress(r.data.addressCheck).then(function (serverCheck) {
+        renderChecks(out, [serverCheck].concat(r.data.checks));
+        button.textContent = 'Check again';
+      });
     }, function () { button.disabled = false; out.textContent = 'Could not reach the server. Try again.'; });
   }
 

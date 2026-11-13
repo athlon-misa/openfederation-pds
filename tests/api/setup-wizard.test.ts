@@ -148,8 +148,13 @@ describe('setup mode', () => {
     const r = await agent.post('/setup/api/check-dns').send({ addresses: wizardInput().addresses });
     expect(r.status).toBe(200);
     expect(r.body.records.map((x: { name: string }) => x.name)).toContain('*.example.org');
-    const server = r.body.checks.find((c: { label: string }) => c.label.startsWith('Server'));
-    expect(server.ok).toBe(true);
+    // The server no longer fetches the typed address: it hands the browser
+    // the ping URL and its own instance id to compare.
+    expect(r.body.checks.find((c: { label: string }) => c.label.startsWith('Server'))).toBeUndefined();
+    expect(r.body.addressCheck.url).toMatch(/\/setup\/api\/ping$/);
+    const ping = await agent.get(new URL(r.body.addressCheck.url).pathname);
+    expect(ping.headers['access-control-allow-origin']).toBe('*');
+    expect(ping.body.instance).toBe(r.body.addressCheck.instance);
     const names = r.body.checks.find((c: { label: string }) => c.label.startsWith('People'));
     expect(names.ok).toBe(true);
   });
