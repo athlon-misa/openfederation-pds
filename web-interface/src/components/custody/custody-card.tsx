@@ -13,6 +13,7 @@ import {
   type CustodyMode, type IdentityChange,
 } from '@/lib/custody/custody';
 import { ExistingPhrase, NewPhrase } from './phrase-inputs';
+import { RecoverySection } from './recovery-section';
 
 const THIS_PDS = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
 
@@ -28,6 +29,7 @@ export function CustodyCard({ did, handle, accessToken }: { did: string; handle:
   const [cancelling, setCancelling] = useState<IdentityChange | null>(null);
   const [offerRemember, setOfferRemember] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
 
   const [reloads, setReloads] = useState(0);
   const reload = () => setReloads((n) => n + 1);
@@ -102,7 +104,7 @@ export function CustodyCard({ did, handle, accessToken }: { did: string; handle:
         <CardDescription>{MODE_TEXT[mode].what}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!target && !cancelling && !recovering && targets.length > 0 && (
+        {!target && !cancelling && !recovering && !recoveryOpen && targets.length > 0 && (
           <div className="space-y-2">
             {targets.map((m) => (
               <div key={m} className="flex items-start justify-between gap-4 rounded-md border p-3">
@@ -113,7 +115,7 @@ export function CustodyCard({ did, handle, accessToken }: { did: string; handle:
           </div>
         )}
 
-        {mode === 'assisted' && !target && !cancelling && !recovering && (
+        {mode === 'assisted' && !target && !cancelling && !recovering && !recoveryOpen && (
           <Button type="button" variant="ghost" className="px-0" onClick={() => { setMessage(null); setRecovering(true); }}>Lost your phrase?</Button>
         )}
 
@@ -170,7 +172,7 @@ export function CustodyCard({ did, handle, accessToken }: { did: string; handle:
           </div>
         )}
 
-        {changes && changes.length > 0 && !target && (
+        {changes && changes.length > 0 && !target && !recoveryOpen && (
           <div className="space-y-2">
             <p className="text-sm font-medium">Changes to your identity in the last 72 hours</p>
             {changes.map((c) => (
@@ -193,6 +195,11 @@ export function CustodyCard({ did, handle, accessToken }: { did: string; handle:
         )}
 
         {message && <p className={`text-sm ${message.ok ? 'text-green-700' : 'text-destructive'}`} role="status">{message.text}</p>}
+
+        {mode !== 'custodial' && !target && !cancelling && !recovering && (
+          <RecoverySection did={did} mode={mode} onActive={setRecoveryOpen} onChanged={reload}
+            onRecovered={(newPhrase) => { forgetRemembered(did); setOfferRemember(newPhrase); }} />
+        )}
       </CardContent>
     </Card>
   );

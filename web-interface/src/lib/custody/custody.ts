@@ -6,6 +6,7 @@
 import {
   deriveCustodyKeys, signOwnerRaw, signPlcOperation, submitPlcOperation, buildCancelOp, plcOperationSigner,
   buildCustodyGenesisOp, didForGenesisOp,
+  deriveRecoveryKey, recoveryKeyOf, addRecoveryKey, removeRecoveryKey, recoverWithRecoveryKey,
   type PlcOperation, type SignedPlcOperation,
 } from '@open-federation/sdk/custody';
 import { call, plcDirectoryOf, MoveError } from '@/lib/move/xrpc';
@@ -174,4 +175,57 @@ export async function recoverWithNewPhrase(p: { pdsUrl: string; jwt: string; pas
   return call(p.pdsUrl, 'net.openfederation.identity.recoverAssistedAccount', {
     jwt: p.jwt, body: { ...base, operationCid: plan.operationCid, possession },
   });
+}
+
+/*
+ * Optional recovery key (#238, ADR-003 decision 13): a second rotation key the
+ * person holds, below the phrase key, kept as a backup phrase or split into
+ * shares. These are PLC operations signed here; the server is not involved.
+ */
+
+export type RecoveryMode = 'assisted' | 'self';
+
+/** The DID's recovery key, read from PLC, or null when it has none. */
+export async function currentRecoveryKey(pdsUrl: string, did: string, mode: RecoveryMode): Promise<string | null> {
+  const data = await plcData(await plcDirectoryOf(pdsUrl), did);
+  return recoveryKeyOf(data.rotationKeys, mode);
+}
+
+/** Add the key of `recoveryPhrase`, signed with the identity phrase. */
+export async function setUpRecovery(p: { pdsUrl: string; did: string; mode: RecoveryMode; phrase: string; recoveryPhrase: string }): Promise<void> {
+  const keys = await assertPhraseBelongs(p.pdsUrl, p.did, p.phrase);
+  await addRecoveryKey({
+    plcUrl: await plcDirectoryOf(p.pdsUrl), did: p.did, mode: p.mode,
+    rotationPrivateKey: keys.rotationPrivateKey, recoveryDidKey: deriveRecoveryKey(p.recoveryPhrase).recoveryDidKey,
+  });
+}
+
+/** Take the recovery key out, signed with the identity phrase. */
+export async function removeRecovery(p: { pdsUrl: string; did: string; mode: RecoveryMode; phrase: string }): Promise<void> {
+  const keys = await assertPhraseBelongs(p.pdsUrl, p.did, p.phrase);
+  await removeRecoveryKey({ plcUrl: await plcDirectoryOf(p.pdsUrl), did: p.did, mode: p.mode, rotationPrivateKey: keys.rotationPrivateKey });
+}
+
+/** Throws unless the recovery phrase (typed, or combined from shares) holds this account's recovery key. */
+export async function assertRecoveryPhraseBelongs(pdsUrl: string, did: string, mode: RecoveryMode, recoveryPhrase: string): Promise<void> {
+  const current = await currentRecoveryKey(pdsUrl, did, mode);
+  if (!current) throw new MoveError('This account has no recovery key.');
+  if (deriveRecoveryKey(recoveryPhrase).recoveryDidKey !== current) {
+    throw new MoveError('This is not the recovery key of this account (an older one, or another account\'s).');
+  }
+}
+
+/**
+ * The identity phrase was lost: the recovery key signs the new phrase in. The
+ * old phrase can cancel it until `cancelUntil`; the recovery key stays.
+ */
+export async function recoverWithRecoveryPhrase(p: { pdsUrl: string; did: string; mode: RecoveryMode; recoveryPhrase: string; newPhrase: string }): Promise<{ cancelUntil: Date }> {
+  await assertRecoveryPhraseBelongs(p.pdsUrl, p.did, p.mode, p.recoveryPhrase);
+  const fresh = deriveCustodyKeys(p.newPhrase);
+  const { cancelUntil } = await recoverWithRecoveryKey({
+    plcUrl: await plcDirectoryOf(p.pdsUrl), did: p.did,
+    recoveryPrivateKey: deriveRecoveryKey(p.recoveryPhrase).recoveryPrivateKey,
+    newRotationDidKey: fresh.rotationDidKey, newOwnerDidKey: fresh.ownerDidKey,
+  });
+  return { cancelUntil };
 }
