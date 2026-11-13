@@ -218,17 +218,20 @@
           <p class="panel-head"><span>The proof</span><span class="mono" id="reveal-state">not made yet</span></p>
           <ol class="proof-parts" id="proof-parts">
             <li><span><b>Night Desk signs</b> “Night Desk is Elena Petrova” with its twelve words.</span></li>
-            <li><span><b>Elena's account signs</b> the same sentence.</span></li>
+            <li id="owner-part"><span><b>Elena signs</b> the same sentence.</span></li>
             <li><span><b>The opener</b> for the sealed note inside Night Desk.</span></li>
           </ol>
           <div class="btns">
             <button class="btn" id="btn-reveal" type="button">Make the proof</button>
             <button class="btn" id="btn-check" type="button" disabled>Check it</button>
             <button class="btn btn--ghost" id="btn-impostor" type="button" disabled>Marko claims Night Desk</button>
+            <button class="btn btn--ghost" id="btn-contrast" type="button" disabled hidden>Marko reveals his own pen name</button>
           </div>
           <ul class="checks" id="checks" hidden></ul>
           <div class="verdict" id="reveal-verdict" hidden></div>
-          <p class="note">Today Elena's half is signed by her server on her behalf. With self-custody, coming next, only Elena's own key can sign it.</p>
+          <p class="signer" id="reveal-signer" hidden></p>
+          <div class="qr" id="reveal-qr" hidden></div>
+          <p class="note" id="reveal-note"></p>
         </div>
       </div>
     </section>
@@ -251,6 +254,7 @@
           </div>
           <div class="verdict" id="verdict" hidden></div>
           <p class="note" id="verdict-note"></p>
+          <div class="qr" id="prove-qr" hidden></div>
         </div>
       </div>
     </section>
@@ -267,7 +271,7 @@
             <li>A proof, made only when Elena chooses, that Night Desk is her.</li>
             <li>A face-to-face proof that leaves nothing behind.</li>
           </ul>
-          <p class="note">Next: Elena holds her own key too, so the server can't speak for her either. Open source, and built on OpenFederation.</p>
+          <p class="note">Next: every reporter holds their own key, so no server can speak for them. Open source, and built on OpenFederation.</p>
         </div>
         <figure class="art"><img src="/assets/illustrations/network-globe.webp" alt=""></figure>
       </div>

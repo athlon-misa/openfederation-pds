@@ -194,6 +194,17 @@ main { position: relative; min-height: 0; }
 .verdict.is-valid { background: var(--ink); color: var(--paper); }
 .verdict.is-invalid { background: transparent; color: var(--red); border: 2px solid var(--red); }
 
+/* Who signed the owner's half of a reveal: the person, or their server. */
+.signer { font-size: .9em; line-height: 1.4; padding: 12px 16px; border-left: 4px solid var(--ink); }
+.signer.is-person { border-left-color: var(--good); }
+.signer.is-server { border-left-color: var(--muted-light); color: var(--muted); }
+
+/* A QR code that opens the public verifier on the audience's phones. */
+.qr-code { display: grid; grid-template-columns: clamp(150px, 13vw, 260px) minmax(0, 1fr); gap: 18px; align-items: center; margin: 0; }
+.qr-code svg { width: 100%; height: auto; background: #fff; display: block; }
+.qr-code figcaption { font-size: .85em; line-height: 1.4; color: var(--muted); }
+.qr-code figcaption b { color: var(--ink); font-weight: 600; }
+
 .takeaways { display: flex; flex-direction: column; border-top: 1px solid var(--ink); }
 .takeaways li { padding: 18px 0; border-bottom: 1px solid var(--ink); font-size: clamp(22px, 2vw, 40px); line-height: 1.2; letter-spacing: -.015em; }
 

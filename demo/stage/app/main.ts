@@ -8,9 +8,12 @@
 import {
   fetchTokenKeys, collectTokens, loginWithPhrase, signPresence, createRevealBundle,
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
-  moveAccount, rememberPhraseWithPasskey, unlockPhraseWithPasskey,
-  type CreationToken, type RevealBundle, type RememberedPhrase, type MoveStep,
+  moveAccount, rememberPhraseWithPasskey, unlockPhraseWithPasskey, challengeForWord as wordChallenge,
+  revealLinkFragment, presenceLinkFragment,
+  type CreationToken, type RevealBundle, type RevealBundleV2, type RememberedPhrase, type MoveStep, type OwnerSigner,
 } from '../../../packages/openfederation-pseudonym/src/index.js';
+import { deriveCustodyKeys, signOwnerRaw } from '../../../packages/openfederation-sdk/src/custody/index.js';
+import qrcode from 'qrcode-generator';
 
 interface Check { id: string; label: string; ok: boolean | null; detail: string }
 interface Config {
@@ -24,8 +27,15 @@ interface Config {
   pdsUrl: string; serviceDid: string; handleSuffix: string; pdsServiceUrl: string;
   /** Server B, the new home, with its own handle domain. */
   pdsBUrl: string; pdsBServiceDid: string; pdsBHandleSuffix: string;
-  elena: { did: string; handle: string; name: string; accessJwt: string };
-  impostor: { did: string; name: string };
+  /** custody: who signs Elena's half of the reveal. custodial: her server; assisted/self: her own key. */
+  elena: { did: string; handle: string; name: string; accessJwt: string; custody: 'custodial' | 'assisted' | 'self' };
+  /** contrast: Marko can sign in, so his own pseudonym's (custodial) reveal can be shown. */
+  impostor: { did: string; name: string; contrast: boolean };
+  contrastName: string;
+  /** Live only: the public verifier audience phones open from a QR code. */
+  verifierUrl: string | null;
+  /** The context the audience's word becomes a challenge with (same on /verify). */
+  presenceContext: string;
   /** What this server has already been used for, possibly from another browser window (offline). */
   used: { passesCollected: boolean; pseudonymExists: boolean };
   /** Live: this month's passes, kept on this laptop across resets. */
@@ -91,9 +101,46 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Same derivation as the verifier in run.ts. */
-function challengeForWord(word: string): Promise<string> {
-  return sha256Hex(`OpenNewsrooms stage challenge\n${word.trim().toLowerCase()}`);
+/** Same derivation as the verifier in run.ts and the /verify page. */
+function challengeForWord(word: string): string {
+  return wordChallenge(word, cfg!.presenceContext);
+}
+
+/** Does Elena hold her own key (assisted or self), so she signs her half of the reveal herself? */
+function elenaSignsHerself(): boolean {
+  return !!cfg && cfg.elena.custody !== 'custodial';
+}
+
+/**
+ * A QR code that opens the public verifier with this proof in the link's
+ * #fragment, so phones check it themselves. Live only: offline, phones
+ * can't reach this laptop's servers.
+ */
+function showQr(boxId: string, fragment: string | null): void {
+  const box = $(boxId);
+  box.hidden = false;
+  box.innerHTML = '';
+  if (!cfg?.verifierUrl) {
+    const p = document.createElement('p'); p.className = 'note';
+    p.textContent = 'In the live demo, a code here lets everyone check this on their own phone. Offline, phones can\u2019t reach this laptop.';
+    box.appendChild(p);
+    return;
+  }
+  if (!fragment) { box.hidden = true; return; }
+  const url = `${cfg.verifierUrl}#${fragment}`;
+  const qr = qrcode(0, 'M');
+  qr.addData(url, 'Byte');
+  qr.make();
+  const fig = document.createElement('figure'); fig.className = 'qr-code';
+  fig.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+  fig.querySelector('svg')?.setAttribute('aria-label', 'QR code: check it on your phone');
+  const cap = document.createElement('figcaption');
+  const b = document.createElement('b'); b.textContent = 'Check it on your phone. ';
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noreferrer'; a.textContent = display(cfg.verifierUrl.split(/[?#]/)[0]);
+  cap.append(b, 'Your phone asks the public directory, not this laptop: ', a);
+  fig.appendChild(cap);
+  box.appendChild(fig);
 }
 
 /** A server's address without the scheme, for the screen. */
@@ -565,7 +612,7 @@ async function prove(asStranger: boolean): Promise<void> {
   if (!word.trim()) { $('word').focus(); return; }
   const nd = saved?.nd;
   if (!nd) throw new Error('Create Night Desk first');
-  const challenge = await challengeForWord(word);
+  const challenge = challengeForWord(word);
   const phrase = asStranger ? generatePseudonymPhrase() : nd.phrase;
   const { signature } = signPresence({ phrase, pseudonymDid: nd.did, challenge });
   const r = await api<{ valid: boolean; directoryKey?: string; error?: string }>('/api/verify-presence', {
@@ -582,6 +629,7 @@ async function prove(asStranger: boolean): Promise<void> {
     : asStranger ? 'Different words make a different key. Nobody else can sign as Night Desk.' : 'The signature does not match Night Desk.';
   v.append(s, t);
   $('verdict-note').textContent = `The word “${word.trim()}” was signed ${asStranger ? "with a stranger’s twelve words" : "on Elena’s laptop"} and checked by a separate verifier against Night Desk’s key in the public directory${r.directoryKey ? ` (${short(r.directoryKey)})` : ''}.`;
+  showQr('prove-qr', presenceLinkFragment({ pseudonymDid: nd.did, word, signature }));
 }
 $('btn-prove').addEventListener('click', busy($('btn-prove') as HTMLButtonElement, async () => {
   await prove(false); ($('btn-prove') as HTMLButtonElement).disabled = false;
@@ -589,7 +637,7 @@ $('btn-prove').addEventListener('click', busy($('btn-prove') as HTMLButtonElemen
 $('btn-stranger').addEventListener('click', busy($('btn-stranger') as HTMLButtonElement, async () => {
   await prove(true); ($('btn-stranger') as HTMLButtonElement).disabled = false;
 }));
-$('word').addEventListener('input', () => { $('verdict').hidden = true; $('verdict-note').textContent = ''; });
+$('word').addEventListener('input', () => { $('verdict').hidden = true; $('verdict-note').textContent = ''; $('prove-qr').hidden = true; });
 
 // ---------- Files: the repository as folders ----------
 
@@ -776,13 +824,36 @@ async function restoreMoved(): Promise<void> {
 
 // ---------- Reveal: Night Desk is Elena ----------
 
-const CHECK_TEXT: [string[], string][] = [
-  [['genesisHash', 'genesisSignature'], 'Night Desk\u2019s public entry is genuine and unchanged since day one'],
-  [['pseudonymSignature'], 'Night Desk\u2019s twelve words signed the sentence'],
-  [['commitment'], 'The sealed note, locked in when Night Desk was created, names this account'],
-  [['ownerSignature', 'ownerKeyCurrent'], 'That account signed the same sentence'],
-  [['statement'], 'The sentence names these two accounts'],
-];
+/** The verifier's checks, in plain words. The owner line says whose key signed. */
+function checkText(keyRef: 'openfederation_owner' | 'atproto', owner: string, pseudonym: string): [string[], string][] {
+  return [
+    [['genesisHash', 'genesisSignature'], `${pseudonym}’s public entry is genuine and unchanged since day one`],
+    [['pseudonymSignature'], `${pseudonym}’s twelve words signed the sentence`],
+    [['commitment'], `The sealed note, locked in when ${pseudonym} was created, names this account`],
+    [['ownerSignature', 'ownerKeyCurrent'], keyRef === 'openfederation_owner'
+      ? `${owner} signed the same sentence with her own key, the one her public entry names`
+      : `${owner}’s server signed the same sentence for the account, with the key it holds`],
+    [['statement'], 'The sentence names these two accounts'],
+  ];
+}
+
+/** Elena's half of the proof, as the panel describes it before it is made. */
+function renderOwnerPart(): void {
+  if (!cfg) return;
+  const self = elenaSignsHerself();
+  const li = $('owner-part');
+  li.innerHTML = '';
+  const b = document.createElement('b'); b.textContent = self ? 'Elena signs' : 'Elena’s server signs';
+  const s = document.createElement('span');
+  s.append(b, self
+    ? ' the same sentence with her own key, from her own twelve words. Her server never had it.'
+    : ' the same sentence for her, with the key it holds for her account.');
+  li.appendChild(s);
+  $('reveal-note').textContent = self
+    ? 'Her server can’t make Elena’s half: it never held that key. Marko’s account is the usual kind, where the server signs for him.'
+    : 'Elena’s account is the usual kind: her server holds her key and signs her half for her. With an account that holds its own key, only she could.';
+  ($('btn-contrast') as HTMLButtonElement).hidden = !cfg.impostor.contrast;
+}
 
 function renderReveal(): void {
   const has = !!saved?.bundle;
@@ -791,14 +862,18 @@ function renderReveal(): void {
   ($('btn-reveal') as HTMLButtonElement).disabled = has || !saved?.nd;
   ($('btn-check') as HTMLButtonElement).disabled = !has;
   ($('btn-impostor') as HTMLButtonElement).disabled = !has;
+  ($('btn-contrast') as HTMLButtonElement).disabled = !has;
+  renderOwnerPart();
 }
 
-async function checkProof(bundle: RevealBundle, claimant: string): Promise<void> {
-  const r = await api<{ valid: boolean; checks: { name: string; ok: boolean }[] }>('/api/verify-reveal', { bundle });
+/** Check a reveal with the verifier (run.ts), as `ofc pseudonym verify --online` does, and say who signed. */
+async function checkProof(bundle: RevealBundle, claimant: string, pseudonym = 'Night Desk', impostor = false): Promise<void> {
+  const r = await api<{ valid: boolean; checks: { name: string; ok: boolean }[]; ownerAttestation?: 'person' | 'pds-held-key' | 'unchecked' }>('/api/verify-reveal', { bundle });
+  const keyRef = bundle.version === 2 ? bundle.owner.keyRef : 'atproto';
   const ul = $('checks');
   ul.hidden = false;
   ul.innerHTML = '';
-  for (const [names, text] of CHECK_TEXT) {
+  for (const [names, text] of checkText(keyRef, claimant, pseudonym)) {
     const cs = r.checks.filter((c) => names.includes(c.name));
     if (!cs.length) continue;
     const li = document.createElement('li');
@@ -813,9 +888,28 @@ async function checkProof(bundle: RevealBundle, claimant: string): Promise<void>
   const s = document.createElement('strong'); s.textContent = r.valid ? 'VALID' : 'INVALID';
   const t = document.createElement('span');
   t.textContent = r.valid
-    ? `Night Desk belongs to ${claimant}.`
-    : `${claimant} copied Elena\u2019s proof and put his own name in it. Night Desk never signed that, and the sealed note doesn\u2019t name him.`;
+    ? `${pseudonym} belongs to ${claimant}.`
+    : impostor
+      ? `${claimant} copied Elena’s proof and put his own name in it. Night Desk never signed that, and the sealed note doesn’t name him.`
+      : 'This proof doesn’t hold up.';
   v.append(s, t);
+  // Who signed the owner's half: the person (their own key) or their server (the key it holds).
+  const who = $('reveal-signer');
+  who.hidden = !r.valid;
+  who.className = `signer ${r.ownerAttestation === 'person' ? 'is-person' : 'is-server'}`;
+  who.textContent = r.ownerAttestation === 'person'
+    ? `Signed by ${claimant.split(' ')[0]} herself: her own key, from her own twelve words. Her server never had it, so it couldn’t have made this.`
+    : `Signed by the server’s key: ${claimant}’s server holds the account’s key and signed for ${claimant === cfg!.elena.name ? 'her' : 'him'}. It shows the account agreed, as far as the server can say.`;
+  let fragment: string | null = null;
+  try { fragment = bundle.version === 2 ? revealLinkFragment(bundle) : null; } catch { fragment = null; }
+  showQr('reveal-qr', fragment);
+}
+
+/** Elena's own key signs her half: her identity phrase, from the demo server, used only in this page. */
+async function elenaOwnerSigner(): Promise<OwnerSigner> {
+  const { phrase } = await api<{ phrase: string }>('/api/elena-phrase');
+  const keys = deriveCustodyKeys(phrase);
+  return async (statement) => ({ signingKey: keys.ownerDidKey, signature: signOwnerRaw(keys.ownerPrivateKey, statement) });
 }
 
 $('btn-reveal').addEventListener('click', busy($('btn-reveal') as HTMLButtonElement, async () => {
@@ -823,6 +917,8 @@ $('btn-reveal').addEventListener('click', busy($('btn-reveal') as HTMLButtonElem
   const nd = saved!.nd!;
   saved!.bundle = await createRevealBundle({
     pdsUrl: c.pdsUrl, plcUrl: c.plcUrl, phrase: nd.phrase, pseudonymDid: nd.did, ownerDid: c.elena.did, ownerAccessJwt: await elenaJwt(),
+    // assisted/self: Elena signs; custodial: her server does (signLink), which it refuses for accounts holding their own keys.
+    ...(elenaSignsHerself() ? { ownerSigner: await elenaOwnerSigner() } : {}),
   });
   save();
   renderReveal();
@@ -837,9 +933,16 @@ $('btn-impostor').addEventListener('click', busy($('btn-impostor') as HTMLButton
   const m = cfg!.impostor.did;
   b.statement = b.statement.replace(cfg!.elena.did, m);
   b.owner.did = m;
-  await checkProof(b, cfg!.impostor.name);
+  await checkProof(b, cfg!.impostor.name, 'Night Desk', true);
   ($('btn-impostor') as HTMLButtonElement).disabled = false;
 }));
+$('btn-contrast').addEventListener('click', busy($('btn-contrast') as HTMLButtonElement, async () => {
+  // Marko's account is the usual kind: his server signs his half of his own pseudonym's proof.
+  const { bundle } = await api<{ bundle: RevealBundleV2 }>('/api/contrast-reveal', {});
+  await checkProof(bundle, cfg!.impostor.name, cfg!.contrastName);
+  ($('btn-contrast') as HTMLButtonElement).disabled = false;
+}));
+
 
 // ---------- Reset ----------
 
@@ -860,7 +963,8 @@ $('btn-reset-yes').addEventListener('click', async () => {
   $<HTMLInputElement>('word').value = '';
   $('verdict').hidden = true; $('verdict-note').textContent = '';
   $('db-grid').innerHTML = ''; $('db-verdict').hidden = true;
-  $('checks').hidden = true; $('reveal-verdict').hidden = true;
+  $('checks').hidden = true; $('reveal-verdict').hidden = true; $('reveal-signer').hidden = true;
+  $('reveal-qr').hidden = true; $('prove-qr').hidden = true;
   document.querySelectorAll<HTMLElement>('#move-steps li').forEach((li) => { li.className = ''; });
   await api('/api/reset', {});
   show(0);

@@ -107,6 +107,26 @@ An offline check cannot tie the bundle's owner key to the owner's DID, so `ofc p
 
 **What a reveal proves.** On OpenFederation PDSes the owner's root signing key is custodial: the PDS holds it and `signLink` signs with it. So a valid bundle, even one that passes the online check, proves that the owner's PDS signed the link and that the pseudonym's genesis commits to the owner's DID. It does not prove the person consented. The PDS operator, or anyone holding the database and `KEY_ENCRYPTION_SECRET`, can create a pseudonym whose genesis commits to any local account and have that account's key sign a link to it. Treat a reveal as "this PDS vouches for the link", and weigh it by how much you trust the PDS. A presence proof (`signPresence`) shows control of the pseudonym's phrase, not consent of the named owner either.
 
+For an owner with their own keys (an `assisted` or `self` account, ADR-003), pass `ownerSigner`: the owner key from their identity phrase signs the owner half, and the online verifier reports `ownerAttestation: 'person'` instead of `'pds-held-key'`. The PDS refuses `signLink` for such accounts.
+
+```ts
+import { deriveCustodyKeys, signOwnerRaw } from '@open-federation/sdk/custody';
+
+const keys = deriveCustodyKeys(identityPhrase);
+const bundle = await createRevealBundle({
+  pdsUrl, plcUrl, phrase, pseudonymDid, ownerDid, ownerAccessJwt,
+  ownerSigner: async (statement) => ({ signingKey: keys.ownerDidKey, signature: signOwnerRaw(keys.ownerPrivateKey, statement) }),
+});
+```
+
+## Verify anywhere
+
+The verifier runs in a browser or a phone as well as in Node, and reads every key from the PLC directory:
+
+- `verifyRevealBundle(bundle, { online: true, plcUrl })`: the same checks as `ofc pseudonym verify --online`, with `ownerAttestation` (`person` or `pds-held-key`).
+- `checkPresence({ plcUrl, pseudonymDid, challenge, signature })`: an in-person proof against the key in the pseudonym's genesis operation. `challengeForWord(word, context)` turns a spoken word into a challenge.
+- Links for a QR code: `revealLinkFragment(bundle)` and `presenceLinkFragment({ pseudonymDid, word, signature })` make a short URL fragment (raw owner signatures only; the genesis operation and the owner's key are left out, since the verifier reads them from PLC). `verifyLink(fragment, { plcUrl, presenceContext })` checks one and names both accounts by handle. The OpenFederation dashboard serves this at `/verify`.
+
 Lower-level helpers (formats, key derivation, token blinding, PLC genesis operations) are exported from the package root.
 
 ## Self-hosting privacy note
