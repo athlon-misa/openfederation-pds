@@ -22,6 +22,14 @@
       <span>This demo server was already used in another browser window, so this window can't continue from here.</span>
       <button class="btn" id="btn-stale-reset" type="button">Reset the demo</button>
     </div>
+    <div class="stale preflight" id="preflight" role="alert" hidden>
+      <div class="stack stack--tight">
+        <strong>The live servers aren't ready for the demo.</strong>
+        <ul class="preflight-list" id="preflight-list"></ul>
+        <span>Start the offline demo instead: <span class="mono">npm run demo</span> (no internet needed).</span>
+      </div>
+      <button class="btn" id="btn-preflight-again" type="button">Check again</button>
+    </div>
 
     <!-- 0 · Title -->
     <section class="screen" data-step="Start" id="title">
@@ -89,10 +97,13 @@
     <section class="screen" data-step="Server" id="server">
       <div class="stack wide">
         <div class="split split--head">
-          <p class="label">03 · Look inside the server</p>
+          <div class="stack stack--tight">
+            <p class="label">03 · Look inside the server</p>
+            <p class="label" id="server-kind">Database view · this laptop's server</p>
+          </div>
           <div class="stack">
             <h2 class="statement">What does the server <em>know?</em></h2>
-            <p class="lede">Straight from the server's database, not a slide.</p>
+            <p class="lede" id="server-lede">Straight from the server's database, not a slide.</p>
           </div>
         </div>
         <div class="db-grid" id="db-grid"></div>
@@ -268,7 +279,7 @@
     <div class="reset">
       <button class="link" id="btn-reset" type="button">Reset demo</button>
       <span id="reset-confirm" hidden>
-        Start over with a fresh server?
+        <span id="reset-question">Start over with a fresh server?</span>
         <button class="link link--red" id="btn-reset-yes" type="button">Yes, reset</button>
         <button class="link" id="btn-reset-no" type="button">Cancel</button>
       </span>
