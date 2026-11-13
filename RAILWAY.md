@@ -1,5 +1,9 @@
 # Railway Deployment Guide
 
+> **New here?** Use the one-click template and the setup page instead: [Install on Railway](docs/INSTALL-RAILWAY.md). This page is the expert guide for operators who set every variable by hand. Both work together: a variable set here always wins over a value saved by the setup page.
+>
+> A server whose production environment has neither `AUTH_JWT_SECRET` nor `KEY_ENCRYPTION_SECRET` starts in **setup mode** (it serves only `/setup` and `/health`) instead of refusing to start. Setting the variables below, as this guide does, skips it entirely; `OPENFEDERATION_SETUP=off` turns it off explicitly.
+
 OpenFederation PDS deploys to Railway as **three services** from the same repository:
 
 | Service | What it does | Root directory | Custom domain |

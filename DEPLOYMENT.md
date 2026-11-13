@@ -1,5 +1,7 @@
 # Deployment Guide
 
+> The quickest install is the Railway template and the setup page: see [docs/INSTALL-RAILWAY.md](docs/INSTALL-RAILWAY.md). The setup page saves its choices in a settings file (`OPENFEDERATION_CONFIG_FILE`, default `data/openfederation.env`); every variable below still works and wins over that file.
+
 ## Environment Variables
 
 The application requires the following environment variables to be set:

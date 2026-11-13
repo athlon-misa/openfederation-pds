@@ -24,6 +24,16 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - User identities: real `did:plc` + signing key + initial `app.bsky.actor.profile` repo record. PDS holds rotation + signing keys for users (separate `user_signing_keys` table)
 - PLC directory service (`plc-server/`) for self-hosted deployment
 
+## Install & first-run setup — setup page and Railway **shipped**, Docker **planned** ([#405](https://github.com/athlon-misa/openfederation-pds/issues/405))
+
+- `src/index.ts` loads the settings file, runs setup mode when needed (`src/setup/launcher.ts`, `mode.ts`), then imports the server, so `src/config.ts` reads the wizard's settings on its first import. Nothing in `src/setup/` imports `src/config.ts` (`tests/unit/setup-config-free.test.ts`).
+- Setup mode: production with neither `AUTH_JWT_SECRET` nor `KEY_ENCRYPTION_SECRET` and no settings file, or `OPENFEDERATION_SETUP=on`. Serves `/setup`, its assets and API, and `/health` (`status: "setup"`); everything else 503 `SetupRequired`.
+- Claim: setup code printed in the log, kept as a SHA-256 in memory, new at every start (`claim.ts`); session cookie `of_setup` (HttpOnly, SameSite=Strict, path `/setup`).
+- Settings: `OPENFEDERATION_CONFIG_FILE` (`config-file.ts`), plain `KEY=value`, mode 0600, written once; environment variables win; `server_setup` row (migrate-060) locks setup and carries the first admin (bcrypt hash) to the next start (`src/auth/setup-admin.ts`).
+- In normal mode `/setup` says the server is set up and `/setup/api/*` answers 410.
+- `/.well-known/atproto-did` answers the DID for this server's own handles (by `Host`).
+- Railway template: [docs/RAILWAY-TEMPLATE.md](RAILWAY-TEMPLATE.md) (made in Railway's UI); guide: [docs/INSTALL-RAILWAY.md](INSTALL-RAILWAY.md).
+
 ## Auth — **shipped**
 
 - JWT access tokens + refresh token rotation with reuse detection (compromise → revoke all sessions)

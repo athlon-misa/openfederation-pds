@@ -78,6 +78,9 @@ See `.env.example` for the full list. Critical ones:
 | `WALLET_CONSENT_MAX_HOURS` | No | Default 24; longest a custodial signing consent may last (default consent 1h). Consents are approved by the user on `/wallet/consent/:id` |
 | `FEDERATION_PEERS` | No | Comma-separated base URLs of other OpenFederation PDSes whose public communities `community.discover` merges in (https in production; invalid values stop the server). Unset: this PDS's communities only. Older `PEER_PDS_URLS` is merged in; `FEDERATION_PEERS_ENABLED=false` turns peer fetching off |
 | `SECURITY_CONTACT` | No | Comma-separated emails or https URLs for `/.well-known/security.txt`; the project advisory form is always listed |
+| `OPENFEDERATION_SETUP` | No | `on` / `off`. Setup mode (only `/setup` + `/health`) starts by itself in production when neither `AUTH_JWT_SECRET` nor `KEY_ENCRYPTION_SECRET` is set and there is no settings file; `on` forces it (dev), `off` keeps the old refusal (#405) |
+| `OPENFEDERATION_CONFIG_FILE` | No | The setup wizard's settings file (`KEY=value`, mode 0600). Default `$RAILWAY_VOLUME_MOUNT_PATH/openfederation.env`, else `data/openfederation.env`. Read by `src/config.ts` at start; environment variables win over it |
+| `SETUP_DASHBOARD_URL` / `SETUP_DASHBOARD_HOST` / `SETUP_PLC_URL` / `SETUP_PUBLIC_URL` / `SETUP_HANDLE_DOMAIN` | No | Only pre-fill the setup wizard's fields (the Railway template sets the first two); never configuration |
 
 ## Security imperatives
 
