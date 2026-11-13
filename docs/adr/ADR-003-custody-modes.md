@@ -261,16 +261,43 @@ which key, and in what order.
       owner or rotation key for these accounts, so nothing on it needs to follow a recovery.
     - **Three ways to hold the key,** all optional, the person chooses one or none (no recovery
       stays the default):
-      1. *Held whole:* the recovery phrase on paper or in a safe (built), or a hardware key.
-      2. *Social recovery:* the recovery key split k-of-n (Shamir) among people the person
-         chooses; shares are handed over outside OpenFederation and the PDS stores nothing
-         about who holds them.
-      3. *Newsroom institutional:* a split in which the newsroom holds one share and the person
-         the others, so the newsroom alone can never recover, even when it runs the PDS.
+      1. *Held whole (backup phrase):* the recovery phrase on paper or in a safe.
+      2. *Split among contacts:* the recovery phrase split k-of-n (Shamir) among people the
+         person chooses; shares are handed over outside OpenFederation and the PDS stores
+         nothing about who holds them.
+      3. *With my newsroom:* the same split, in which the newsroom holds one share and the
+         person and people they trust the others (e.g. 2-of-3: person, newsroom, a contact), so
+         the newsroom alone can never recover, even when it runs the PDS.
 
-      Options 2 and 3 (the SDK's split and combine, with a share format carrying threshold and
-      checksum) and the dashboard's Settings → Recovery are the next steps of #238. The threat
-      model per option, and the newsroom checklist in `docs/HARDENING.md`, come with them.
+      All three are built: `splitRecoveryPhrase` / `combineRecoveryShares` in the SDK, and
+      Settings → Identity custody → Recovery in the dashboard. **The split** is of the recovery
+      phrase's 16 bytes of BIP-39 entropy, over GF(256), so combining gives back the same 12
+      words. A share is 27 bytes (format version, threshold, index, a random 4-byte split id,
+      16 bytes, a 4-byte SHA-256 checksum), printed as 20 BIP-39 words or an `OFRS:` base32 code
+      for a QR code. Combining refuses damaged shares, shares from different splits, duplicates
+      and too few. Shares never pass through the PDS, which is why it cannot say who holds them.
+      The vault's server-side Shamir (`secrets.js-grempe`) was not reused: it runs on the
+      server, uses its own hex format without a threshold, split id or checksum, and the SDK
+      needs a dependency-free browser implementation.
+
+      **Threat model per option.** Common to all: whoever recovers must also get past the old
+      phrase's 72-hour veto, which works only if the person (or their app) notices; whoever
+      holds the identity phrase can remove the recovery key or cancel any recovery, so none of
+      the options helps against a stolen phrase.
+
+      | | Who must collude to take the identity over | If the newsroom runs the PDS | Coercion |
+      | --- | --- | --- | --- |
+      | None (default) | Nobody can, without the phrase. | No extra power. | Only the phrase can be demanded; losing it is final. |
+      | Backup phrase | Anyone who finds or copies the paper, alone. | No extra power (the PDS never sees the phrase). | The paper is a second thing that can be demanded or seized, often kept at home with the phrase. Keep it elsewhere. |
+      | Split among contacts | Any k holders together, or anyone who gets k shares from them. Fewer than k learn nothing. | No extra power. | k people must be found and pressed, each of whom can refuse; but the person must trust that k of them won't conspire, and the holders' names exist outside OpenFederation (who the person handed shares to). |
+      | With my newsroom | The newsroom plus k-1 other holders, or k holders without the newsroom. The newsroom alone cannot (k ≥ 2). | Still one share only: the PDS takes no part in recovery and holds no share in its role as operator, so running the server and holding a share add nothing to each other. The operator could watch for the recovery in PLC, which is public anyway. | An institution is a single point of legal pressure (a court order, a raid on the office) for its share, but one share is useless; the attacker still needs k-1 others. If the person keeps a share themselves, seizing them and the newsroom's share is enough for 2-of-3: choose k accordingly. |
+
+      - **What the newsroom must not do:** hold two shares of a 2-of-n split, or keep its share
+        on the PDS host. Then it could recover alone, or the server's compromise would give an
+        attacker a share. The dashboard labels exactly one share for the newsroom.
+      - **What each option leaves public:** only the extra rotation key in PLC, and the time
+        it was added. Which option was chosen, how many shares and who holds them are never
+        sent anywhere.
     - **Limits:** whoever has the phrase can remove the recovery key or cancel a recovery, so
       the recovery key helps against a *lost* phrase, not a stolen one. Whoever has the
       recovery key can start a recovery at any time; the person must notice and cancel within
@@ -280,8 +307,6 @@ which key, and in what order.
 ## Out of scope
 
 - Self-custody of the repo signing key (impossible in AT Protocol).
-- Shamir-split recovery keys and the dashboard's recovery screens: the next steps of #238
-  (decision 13).
 - Rotating the user's own keys without changing mode. The user can sign such PLC updates
   with their rotation key; a client helper for it is a follow-up.
 

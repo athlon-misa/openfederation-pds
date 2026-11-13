@@ -1847,6 +1847,59 @@ const { previous, cancelUntil } = await recoverWithRecoveryKey({
   the PDS's assisted recovery keeps it too. A change to `custodial` takes it out, with the
   owner key: in `custodial` only the PDS's key is listed.
 
+#### Splitting the recovery phrase among people
+
+Instead of keeping the recovery phrase whole, the person can split it k-of-n with Shamir's
+secret sharing among people they trust (an editor, a colleague, a lawyer), or with their
+newsroom holding one share and they the rest, so that no one holder can recover alone. Any k
+shares give back the exact recovery phrase; fewer than k say nothing about it. Shares are made
+on the device and handed over outside OpenFederation (printed, in person); the PDS never sees
+them and stores nothing about who holds them.
+
+```ts
+import {
+  generateRecoveryPhrase, deriveRecoveryKey, splitRecoveryPhrase, combineRecoveryShares,
+  parseRecoveryShare, RecoveryShareError,
+} from '@open-federation/sdk/custody';
+
+const recoveryPhrase = generateRecoveryPhrase();
+const shares = splitRecoveryPhrase(recoveryPhrase, { threshold: 2, shares: 3 });
+// shares[i].words: 20 words to write down; shares[i].code: 'OFRS:…' for a QR code
+await addRecoveryKey({ plcUrl, did, rotationPrivateKey, mode, recoveryDidKey: deriveRecoveryKey(recoveryPhrase).recoveryDidKey });
+// Then forget recoveryPhrase: only the shares hold it.
+
+// Later, phrase lost: collect any 2 shares (words or codes, as typed, pasted or scanned).
+try {
+  const phrase = combineRecoveryShares([typedWords, scannedCode]);
+  const { recoveryPrivateKey } = deriveRecoveryKey(phrase);
+  // … recoverWithRecoveryKey({ plcUrl, did, recoveryPrivateKey, newRotationDidKey, newOwnerDidKey })
+} catch (e) {
+  if (e instanceof RecoveryShareError) showProblem(e.code, e.message);
+}
+```
+
+- `threshold` (k) and `shares` (n): 2 ≤ k ≤ n ≤ 16. For one holder, keep the phrase whole
+  instead.
+- **The secret split is the recovery phrase's 16 bytes of BIP-39 entropy**, byte by byte, over
+  GF(256) with the AES polynomial; combining gives back the same 12 words, and so the same key.
+- **A share is 27 bytes**: format version (1), threshold, index (1..n), a 4-byte split id
+  (random, the same in every share of one split) and its 16 bytes, then a 4-byte checksum
+  (`SHA-256("openfederation-recovery-share" ‖ the first 23 bytes)`). It prints as **20 words**
+  from the BIP-39 English list (11 bits each; the last 4 bits are zero) or as a **code**,
+  `OFRS:` and 44 base32 characters, which QR codes store compactly (alphanumeric mode).
+- `parseRecoveryShare(text)` reads either form: case, extra spaces, line breaks and numbering
+  (`1.`, `2)`) are ignored. It returns `{ version, threshold, index, splitId, words, code }`, so
+  an app can say "share 2 of a 2-of-3 split" before the others are in.
+- `combineRecoveryShares` refuses, with `RecoveryShareError.code`: `ShareChecksumMismatch` (a
+  wrong word or character), `MixedShares` (shares from different splits, or an extra share that
+  disagrees), `DuplicateShare` (the same share twice), `NotEnoughShares`, `InvalidShare` (an
+  unknown word, wrong length), `UnsupportedShareVersion`. `splitRecoveryPhrase` throws
+  `InvalidSplit` for impossible k and n.
+- **With a newsroom**, the split is the same; the app labels one share for the newsroom. The
+  newsroom alone can never recover, even when it runs the PDS. See the threat model in
+  [ADR-003](adr/ADR-003-custody-modes.md), decision 13.
+- No new dependency: the field arithmetic is in the SDK, with known-answer tests.
+
 The next three sections are the client side of [When the operator is the risk](HARDENING.md#when-the-operator-is-the-risk).
 
 ### Watching the repository
