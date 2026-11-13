@@ -10,7 +10,11 @@ interface InviteInput {
   expiresAt?: string;
   boundTo?: string;
   note?: string;
+  count?: number;
 }
+
+/** Most codes one call may create (one per person, e.g. an imported member list). */
+const MAX_COUNT = 100;
 
 export default async function createInvite(req: AuthRequest, res: Response): Promise<void> {
   if (!requireRole(req, res, ['admin', 'moderator'])) {
@@ -28,6 +32,15 @@ export default async function createInvite(req: AuthRequest, res: Response): Pro
     return;
   }
 
+  const count = input.count ?? 1;
+  if (!Number.isInteger(count) || count < 1 || count > MAX_COUNT) {
+    res.status(400).json({
+      error: 'InvalidRequest',
+      message: `count must be an integer from 1 to ${MAX_COUNT}`,
+    });
+    return;
+  }
+
   let expiresAt: string | null = null;
   if (input.expiresAt) {
     const parsed = new Date(input.expiresAt);
@@ -41,23 +54,30 @@ export default async function createInvite(req: AuthRequest, res: Response): Pro
     expiresAt = parsed.toISOString();
   }
 
-  const code = generateInviteCode();
   const boundTo = input.boundTo || null;
   const note = input.note || null;
 
-  await query(
-    `INSERT INTO invites (code, created_by, max_uses, expires_at, bound_to, note)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [code, req.auth!.userId, maxUses, expiresAt, boundTo, note]
-  );
+  const codes: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const code = generateInviteCode();
+    await query(
+      `INSERT INTO invites (code, created_by, max_uses, expires_at, bound_to, note)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [code, req.auth!.userId, maxUses, expiresAt, boundTo, note]
+    );
+    codes.push(code);
+  }
 
-  await auditLog('invite.create', req.auth!.userId, null, { maxUses, expiresAt, boundTo, note });
+  await auditLog('invite.create', req.auth!.userId, null, {
+    maxUses, expiresAt, boundTo, note, ...(input.count !== undefined ? { count } : {}),
+  });
 
   res.status(201).json({
-    code,
+    code: codes[0],
     maxUses,
     expiresAt,
     ...(boundTo ? { boundTo } : {}),
     ...(note ? { note } : {}),
+    ...(input.count !== undefined ? { codes } : {}),
   });
 }

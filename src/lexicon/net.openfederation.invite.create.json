@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.invite.create",
-  "revision": 1,
-  "description": "Create a new invite code. Requires admin or moderator role.",
+  "revision": 2,
+  "description": "Create invite codes. Requires admin or moderator role. With `count`, creates that many independent codes with the same settings (one per person to invite).",
   "defs": {
     "main": {
       "type": "procedure",
@@ -21,6 +21,23 @@
               "type": "string",
               "format": "datetime",
               "description": "Optional expiration timestamp for the invite code."
+            },
+            "boundTo": {
+              "type": "string",
+              "maxLength": 255,
+              "description": "Optional email address the code is bound to; only that address can register with it."
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "Optional free-text note kept with the code, visible to admins in invite.list."
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 1,
+              "description": "How many codes to create, each with these settings. Defaults to 1."
             }
           }
         }
@@ -42,6 +59,21 @@
               "type": "string",
               "format": "datetime",
               "description": "Expiration timestamp, or null if the code does not expire."
+            },
+            "boundTo": {
+              "type": "string",
+              "description": "The email address the code is bound to, when one was given."
+            },
+            "note": {
+              "type": "string",
+              "description": "The note, when one was given."
+            },
+            "codes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Every code created, in order; `code` is the first. Present when `count` was given."
             }
           },
           "required": [

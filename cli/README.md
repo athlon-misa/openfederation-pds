@@ -84,7 +84,7 @@ Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc c
 
 | Command | Auth | Description |
 |---------|:---:|-------------|
-| `invite create [--max-uses N] [--expires DATE]` | Admin/Mod | Create an invite code |
+| `invite create [--max-uses N] [--expires DATE]` | Admin/Mod | Create an invite code (the API also takes `count`, up to 100 codes per call) |
 | `invite list [--status used\|unused\|expired]` | Admin/Mod | List invite codes |
 
 ### `ofc community` — Community Management
@@ -107,6 +107,27 @@ Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc c
 | `community suspend <did> [--reason TEXT]` | PDS Admin | Suspend community |
 | `community unsuspend <did>` | PDS Admin | Unsuspend community |
 | `community takedown <did> [--reason TEXT]` | PDS Admin | Standard takedown: owner gets a 30-day export link, then the data is deleted (`docs/FAIR-USE.md`) |
+| `community import discord --community <did> --export <dir> [--apply] [--keep-names] [--members <csv>] [--invites]` | Owner/PDS Admin | Import a Discord server's channels, threads and messages (dry run unless `--apply`); see below |
+
+#### Importing from Discord
+
+```bash
+# 1. Export the server with DiscordChatExporter (JSON format, one file per channel/thread) into ./export
+# 2. See what would be created. Writes nothing, needs no login.
+ofc community import discord --community did:plc:abc --export ./export
+# 3. Write it.
+ofc community import discord --community did:plc:abc --export ./export --apply
+# Optional: one invite code per member, written to discord-invites.csv (needs a PDS admin/moderator)
+ofc community import discord --community did:plc:abc --export ./export --apply \
+  --members members.csv --invites
+```
+
+- **Mapping.** Each channel becomes a forum thread `#name`, each Discord thread a forum thread named after it; messages become posts in order, keeping their original time, and a reply keeps its link to the message it answered in the same channel. Posts are written by the community (its repository, its key); nobody's account is used.
+- **Privacy defaults.** Authors appear as "Discord member 1", "Discord member 2"… (the same person keeps the same number within an import and across resumed runs). Discord user ids and names are not sent; mentions in the text are rewritten too, but a name typed as plain text is not detected. Bots' messages (`--include-bots`) and private threads (`--include-private-threads`) are skipped unless asked for; system messages always; direct-message exports are refused. Attachments are counted, not uploaded or linked.
+- **`--keep-names`** copies Discord display names into the records. The CLI warns: in a public community those names become public in an AT Protocol repository, which anyone can copy, and cannot be recalled.
+- **Resuming.** Run the same command again: record keys come from the Discord ids, so nothing is created twice. The checkpoint (`--checkpoint`, default `ofc-discord-import-<community>.json` in the current directory) skips what is already confirmed and keeps the "Discord member N" numbering. It links those labels, and invite codes, to Discord accounts: it is written owner-only; keep it private and delete it when you are done.
+- **Invites** (`--invites`). One single-use invite code per member of `--members` (CSV: Discord user id, display name; header optional), or per imported author when no list is given. The CSV (`--invites-out`, owner-only) has each person's Discord name, label, code and a sign-up link (`--register-url`, default the PDS's advertised web interface + `/register`). The PDS stores nothing about who a code is for unless you pass `--invite-note`. After signing up, people join the community the normal way.
+- Batches go to `net.openfederation.forum.importBatch` (`docs/API.md`); a rate limit (`IMPORT_RATE_LIMIT`, default 30 batches/min) is waited out automatically.
 
 ### `ofc record` — Repository Records
 

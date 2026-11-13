@@ -42,7 +42,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.account.updateRoles` | Admin | Add or remove PDS roles for a user |
 | POST | `net.openfederation.account.updateProfile` | Yes | Update standard or custom profile collection |
 | GET  | `net.openfederation.account.getProfile` | No | Get user profile (standard + custom collections) |
-| POST | `net.openfederation.invite.create` | Admin/Mod | Create an invite code |
+| POST | `net.openfederation.invite.create` | Admin/Mod | Create an invite code; optional `maxUses`, `expiresAt`, `boundTo`, `note`, and `count` (1–100 codes with the same settings, returned as `codes`) |
 | GET  | `net.openfederation.invite.list` | Admin/Mod | List invite codes with status filter |
 
 ## OpenFederation Session Management
@@ -208,12 +208,23 @@ Moderation (`hidePost`/`hideThread`) requires the dedicated `community.forum.mod
 | POST | `net.openfederation.forum.deletePost` | Author only | Delete the caller's own post record and decrement thread post count |
 | POST | `net.openfederation.forum.hidePost` | Mod (`community.forum.moderate`) | Soft-hide an individual post via index flag; underlying record is preserved |
 | POST | `net.openfederation.forum.hideThread` | Mod (`community.forum.moderate`) | Soft-hide a thread via index flag; underlying record is preserved |
+| POST | `net.openfederation.forum.importBatch` | Owner or PDS admin | Import up to 100 threads and 100 posts from another platform (`platform: "discord"`) into the community's own repo, signed by the community; see below |
 | POST | `net.openfederation.calendar.createEvent` | Member | Create a calendar event; stores record in the community's repo |
 | GET  | `net.openfederation.calendar.listEvents` | No* | List calendar events for a community |
 | POST | `net.openfederation.calendar.rsvp` | Member | Submit or update an RSVP for a calendar event |
 | GET  | `net.openfederation.calendar.listRsvps` | No* | List RSVPs for an event with per-status counts |
 
 \* Gated by community visibility — see note above.
+
+### Importing history from another platform (`forum.importBatch`, #86)
+
+Written for `ofc community import discord` (see `cli/README.md`), which reads the export and sends batches; any client may call it.
+
+- **Input:** `{ community, platform: "discord", threads?: [{ channelId, title, tags?, createdAt }], posts?: [{ channelId, messageId, replyToMessageId?, text, createdAt, editedAt?, author?, attachmentCount? }] }`. Ids are Discord snowflakes (decimal strings, < 2^63). At most 100 threads and 100 posts; posts oldest first. A post's thread (`channelId`) must be in the batch or already imported; `replyToMessageId` must be a post earlier in the batch or already imported in the same channel. Unknown fields, bad ids or times, over-long strings (title 300, text 10 000, tag 64, author 100 UTF-8 bytes) and a post with neither text nor attachments are refused (`InvalidRequest`, `ThreadNotFound`, `ParentNotFound`); a refused batch writes nothing.
+- **Output:** `{ threads: { created, existing }, posts: { created, existing } }`.
+- **What is written:** `net.openfederation.forum.thread` / `.post` records in the **community's** repository, in one signed commit per batch. They carry no `author` (nothing is written in a Discord user's name) and an `importedFrom` object: `{ platform, channelId }` on a thread; `{ platform, channelId, messageId, author?, editedAt?, attachmentCount? }` on a post. `createdAt` is the original time; the commit carries the import time. Visibility follows the community: a private community's imported history is readable by its members only.
+- **Record keys** are the Discord id's 63 bits written as a TID (the lexicons declare `key: tid`), so the same message always lands at the same address. A record already there is left alone and counted as `existing` (and re-indexed), which makes a re-run or a resumed run safe.
+- **Rate limit:** `IMPORT_RATE_LIMIT` per IP per minute (default 30). Audited as `forum.import` with counts only.
 
 ## OpenFederation Activity Timelines
 

@@ -1,0 +1,47 @@
+{
+  "guild": { "id": "1000000000000000001", "name": "Riverside Book Club", "iconUrl": "" },
+  "channel": {
+    "id": "1100000000000000020",
+    "type": "GuildTextChat",
+    "categoryId": "1100000000000000001",
+    "category": "Text Channels",
+    "name": "events",
+    "topic": null
+  },
+  "dateRange": { "after": null, "before": null },
+  "exportedAt": "2026-11-01T10:00:00.000+00:00",
+  "messages": [
+    {
+      "id": "1200000000000000101",
+      "type": "Default",
+      "timestamp": "2026-02-01T12:00:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Next meetup: Saturday, café on Elm St. ☕",
+      "author": { "id": "1000000000000000103", "name": "carol", "discriminator": "0000", "nickname": null, "isBot": false, "roles": [] },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000102",
+      "type": "Reply",
+      "timestamp": "2026-02-01T12:30:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Count me in, <@1000000000000000103>!",
+      "author": { "id": "1000000000000000101", "name": "alice.reads", "discriminator": "0000", "nickname": "Alice", "isBot": false, "roles": [] },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": [
+        { "id": "1000000000000000103", "name": "carol", "discriminator": "0000", "nickname": null, "isBot": false }
+      ],
+      "reference": { "messageId": "1200000000000000101", "channelId": "1100000000000000020", "guildId": "1000000000000000001" }
+    }
+  ],
+  "messageCount": 2
+}

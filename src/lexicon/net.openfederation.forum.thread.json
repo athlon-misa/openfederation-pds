@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.thread",
-  "revision": 2,
+  "revision": 3,
   "description": "A forum thread root. Lives in the author's user repo; aggregated per-community by the forum index.",
   "defs": {
     "main": {
@@ -46,7 +46,34 @@
           "authorSig": {
             "type": "ref",
             "ref": "#authorSig"
+          },
+          "importedFrom": {
+            "type": "ref",
+            "ref": "#importedFrom",
+            "description": "Present when the thread was imported from another platform (net.openfederation.forum.importBatch). Such a thread is written by the community itself, in its own repository."
           }
+        }
+      }
+    },
+    "importedFrom": {
+      "type": "object",
+      "description": "Where an imported thread came from. `createdAt` keeps the original time; the repository commit carries the time of the import.",
+      "required": [
+        "platform",
+        "channelId"
+      ],
+      "properties": {
+        "platform": {
+          "type": "string",
+          "knownValues": [
+            "discord"
+          ],
+          "maxLength": 32
+        },
+        "channelId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "The source platform's id of the channel or thread this forum thread was made from."
         }
       }
     },
