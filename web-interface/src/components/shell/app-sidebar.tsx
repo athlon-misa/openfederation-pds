@@ -11,7 +11,7 @@ import {
   KeyRound,
   Ticket,
   ScrollText,
-  Settings,
+  UserRound,
   LogOut,
   ChevronUp,
 } from 'lucide-react';
@@ -38,9 +38,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const mainNav = [
-  { title: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { title: 'My Communities', href: '/communities', icon: Globe },
-  { title: 'Explore', href: '/explore', icon: Compass },
+  { title: 'Home', href: '/', icon: LayoutDashboard },
+  { title: 'Your communities', href: '/communities', icon: Globe },
+  { title: 'Explore communities', href: '/explore', icon: Compass },
+  // Identity, recovery, devices, moving, pen names: sub-navigation inside (#404).
+  { title: 'Your account & identity', href: '/account', icon: UserRound },
 ];
 
 // Each admin nav item specifies which PDS roles can see it
@@ -103,7 +105,7 @@ export function AppSidebar() {
                     isActive={isActive(item.href)}
                     tooltip={item.title}
                   >
-                    <Link href={item.href}>
+                    <Link href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
                       <item.icon />
                       <span>{item.title}</span>
                     </Link>
@@ -128,7 +130,7 @@ export function AppSidebar() {
                       isActive={isActive(item.href)}
                       tooltip={item.title}
                     >
-                      <Link href={item.href}>
+                      <Link href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
                         <item.icon />
                         <span>{item.title}</span>
                       </Link>
@@ -151,7 +153,7 @@ export function AppSidebar() {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
-                    <Users className="size-4" />
+                    <UserRound className="size-4" aria-hidden />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">{handle}</span>
@@ -167,9 +169,9 @@ export function AppSidebar() {
                 sideOffset={4}
               >
                 <DropdownMenuItem asChild>
-                  <Link href="/settings">
-                    <Settings className="mr-2 size-4" />
-                    Settings
+                  <Link href="/account">
+                    <UserRound className="mr-2 size-4" />
+                    Your account
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
