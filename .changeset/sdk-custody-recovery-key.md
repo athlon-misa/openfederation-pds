@@ -1,5 +1,0 @@
----
-"@open-federation/sdk": minor
----
-
-`@open-federation/sdk/custody` gains an optional recovery key for `self` and `assisted` identities (#238): a second rotation key the person holds, listed directly below the phrase key. `generateRecoveryPhrase()` and `deriveRecoveryKey(phrase)` make it from its own 12-word phrase (`m/1985'/2'`, never the identity phrase's keys). `addRecoveryKey({ plcUrl, did, rotationPrivateKey, mode, recoveryDidKey })` and `removeRecoveryKey({ plcUrl, did, rotationPrivateKey, mode })` are signed by the phrase key; `recoverWithRecoveryKey({ plcUrl, did, recoveryPrivateKey, newRotationDidKey, newOwnerDidKey, newRecoveryDidKey? })` is signed by the recovery key, puts the new phrase's keys first and returns `cancelUntil`, the end of the 72 hours in which the old phrase can cancel it (`buildCancelOp`). Each reads the DID from PLC, checks the key can sign, submits and reads the result back. The operation builders `buildAddRecoveryKeyOp`, `buildRemoveRecoveryKeyOp`, `buildRecoveryOp` and `recoveryKeyOf` are exported, with `RECOVERY_KEY_PATH` and `PLC_CANCEL_WINDOW_MS`. `leavePds` takes `recoveryDidKey` to keep the recovery key when moving.

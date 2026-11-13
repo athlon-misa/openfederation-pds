@@ -1,5 +1,12 @@
 # @open-federation/pseudonym
 
+## 0.3.0
+
+### Minor Changes
+
+- a602e62: A verifier that runs anywhere, including browsers and phones: `verifyRevealBundle` (online, it reports `ownerAttestation`: `person` when the owner's own key signed, `pds-held-key` when their server's did), `verifyPresence`, `checkPresence` and `fetchGenesisOp`, reading every key from the PLC directory. `challengeForWord(word, context)` turns a spoken word into a presence challenge. For QR codes, `revealLinkFragment` and `presenceLinkFragment` put a proof in a short URL fragment, `parseVerifyLink` and `revealBundleFromLink` read it back, and `verifyLink` checks it and names both accounts by handle.
+- d974116: `tombstone({ plcUrl, did, phrase })` ends a pseudonym's DID in the PLC directory: it signs a `plc_tombstone` operation with the twelve words (the DID's only rotation key) and posts it, refusing first when the DID is already tombstoned or the words are not its rotation key. `buildTombstoneOp` and `signTombstoneOp` are exported too. Delete the pseudonym's accounts before tombstoning: servers check the owner-key JWT against the DID's current rotation keys.
+
 ## 0.2.1
 
 ### Patch Changes
