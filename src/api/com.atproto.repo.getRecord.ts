@@ -41,7 +41,14 @@ export default async function getRecord(req: Request, res: Response): Promise<vo
       return;
     }
 
-    if (!(await requireRepoReadable(req as AuthRequest, res, repo))) return;
+    // A private community's record answers exactly like a record that is not
+    // there. (`RepoNotFound`, the default, is not an error this method
+    // declares, so it used to come out as a 500.)
+    const notFound = () => res.status(404).json({
+      error: 'RecordNotFound',
+      message: `Record not found: ${collection}/${rkey}`,
+    });
+    if (!(await requireRepoReadable(req as AuthRequest, res, repo, notFound))) return;
 
     // Create repository engine for this DID
     const engine = new RepoEngine(repo);
