@@ -102,7 +102,7 @@ describe('resolveSetup', () => {
     expect(r.env.PLC_DIRECTORY_URL).toBe('https://plc.news.example');
     expect(r.env.WEB_UI_URL).toBeUndefined();
     expect(r.env.CORS_ORIGINS).toBeUndefined();
-    expect(resolveIdentityPolicy(r.env)).toEqual({ profile: 'privacy', custodyAllowed: ['assisted', 'self'], custodyDefault: 'self', pseudonymsEnabled: true });
+    expect(resolveIdentityPolicy(r.env)).toEqual({ profile: 'privacy', custodyAllowed: ['assisted', 'self'], custodyDefault: 'self', pseudonymsEnabled: true, deviceSigningAllowed: true });
   });
 
   it('port 465 means TLS from the first byte', () => {
