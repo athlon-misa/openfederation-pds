@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { registerAccount } from '@/lib/api/auth';
 import { MODE_TEXT, identityPolicy, registerWithOwnKeys, type CustodyMode } from '@/lib/custody/custody';
 import { NewPhrase } from '@/components/custody/phrase-inputs';
@@ -33,7 +34,9 @@ export default function RegisterPage() {
   const [handle, setHandle] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  // /register?invite=CODE (e.g. from an imported community's invite list) fills the code in.
+  const searchParams = useSearchParams();
+  const [inviteCode, setInviteCode] = useState(() => (searchParams?.get('invite') ?? '').slice(0, 64));
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -46,10 +49,6 @@ export default function RegisterPage() {
   const [phrase, setPhrase] = useState<string | null>(null);
   // An invite link (`/register?invite=CODE`, e.g. from `ofc community import
   // discord --invites`) fills in the code.
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('invite');
-    if (code) setInviteCode(code.slice(0, 64));
-  }, []);
   useEffect(() => {
     let alive = true;
     void identityPolicy(THIS_PDS).then((policy) => {
