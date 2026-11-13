@@ -1,0 +1,219 @@
+{
+  "guild": {
+    "id": "1000000000000000001",
+    "name": "Riverside Book Club",
+    "iconUrl": "https://cdn.discordapp.com/icons/1000000000000000001/fake.png"
+  },
+  "channel": {
+    "id": "1100000000000000010",
+    "type": "GuildTextChat",
+    "categoryId": "1100000000000000001",
+    "category": "Text Channels",
+    "name": "general",
+    "topic": "Say hello, talk books"
+  },
+  "dateRange": { "after": null, "before": null },
+  "exportedAt": "2026-11-01T10:00:00.000+00:00",
+  "messages": [
+    {
+      "id": "1200000000000000001",
+      "type": "Default",
+      "timestamp": "2026-01-05T18:00:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": true,
+      "content": "Welcome to the **Riverside Book Club** 📚! Introduce yourselves below.",
+      "author": {
+        "id": "1000000000000000101",
+        "name": "alice.reads",
+        "discriminator": "0000",
+        "nickname": "Alice",
+        "color": "#1ABC9C",
+        "isBot": false,
+        "roles": [{ "id": "1000000000000000900", "name": "Organiser", "color": null, "position": 1 }],
+        "avatarUrl": "https://cdn.discordapp.com/avatars/1000000000000000101/fake.png?ex=SIGNED-TOKEN"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [{ "emoji": { "id": "", "name": "👋", "code": "wave", "isAnimated": false, "imageUrl": "" }, "count": 3, "users": [] }],
+      "mentions": [],
+      "inlineEmojis": []
+    },
+    {
+      "id": "1200000000000000002",
+      "type": "Default",
+      "timestamp": "2026-01-05T18:05:00.000+00:00",
+      "timestampEdited": "2026-01-05T18:07:30.000+00:00",
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Hi all 👋 I'm re-reading _Dune_ — the 1965 edition.",
+      "author": {
+        "id": "1000000000000000102",
+        "name": "bob_reads",
+        "discriminator": "0000",
+        "nickname": "Bobby",
+        "color": null,
+        "isBot": false,
+        "roles": [],
+        "avatarUrl": "https://cdn.discordapp.com/avatars/1000000000000000102/fake.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000003",
+      "type": "Reply",
+      "timestamp": "2026-01-05T18:10:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "@Bobby same here! Ünïcödé check: 日本語のタイトル ✨🙂",
+      "author": {
+        "id": "1000000000000000103",
+        "name": "carol",
+        "discriminator": "0000",
+        "nickname": null,
+        "color": null,
+        "isBot": false,
+        "roles": [],
+        "avatarUrl": "https://cdn.discordapp.com/embed/avatars/3.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": [
+        { "id": "1000000000000000102", "name": "bob_reads", "discriminator": "0000", "nickname": "Bobby", "color": null, "isBot": false, "roles": [], "avatarUrl": "https://cdn.discordapp.com/avatars/1000000000000000102/fake.png" }
+      ],
+      "reference": { "messageId": "1200000000000000002", "channelId": "1100000000000000010", "guildId": "1000000000000000001" }
+    },
+    {
+      "id": "1200000000000000004",
+      "type": "GuildMemberJoin",
+      "timestamp": "2026-01-05T19:00:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Joined the server.",
+      "author": {
+        "id": "1000000000000000104",
+        "name": "dave",
+        "discriminator": "0000",
+        "nickname": null,
+        "color": null,
+        "isBot": false,
+        "roles": [],
+        "avatarUrl": "https://cdn.discordapp.com/embed/avatars/4.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000005",
+      "type": "Default",
+      "timestamp": "2026-01-06T09:00:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "⏰ Daily reminder: meeting Saturday at 7pm.",
+      "author": {
+        "id": "1000000000000000199",
+        "name": "ClubBot",
+        "discriminator": "1234",
+        "nickname": null,
+        "color": null,
+        "isBot": true,
+        "roles": [],
+        "avatarUrl": "https://cdn.discordapp.com/avatars/1000000000000000199/bot.png"
+      },
+      "attachments": [],
+      "embeds": [{ "title": "Reminder", "url": null, "timestamp": null, "description": "Saturday 7pm", "fields": [], "images": [] }],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000006",
+      "type": "ThreadCreated",
+      "timestamp": "2026-01-06T10:00:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Started a thread.",
+      "author": {
+        "id": "1000000000000000101",
+        "name": "alice.reads",
+        "discriminator": "0000",
+        "nickname": "Alice",
+        "color": "#1ABC9C",
+        "isBot": false,
+        "roles": [],
+        "avatarUrl": "https://cdn.discordapp.com/avatars/1000000000000000101/fake.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": [],
+      "reference": { "messageId": "1100000000000000030", "channelId": "1100000000000000030", "guildId": "1000000000000000001" }
+    },
+    {
+      "id": "1200000000000000007",
+      "type": "Default",
+      "timestamp": "2026-01-07T20:15:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Photo from last meetup",
+      "author": {
+        "id": "1000000000000000101",
+        "name": "alice.reads",
+        "discriminator": "0000",
+        "nickname": "Alice",
+        "color": "#1ABC9C",
+        "isBot": false,
+        "roles": [],
+        "avatarUrl": "https://cdn.discordapp.com/avatars/1000000000000000101/fake.png"
+      },
+      "attachments": [
+        { "id": "1300000000000000001", "url": "https://cdn.discordapp.com/attachments/1100000000000000010/1300000000000000001/meetup.jpg?ex=abc&is=def&hm=SIGNED-TOKEN", "fileName": "meetup.jpg", "fileSizeBytes": 123456 }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000008",
+      "type": "Default",
+      "timestamp": "2026-01-08T08:30:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Reading tracker, if anyone wants it:\n```js\nconst pages = 412;\nconsole.log(`${pages} pages to go`);\n```\n> quote: *\"Fear is the mind-killer.\"*\n- [ ] chapter 1\n- [x] prologue\nSee <https://example.org/notes>",
+      "author": {
+        "id": "1000000000000000102",
+        "name": "bob_reads",
+        "discriminator": "0000",
+        "nickname": "Bobby",
+        "color": null,
+        "isBot": false,
+        "roles": [],
+        "avatarUrl": "https://cdn.discordapp.com/avatars/1000000000000000102/fake.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    }
+  ],
+  "messageCount": 8
+}

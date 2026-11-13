@@ -135,6 +135,7 @@ export type AuditAction =
   | 'disclosure.redeem'
   | 'disclosure.revoke'
   | 'forum.thread.create'
+  | 'forum.import'
   | 'forum.post.create'
   | 'forum.post.delete'
   | 'forum.post.hide'

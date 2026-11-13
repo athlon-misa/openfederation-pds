@@ -190,6 +190,15 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Private-community gating: as of 2026-07-10 (`831285b`), all four forum/calendar read endpoints 404 for outside callers — those who are neither the owner, a PDS admin, nor a member — matching the same guard used on the generic ATProto repo read endpoints (see Federation & ATProto compliance, below)
 - No ActivityPub content federation — identity layer only; forum content stays on-PDS
 
+### Importing from Discord (#86)
+
+- `ofc community import discord` reads DiscordChatExporter JSON files on the organiser's machine (`cli/discord-export.ts`: strict, size-capped parsing; mapping) and sends batches to `net.openfederation.forum.importBatch` (owner or PDS admin; `src/forum/import.ts`). Dry run unless `--apply`. No Discord token anywhere.
+- Mapping: channel → forum thread `#name` (tags `discord`, category); Discord thread → forum thread (tags `discord`, `#parent`); message → post with its original `createdAt`, reply link kept within a channel, `importedFrom { platform, channelId, messageId, author, editedAt, attachmentCount }`. The forum has no boards, so channels are threads. Bots' messages and private threads are skipped unless asked for; system messages always; direct-message exports refused. Attachments counted, never uploaded or linked.
+- Written by the community in its own repo (signed with its key, no `author` field): nobody is impersonated, and a private community's history is gated like the rest of its repo. Authors are "Discord member N" per import unless `--keep-names`; the label ↔ Discord account mapping stays in a local checkpoint file (mode 0600). Discord user ids never reach the PDS.
+- Idempotent: record keys are the Discord id's 63 bits written as a TID, so a re-sent batch creates nothing; the checkpoint lets an interrupted run resume without re-sending.
+- `--invites`: one single-use PDS invite code per member (from `--members` CSV, else the imported authors) via `invite.create` with `count` (needs a PDS admin/moderator), written to a local CSV with links to `/register?invite=`. The PDS stores nothing linking a code to a Discord account unless `--invite-note` says so; joining the community after sign-up is the normal flow.
+- Not yet: Slack, attachments (blob upload), a live bot import, community-scoped invite codes.
+
 ## Pseudonyms — **shipped**
 
 Anonymous accounts the owner can reveal later, offline-verifiable. Design: `docs/superpowers/specs/2026-10-08-pseudonyms-design.md` (local, not committed).

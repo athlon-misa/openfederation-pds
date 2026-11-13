@@ -1,0 +1,30 @@
+{
+  "guild": { "id": "1000000000000000001", "name": "Riverside Book Club", "iconUrl": "" },
+  "channel": {
+    "id": "1100000000000000040",
+    "type": "GuildPrivateThread",
+    "categoryId": "1100000000000000010",
+    "category": "general",
+    "name": "organisers only",
+    "topic": null
+  },
+  "dateRange": { "after": null, "before": null },
+  "exportedAt": "2026-11-01T10:00:00.000+00:00",
+  "messages": [
+    {
+      "id": "1200000000000000301",
+      "type": "Default",
+      "timestamp": "2026-03-01T09:00:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Budget for the spring event is in the shared sheet.",
+      "author": { "id": "1000000000000000101", "name": "alice.reads", "discriminator": "0000", "nickname": "Alice", "isBot": false, "roles": [] },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    }
+  ],
+  "messageCount": 1
+}

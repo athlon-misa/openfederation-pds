@@ -1,0 +1,211 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.forum.importBatch",
+  "revision": 1,
+  "description": "Import a batch of forum threads and posts from another platform into a community (#86). Owner or PDS admin only. Records are written by the community, in its own repository and signed with its key, with record keys derived from the source ids: a batch sent again creates nothing new.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "community",
+            "platform"
+          ],
+          "properties": {
+            "community": {
+              "type": "string",
+              "format": "did"
+            },
+            "platform": {
+              "type": "string",
+              "knownValues": [
+                "discord"
+              ],
+              "description": "The platform the content comes from. Only `discord` is supported."
+            },
+            "threads": {
+              "type": "array",
+              "maxLength": 100,
+              "items": {
+                "type": "ref",
+                "ref": "#importThread"
+              }
+            },
+            "posts": {
+              "type": "array",
+              "maxLength": 100,
+              "description": "Posts, oldest first. A post's thread, and the post it replies to, must be in this batch (earlier) or already imported.",
+              "items": {
+                "type": "ref",
+                "ref": "#importPost"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "threads",
+            "posts"
+          ],
+          "properties": {
+            "threads": {
+              "type": "ref",
+              "ref": "#counts"
+            },
+            "posts": {
+              "type": "ref",
+              "ref": "#counts"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "ThreadNotFound",
+          "description": "A post names a thread that is neither in the batch nor already imported."
+        },
+        {
+          "name": "ParentNotFound",
+          "description": "A post replies to a post that is neither earlier in the batch nor already imported in the same thread."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller is not the community's owner or a PDS admin."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
+        }
+      ]
+    },
+    "importThread": {
+      "type": "object",
+      "description": "A channel or thread on the source platform, imported as a forum thread.",
+      "required": [
+        "channelId",
+        "title",
+        "createdAt"
+      ],
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Source id of the channel or thread (a Discord snowflake). Determines the record key."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 300,
+          "maxGraphemes": 300
+        },
+        "tags": {
+          "type": "array",
+          "maxLength": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the channel's first imported message was written."
+        }
+      }
+    },
+    "importPost": {
+      "type": "object",
+      "description": "A message on the source platform, imported as a forum post.",
+      "required": [
+        "channelId",
+        "messageId",
+        "text",
+        "createdAt"
+      ],
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Source id of the channel or thread the message was in; names the forum thread."
+        },
+        "messageId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Source id of the message. Determines the record key."
+        },
+        "replyToMessageId": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Source id of the message this one answered, in the same channel."
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 10000,
+          "maxGraphemes": 10000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When the message was originally written."
+        },
+        "editedAt": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "author": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "How the original author is shown (by default a per-import label such as \"Discord member 3\")."
+        },
+        "attachmentCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "created",
+        "existing"
+      ],
+      "properties": {
+        "created": {
+          "type": "integer",
+          "description": "Records written by this call."
+        },
+        "existing": {
+          "type": "integer",
+          "description": "Records that were already there (an earlier run) and were left as they are."
+        }
+      }
+    }
+  }
+}

@@ -44,6 +44,12 @@ export default function RegisterPage() {
   const [choosingPhrase, setChoosingPhrase] = useState(false);
   // Kept after a failed attempt: the person already wrote it down.
   const [phrase, setPhrase] = useState<string | null>(null);
+  // An invite link (`/register?invite=CODE`, e.g. from `ofc community import
+  // discord --invites`) fills in the code.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('invite');
+    if (code) setInviteCode(code.slice(0, 64));
+  }, []);
   useEffect(() => {
     let alive = true;
     void identityPolicy(THIS_PDS).then((policy) => {

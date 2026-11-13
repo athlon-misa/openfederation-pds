@@ -52,3 +52,14 @@ export const walletSignLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many signing requests, please try again later' },
 });
+
+// Importing a community's history from another platform (#86): owner-only, and
+// one run sends many batches of up to 100 records each, so the hourly create
+// limit would stall it. Per IP, per minute; the importer waits and retries.
+export const importLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: config.rateLimits.importPerMin,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'RateLimitExceeded', message: 'Too many import batches, please slow down' },
+});

@@ -91,6 +91,34 @@ describe('net.openfederation.invite.create', () => {
 
   // === RESPONSE SHAPE ===
 
+  // === SEVERAL CODES AT ONCE (#86: one invite per imported member) ===
+
+  it('creates `count` independent single-use codes in one call', async () => {
+    const res = await xrpcAuthPost('net.openfederation.invite.create', adminToken, { count: 3 });
+    expect(res.status).toBe(201);
+    expect(res.body.codes).toHaveLength(3);
+    expect(new Set(res.body.codes).size).toBe(3);
+    expect(res.body.code).toBe(res.body.codes[0]);
+    expect(res.body.maxUses).toBe(1);
+  });
+
+  it('refuses a count above 100 or below 1', async () => {
+    for (const count of [0, 101]) {
+      const res = await xrpcAuthPost('net.openfederation.invite.create', adminToken, { count });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('InvalidRequest');
+    }
+  });
+
+  it('accepts a note and a bound email, and returns them', async () => {
+    const res = await xrpcAuthPost('net.openfederation.invite.create', adminToken, {
+      note: 'for the book club', boundTo: 'reader@example.com',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.note).toBe('for the book club');
+    expect(res.body.boundTo).toBe('reader@example.com');
+  });
+
   it('should return unique codes per invocation', async () => {
     const res1 = await xrpcAuthPost('net.openfederation.invite.create', adminToken, {});
     const res2 = await xrpcAuthPost('net.openfederation.invite.create', adminToken, {});

@@ -56,6 +56,7 @@ See `.env.example` for the full list. Critical ones:
 | `WALLET_SIGN_RATE_LIMIT` | No | Default 60/min/IP |
 | `DISCOVERY_RATE_LIMIT` | No | Default 60/min/IP for public discovery reads (`community.discover`, `getPublicConfig`, the communities well-known document) |
 | `CREATE_RATE_LIMIT` | No | Default 10/hr/IP for invites/communities/wallets/consents |
+| `IMPORT_RATE_LIMIT` | No | Default 30/min/IP for `forum.importBatch` (owner-only history import, #86) |
 | `EXPRESS_TRUST_PROXY` | No | Default 1; set to 2 for Cloudflare + proxy |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | Production | Required in production unless `ALLOW_NO_EMAIL=true`; unset in dev logs mail to console. See `docs/EMAIL.md` |
 | `EMAIL_WEBHOOK_TOKEN` | No | Enables bounce/complaint webhooks (`/webhooks/email/:provider`); routes absent when unset |

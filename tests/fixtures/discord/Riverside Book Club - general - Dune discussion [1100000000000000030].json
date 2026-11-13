@@ -1,0 +1,59 @@
+{
+  "guild": { "id": "1000000000000000001", "name": "Riverside Book Club", "iconUrl": "" },
+  "channel": {
+    "id": "1100000000000000030",
+    "type": "GuildPublicThread",
+    "categoryId": "1100000000000000010",
+    "category": "general",
+    "name": "Dune discussion",
+    "topic": null
+  },
+  "dateRange": { "after": null, "before": null },
+  "exportedAt": "2026-11-01T10:00:00.000+00:00",
+  "messages": [
+    {
+      "id": "1200000000000000201",
+      "type": "Default",
+      "timestamp": "2026-01-06T10:00:05.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Spoilers welcome here. Who's your favourite character?",
+      "author": { "id": "1000000000000000101", "name": "alice.reads", "discriminator": "0000", "nickname": "Alice", "isBot": false, "roles": [] },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000202",
+      "type": "Default",
+      "timestamp": "2026-01-06T10:20:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Duncan Idaho, obviously 🗡️",
+      "author": { "id": "1000000000000000102", "name": "bob_reads", "discriminator": "0000", "nickname": "Bobby", "isBot": false, "roles": [] },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000203",
+      "type": "Reply",
+      "timestamp": "2026-01-06T11:00:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Lady Jessica — underrated.",
+      "author": { "id": "1000000000000000103", "name": "carol", "discriminator": "0000", "nickname": null, "isBot": false, "roles": [] },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": [],
+      "reference": { "messageId": "1200000000000000201", "channelId": "1100000000000000030", "guildId": "1000000000000000001" }
+    }
+  ],
+  "messageCount": 3
+}

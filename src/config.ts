@@ -246,6 +246,7 @@ export const config = {
     walletSignPerMin: parseInt(process.env.WALLET_SIGN_RATE_LIMIT || '60', 10),
     serviceAuthPerMin: parseInt(process.env.SERVICE_AUTH_RATE_LIMIT || '60', 10),
     discoveryPerMin: parseInt(process.env.DISCOVERY_RATE_LIMIT || '60', 10),
+    importPerMin: parseInt(process.env.IMPORT_RATE_LIMIT || '30', 10),
   },
 };
 

@@ -345,7 +345,12 @@ export class OFCClient {
 
     if (!resp.ok) {
       const msg = data?.message || data?.error || `HTTP ${resp.status}`;
-      throw new Error(msg);
+      const err = new Error(msg) as Error & { status?: number; code?: string; retryAfterSeconds?: number };
+      err.status = resp.status;
+      if (typeof data?.error === 'string') err.code = data.error;
+      const retryAfter = Number(resp.headers.get('retry-after'));
+      if (Number.isFinite(retryAfter) && retryAfter > 0) err.retryAfterSeconds = retryAfter;
+      throw err;
     }
     return data;
   }

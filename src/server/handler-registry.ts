@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import type rateLimit from 'express-rate-limit';
 import type { LexiconNsid } from '../lexicon/generated.js';
-import { authLimiter, registrationLimiter, createLimiter, discoveryLimiter, walletSignLimiter } from './rate-limits.js';
+import { authLimiter, registrationLimiter, createLimiter, discoveryLimiter, walletSignLimiter, importLimiter } from './rate-limits.js';
 import { config, isChainModuleEnabled } from '../config.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
 import getRecord from '../api/com.atproto.repo.getRecord.js';
@@ -209,6 +209,7 @@ import listThreadsHandler from '../api/net.openfederation.forum.listThreads.js';
 import getThreadHandler from '../api/net.openfederation.forum.getThread.js';
 import hidePost from '../api/net.openfederation.forum.hidePost.js';
 import hideThread from '../api/net.openfederation.forum.hideThread.js';
+import importForumBatch from '../api/net.openfederation.forum.importBatch.js';
 import createEvent from '../api/net.openfederation.calendar.createEvent.js';
 import listEvents from '../api/net.openfederation.calendar.listEvents.js';
 import rsvp from '../api/net.openfederation.calendar.rsvp.js';
@@ -505,6 +506,8 @@ const handlers = Object.freeze({
   'net.openfederation.forum.deletePost': { handler: deletePost },
   'net.openfederation.forum.hidePost': { handler: hidePost },
   'net.openfederation.forum.hideThread': { handler: hideThread },
+  // Owner-only import from another platform (#86); many batches per run, so its own per-minute limit.
+  'net.openfederation.forum.importBatch': { handler: importForumBatch, limiter: importLimiter },
   'net.openfederation.forum.listThreads': { handler: listThreadsHandler, limiter: discoveryLimiter },
   'net.openfederation.forum.getThread': { handler: getThreadHandler, limiter: discoveryLimiter },
 

@@ -90,6 +90,7 @@ process.env.REGISTRATION_RATE_LIMIT = process.env.REGISTRATION_RATE_LIMIT || '10
 process.env.CREATE_RATE_LIMIT = process.env.CREATE_RATE_LIMIT || '10000';
 process.env.WALLET_SIGN_RATE_LIMIT = process.env.WALLET_SIGN_RATE_LIMIT || '10000';
 process.env.DISCOVERY_RATE_LIMIT = process.env.DISCOVERY_RATE_LIMIT || '10000';
+process.env.IMPORT_RATE_LIMIT = process.env.IMPORT_RATE_LIMIT || '10000';
 
 // Seed the bootstrap admin. Tests that import `app` don't call main(),
 // so ensureBootstrapAdmin never runs normally — we do it once here.
