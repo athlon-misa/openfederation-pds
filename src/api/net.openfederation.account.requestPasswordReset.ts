@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { query } from '../db/client.js';
-import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
+import { localHandle, normalizeEmail } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { sendEmail } from '../email/email-service.js';
 import { passwordResetEmail } from '../email/templates.js';
@@ -50,7 +50,7 @@ export default async function requestPasswordReset(req: Request, res: Response):
 
     const normalized = identifier.includes('@')
       ? normalizeEmail(identifier)
-      : normalizeHandle(identifier);
+      : localHandle(identifier);
 
     const userResult = await query<{ id: string; handle: string; email: string; auth_type: string }>(
       'SELECT id, handle, email, auth_type FROM users WHERE handle = $1 OR email = $1',
