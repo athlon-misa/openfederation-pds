@@ -837,7 +837,7 @@ CREATE TABLE IF NOT EXISTS server_setup (
   pending_admin_password_hash TEXT
 );
 
--- Device signing (migrate-060, #240, ADR-003 decision 14): the person's device
+-- Device signing (migrate-061, #240, ADR-003 decision 14): the person's device
 -- holds the repo signing key and the DID's `atproto` verification method names
 -- it, so this server can no longer sign commits for the account.
 --   device_signing:     on only after the server checked that PLC's atproto

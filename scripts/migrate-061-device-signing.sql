@@ -1,4 +1,4 @@
--- scripts/migrate-060-device-signing.sql
+-- scripts/migrate-061-device-signing.sql
 -- Device signing (#240, ADR-003 decision 14): the person's device holds the
 -- repo signing key and the DID's `atproto` verification method names it, so
 -- this server can no longer sign commits for the account.
