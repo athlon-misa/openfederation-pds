@@ -4,7 +4,8 @@ import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
-import { currentPlcState, pointsHere } from '../identity/account-migration.js';
+import { currentPlcState, accountPointsHere } from '../identity/account-migration.js';
+import { isDeviceSigningOn } from '../repo/device-signing-state.js';
 import { countBlobs } from '../repo/blob-refs.js';
 
 /**
@@ -33,7 +34,7 @@ export default async function checkAccountStatus(req: AuthRequest, res: Response
     try {
       const state = await currentPlcState(did);
       const keypair = await getKeypairForDid(did);
-      validDid = !!state && pointsHere(state, config.pds.serviceUrl, keypair.did());
+      validDid = !!state && accountPointsHere(state, config.pds.serviceUrl, keypair.did(), await isDeviceSigningOn(did));
     } catch {
       validDid = false;
     }

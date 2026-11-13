@@ -14,23 +14,25 @@ describe('identity policy from configuration', () => {
   it('unset: everything allowed, custodial by default, pseudonyms on', () => {
     expect(resolveIdentityPolicy({})).toEqual({
       profile: null, custodyAllowed: ['custodial', 'assisted', 'self'], custodyDefault: 'custodial', pseudonymsEnabled: true,
+      deviceSigningAllowed: false,
     });
   });
 
   it('profiles supply defaults', () => {
     expect(resolveIdentityPolicy({ OPENFEDERATION_PROFILE: 'community' })).toMatchObject({
-      profile: 'community', custodyDefault: 'custodial', pseudonymsEnabled: false,
+      profile: 'community', custodyDefault: 'custodial', pseudonymsEnabled: false, deviceSigningAllowed: false,
     });
     expect(resolveIdentityPolicy({ OPENFEDERATION_PROFILE: 'privacy' })).toMatchObject({
-      profile: 'privacy', custodyDefault: 'self', pseudonymsEnabled: true,
+      profile: 'privacy', custodyDefault: 'self', pseudonymsEnabled: true, deviceSigningAllowed: true,
     });
   });
 
   it('every setting overrides the profile', () => {
     expect(resolveIdentityPolicy({
       OPENFEDERATION_PROFILE: 'community', IDENTITY_CUSTODY_ALLOWED: 'custodial, assisted',
-      IDENTITY_CUSTODY_DEFAULT: 'assisted', PSEUDONYMS_ENABLED: 'true',
-    })).toEqual({ profile: 'community', custodyAllowed: ['custodial', 'assisted'], custodyDefault: 'assisted', pseudonymsEnabled: true });
+      IDENTITY_CUSTODY_DEFAULT: 'assisted', PSEUDONYMS_ENABLED: 'true', DEVICE_SIGNING_ALLOWED: 'true',
+    })).toEqual({ profile: 'community', custodyAllowed: ['custodial', 'assisted'], custodyDefault: 'assisted', pseudonymsEnabled: true, deviceSigningAllowed: true });
+    expect(resolveIdentityPolicy({ OPENFEDERATION_PROFILE: 'privacy', DEVICE_SIGNING_ALLOWED: 'false' }).deviceSigningAllowed).toBe(false);
   });
 
   it('refuses nonsense instead of guessing', () => {
@@ -39,6 +41,7 @@ describe('identity policy from configuration', () => {
     expect(() => resolveIdentityPolicy({ IDENTITY_CUSTODY_ALLOWED: '' })).toThrow(/IDENTITY_CUSTODY_ALLOWED/);
     expect(() => resolveIdentityPolicy({ IDENTITY_CUSTODY_ALLOWED: 'self', IDENTITY_CUSTODY_DEFAULT: 'custodial' })).toThrow(/IDENTITY_CUSTODY_DEFAULT/);
     expect(() => resolveIdentityPolicy({ PSEUDONYMS_ENABLED: 'maybe' })).toThrow(/PSEUDONYMS_ENABLED/);
+    expect(() => resolveIdentityPolicy({ DEVICE_SIGNING_ALLOWED: 'yes' })).toThrow(/DEVICE_SIGNING_ALLOWED/);
   });
 });
 
@@ -54,7 +57,7 @@ describe('custody modes on this PDS', () => {
     expect(res.status).toBe(200);
     expect(res.body.identity).toEqual({
       custodyAllowed: config.identity.custodyAllowed, custodyDefault: config.identity.custodyDefault,
-      pseudonymsEnabled: config.identity.pseudonymsEnabled,
+      pseudonymsEnabled: config.identity.pseudonymsEnabled, deviceSigningAllowed: config.identity.deviceSigningAllowed,
     });
   });
 

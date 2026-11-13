@@ -4,6 +4,7 @@ import { requireAuth } from '../auth/guards.js';
 import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { assertServerMaySign } from '../repo/device-signing-state.js';
 import { authorizeCollectionMutation } from '../repo/collection-policy.js';
 import { enforceGovernance, isCommunityDid, type GovernanceResult } from '../governance/enforcement.js';
 import { resolveGovernanceContext, runGovernedMutation } from '../governance/request-authority.js';
@@ -75,6 +76,10 @@ export default async function createRecord(req: AuthRequest, res: Response): Pro
         return;
       }
     }
+
+    // A repo whose device holds the signing key (#240) is written only with
+    // net.openfederation.repo.prepareCommit / submitCommit.
+    await assertServerMaySign(repo);
 
     if (!(await enforcePseudonymProbation(req, res))) return;
 

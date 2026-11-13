@@ -3,6 +3,7 @@ import type { AuthRequest, AuthContext } from '../auth/types.js';
 import { requireAuth, requireCommunityPermission } from '../auth/guards.js';
 import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
 import { writeMemberContent } from '../forum/member-content.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 import { indexPost, getThread, FORUM_POST } from '../forum/forum-index.js';
 import { auditLog } from '../db/audit.js';
 
@@ -42,9 +43,13 @@ export default async function createPost(req: AuthRequest, res: Response): Promi
     );
     if (!hasPermission) return;
 
+    const authorDid = req.auth!.did;
+    // A post is in the author's repo, or (private community) signed with the
+    // author's repo key: neither is the server's to make under device signing (#240).
+    if (await respondIfDeviceSigning(res, authorDid)) return;
+
     if (!(await enforcePseudonymProbation(req, res))) return;
 
-    const authorDid = req.auth!.did;
     const createdAt = new Date().toISOString();
 
     const unsigned: Record<string, unknown> = {

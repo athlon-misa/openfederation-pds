@@ -4,6 +4,7 @@ import { requireApprovedUser } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { query } from '../db/client.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 import { fanOutDisplayFields } from '../community/display-projection.js';
 
 const DEFAULT_COLLECTION = 'app.bsky.actor.profile';
@@ -23,6 +24,10 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
       });
       return;
     }
+
+    // The profile lives in the user's repo: with device signing on (#240) the
+    // device writes it (prepareCommit / submitCommit), not this server.
+    if (await respondIfDeviceSigning(res, did)) return;
 
     const engine = new RepoEngine(did);
     const keypair = await getKeypairForDid(did);

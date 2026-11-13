@@ -45,6 +45,17 @@ export function pointsHere(state: PlcState, serviceUrl: string, signingKey: stri
 }
 
 /**
+ * `pointsHere` for a user account that may have device signing on (#240):
+ * then the DID names the device's key, so any key other than this server's
+ * is the right one, and the endpoint must still be this server.
+ */
+export function accountPointsHere(state: PlcState, serviceUrl: string, serverKey: string, deviceSigning: boolean): boolean {
+  if (!deviceSigning) return pointsHere(state, serviceUrl, serverKey);
+  const key = state.verificationMethods.atproto;
+  return state.services.atproto_pds?.endpoint === serviceUrl && typeof key === 'string' && key !== serverKey;
+}
+
+/**
  * Every atproto signing key the DID has had, oldest first. Empty for a DID
  * that is unknown or tombstoned (a deleted identity vouches for nothing). For
  * other DID methods only the current key is known.

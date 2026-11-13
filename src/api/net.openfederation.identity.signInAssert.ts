@@ -11,6 +11,7 @@ import { verifyEthereumSignature } from '../identity/adapters/ethereum-verifier.
 import { verifySolanaSignature } from '../identity/adapters/solana-verifier.js';
 import { signServiceAuthJwt } from '../auth/service-auth.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 import { isWalletChain } from '../wallet/index.js';
 
 const DID_TOKEN_TTL_SEC = 5 * 60; // 5 minutes — long enough for a dApp backend to verify without pressure
@@ -134,6 +135,9 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
 
     // Mint the didToken. The user's atproto signing key is what establishes
     // "this DID said so," and any dApp can verify this offline.
+    // The didToken is checked against the DID's atproto key; under device
+    // signing (#240) that key is on the device, not here.
+    if (await respondIfDeviceSigning(res, userDid, 'This account\'s atproto key is on its device (device signing), so the server cannot sign a didToken for it')) return;
     let keypair;
     try {
       keypair = await getKeypairForDid(userDid);

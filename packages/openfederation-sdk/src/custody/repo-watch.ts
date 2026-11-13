@@ -119,9 +119,21 @@ export function readRepoCar(car: Uint8Array): { commit: RepoCommit; records: Map
     prev: raw.prev ? raw.prev.toString() : null, sig: base64UrlEncode(raw.sig), block,
   };
 
+  return { commit, records: listMstRecords(blocks, commit.data) };
+}
+
+/**
+ * Every record path (`collection/rkey`) in a repository tree, with the
+ * record's CID, walking from the MST root `dataCid` through `blocks`.
+ * With `strict`, the paths must come out in strictly increasing order, as
+ * they do in any well-formed tree (a tree with a key twice, or out of order,
+ * could read differently elsewhere).
+ */
+export function listMstRecords(blocks: Map<string, Uint8Array>, dataCid: string, strict = false): Map<string, string> {
   const records = new Map<string, string>();
   const decoder = new TextDecoder();
   let visited = 0;
+  let previous: string | null = null;
   const walk = (cid: string) => {
     if (++visited > blocks.size) throw new Error('Malformed repository: the tree loops');
     const bytes = blocks.get(cid);
@@ -133,12 +145,15 @@ export function readRepoCar(car: Uint8Array): { commit: RepoCommit; records: Map
       const key = new Uint8Array(e.p + e.k.length);
       key.set(last.subarray(0, e.p)); key.set(e.k, e.p);
       last = key;
-      records.set(decoder.decode(key), e.v.toString());
+      const path = decoder.decode(key);
+      if (strict && previous !== null && !(path > previous)) throw new Error('Malformed repository: tree keys out of order');
+      previous = path;
+      records.set(path, e.v.toString());
       if (e.t) walk(e.t.toString());
     }
   };
-  walk(commit.data);
-  return { commit, records };
+  walk(dataCid);
+  return records;
 }
 
 /**

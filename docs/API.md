@@ -45,6 +45,17 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.invite.create` | Admin/Mod | Create an invite code; optional `maxUses`, `expiresAt`, `boundTo`, `note`, and `count` (1–100 codes with the same settings, returned as `codes`) |
 | GET  | `net.openfederation.invite.list` | Admin/Mod | List invite codes with status filter |
 
+## Device signing (#240)
+
+For `self` and `assisted` accounts, where `getPublicConfig` says `identity.deviceSigningAllowed`. The device holds the repo signing key and the DID's `atproto` key names it ([ADR-003](adr/ADR-003-custody-modes.md) decision 14), so commits this server signed would be refused everywhere. While device signing is on, every server-side write into the account's repository answers `403 DeviceSigningRequired`: `com.atproto.repo.createRecord` / `putRecord` / `deleteRecord`, `account.updateProfile`, `identity.setExternalKey` / `deleteExternalKey`, `contact.*` writes, `forum.createThread` / `createPost` / `deletePost` (author's repo), `calendar.rsvp`, `community.voteOnProposal`, `community.objectToProposal`, and `com.atproto.server.getServiceAuth` / `identity.signInAssert` (tokens are checked against the device's key). Writes go through prepare and submit instead (`@open-federation/sdk/custody` does both).
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| POST | `net.openfederation.account.enableDeviceSigning` | Yes | Turn it on after the phrase-signed PLC update naming the device key. Refuses `DeviceSigningNotAllowed`, `CustodyModeNotSupported` (custodial), `AtprotoKeyNotDevice` (PLC still names a server key). Returns `{ deviceSigning, atprotoKey }`. Idempotent |
+| POST | `net.openfederation.account.disableDeviceSigning` | Yes | Turn it off once PLC names this server's key again (`com.atproto.identity.getRecommendedDidCredentials`); else `AtprotoKeyNotServer`. Drops prepared commits. Idempotent |
+| POST | `net.openfederation.repo.prepareCommit` | Yes | `{ repo?, writes: [{ action: create \| update \| delete, collection, rkey?, value? }] }` (up to 200, the `applyWrites` shape; createRecord / putRecord / deleteRecord are one-write batches). Builds the commit on the current root without signing it. Returns `{ handle, did, rev, prevRoot, unsignedCommit (base64 DAG-CBOR without sig: sign exactly these bytes), newBlocks [{ cid, bytes }], writes [{ collection, rkey, uri, cid }], expiresAt }`. Own repo only; same collection rules as the generic writes. Expires after 5 minutes; at most 8 waiting per account (`TooManyPendingCommits`). Errors: `DeviceSigningOff`, `UseDedicatedEndpoint`, `RecordNotFound` |
+| POST | `net.openfederation.repo.submitCommit` | Yes | `{ handle, sig }` (base64 compact 64-byte low-S ECDSA over `unsignedCommit`). Takes the prepared commit (once, only by the account that prepared it), reads the DID's current `atproto` key from PLC, verifies the signature, checks the root has not moved, then stores blocks, root and `records_index` in one transaction. Returns `{ commit: { cid, rev }, writes }`. Errors: `UnknownCommit` (replayed or someone else's), `CommitExpired`, `InvalidSignature`, `RepoHeadMoved` (prepare again), `DeviceSigningOff` (also when PLC names this server's key again, which turns it off), `UpstreamFailure` |
+
 ## OpenFederation Session Management
 
 | Method | NSID | Auth | Description |
@@ -59,7 +70,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.identity.finalizeCustodyChange` | Yes + password | Finalize it: from custodial the server checks the possession proofs, signs, submits and reads back; otherwise checks the user's operation is the latest at PLC. Then stores or deletes its key shares, updates the mode, emails the account. Idempotent. Errors: `NotSubmitted`, `OperationMismatch`, `StateChanged`, `PossessionProofInvalid`, `PdsKeyNotReserved`, `UpstreamFailure` |
 | POST | `net.openfederation.identity.recoverAssistedAccount` | Yes + password + identity verification | Recover an `assisted` account whose phrase is lost: without `operationCid` returns the planned update and `possessionText`; with it, the server signs (second-priority key) the update putting the new keys first, and emails the 72-hour cancel notice. One recovery per verification. Errors: `NotAssisted`, `VerificationRequired`, `PossessionProofInvalid`, `OperationMismatch` (ADR-003) |
 | GET  | `net.openfederation.identity.verifyRecord` | No | Is a record hosted here person-signed (ADR-003, decision 11)? `uri` → `{ personSigned, reason?, ownerKey? }`; `reason`: `NotSigned`, `NoOwnerKey`, `CidMismatch`, `SignatureInvalid` |
-| GET  | `net.openfederation.account.getSecurityLevel` | Yes | Recovery tier, security checklist, `pdsHoldsRotationKey` and `custodyMode` (`custodial` / `assisted` / `self`, ADR-003) |
+| GET  | `net.openfederation.account.getSecurityLevel` | Yes | Recovery tier, security checklist, `pdsHoldsRotationKey`, `custodyMode` (`custodial` / `assisted` / `self`, ADR-003), `deviceSigning` and `deviceSigningKey` (#240) |
 | POST | `net.openfederation.account.initiateRecovery` | No | Start identity recovery (email-based) |
 | POST | `net.openfederation.account.completeRecovery` | No | Complete recovery with token + new password |
 

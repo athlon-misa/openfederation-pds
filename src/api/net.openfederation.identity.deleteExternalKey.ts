@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 import { auditLog } from '../db/audit.js';
 import { query } from '../db/client.js';
 import { EXTERNAL_KEY_COLLECTION } from '../identity/external-keys.js';
@@ -36,6 +37,9 @@ export default async function deleteExternalKey(req: AuthRequest, res: Response)
       });
       return;
     }
+
+    // A key claim is a record in the user's repo (#240: the device signs those).
+    if (await respondIfDeviceSigning(res, did)) return;
 
     const engine = new RepoEngine(did);
     const keypair = await getKeypairForDid(did);

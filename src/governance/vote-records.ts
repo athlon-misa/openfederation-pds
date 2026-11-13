@@ -18,6 +18,7 @@
 import { RepoEngine } from '../repo/repo-engine.js';
 import { collectEligibilityEvidence } from './eligibility-evidence.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { isDeviceSigningOn } from '../repo/device-signing-state.js';
 import { auditLog } from '../db/audit.js';
 
 // Defined in `decision-rules.ts` so the offline verifier can name the same
@@ -90,6 +91,9 @@ async function auditMissingVoteRecord(input: VoteRecordInput, reason: string): P
  * proposal as if the voter had never voted. Callers must handle the throw.
  */
 export async function canRecordVote(voterDid: string): Promise<boolean> {
+  // A voter whose device signs their repo (#240): the server cannot sign the
+  // record for them, so the vote is as unrecordable as one with no repo.
+  if (await isDeviceSigningOn(voterDid)) return false;
   return new RepoEngine(voterDid).hasRepo();
 }
 

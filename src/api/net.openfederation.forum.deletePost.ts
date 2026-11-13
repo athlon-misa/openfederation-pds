@@ -4,6 +4,7 @@ import { requireAuth, writableStatus } from '../auth/guards.js';
 import { deindexPost, FORUM_POST } from '../forum/forum-index.js';
 import { auditLog } from '../db/audit.js';
 import { deleteMemberContent } from '../forum/member-content.js';
+import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
 import { query } from '../db/client.js';
 
 export default async function deletePost(req: AuthRequest, res: Response): Promise<void> {
@@ -32,6 +33,9 @@ export default async function deletePost(req: AuthRequest, res: Response): Promi
       // Stored in the community's repository: that repository must be writable.
       const community = await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [communityDid]);
       if (community.rows[0] && !writableStatus(community.rows[0].status, res)) return;
+    } else if (await respondIfDeviceSigning(res, authorDid)) {
+      // In the author's own repo, whose device signs it (#240).
+      return;
     }
 
     await deleteMemberContent(uri);

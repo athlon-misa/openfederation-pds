@@ -23,6 +23,9 @@ const STANDARD_XRPC_ERROR_CODES = new Set([
   // EMAIL_VERIFICATION_POLICY=require-for-write — like the three above, it
   // can surface on any authenticated endpoint, which is what this set is for.
   'EmailNotVerified',
+  // The account's device signs its repository (#240): any endpoint that
+  // would write into it on the account's behalf refuses with this.
+  'DeviceSigningRequired',
 ]);
 
 export class XrpcError extends Error {

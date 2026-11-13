@@ -60,10 +60,11 @@ See `.env.example` for the full list. Critical ones:
 | `EXPRESS_TRUST_PROXY` | No | Default 1; set to 2 for Cloudflare + proxy |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | Production | Required in production unless `ALLOW_NO_EMAIL=true`; unset in dev logs mail to console. See `docs/EMAIL.md` |
 | `EMAIL_WEBHOOK_TOKEN` | No | Enables bounce/complaint webhooks (`/webhooks/email/:provider`); routes absent when unset |
-| `OPENFEDERATION_PROFILE` | No | `community` / `privacy`: defaults for the three settings below (ADR-003); unset keeps today's behaviour |
+| `OPENFEDERATION_PROFILE` | No | `community` / `privacy`: defaults for the four settings below (ADR-003); unset keeps today's behaviour |
 | `IDENTITY_CUSTODY_ALLOWED` | No | Comma list of `custodial`, `assisted`, `self` (default all); custodial sign-up is refused when `custodial` is missing. Invalid values stop the server |
 | `IDENTITY_CUSTODY_DEFAULT` | No | Mode applications should offer first; `custodial` (default), `self` under `privacy`. Must be in the allowed list |
 | `PSEUDONYMS_ENABLED` | No | Default `true` (`false` under `community`): `false` refuses new pseudonyms (tokens, creation, moving in); existing ones keep working |
+| `DEVICE_SIGNING_ALLOWED` | No | Default `false` (`true` under `privacy`): `self` / `assisted` accounts may turn on device signing (#240); the device holds the repo key and every server-side write for the account refuses |
 | `PSEUDONYM_TOKENS_PER_EPOCH` | No | Default 20; creation tokens per account per month |
 | `PSEUDONYM_PROBATION_DAYS` | No | Default 7; `0` disables pseudonym write probation |
 | `PSEUDONYM_PROBATION_DAILY_WRITES` | No | Default 20; daily writes while on probation (in-memory counters) |

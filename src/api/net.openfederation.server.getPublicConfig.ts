@@ -25,11 +25,14 @@ export default async function getPublicConfig(_req: Request, res: Response): Pro
       // Whether accounts from other PDSes can move here (#265).
       migration: { accounts: config.migration.accounts, pseudonyms: config.migration.pseudonyms, communities: config.migration.communities },
       // Custody policy (ADR-003): which modes accounts may have, the default
-      // applications should offer, and whether new pseudonyms are accepted.
+      // applications should offer, whether new pseudonyms are accepted, and
+      // whether device signing is offered.
       identity: {
         custodyAllowed: config.identity.custodyAllowed,
         custodyDefault: config.identity.custodyDefault,
         pseudonymsEnabled: config.identity.pseudonymsEnabled,
+        // Whether self and assisted accounts may have their device sign their repo (#240).
+        deviceSigningAllowed: config.identity.deviceSigningAllowed,
       },
       // The PLC directory this PDS registers and resolves DIDs with.
       plcDirectoryUrl: config.plc.directoryUrl,
