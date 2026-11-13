@@ -13,6 +13,7 @@ export * from './owner-record.js';
 export * from './repo-watch.js';
 export * from './leave.js';
 export * from './recovery.js';
+export * from './device-signing.js';
 export {
   splitRecoveryPhrase, combineRecoveryShares, parseRecoveryShare, RecoveryShareError,
   RECOVERY_SHARE_VERSION, RECOVERY_SHARE_WORDS, RECOVERY_SHARE_CODE_PREFIX, MAX_RECOVERY_SHARES,
