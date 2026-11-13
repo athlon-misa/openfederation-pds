@@ -847,6 +847,15 @@ async function main(): Promise<void> {
   await bundle();
 
   const app = express();
+  // Only this laptop's own address may talk to the demo server. Listening on
+  // 127.0.0.1 keeps other machines out; checking Host also keeps out a web
+  // page whose domain is made to resolve to 127.0.0.1 (DNS rebinding), which
+  // could otherwise read /api/elena-phrase.
+  const allowedHosts = new Set([`localhost:${PORTS.app}`, `127.0.0.1:${PORTS.app}`]);
+  app.use((req, res, next) => {
+    if (!allowedHosts.has(String(req.headers.host ?? '').toLowerCase())) return res.status(421).send('Wrong host');
+    next();
+  });
   app.use(express.json({ limit: '256kb' }));
   app.use(express.static(join(HERE, 'public'), { extensions: ['html'] }));
 
