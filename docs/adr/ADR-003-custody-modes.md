@@ -272,7 +272,7 @@ which key, and in what order.
          the newsroom alone can never recover, even when it runs the PDS.
 
       All three are built: `splitRecoveryPhrase` / `combineRecoveryShares` in the SDK, and
-      Settings → Identity custody → Recovery in the dashboard. **The split** is of the recovery
+      Your account → Recovery in the dashboard. **The split** is of the recovery
       phrase's 16 bytes of BIP-39 entropy, over GF(256), so combining gives back the same 12
       words. A share is 27 bytes (format version, threshold, index, a random 4-byte split id,
       16 bytes, a 4-byte SHA-256 checksum), printed as 20 BIP-39 words or an `OFRS:` base32 code
