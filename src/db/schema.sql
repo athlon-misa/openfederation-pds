@@ -826,3 +826,13 @@ CREATE TABLE IF NOT EXISTS reserved_rotation_keys (
   seq BIGSERIAL
 );
 CREATE INDEX IF NOT EXISTS idx_reserved_rotation_keys_seq ON reserved_rotation_keys(seq);
+
+-- First-run setup wizard (migrate-060)
+CREATE TABLE IF NOT EXISTS server_setup (
+  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+  completed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  config_file TEXT NOT NULL,
+  pending_admin_handle TEXT,
+  pending_admin_email TEXT,
+  pending_admin_password_hash TEXT
+);

@@ -5,6 +5,8 @@ import { config } from '../config.js';
 import { testConnection, closePool } from '../db/client.js';
 import { authMiddleware, setOAuthVerifier } from '../auth/middleware.js';
 import { ensureBootstrapAdmin, validateBootstrapAdminConfig } from '../auth/bootstrap.js';
+import { completePendingSetupAdmin } from '../auth/setup-admin.js';
+import { createSetupDoneRouter } from '../setup/setup-app.js';
 import { query } from '../db/client.js';
 import { createOAuthProvider } from '../oauth/oauth-setup.js';
 import { createOAuthRouter } from '../oauth/oauth-routes.js';
@@ -264,6 +266,9 @@ app.get('/verify-email', async (req: Request, res: Response) => {
 app.use(createAccountPagesRouter());
 // The page where a user approves a dApp's request to sign with their wallet.
 app.use(createWalletConsentRouter());
+// The first-run setup wizard runs only before the server is configured
+// (src/setup/launcher.ts); here /setup just says it is done (#405).
+app.use(createSetupDoneRouter());
 
 app.use('/xrpc', createXrpcRouter());
 
@@ -457,6 +462,9 @@ export async function startServer(): Promise<Server> {
     console.log('Database connection successful');
     await ensureSchema();
     await ensureBootstrapAdmin();
+    // The first admin chosen in the setup wizard, created on the first start after it.
+    const setupAdmin = await completePendingSetupAdmin();
+    if (setupAdmin !== 'none') console.log('✓ Admin account from the setup wizard created');
 
     // Initialize OAuth provider if enabled
     if (config.oauth.enabled) {

@@ -15,7 +15,15 @@ Users get real `did:plc` decentralized identifiers with signed data repositories
 
 The server includes configurable registration (open or invite-only), an admin dashboard, a partner API for third-party apps to register users directly, a JavaScript SDK, cross-network identity bridging (Meshtastic, Nostr, WireGuard, SSH), and full AT Protocol compliance for moderation, portability, and federation.
 
-## Setup
+## Install your own server
+
+No technical background needed: one click creates the server, its database and the dashboard on Railway, then a setup page in your browser asks for your addresses, email and admin account and generates every secret for you.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/openfederation-pds)
+
+Step by step: [Install on Railway](docs/INSTALL-RAILWAY.md). Operators who prefer environment variables: [RAILWAY.md](RAILWAY.md) and [DEPLOYMENT.md](DEPLOYMENT.md). A Docker install is planned ([#405](https://github.com/athlon-misa/openfederation-pds/issues/405)).
+
+## Setup (development)
 
 ```bash
 npm install

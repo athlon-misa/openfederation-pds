@@ -15,7 +15,7 @@ type BootstrapQuery = <T extends Record<string, unknown> = Record<string, unknow
   params?: unknown[],
 ) => Promise<QueryResult<T>>;
 
-interface BootstrapTransactionClient {
+export interface BootstrapTransactionClient {
   query: BootstrapQuery;
 }
 
@@ -42,6 +42,127 @@ async function insertBootstrapAudit(
      VALUES ($1, $2, $3, $4)`,
     [action, null, targetId, JSON.stringify(meta)],
   );
+}
+
+export interface AdminAccountSpec {
+  email: string;
+  handle: string;
+  /** Called only when the account is created; an existing account keeps its password. */
+  passwordHash: () => Promise<string>;
+  /** Recorded in the audit log: 'bootstrap' (environment variables) or 'setup' (the setup wizard). */
+  source: 'bootstrap' | 'setup';
+}
+
+/**
+ * Create the operator's admin account, or approve and promote the account
+ * that already has exactly this email and handle. Runs inside the caller's
+ * transaction.
+ */
+export async function provisionAdminAccount(
+  client: BootstrapTransactionClient,
+  account: AdminAccountSpec,
+): Promise<'created' | 'existing'> {
+  const normalizedEmail = normalizeEmail(account.email.trim());
+  const normalizedHandle = normalizeHandle(account.handle.trim());
+
+  // Bootstrap can run concurrently during rolling deploys. Serialize the
+  // lookup/create/promote sequence for this one startup-only identity.
+  await client.query('SELECT pg_advisory_xact_lock(1868982375)');
+
+  const existing = await client.query<{ id: string; status: string; email: string; handle: string }>(
+    'SELECT id, status, email, handle FROM users WHERE email = $1 OR handle = $2',
+    [normalizedEmail, normalizedHandle],
+  );
+
+  if (existing.rows.length > 0) {
+    const exactMatch = existing.rows.find(
+      row => normalizeEmail(row.email) === normalizedEmail
+        && normalizeHandle(row.handle) === normalizedHandle,
+    );
+
+    if (!exactMatch) {
+      throw new Error(
+        `${account.source === 'setup' ? 'Setup' : 'Bootstrap'} admin identifier mismatch: an existing account matches only the configured email or handle.`,
+      );
+    }
+
+    const userId = exactMatch.id;
+    // The operator configured this address themselves — that is the
+    // attestation email verification exists to obtain, so the bootstrap
+    // admin never gets locked out by require-for-login (#83). Idempotent.
+    await client.query(
+      `UPDATE users SET email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP) WHERE id = $1`,
+      [userId],
+    );
+    const approval = await client.query<{ id: string; handle: string; email: string }>(
+      `UPDATE users
+       SET status = 'approved',
+           approved_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+         AND status <> 'approved'
+       RETURNING id, handle, email`,
+      [userId],
+    );
+    if (approval.rows.length > 0) {
+      await insertBootstrapAudit(client, 'account.approve', userId, {
+        source: account.source,
+        actor: `system/${account.source}`,
+        handle: approval.rows[0].handle,
+        email: approval.rows[0].email,
+      });
+    }
+    const grantedRoles = await client.query<{ role: string }>(
+      `INSERT INTO user_roles (user_id, role)
+       VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')
+       ON CONFLICT DO NOTHING
+       RETURNING role`,
+      [userId],
+    );
+    if (grantedRoles.rows.length > 0) {
+      await insertBootstrapAudit(client, 'account.roles.update', userId, {
+        source: account.source,
+        actor: `system/${account.source}`,
+        roles: grantedRoles.rows.map(({ role }) => role),
+        operation: 'grant',
+      });
+    }
+    return 'existing' as const;
+  }
+
+  const userId = crypto.randomUUID();
+  const passwordHash = await account.passwordHash();
+  const did = createLocalDid();
+
+  await client.query(
+    `INSERT INTO users (id, handle, email, password_hash, status, did, approved_at, email_verified_at)
+     VALUES ($1, $2, $3, $4, 'approved', $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [userId, normalizedHandle, normalizedEmail, passwordHash, did],
+  );
+  await insertBootstrapAudit(client, 'account.register', userId, {
+    source: account.source,
+    actor: `system/${account.source}`,
+    handle: normalizedHandle,
+    email: normalizedEmail,
+    did,
+    status: 'approved',
+  });
+
+  const grantedRoles = await client.query<{ role: string }>(
+    `INSERT INTO user_roles (user_id, role)
+     VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')
+     ON CONFLICT DO NOTHING
+     RETURNING role`,
+    [userId],
+  );
+  if (grantedRoles.rows.length > 0) {
+    await insertBootstrapAudit(client, 'account.roles.update', userId, {
+      source: account.source,
+      actor: `system/${account.source}`,
+      roles: grantedRoles.rows.map(({ role }) => role),
+      operation: 'grant',
+    });
+  }
+  return 'created' as const;
 }
 
 export function validateBootstrapAdminConfig(): void {
@@ -83,109 +204,12 @@ export async function ensureBootstrapAdmin(
     return;
   }
 
-  const normalizedEmail = normalizeEmail(email);
-  const normalizedHandle = normalizeHandle(handle);
-
-  const outcome = await runTransaction(async (client) => {
-    // Bootstrap can run concurrently during rolling deploys. Serialize the
-    // lookup/create/promote sequence for this one startup-only identity.
-    await client.query('SELECT pg_advisory_xact_lock(1868982375)');
-
-    const existing = await client.query<{ id: string; status: string; email: string; handle: string }>(
-      'SELECT id, status, email, handle FROM users WHERE email = $1 OR handle = $2',
-      [normalizedEmail, normalizedHandle],
-    );
-
-    if (existing.rows.length > 0) {
-      const exactMatch = existing.rows.find(
-        row => normalizeEmail(row.email) === normalizedEmail
-          && normalizeHandle(row.handle) === normalizedHandle,
-      );
-
-      if (!exactMatch) {
-        throw new Error(
-          'Bootstrap admin identifier mismatch: an existing account matches only the configured email or handle.',
-        );
-      }
-
-      const userId = exactMatch.id;
-      // The operator configured this address themselves — that is the
-      // attestation email verification exists to obtain, so the bootstrap
-      // admin never gets locked out by require-for-login (#83). Idempotent.
-      await client.query(
-        `UPDATE users SET email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP) WHERE id = $1`,
-        [userId],
-      );
-      const approval = await client.query<{ id: string; handle: string; email: string }>(
-        `UPDATE users
-         SET status = 'approved',
-             approved_at = CURRENT_TIMESTAMP
-         WHERE id = $1
-           AND status <> 'approved'
-         RETURNING id, handle, email`,
-        [userId],
-      );
-      if (approval.rows.length > 0) {
-        await insertBootstrapAudit(client, 'account.approve', userId, {
-          source: 'bootstrap',
-          actor: 'system/bootstrap',
-          handle: approval.rows[0].handle,
-          email: approval.rows[0].email,
-        });
-      }
-      const grantedRoles = await client.query<{ role: string }>(
-        `INSERT INTO user_roles (user_id, role)
-         VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')
-         ON CONFLICT DO NOTHING
-         RETURNING role`,
-        [userId],
-      );
-      if (grantedRoles.rows.length > 0) {
-        await insertBootstrapAudit(client, 'account.roles.update', userId, {
-          source: 'bootstrap',
-          actor: 'system/bootstrap',
-          roles: grantedRoles.rows.map(({ role }) => role),
-          operation: 'grant',
-        });
-      }
-      return 'existing' as const;
-    }
-
-    const userId = crypto.randomUUID();
-    const passwordHash = await hashPassword(password);
-    const did = createLocalDid();
-
-    await client.query(
-      `INSERT INTO users (id, handle, email, password_hash, status, did, approved_at, email_verified_at)
-       VALUES ($1, $2, $3, $4, 'approved', $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      [userId, normalizedHandle, normalizedEmail, passwordHash, did],
-    );
-    await insertBootstrapAudit(client, 'account.register', userId, {
-      source: 'bootstrap',
-      actor: 'system/bootstrap',
-      handle: normalizedHandle,
-      email: normalizedEmail,
-      did,
-      status: 'approved',
-    });
-
-    const grantedRoles = await client.query<{ role: string }>(
-      `INSERT INTO user_roles (user_id, role)
-       VALUES ($1, 'admin'), ($1, 'moderator'), ($1, 'partner-manager'), ($1, 'auditor'), ($1, 'user')
-       ON CONFLICT DO NOTHING
-       RETURNING role`,
-      [userId],
-    );
-    if (grantedRoles.rows.length > 0) {
-      await insertBootstrapAudit(client, 'account.roles.update', userId, {
-        source: 'bootstrap',
-        actor: 'system/bootstrap',
-        roles: grantedRoles.rows.map(({ role }) => role),
-        operation: 'grant',
-      });
-    }
-    return 'created' as const;
-  });
+  const outcome = await runTransaction((client) => provisionAdminAccount(client, {
+    email,
+    handle,
+    passwordHash: () => hashPassword(password),
+    source: 'bootstrap',
+  }));
 
   if (outcome === 'existing') {
     console.warn(

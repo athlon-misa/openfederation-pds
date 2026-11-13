@@ -1,12 +1,22 @@
-import { startServer, releaseServerResources } from './server/index.js';
-import { gracefulShutdown } from './server/shutdown.js';
-import { config } from './config.js';
-
-/** How long requests already running get to finish once a stop is asked for. */
-const SHUTDOWN_TIMEOUT_MS = Math.max(1, parseInt(process.env.SHUTDOWN_TIMEOUT_SECONDS || '20', 10) || 20) * 1000;
+// Configuration is read once, when src/config.ts is first imported. A fresh
+// install has none yet, so the settings file and, when needed, the setup
+// wizard come first, and the server is imported only after them (#405).
+import dotenv from 'dotenv';
+import { loadSettingsFile, runSetupIfNeeded } from './setup/launcher.js';
 
 async function main() {
   try {
+    // DOTENV_CONFIG_PATH (dotenv's own convention) picks another file, e.g. none in tests.
+    dotenv.config({ quiet: true, path: process.env.DOTENV_CONFIG_PATH || undefined });
+    loadSettingsFile(process.env);
+    await runSetupIfNeeded(process.env);
+
+    const { config } = await import('./config.js');
+    const { startServer, releaseServerResources } = await import('./server/index.js');
+    const { gracefulShutdown } = await import('./server/shutdown.js');
+    /** How long requests already running get to finish once a stop is asked for. */
+    const SHUTDOWN_TIMEOUT_MS = Math.max(1, parseInt(process.env.SHUTDOWN_TIMEOUT_SECONDS || '20', 10) || 20) * 1000;
+
     console.log('Starting OpenFederation PDS...');
     console.log(`Configuration:`);
     console.log(`  - Port: ${config.port}`);

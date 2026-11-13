@@ -1,10 +1,18 @@
 import dotenv from 'dotenv';
+import { readConfigFile, resolveConfigFilePath, applyConfigToEnv } from './setup/config-file.js';
 import { resolveIdentityPolicy } from './identity/custody-policy.js';
 import { parseFederationPeers, mergePeerLists } from './federation/peer-sources.js';
 
 // quiet: dotenv 17 prints an informational banner to stdout on every load,
 // which corrupts machine-readable output from the ofc CLI. Loading is unchanged.
-dotenv.config({ quiet: true });
+dotenv.config({ quiet: true, path: process.env.DOTENV_CONFIG_PATH || undefined });
+// The settings file the setup wizard writes (#405) fills in whatever the
+// environment (and .env) leaves unset, for every entry point: the server, the
+// CLI and the maintenance scripts alike. No file, no change.
+{
+  const settings = readConfigFile(resolveConfigFilePath(process.env));
+  if (settings) applyConfigToEnv(settings, process.env);
+}
 
 const INSECURE_JWT_DEFAULTS = ['dev-secret-change-me', 'change_me', ''];
 

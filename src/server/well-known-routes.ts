@@ -144,6 +144,39 @@ export function createWellKnownRouter(): Router {
     }
   });
 
+  // AT Protocol handle verification over HTTPS: https://<handle>/.well-known/atproto-did
+  // answers the handle's DID as plain text. With a wildcard DNS record
+  // (*.<handle domain> pointing here, which the setup wizard shows, #405),
+  // every name under this server's handle domain reaches this route, and other
+  // AT Protocol services can confirm the name belongs to the account. Answers
+  // the same lookup as com.atproto.identity.resolveHandle, for this server's
+  // own names only.
+  router.get('/atproto-did', discoveryLimiter, async (req: Request, res: Response) => {
+    try {
+      const host = (req.hostname || '').toLowerCase();
+      const suffix = config.handleSuffix.toLowerCase();
+      const bare = suffix && host.endsWith(suffix) ? host.slice(0, -suffix.length) : '';
+      if (!bare || bare.includes('.')) {
+        res.status(404).type('text/plain').send('Not found');
+        return;
+      }
+      const [user, community] = await Promise.all([
+        query<{ did: string }>('SELECT did FROM users WHERE handle = $1', [bare]),
+        query<{ did: string }>('SELECT did FROM communities WHERE handle = $1', [bare]),
+      ]);
+      const did = user.rows[0]?.did ?? community.rows[0]?.did;
+      if (!did) {
+        res.status(404).type('text/plain').send('Not found');
+        return;
+      }
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.status(200).type('text/plain').send(did);
+    } catch (err) {
+      console.error('Error serving atproto-did:', err);
+      res.status(500).type('text/plain').send('Error');
+    }
+  });
+
   // /.well-known/webfinger — AT Protocol discovery for users and communities
   // RFC 9116: where to report a vulnerability in this instance.
   router.get('/security.txt', discoveryLimiter, (_req: Request, res: Response) => {
