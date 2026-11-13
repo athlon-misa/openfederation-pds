@@ -6,3 +6,4 @@ export * from './plc.js';
 export * from './device-unlock.js';
 export * from './migrate.js';
 export * from './tombstone.js';
+export * from './verify.js';
