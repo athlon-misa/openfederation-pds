@@ -77,8 +77,16 @@ export function parseOrigin(raw: string, allowLocalHttp: boolean): { origin: str
   return { origin: url.origin, host: url.host };
 }
 
+/** Plain string steps, not regexes over the input, so a long run of '/' or '.' stays cheap. */
 export function normalizeHandleDomain(raw: string): string {
-  return raw.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^[.@]+/, '').replace(/\/+$/, '');
+  let v = raw.trim().toLowerCase();
+  if (v.startsWith('https://')) v = v.slice(8);
+  else if (v.startsWith('http://')) v = v.slice(7);
+  let start = 0;
+  while (start < v.length && (v[start] === '.' || v[start] === '@')) start++;
+  let end = v.length;
+  while (end > start && v[end - 1] === '/') end--;
+  return v.slice(start, end);
 }
 
 export function validateSection(section: SetupSection, input: Partial<SetupInput>, allowLocalHttp: boolean): FieldErrors {

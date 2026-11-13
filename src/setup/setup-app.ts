@@ -22,6 +22,7 @@ import { writeConfigFile, removeConfigFile, probeConfigLocation } from './config
 import type { SetupStore } from './setup-store.js';
 import { hashPassword } from '../auth/password.js';
 import { parseCookies } from '../auth/credential-rules.js';
+import { assertPublicHttpsUrl } from '../security/outbound-fetch.js';
 
 type Env = Record<string, string | undefined>;
 
@@ -113,6 +114,16 @@ function sanitizeInput(raw: unknown): Partial<SetupInput> {
 }
 
 /** The SMTP part of the input, as transport settings, or the field errors. */
+/** An address with one @, something before it, and a dotted domain after it; no regex over the input. */
+function looksLikeEmail(value: string): boolean {
+  if (value.length > 254 || /\s/.test(value)) return false;
+  const at = value.indexOf('@');
+  if (at < 1 || at !== value.lastIndexOf('@')) return false;
+  const domain = value.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
+}
+
 function smtpFrom(input: Partial<SetupInput>, allowLocalHttp: boolean): { smtp: SmtpTestSettings } | { errors: Record<string, string> } {
   const errors = validateSection('email', input, allowLocalHttp);
   if (Object.keys(errors).length > 0) return { errors };
@@ -301,7 +312,10 @@ export function createSetupApp(options: SetupAppOptions) {
     const checks: Array<{ label: string; ok: boolean | null; detail: string }> = [];
     let reachesHere = false;
     try {
-      const ping = await fetchImpl(`${pub.origin}/setup/api/ping`, { redirect: 'manual', signal: AbortSignal.timeout(5000) });
+      // In production only a public https address is fetched, so the check
+      // can't be pointed at this machine's or the network's internal services.
+      const target = allowLocalHttp ? new URL(`${pub.origin}/setup/api/ping`) : await assertPublicHttpsUrl(`${pub.origin}/setup/api/ping`);
+      const ping = await fetchImpl(target.toString(), { redirect: 'manual', signal: AbortSignal.timeout(5000) });
       const body = (await ping.json().catch(() => ({}))) as { instance?: string };
       reachesHere = body.instance === instanceId;
       checks.push({
@@ -342,7 +356,7 @@ export function createSetupApp(options: SetupAppOptions) {
       return;
     }
     const to = typeof req.body?.to === 'string' ? req.body.to.trim() : '';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    if (!looksLikeEmail(to)) {
       res.status(400).json({ message: 'Enter the address to send the test email to.' });
       return;
     }
