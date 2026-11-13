@@ -51,7 +51,12 @@ export interface RevealVerifyOptions {
 }
 
 const PLC_DID = /^did:plc:[a-z2-7]{24}$/;
-const trimSlash = (u: string) => u.replace(/\/+$/, '');
+/** Drops trailing slashes; a loop, not a regex, so a long run of '/' stays cheap. */
+const trimSlash = (u: string) => {
+  let end = u.length;
+  while (end > 0 && u.charCodeAt(end - 1) === 47) end--;
+  return u.slice(0, end);
+};
 
 /** The did:key for a secp256k1 or P-256 public key (33-byte compressed). */
 function didKeyOf(prefix: [number, number], compressed: Uint8Array): string {

@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import * as dotenv from 'dotenv';
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import * as esbuild from 'esbuild';
 import pg from 'pg';
 import {
@@ -856,6 +857,9 @@ async function main(): Promise<void> {
     if (!allowedHosts.has(String(req.headers.host ?? '').toLowerCase())) return res.status(421).send('Wrong host');
     next();
   });
+  // Generous for a presenter clicking through, tight enough that nothing on
+  // this laptop can hammer the routes that sign in on Elena's or Marko's behalf.
+  app.use(rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: true, legacyHeaders: false }));
   app.use(express.json({ limit: '256kb' }));
   app.use(express.static(join(HERE, 'public'), { extensions: ['html'] }));
 
