@@ -132,6 +132,12 @@ async function xrpc<T = any>(nsid: string, body?: unknown, jwt?: string, base = 
   return json as T;
 }
 
+/** A did:plc as PLC issues it, so a DID from a request can't reshape a URL. */
+const PLC_DID = /^did:plc:[a-z2-7]{24}$/;
+function isPlcDid(value: unknown): value is string {
+  return typeof value === 'string' && PLC_DID.test(value);
+}
+
 async function getJson<T = any>(url: string): Promise<T> {
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`${url} answered ${res.status}`);
@@ -508,6 +514,7 @@ interface AuditEntry { createdAt: string; nullified: boolean; operation: Record<
 
 /** One account's public record: its PLC history and the repository its DID points to. */
 async function publicRecord(did: string) {
+  if (!isPlcDid(did)) throw new Error('Not a did:plc');
   const audit = (await getJson<AuditEntry[]>(`${stack.plcUrl}/${did}/log/audit`)).filter((e) => !e.nullified);
   const entries = audit.map((e) => {
     const op = e.operation;
@@ -524,7 +531,10 @@ async function publicRecord(did: string) {
   const endpoint = last && 'endpoint' in last ? trimUrl(last.endpoint ?? '') : '';
   const collections: { name: string; files: number }[] = [];
   const values: unknown[] = [];
-  if (endpoint) {
+  // Read repositories only from the two servers this demo is configured for:
+  // the endpoint comes from the DID's PLC entry, which its owner controls.
+  const known = [stack.a.url, stack.b.url].map(trimUrl);
+  if (endpoint && known.includes(endpoint)) {
     const repo = await getJson<{ collections: string[] }>(`${endpoint}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(did)}`);
     for (const c of repo.collections) {
       const r = await getJson<{ records: { value: unknown }[] }>(
@@ -715,7 +725,7 @@ async function main(): Promise<void> {
 
   app.get('/api/server-view', async (req, res) => {
     try {
-      const did = typeof req.query.pseudonym === 'string' && req.query.pseudonym.startsWith('did:plc:') ? req.query.pseudonym : undefined;
+      const did = isPlcDid(req.query.pseudonym) ? req.query.pseudonym : undefined;
       if (did) pseudonymDids.add(did);
       if (MODE === 'live') res.json({ view: 'public', ...(await publicView(did)) });
       else res.json({ view: 'database', ...(await serverView(did)) });
@@ -741,7 +751,7 @@ async function main(): Promise<void> {
   app.post('/api/rehearsal', (req, res) => {
     if (MODE !== 'live' || !REHEARSAL) return res.status(403).json({ error: 'Words are kept only in a live rehearsal' });
     const { did, handle, phrase, movedTo } = req.body ?? {};
-    if (typeof did !== 'string' || !did.startsWith('did:plc:')) return res.status(400).json({ error: 'did is required' });
+    if (!isPlcDid(did)) return res.status(400).json({ error: 'did is required' });
     const all = readJson<Rehearsal[]>(REHEARSALS_FILE, []);
     const existing = all.find((r) => r.did === did);
     if (existing) {
@@ -762,7 +772,7 @@ async function main(): Promise<void> {
   // PLC directory, never from the device being checked.
   app.post('/api/verify-presence', async (req, res) => {
     const { pseudonymDid, word, signature } = req.body ?? {};
-    if (typeof pseudonymDid !== 'string' || typeof word !== 'string' || !word.trim() || typeof signature !== 'string') {
+    if (!isPlcDid(pseudonymDid) || typeof word !== 'string' || !word.trim() || typeof signature !== 'string') {
       return res.status(400).json({ error: 'pseudonymDid, word and signature are required' });
     }
     try {
