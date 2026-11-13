@@ -1,7 +1,7 @@
 {
   "name": "@open-federation/react",
   "version": "0.1.5",
-  "description": "React bindings for @open-federation/sdk — provider, hooks, and a drop-in Sign In With OpenFederation button.",
+  "description": "React bindings for @open-federation/sdk \u2014 provider, hooks, and a drop-in Sign In With OpenFederation button.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -23,7 +23,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "node -e \"const fs=require('fs');const missing=['dist/index.js'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('Not built, refusing to publish: '+missing.join(', '));process.exit(1)}\""
   },
   "dependencies": {
     "@open-federation/sdk": "^0.6.0"

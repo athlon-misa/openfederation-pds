@@ -47,6 +47,7 @@ jobs:
         run: |
           npm run --workspace @open-federation/sdk build
           npm run --workspace @open-federation/react build
+          npm run --workspace @open-federation/pseudonym build
           # build:lexicon also propagates src/lexicon/*.json → packages/openfederation-lexicon/schemas/
           # (both schemas/ and dist/ are .gitignored — must be regenerated each CI run before publish).
           npm run build:lexicon
