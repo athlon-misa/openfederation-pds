@@ -13,3 +13,21 @@ export async function requestPasswordReset(identifier: string) {
     noAuth: true,
   });
 }
+
+export interface SessionInfo {
+  id: string;
+  createdAt?: string;
+  lastUsedAt?: string;
+  expiresAt: string;
+  isCurrent?: boolean;
+}
+
+/** Where this account is signed in. */
+export async function listSessions() {
+  return xrpc<{ sessions: SessionInfo[] }>('net.openfederation.account.listSessions', { method: 'GET' });
+}
+
+/** Sign out one device (by the session id shown), or every device but this one. */
+export async function revokeSession(p: { sessionId: string } | { revokeAll: true }) {
+  return xrpc<{ revokedCount: number }>('net.openfederation.account.revokeSession', { body: p });
+}
