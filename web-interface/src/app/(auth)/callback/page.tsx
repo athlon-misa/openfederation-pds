@@ -13,37 +13,31 @@ import {
 import { Button } from '@/components/ui/button';
 
 export default function CallbackPage() {
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [callbackError, setCallbackError] = useState('');
   const handleCallback = useAuthStore((s) => s.handleCallback);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const code = searchParams?.get('code') ?? null;
+  const errorParam = searchParams?.get('error') ?? null;
+
+  // What the URL already says is known on render; only the code exchange
+  // happens in the effect, and only its result is stored.
+  const urlError = errorParam
+    ? 'Authentication failed. Please try again.'
+    : !code ? 'Missing authentication code.' : '';
+  const error = urlError || callbackError;
+  const loading = !error;
 
   useEffect(() => {
-    const code = searchParams?.get('code') ?? null;
-    const errorParam = searchParams?.get('error') ?? null;
-
-    if (errorParam) {
-      setError('Authentication failed. Please try again.');
-      setLoading(false);
-      return;
-    }
-
-    if (!code) {
-      setError('Missing authentication code.');
-      setLoading(false);
-      return;
-    }
-
+    if (!code || errorParam) return;
+    let alive = true;
     handleCallback(code).then((result) => {
-      if (result.ok) {
-        router.push('/communities');
-      } else {
-        setError(result.message);
-        setLoading(false);
-      }
+      if (!alive) return;
+      if (result.ok) router.push('/communities');
+      else setCallbackError(result.message);
     });
-  }, [searchParams, handleCallback, router]);
+    return () => { alive = false; };
+  }, [code, errorParam, handleCallback, router]);
 
   if (loading) {
     return (

@@ -9,6 +9,8 @@
  * itself; dApps that call this function must have `ethers@^6` installed.
  */
 
+// Types only: erased at runtime, so ethers stays an optional peer dependency.
+import type * as EthersTypes from 'ethers';
 import type { OpenFederationClient } from '../client.js';
 import type { WalletSession } from './wallet-session.js';
 
@@ -31,7 +33,7 @@ export async function createEthersSigner(
   const normalized = walletAddress.toLowerCase();
 
   class OFEthersSigner extends ethers.AbstractSigner {
-    constructor(provider?: ethers.Provider | null) {
+    constructor(provider?: EthersTypes.Provider | null) {
       super(provider ?? null);
     }
 
@@ -39,7 +41,7 @@ export async function createEthersSigner(
       return normalized;
     }
 
-    connect(provider: ethers.Provider | null): ethers.Signer {
+    connect(provider: EthersTypes.Provider | null): EthersTypes.Signer {
       return new OFEthersSigner(provider);
     }
 
@@ -73,11 +75,11 @@ export async function createEthersSigner(
       return res.signature;
     }
 
-    async signTransaction(tx: ethers.TransactionRequest): Promise<string> {
+    async signTransaction(tx: EthersTypes.TransactionRequest): Promise<string> {
       // If a provider is attached, let ethers fill in nonce / gas estimates
       // via populateTransaction. Otherwise, trust the caller-supplied fields
       // (this is how hardware-wallet signers and offline signers behave).
-      let txToSign: ethers.TransactionRequest;
+      let txToSign: EthersTypes.TransactionRequest;
       if (this.provider) {
         txToSign = await this.populateTransaction(tx);
       } else {
@@ -101,8 +103,8 @@ export async function createEthersSigner(
     }
 
     async signTypedData(
-      _domain: ethers.TypedDataDomain,
-      _types: Record<string, ethers.TypedDataField[]>,
+      _domain: EthersTypes.TypedDataDomain,
+      _types: Record<string, EthersTypes.TypedDataField[]>,
       _value: Record<string, unknown>
     ): Promise<string> {
       throw new Error('signTypedData (EIP-712) is not yet supported by the OpenFederation signer (coming in a follow-up milestone)');
