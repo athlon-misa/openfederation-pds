@@ -1,6 +1,6 @@
 # ADR-003: Identity custody modes, custodial and self (#251)
 
-**Status:** accepted, built (#361–#366 and the person-signed records PR) · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset), 2026-11-13 (optional recovery key, decision 13) · **Issues:** #251 (daily unlock), #238 (recovery), #242 (write integrity)
+**Status:** accepted, built (#361–#366 and the person-signed records PR) · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset), 2026-11-13 (optional recovery key, decision 13; device signing, decision 14) · **Issues:** #251 (daily unlock), #238 (recovery), #242 (write integrity), #240 (device signing)
 
 One OpenFederation codebase serves two kinds of installation:
 
@@ -24,8 +24,9 @@ backup is presented is up to each application.
   (`rememberPhraseWithPasskey` / `unlockPhraseWithPasskey` in `@open-federation/pseudonym`).
 - **The PDS can sign PLC updates** for custodial accounts (`signWithCustodialKey`, used by
   account moves, #266).
-- **The repo signing key always stays with the PDS.** In AT Protocol the PDS signs every
-  repo commit, so self-custody can never cover that key.
+- **The repo signing key stayed with the PDS.** In AT Protocol the PDS normally signs every
+  repo commit. Decision 14 (device signing) lets a `self` or `assisted` account move that
+  key to the person's device.
 
 What this ADR adds: `self` and `assisted` modes for ordinary accounts, changing between
 modes, and the same passkey unlock for them.
@@ -59,6 +60,7 @@ which key, and in what order.
    | `IDENTITY_CUSTODY_ALLOWED` | `custodial,assisted,self` | `custodial,assisted,self` | `custodial,assisted,self` |
    | `IDENTITY_CUSTODY_DEFAULT` | `custodial` | `self` | `custodial` |
    | `PSEUDONYMS_ENABLED` | `false` | `true` | `true` |
+   | `DEVICE_SIGNING_ALLOWED` (decision 14) | `false` | `true` | `false` |
 
    Select a profile with `OPENFEDERATION_PROFILE=community|privacy`.
    `net.openfederation.server.getPublicConfig` publishes the policy so applications can
@@ -77,9 +79,9 @@ which key, and in what order.
      (WebAuthn).
 
    In `assisted` the PDS also holds a rotation key, kept as shares 2 and 3 as for
-   custodial accounts, listed second. The `atproto` repo signing key stays PDS-held in
-   every mode, reserved through `com.atproto.server.reserveSigningKey`. The phrase never
-   leaves the device.
+   custodial accounts, listed second. The `atproto` repo signing key is PDS-held, reserved
+   through `com.atproto.server.reserveSigningKey`, unless the person turns on device
+   signing (decision 14). The phrase never leaves the device.
 
 4. **New `assisted` and `self` accounts:** the client builds and signs the genesis
    operation (`rotationKeys = [rotationKey]` for `self`, `[rotationKey, pdsKey]` for
@@ -209,7 +211,7 @@ which key, and in what order.
       detectable and provable, not prevented. Option 3 (#241) adds operational
       protections: self-hosting guidance, repo monitoring and leaving with the person's
       own key (`docs/HARDENING.md`, "When the operator is the risk"). Option 2 (#240), a
-      user-signed repo, is parked as a later opt-in setting.
+      user-signed repo, is decision 14: an opt-in setting that prevents forgery.
 
 12. **Daily unlock (#251): the phrase once per device, a passkey every day.**
     - Setting up or recovering a device: type the phrase once.
@@ -304,9 +306,71 @@ which key, and in what order.
       72 hours, and the PDS does not email about it (it never sees it), so the app should watch
       the DID's PLC log. Pseudonyms stay without recovery.
 
+14. **Device signing (#240), decided 2026-11-13, phase 1 built.** A per-account choice,
+    offered where the installation allows it (`DEVICE_SIGNING_ALLOWED`, on under the
+    `privacy` profile, published as `identity.deviceSigningAllowed`).
+
+    - **What it guarantees, and where that comes from.** The person's device holds a repo
+      signing key (secp256k1, made on the device), and the DID's `atproto` verification
+      method names it, through a PLC update signed with the person's rotation key. Every
+      relay and app checks repo commits against that key, so a commit this server signs is
+      rejected everywhere: **the server cannot forge the person's records.** Commits stay
+      standard AT Protocol commits (v3, signed by the DID's `atproto` key); nothing about
+      reading or verifying the repository changes. The protection is the key's location,
+      not a server setting: the server's flag only makes it refuse, cleanly, writes it
+      could not make valid anyway.
+    - **Per custody mode.**
+
+      | Mode | Who can turn it on or off | What a hostile operator can do |
+      | --- | --- | --- |
+      | `self` | Only the person: both are PLC updates signed with their phrase key. | Refuse the person's writes (censorship), never forge them. It cannot point the DID back at a server key: it holds no rotation key (tested: a PLC update signed with any key the server holds is refused). The person leaves with `leavePds`. Existing records stay valid. |
+      | `assisted` | The person; the server's backup rotation key could also switch the `atproto` key back. | Switch it back with its backup key, then write as the person. That update is public in PLC, the PDS emails on every PLC update it signs (decision 10), and the phrase cancels it for 72 hours (`recentIdentityChanges` in the dashboard lists it as a change to "the signing key" signed by a lower key; `buildCancelOp`). Commits it made in between are signed by its own key, which the DID named only during that window. |
+      | `custodial` | Not available (`CustodyModeNotSupported`); a change to `custodial` is refused while device signing is on. | Everything, as today. |
+
+    - **Writing.** `net.openfederation.repo.prepareCommit` takes the inputs of
+      `createRecord` / `putRecord` / `deleteRecord` / `applyWrites`, builds the new tree
+      with `@atproto/repo`'s own `Repo.formatCommit` (a stand-in signer records the exact
+      bytes it would sign), stores the new blocks bound to the account and to the current
+      root, and returns the unsigned commit's DAG-CBOR, the new blocks and a handle. The
+      device checks the new tree holds exactly the previous records plus its own writes
+      (`verifyPreparedCommit`, record CIDs computed on the device; a server that slips a
+      record in gets no signature), signs, and calls `submitCommit`. The server takes the
+      prepared commit out (once, by the account that prepared it), reads the DID's current
+      `atproto` key from PLC (uncached, never a key the caller names), verifies the
+      signature (low-S), checks the root has not moved (`RepoHeadMoved`: prepare again;
+      the same compare-and-swap guards the apply), and stores blocks, root and
+      `records_index` in one transaction, as for any write. Prepared commits expire after
+      5 minutes; at most 8 wait per account.
+    - **While it is on, the server refuses** (`DeviceSigningRequired`) every write into the
+      person's repository and every signature with the repo key on their behalf: the generic
+      repo writes, profile, external-key claims, contacts (including accepting a request
+      from someone who has it on), forum threads and posts (also the author-signed copies in
+      private communities), RSVPs, votes and objections, service-auth tokens and SIWOF
+      `didToken`s. `RepoEngine` itself refuses to sign for the account, so a path that
+      forgets to check still cannot. When a community turns private, a device-signing
+      member's public content is left where it is (the server can neither re-sign nor delete
+      it). Writes into community repos are unaffected. Moving these features to device
+      signing is phase 2.
+    - **On and off.** `account.enableDeviceSigning` turns it on only once PLC names a key
+      that is not one of this server's keys for the DID; `account.disableDeviceSigning`
+      turns it off only once PLC names this server's key again
+      (`getRecommendedDidCredentials`). If PLC names the server's key again without the
+      PDS being told, the next `submitCommit` notices and turns it off.
+    - **What the person gives up:** nothing can be written to their repository while their
+      device is offline, and features that write on their behalf are unavailable until they
+      move to device signing.
+    - **Losing the device** loses nothing permanent: the phrase (or a recovery key, decision
+      13, through a recovery) signs a PLC update naming a new device key (`setDeviceRepoKey`)
+      or the server's key again (`disableDeviceSigning`). Records are not lost: the next
+      commit, signed with the new key, covers the whole tree again (until then a check of
+      the full repository against the new key fails, as after any AT Protocol key rotation).
+    - **Where the device key is kept** is the application's choice. The passkey helpers of
+      decision 12 store only valid phrases, so they do not hold a raw key yet.
+
 ## Out of scope
 
-- Self-custody of the repo signing key (impossible in AT Protocol).
+- Self-custody of the repo signing key for `custodial` accounts (decision 14 covers `self`
+  and `assisted`).
 - Rotating the user's own keys without changing mode. The user can sign such PLC updates
   with their rotation key; a client helper for it is a follow-up.
 
@@ -319,9 +383,11 @@ which key, and in what order.
   works only if the person notices within 72 hours; the PDS never sees it to send a notice.
 - **The `assisted` veto only works if someone acts within 72 hours.** It depends on the
   PDS's email reaching the person and on the person still having their phrase.
-- **The PDS still holds the repo key.** It can write records as the user (made detectable
-  by decision 11), but it cannot make owner signatures, and outside `custodial` it cannot
-  change the DID against the person's will.
+- **Without device signing the PDS holds the repo key.** It can write records as the user
+  (made detectable by decision 11), but it cannot make owner signatures, and outside
+  `custodial` it cannot change the DID against the person's will. With device signing
+  (decision 14) it cannot write as the user at all; nothing can be written while the
+  device is offline.
 - **A passkey owner key is tied to one application's domain** (its rpId), so another
   application cannot sign with it. Owner keys from the phrase work anywhere.
 

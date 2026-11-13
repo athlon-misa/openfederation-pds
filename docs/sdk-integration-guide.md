@@ -2013,3 +2013,59 @@ A forged record is provable after the fact:
 - **The time is the PDS's claim.** A commit's `rev` names a time (`revToTime`), chosen by the
   PDS; a relay's or your own record of when you first saw it is independent.
 
+
+### Device signing: the device holds the repo key
+
+Where the server allows it (`getPublicConfig` → `identity.deviceSigningAllowed`), a `self` or
+`assisted` account can move its repo signing key onto the device (#240,
+[ADR-003](adr/ADR-003-custody-modes.md) decision 14). The DID's `atproto` key then names the
+device's key, so relays and apps reject any commit the server signs: the operator can refuse the
+person's writes, but not forge them. The cost: nothing can be written while the device is
+offline, and server features that write for the person (profile, contacts, votes, forum, RSVPs)
+answer `DeviceSigningRequired` until they move to device signing.
+
+```ts
+import {
+  deriveCustodyKeys, generateDeviceRepoKey, deviceRepoKeyFrom,
+  enableDeviceSigning, disableDeviceSigning, setDeviceRepoKey,
+  deviceCreateRecord, devicePutRecord, deviceDeleteRecord, deviceApplyWrites,
+} from '@open-federation/sdk/custody';
+
+const { rotationPrivateKey } = deriveCustodyKeys(phrase);
+const device = generateDeviceRepoKey();      // store device.privateKey on the device (your choice where)
+
+// Phrase-signed PLC update naming the device key, then the PDS records it.
+await enableDeviceSigning({ plcUrl, did, rotationPrivateKey, deviceDidKey: device.didKey, client: ofd });
+
+// Each write: prepared by the PDS, checked and signed here, submitted.
+await deviceCreateRecord({
+  client: ofd, did, deviceKey: device.privateKey,
+  verifyAgainst: pdsUrl,                       // serves com.atproto.sync.getRepo; a relay works too
+  collection: 'app.bsky.feed.post', record: { $type: 'app.bsky.feed.post', text: 'hi', createdAt },
+});
+await devicePutRecord({ client: ofd, did, deviceKey: device.privateKey, verifyAgainst: pdsUrl, collection, rkey, record });
+await deviceDeleteRecord({ client: ofd, did, deviceKey: device.privateKey, verifyAgainst: pdsUrl, collection, rkey });
+await deviceApplyWrites({ client: ofd, did, deviceKey: device.privateKey, verifyAgainst: pdsUrl, writes: [
+  { action: 'create', collection, record },
+  { action: 'delete', collection, rkey: old },
+] });
+
+// A new or replacement device: the phrase names its key instead.
+await setDeviceRepoKey({ plcUrl, did, rotationPrivateKey, deviceDidKey: generateDeviceRepoKey().didKey });
+
+// Off again: the phrase names the server's key (getRecommendedDidCredentials), then the PDS is told.
+await disableDeviceSigning({ plcUrl, did, rotationPrivateKey, client: ofd });
+```
+
+- **The check before signing.** The device signs a tree root, so `deviceApplyWrites` fetches the
+  current repository from `verifyAgainst` and refuses (`DeviceCommitRejected`) unless the new tree
+  holds exactly the previous records plus its own writes, with record CIDs computed on the device.
+  `verifyPreparedCommit` does this on its own. `skipTreeCheck: true` signs whatever the server
+  prepared; then the server could add records to the commit, so don't.
+- **Retries.** If another write lands between prepare and submit the PDS answers `RepoHeadMoved`;
+  the helpers prepare again (`attempts`, default 3).
+- **The raw calls** are `net.openfederation.repo.prepareCommit` and `submitCommit`
+  ([API.md](API.md#device-signing-240)); sign `unsignedCommit` with `signCommitBytes`.
+- **`assisted`:** the server's backup rotation key can switch the `atproto` key back. That is a
+  public PLC update, emailed, which the phrase cancels within 72 hours (`plcOperationSigner` shows
+  it was signed by the lower key; `buildCancelOp`). For `self` the server cannot do it at all.
