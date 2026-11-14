@@ -1,5 +1,6 @@
 import { xrpc } from '../api-client';
 import type { ApiResult, SessionResponse, GetSessionResponse, RegisterResponse, ResolveExternalResponse, ExternalCompleteResponse } from './types';
+import { pdsUrl } from '../runtime-config';
 
 export async function createSession(identifier: string, password: string) {
   return xrpc<SessionResponse>('com.atproto.server.createSession', {
@@ -80,7 +81,7 @@ export async function resolveExternal(handle: string) {
 export async function completeExternalLogin(code: string): Promise<
   { ok: true; data: ExternalCompleteResponse } | { ok: false; status: number; error: string; message: string }
 > {
-  const PDS_URL = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+  const PDS_URL = pdsUrl();
 
   // Refuse outright if this tab did not start the login. Without this a victim
   // could be sent /callback?code=<attacker's code> and be silently signed in as

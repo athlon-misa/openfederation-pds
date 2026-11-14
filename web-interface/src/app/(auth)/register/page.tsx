@@ -20,8 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-
-const THIS_PDS = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+import { THIS_PDS } from '@/lib/this-pds';
 
 const ERROR_MESSAGES: Record<string, string> = {
   CustodyModeNotAllowed: 'This server does not allow that kind of account.',

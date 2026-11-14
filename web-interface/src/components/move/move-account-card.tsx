@@ -9,8 +9,7 @@ import { describeTarget, type TargetInfo } from '@/lib/move/xrpc';
 import { MOVE_ACK, MOVING, type CustodyMode } from '@/lib/copy/glossary';
 import { Acknowledge, ChoiceExplainer, Note, Section, StatusMessage, WhatIsThis } from '@/components/account/explain';
 import { StepList, policyNote } from './move-parts';
-
-const THIS_PDS = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+import { THIS_PDS } from '@/lib/this-pds';
 
 export function MoveAccountCard({ did, handle, email, mode }: { did: string; handle: string; email: string; mode?: CustodyMode }) {
   const [url, setUrl] = useState('');
