@@ -12,6 +12,24 @@ export function displayHandle(handle: string, suffix?: string): string {
 }
 
 /**
+ * The full AT Protocol handle: the name plus the server's handle domain.
+ * Servers since #411 return handles in full; an older one answers with the
+ * name only ("alice"), which this completes ("alice.openfederation.net").
+ * A handle that already has a domain, a DID, or an external account's
+ * placeholder (`plc-…`) is returned unchanged, as is anything when the
+ * domain is not known.
+ */
+export function fullHandle(handle: string, domain?: string): string {
+  if (!domain || !isShortHandle(handle)) return handle;
+  return `${handle}${domain.startsWith('.') ? domain : `.${domain}`}`;
+}
+
+/** A handle given as the name only, without a domain (not a DID or an external account's placeholder). */
+export function isShortHandle(handle: string): boolean {
+  return !!handle && /^[a-z0-9-]+$/.test(handle) && !/^plc-[a-z2-7]{24}$/.test(handle);
+}
+
+/**
  * Build an XRPC URL from a server base URL and NSID.
  */
 export function xrpcUrl(

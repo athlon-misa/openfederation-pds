@@ -56,6 +56,8 @@ export async function coordinatedRefresh(deps: {
   doFetch: (refreshJwt: string) => Promise<Response>;
   lock?: RefreshLock;
   lockName?: string;
+  /** Completes a short handle from an older server with its domain (#411). */
+  completeHandle?: (handle: string) => Promise<string>;
 }): Promise<RefreshOutcome> {
   const { tokens, doFetch } = deps;
   const lock = deps.lock ?? defaultRefreshLock();
@@ -86,7 +88,8 @@ export async function coordinatedRefresh(deps: {
 
     if (res.ok) {
       const data = (await res.json()) as RefreshResponseBody;
-      const user: User = { did: data.did, handle: data.handle, email: data.email, active: data.active ?? true };
+      const handle = deps.completeHandle ? await deps.completeHandle(data.handle) : data.handle;
+      const user: User = { did: data.did, handle, email: data.email, active: data.active ?? true };
       tokens.setTokens(data.accessJwt, data.refreshJwt, user);
       return 'refreshed';
     }

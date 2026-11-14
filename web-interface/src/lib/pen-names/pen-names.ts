@@ -379,7 +379,11 @@ export async function createPenName(p: {
 
 // ----------------------------------------------------------------- session ----
 
-/** An OpenFederation server may answer with only the handle's first label; the full handle adds its domain. */
+/**
+ * The handle as the server gave it. Servers return it in full (#411), so this
+ * asks nothing; an older server answers with the name only, completed here
+ * with its handle domain.
+ */
 async function fullHandle(home: string, handle: string): Promise<string> {
   if (handle.includes('.')) return handle;
   const described = await call<{ availableUserDomains?: string[] }>(home, 'com.atproto.server.describeServer').catch(() => null);

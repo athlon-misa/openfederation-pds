@@ -137,6 +137,7 @@ declare namespace OpenFederation {
 
   function createClient(config: ClientConfig): OpenFederationClient;
   function displayHandle(handle: string, suffix?: string): string;
+  function fullHandle(handle: string, domain?: string): string;
   function verifyPdsToken(accessToken: string, options?: VerifyPdsTokenOptions): Promise<VerifiedSession | null>;
   function waitForSDK(timeoutMs?: number): Promise<Record<string, unknown>>;
 
