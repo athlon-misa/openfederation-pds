@@ -4,7 +4,7 @@ What an operator should set, switch off, rotate and remove. Deployment steps are
 
 ## Updates
 
-- Security fixes ship in new releases of the current major version and are marked **Security** in `CHANGELOG.md`. Watch the repository's releases and [security advisories](https://github.com/athlon-misa/openfederation-pds/security/advisories). 1.x is supported until at least 11 November 2031.
+- Security fixes ship in new releases and are marked **Security** in `CHANGELOG.md`. Watch the repository's releases and [security advisories](https://github.com/athlon-misa/openfederation-pds/security/advisories). The PDS is in development (0.x): security fixes go into the latest 0.x release only. From 1.0.0 on, each major version will be supported for at least five years from its release.
 - Each release carries a CycloneDX SBOM per component, so you can check what you run against new advisories.
 - Migrations run once at start and are recorded in `schema_migrations`. Take a database backup before upgrading.
 
