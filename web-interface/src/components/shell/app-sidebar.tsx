@@ -11,6 +11,7 @@ import {
   KeyRound,
   Ticket,
   ScrollText,
+  SlidersHorizontal,
   UserRound,
   LogOut,
   ChevronUp,
@@ -52,6 +53,7 @@ const adminNav = [
   { title: 'Partner Keys', href: '/admin/partner-keys', icon: KeyRound, roles: ['admin', 'partner-manager', 'auditor'] },
   { title: 'Invites', href: '/admin/invites', icon: Ticket, roles: ['admin', 'moderator', 'auditor'] },
   { title: 'Audit Log', href: '/admin/audit', icon: ScrollText, roles: ['admin', 'auditor'] },
+  { title: 'Server settings', href: '/admin/settings', icon: SlidersHorizontal, roles: ['admin'] },
 ];
 
 export function AppSidebar() {

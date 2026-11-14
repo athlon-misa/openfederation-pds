@@ -111,6 +111,12 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
             section: 'Admin',
             perform: () => router.push('/admin/audit'),
           },
+          {
+            id: 'admin-settings',
+            name: 'Admin: Server settings',
+            section: 'Admin',
+            perform: () => router.push('/admin/settings'),
+          },
         ]
       : []),
   ];

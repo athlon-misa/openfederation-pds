@@ -47,7 +47,9 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
     // If it looks like a DID, show shortened version
     const label = segment.startsWith('did%3A') || segment.startsWith('did:')
       ? decodeURIComponent(segment).slice(0, 24) + '...'
-      : labelMap[segment] || segment;
+      : segment === 'settings' && segments[i - 1] === 'admin'
+        ? 'Server settings'
+        : labelMap[segment] || segment;
 
     crumbs.push({
       label,
