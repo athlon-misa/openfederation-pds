@@ -46,12 +46,12 @@ export default function ServerSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Server settings"
         description="The choices made during setup, changeable at any time without restarting the server."
       />
-      <Note>
+      <Note className="max-w-4xl">
         A change applies to this server straight away
         {query.data ? ` and reaches every copy of it within ${query.data.refreshSeconds} seconds` : ''}. Every change is
         recorded in the audit log with who made it and the value before and after. A setting marked
@@ -65,14 +65,14 @@ export default function ServerSettingsPage() {
       )}
       {query.isLoading && <div className="space-y-4">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-48 w-full" />)}</div>}
       {query.error && <StatusMessage ok={false} text={`The settings could not be loaded: ${query.error.message}`} />}
-      {query.data && GROUP_ORDER.map((group) => (
+      {query.data && <div className="page-section-grid">{GROUP_ORDER.map((group) => (
         <SettingsGroup
           key={group}
           group={group}
           settings={query.data!.settings}
           profile={query.data!.profile}
         />
-      ))}
+      ))}</div>}
     </div>
   );
 }

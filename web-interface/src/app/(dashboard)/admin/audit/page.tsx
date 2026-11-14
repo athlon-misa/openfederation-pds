@@ -50,7 +50,7 @@ export default function AdminAuditPage() {
   const [page, setPage] = useState(0);
   const [action, setAction] = useState<string>('');
 
-  const { data, isLoading } = useAuditQuery({
+  const { data, isLoading, isFetching, error, refetch } = useAuditQuery({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
     action: action || undefined,
@@ -115,7 +115,7 @@ export default function AdminAuditPage() {
 
       <div className="mb-4">
         <Select value={action} onValueChange={(v) => { setAction(v === 'all' ? '' : v); setPage(0); }}>
-          <SelectTrigger className="w-64">
+          <SelectTrigger aria-label="Filter audit log by action" className="w-64">
             <SelectValue placeholder="All actions" />
           </SelectTrigger>
           <SelectContent>
@@ -137,6 +137,12 @@ export default function AdminAuditPage() {
         pageSize={PAGE_SIZE}
         onPageChange={setPage}
         isLoading={isLoading}
+        isFetching={isFetching}
+        error={error}
+        hasData={data !== undefined}
+        onRetry={() => { void refetch(); }}
+        emptyTitle={action ? 'No actions match this filter' : 'No recorded actions'}
+        emptyDescription={action ? 'Choose another action or select All actions to see more activity.' : 'Administrative and security actions will appear here as people use your server.'}
       />
     </div>
   );

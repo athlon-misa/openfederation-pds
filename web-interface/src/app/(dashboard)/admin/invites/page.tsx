@@ -39,7 +39,7 @@ export default function AdminInvitesPage() {
   const [expiresIn, setExpiresIn] = useState('');
   const [newCode, setNewCode] = useState<string | null>(null);
 
-  const { data, isLoading } = useInvitesQuery({
+  const { data, isLoading, isFetching, error, refetch } = useInvitesQuery({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
     status: statusFilter || undefined,
@@ -161,7 +161,7 @@ export default function AdminInvitesPage() {
 
       <div className="mb-4">
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === 'all' ? '' : v); setPage(0); }}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger aria-label="Filter invites by status" className="w-40">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -181,6 +181,12 @@ export default function AdminInvitesPage() {
         pageSize={PAGE_SIZE}
         onPageChange={setPage}
         isLoading={isLoading}
+        isFetching={isFetching}
+        error={error}
+        hasData={data !== undefined}
+        onRetry={() => { void refetch(); }}
+        emptyTitle={statusFilter ? 'No invites match this status' : 'No invites yet'}
+        emptyDescription={statusFilter ? 'Choose another status or select All statuses to see more invites.' : 'Invites created on this server will appear here.'}
       />
     </div>
   );

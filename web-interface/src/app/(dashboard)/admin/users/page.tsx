@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useAdminFilters } from '@/hooks/use-admin-filters';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
   useAccountsQuery,
@@ -46,10 +48,11 @@ const PAGE_SIZE = 50;
 const ALL_ROLES = ['admin', 'moderator', 'partner-manager', 'auditor', 'user'] as const;
 
 export default function AdminUsersPage() {
-  const [page, setPage] = useState(0);
-  const [status, setStatus] = useState<string>('');
-  const [role, setRole] = useState<string>('');
-  const [search, setSearch] = useState('');
+  return <Suspense fallback={<p role="status" className="text-muted-foreground">Loading users…</p>}><UsersContent /></Suspense>;
+}
+
+function UsersContent() {
+  const { page, setPage, status, setStatus, role, setRole, search, querySearch, setSearch, clear } = useAdminFilters();
   const callerIsAdmin = useAuthStore((s) => s.isAdmin);
 
   const [actionTarget, setActionTarget] = useState<{
@@ -63,12 +66,12 @@ export default function AdminUsersPage() {
   const [roleTarget, setRoleTarget] = useState<{ did: string; handle: string; roles: string[] } | null>(null);
   const [editedRoles, setEditedRoles] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useAccountsQuery({
+  const { data, isLoading, isFetching, error, refetch } = useAccountsQuery({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
     status: status || undefined,
     role: role || undefined,
-    q: search || undefined,
+    q: querySearch || undefined,
   });
 
   const approveMutation = useApproveAccountMutation();
@@ -261,15 +264,21 @@ export default function AdminUsersPage() {
     <div>
       <PageHeader title="Users" description="Manage user accounts and approvals." />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-4">
+      <div className="mb-5 flex flex-wrap items-end gap-3 rounded-lg border bg-card p-4">
+        <div className="min-w-48 flex-1 space-y-2">
+        <Label htmlFor="user-search">Search users</Label>
         <Input
-          placeholder="Search handle or email..."
+          id="user-search"
+          placeholder="Handle or email address"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-          className="max-w-xs"
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full"
         />
-        <Select value={status} onValueChange={(v) => { setStatus(v === 'all' ? '' : v); setPage(0); }}>
-          <SelectTrigger className="w-40">
+        </div>
+        <div className="space-y-2">
+        <Label htmlFor="user-status">Account status</Label>
+        <Select value={status || 'all'} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
+          <SelectTrigger id="user-status" className="w-40">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -283,8 +292,11 @@ export default function AdminUsersPage() {
             <SelectItem value="disabled">Disabled</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={role} onValueChange={(v) => { setRole(v === 'all' ? '' : v); setPage(0); }}>
-          <SelectTrigger className="w-40">
+        </div>
+        <div className="space-y-2">
+        <Label htmlFor="user-role">Role</Label>
+        <Select value={role || 'all'} onValueChange={(v) => setRole(v === 'all' ? '' : v)}>
+          <SelectTrigger id="user-role" className="w-40">
             <SelectValue placeholder="All roles" />
           </SelectTrigger>
           <SelectContent>
@@ -296,6 +308,8 @@ export default function AdminUsersPage() {
             <SelectItem value="user">User</SelectItem>
           </SelectContent>
         </Select>
+        </div>
+        {(search || status || role) && <Button variant="ghost" onClick={clear}>Clear filters</Button>}
       </div>
 
       <DataTable
@@ -306,6 +320,12 @@ export default function AdminUsersPage() {
         pageSize={PAGE_SIZE}
         onPageChange={setPage}
         isLoading={isLoading}
+        isFetching={isFetching}
+        error={error}
+        hasData={data !== undefined}
+        onRetry={() => { void refetch(); }}
+        emptyTitle={search || status || role ? 'No users match these filters' : 'No users yet'}
+        emptyDescription={search || status || role ? 'Try another search or clear the filters to see more users.' : 'Registered accounts will appear here for you to review.'}
       />
 
       {roleTarget && (

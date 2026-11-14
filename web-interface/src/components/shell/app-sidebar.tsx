@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  BookOpen,
   LayoutDashboard,
   Globe,
   Compass,
@@ -44,6 +45,7 @@ const mainNav = [
   { title: 'Explore communities', href: '/explore', icon: Compass },
   // Identity, recovery, devices, moving, pen names: sub-navigation inside (#404).
   { title: 'Your account & identity', href: '/account', icon: UserRound },
+  { title: 'Glossary', href: '/glossary', icon: BookOpen },
 ];
 
 // Each admin nav item specifies which PDS roles can see it
@@ -83,10 +85,18 @@ export function AppSidebar() {
             <SidebarMenuButton size="lg" asChild>
               <Link href="/">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Globe className="size-4" />
+                  <Globe className="brand-basic size-4" />
+                  <svg className="brand-federation size-6" viewBox="0 0 44 44" aria-hidden="true">
+                    <rect x="6" y="6" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" />
+                    <rect x="24" y="24" width="14" height="14" fill="currentColor" />
+                    <path d="m20 20 4 4" stroke="currentColor" strokeWidth="2.5" />
+                  </svg>
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">OpenFederation</span>
+                  <span className="truncate font-semibold">
+                    <span className="brand-basic">OpenFederation</span>
+                    <span className="brand-federation font-mono text-xs tracking-tight">open<span className="text-primary">::</span>federation</span>
+                  </span>
                   <span className="truncate text-xs text-muted-foreground">PDS</span>
                 </div>
               </Link>

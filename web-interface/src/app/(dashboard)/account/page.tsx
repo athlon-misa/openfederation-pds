@@ -57,6 +57,7 @@ export default function AccountPage() {
     <div className="space-y-6">
       <PageHeader title="Your account" description="Your name on the network, your email and your password." />
 
+      <div className="account-overview-grid">
       <Section title="About you">
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
           <div>
@@ -120,6 +121,7 @@ export default function AccountPage() {
           <Button type="submit" disabled={!canSubmit}>{isSubmitting ? 'Changing…' : 'Change password'}</Button>
         </form>
       </Section>
+      </div>
     </div>
   );
 }

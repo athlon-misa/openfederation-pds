@@ -15,6 +15,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { QueryFeedback } from '@/components/query-feedback';
+import { EmptyState } from '@/components/empty-state';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface DataTableProps<TData, TValue> {
@@ -25,6 +27,12 @@ interface DataTableProps<TData, TValue> {
   pageSize?: number;
   onPageChange?: (page: number) => void;
   isLoading?: boolean;
+  isFetching?: boolean;
+  error?: Error | null;
+  hasData?: boolean;
+  onRetry?: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -35,6 +43,12 @@ export function DataTable<TData, TValue>({
   pageSize = 50,
   onPageChange,
   isLoading,
+  isFetching,
+  error = null,
+  hasData = true,
+  onRetry,
+  emptyTitle = 'No entries to show',
+  emptyDescription = 'Entries will appear here as people use your server.',
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -49,7 +63,10 @@ export function DataTable<TData, TValue>({
   const canNext = page < totalPages - 1;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={isLoading || isFetching}>
+      <QueryFeedback error={error} hasData={hasData} onRetry={onRetry} isFetching={isFetching} />
+      {isFetching && !isLoading && <p role="status" className="text-xs text-muted-foreground">Updating results…</p>}
+      {(!error || hasData) && <>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -69,7 +86,7 @@ export function DataTable<TData, TValue>({
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <div className="flex items-center justify-center text-muted-foreground">
+                  <div role="status" className="flex items-center justify-center text-muted-foreground">
                     Loading...
                   </div>
                 </TableCell>
@@ -84,27 +101,25 @@ export function DataTable<TData, TValue>({
                   ))}
                 </TableRow>
               ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
+        {!isLoading && table.getRowModel().rows.length === 0 && (
+          <EmptyState title={emptyTitle} description={emptyDescription} className="rounded-none border-0 border-t border-solid" />
+        )}
       </div>
       {total > 0 && onPageChange && (
-        <div className="flex items-center justify-between px-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-2">
           <p className="text-sm text-muted-foreground">
-            {page * pageSize + 1}-{Math.min((page + 1) * pageSize, total)} of {total}
+            {Math.min(page * pageSize + 1, total)}–{Math.min((page + 1) * pageSize, total)} of {total}
           </p>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => onPageChange(page - 1)}
-              disabled={!canPrev}
+              aria-label="Previous page"
+              disabled={!canPrev || isLoading}
             >
               <ChevronLeft className="size-4" />
             </Button>
@@ -115,13 +130,15 @@ export function DataTable<TData, TValue>({
               variant="outline"
               size="sm"
               onClick={() => onPageChange(page + 1)}
-              disabled={!canNext}
+              aria-label="Next page"
+              disabled={!canNext || isLoading}
             >
               <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
       )}
+      </>}
     </div>
   );
 }
