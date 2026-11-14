@@ -7,7 +7,8 @@
  * On these pages the auth store is never loaded from storage and never
  * refreshed. Once a tab has shown one of them, it stays that way until the
  * page is loaded afresh (so following a link from there to the glossary does
- * not quietly sign the person back in either).
+ * not quietly sign the person back in either). /verify also never loads the
+ * session (isSessionFreePage), without sealing the tab.
  */
 
 /** Where the auth store persists the person's session. Read here only to say whether one exists. */
@@ -15,6 +16,17 @@ export const AUTH_PERSIST_KEY = 'openfed-auth';
 
 export function isSignedOutArea(pathname: string | null | undefined): boolean {
   return !!pathname && (pathname === '/pen-names' || pathname.startsWith('/pen-names/'));
+}
+
+/**
+ * Pages that never load or refresh the person's session: the signed-out
+ * pen-name pages, and /verify, which checks a proof link against the public
+ * directory only. Opening a proof must not send the person's session or
+ * refresh token. Unlike the pen-name pages, /verify does not seal the tab:
+ * going on from it to the dashboard loads the session as usual.
+ */
+export function isSessionFreePage(pathname: string | null | undefined): boolean {
+  return isSignedOutArea(pathname) || (!!pathname && (pathname === '/verify' || pathname.startsWith('/verify/')));
 }
 
 let sealed = false;
