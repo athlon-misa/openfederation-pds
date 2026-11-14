@@ -75,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The dashboard on Railway crashed after #426** (`next: not found`): Railway found the new `web-interface/Dockerfile` and built with it instead of its usual builder, without the standalone output that Dockerfile needs. The image's Dockerfile is now `web-interface/Dockerfile.image` (with `Dockerfile.image.dockerignore`), used only by the image workflow and local `docker build -f`.
 - **`com.atproto.server.deleteSession` takes the refresh token as the bearer token** ([#412](https://github.com/athlon-misa/openfederation-pds/issues/412)), as AT Protocol clients send it, with no body. It answered 400 `refreshJwt is required`, which was the second 400 in the browser log when a pen name signed out on the dashboard (the pen name's session stayed valid until it expired). `refreshJwt` in the body, as this server's own clients send it, still works and wins when both are there.
 - **A pen name moving back to a server that asks for a pass** (`MIGRATION_PSEUDONYMS=token`) is no longer asked for one when that server still holds the switched-off copy it left there: `com.atproto.server.createAccount` answers `AlreadyExists` first, and the mover signs in to that copy, as for any move back.
 

@@ -13,7 +13,7 @@
 #
 # To try images built from this checkout instead of the published ones:
 #   docker build -t ghcr.io/athlon-misa/openfederation-pds:local .
-#   docker build -t ghcr.io/athlon-misa/openfederation-dashboard:local web-interface
+#   docker build -t ghcr.io/athlon-misa/openfederation-dashboard:local -f web-interface/Dockerfile.image web-interface
 # and set OPENFEDERATION_VERSION=local in .env.
 
 services:

@@ -189,7 +189,7 @@ This uses `*.localhost` names, which Caddy serves with its own local certificate
 
 ```
 docker build -t ghcr.io/athlon-misa/openfederation-pds:local .
-docker build -t ghcr.io/athlon-misa/openfederation-dashboard:local web-interface
+docker build -t ghcr.io/athlon-misa/openfederation-dashboard:local -f web-interface/Dockerfile.image web-interface
 ```
 
 Remove it all with `docker compose -f compose.yaml -f compose.local.yaml down` and delete `deploy/appliance/data`.
