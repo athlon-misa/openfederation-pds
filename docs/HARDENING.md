@@ -76,7 +76,7 @@ In AT Protocol the PDS holds the repo signing key, so whoever runs it can write 
 
 1. **Run the PDS yourself.** A newsroom that hosts its own PDS keeps the trust in-house. Use the checklist below.
 2. **Watch the repository.** The person's app records every commit its device makes and checks the public repository for writes it did not make: `RepoWatcher` in `@open-federation/sdk/custody` ([guide](sdk-integration-guide.md#watching-the-repository)). Repositories are public, so this works against any PDS. A hostile PDS can show the person a different repository from the one it shows everyone else, so check a relay or mirror as well as the PDS itself.
-3. **Leave quickly.** An `assisted` or `self` account holds the top rotation key of its DID. With the phrase, the person signs a PLC update that points the DID at another PDS and its signing key, without the old PDS: `leavePds` ([guide](sdk-integration-guide.md#leaving-a-pds-without-its-help)). From then on the old operator's key no longer signs for the account.
+3. **Leave quickly.** An `assisted` or `self` account holds the top rotation key of its DID. With the phrase, the person signs a PLC update that points the DID at another PDS and its signing key, without the old PDS: `leavePds` ([guide](sdk-integration-guide.md#leaving-a-pds-without-its-help)). From then on the old operator's key no longer signs for the account. Another OpenFederation PDS then takes the account in on the phrase alone, as `self`, with the repository and blobs from the person's own backup: `moveIn` ([guide](sdk-integration-guide.md#moving-into-another-openfederation-pds-with-the-phrase-alone), [ADR-004](adr/ADR-004-self-custody-move-in.md)). It needs `MIGRATION_ACCOUNTS=open` or `invite` there, and `self` in its `IDENTITY_CUSTODY_ALLOWED`.
 4. **Keep the evidence.** Forged commits stay in the public history, signed by the PDS's key. A record the person signed carries `ownerSig` ([decision 11](adr/ADR-003-custody-modes.md)); a forged one doesn't, and never can ([guide](sdk-integration-guide.md#evidence-of-a-forged-record)).
 
 `custodial` accounts get only the first two: the PDS also holds their rotation key, so the person cannot leave without it.
@@ -133,7 +133,8 @@ Settings of this server are named as they are. Settings of other products (nginx
 - [ ] A `self` (or `assisted`) account, with the phrase on paper and away from the device.
 - [ ] The app runs `RepoWatcher` against the PDS and against a relay or mirror, and keeps the CAR of any check that reports unknown changes.
 - [ ] Records that matter are person-signed (`signRecord`), so readers can tell them from anything the PDS writes.
-- [ ] The person knows the way out: another PDS that will accept the account, and `leavePds` with the phrase.
+- [ ] The person knows the way out: another PDS that will accept the account (`MIGRATION_ACCOUNTS` not `closed`, `self` allowed), and `leavePds` / `moveIn` with the phrase.
+- [ ] The app downloads a backup regularly (`downloadBackup`: the repository and every blob) and keeps it off the server. If the PDS turns hostile or disappears, blobs not in a backup are lost.
 
 ## Decommissioning
 

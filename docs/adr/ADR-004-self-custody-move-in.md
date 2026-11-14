@@ -80,7 +80,7 @@ Pseudonyms could already move this way (`moveAccount` in `@open-federation/pseud
 
 4. **Blobs come from the person's backup.** The old PDS may be gone. The SDK's
    `downloadBackup` saves the repository and every blob while the old PDS still answers;
-   `copyRepo` uploads blobs from that backup (`backupBlobs`) when no `fromUrl` is given.
+   `copyRepo` uploads blobs from that backup (`backupBlobs`), falling back to `fromUrl` if given.
    `moveIn` runs the whole flow: open the account (rotation-key proof), import, blobs, check,
    `leavePds` if the DID does not point here yet, activate. The guide tells people to download
    a backup **before** `leavePds`, and to keep downloading one regularly (a `RepoWatcher`
@@ -91,7 +91,9 @@ Pseudonyms could already move this way (`moveAccount` in `@open-federation/pseud
    DID changes, so it is the default of `moveIn`. `leavePds` first is the emergency order: the
    operator is cut off at once and the repository follows. In that order, reserve the signing
    key at the new PDS (`reserveSigningKey`) before `leavePds` and import before any other PLC
-   update (adding a recovery key, say): a later operation ends the window of decision 2.
+   update (adding a recovery key, say): a later operation ends the window of decision 2. If the
+   DID already points here with a key this PDS did not reserve for it, `createAccount` refuses
+   (`SigningKeyNotReserved`) rather than open an account that could never be activated.
 
 ## What this protects, per threat
 
