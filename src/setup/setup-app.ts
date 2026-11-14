@@ -443,7 +443,7 @@ export function createSetupDoneRouter() {
     res.status(200).type('html').send(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Server is set up</title></head>
 <body style="font-family: system-ui, sans-serif; max-width: 34rem; margin: 4rem auto; padding: 0 1rem; line-height: 1.5">
 <h1 style="font-size: 1.4rem">This server is already set up</h1>
-<p>Setup can only be done once. To change settings, sign in to the dashboard as an admin, or change the server's settings file or environment variables and restart it.</p>
+<p>Setup can only be done once. To change the choices it offered (pen names, invite-only sign-up, how accounts are looked after, and more), sign in to the dashboard as an admin and open Admin, Server settings. Other settings are in the server's settings file or environment variables; change them there and restart the server.</p>
 </body></html>`);
   });
   router.all(/^\/setup\/api\/.*/, (_req, res) => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { xrpcGet, xrpcAuthPost, createTestUser, uniqueHandle, isPLCAvailable } from './helpers.js';
 import { insertPseudonymUser } from './pseudonym-helpers.js';
 import { issueSessionForTests } from './pseudonym-session-for-tests.js';
-import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { query, withTransaction } from '../../src/db/client.js';
 import { redeemToken } from '../../src/identity/pseudonym/tokens.js';
 import { importTokenPublicKey, blindTokens, finalizeTokens } from '../../packages/openfederation-pseudonym/src/tokens.js';
@@ -13,7 +13,7 @@ async function collect(accessJwt: string) {
   const keys = (await xrpcGet('net.openfederation.pseudonym.getTokenKeys')).body.keys;
   const epoch = currentEpoch();
   const pub = await importTokenPublicKey(keys.find((k: any) => k.epoch === epoch).publicKey);
-  const pending = await blindTokens(pub, epoch, config.pseudonym.tokensPerEpoch);
+  const pending = await blindTokens(pub, epoch, runtimeSettings().pseudonym.tokensPerEpoch);
   const res = await xrpcAuthPost('net.openfederation.pseudonym.collectTokens', accessJwt, { epoch, blindedMessages: pending.blinded });
   return { res, pub, pending };
 }
@@ -31,7 +31,7 @@ describe('pseudonym creation tokens', () => {
     const first = await collect(ana.accessJwt);
     expect(first.res.status).toBe(200);
     const tokens = await finalizeTokens(first.pub, first.pending, first.res.body.blindSignatures);
-    expect(tokens).toHaveLength(config.pseudonym.tokensPerEpoch);
+    expect(tokens).toHaveLength(runtimeSettings().pseudonym.tokensPerEpoch);
     expect((await collect(ana.accessJwt)).res.status).toBe(409);
 
     const cols = await query(`SELECT column_name FROM information_schema.columns WHERE table_name IN ('pseudonym_token_batches','pseudonym_tokens_spent','pseudonym_token_keys')`);
@@ -64,7 +64,7 @@ describe('pseudonym creation tokens', () => {
     const ana = await createTestUser(uniqueHandle('tok'));
     const keys = (await xrpcGet('net.openfederation.pseudonym.getTokenKeys')).body.keys;
     const pub = await importTokenPublicKey(keys.find((k: any) => k.epoch === currentEpoch()).publicKey);
-    const pending = await blindTokens(pub, currentEpoch(), config.pseudonym.tokensPerEpoch);
+    const pending = await blindTokens(pub, currentEpoch(), runtimeSettings().pseudonym.tokensPerEpoch);
     const tooBig = base64UrlEncode(new Uint8Array(256).fill(255));
     const bad = await xrpcAuthPost('net.openfederation.pseudonym.collectTokens', ana.accessJwt,
       { epoch: currentEpoch(), blindedMessages: [tooBig, ...pending.blinded.slice(1)] });

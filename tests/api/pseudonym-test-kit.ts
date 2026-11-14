@@ -1,5 +1,6 @@
 import { xrpcGet, xrpcPost, xrpcAuthPost, createTestUser, uniqueHandle } from './helpers.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { setPlcClientForTests } from '../../src/identity/plc-client.js';
 import { derivePseudonymKeys, generatePseudonymPhrase } from '../../packages/openfederation-pseudonym/src/keys.js';
 import { buildPseudonymGenesisOp, signGenesisOp, didForSignedOp } from '../../packages/openfederation-pseudonym/src/plc.js';
@@ -15,7 +16,7 @@ export async function getToken(): Promise<CreationToken> {
     const epoch = currentEpoch();
     const keys = (await xrpcGet('net.openfederation.pseudonym.getTokenKeys')).body.keys;
     const pub = await importTokenPublicKey(keys.find((k: any) => k.epoch === epoch).publicKey);
-    const pending = await blindTokens(pub, epoch, config.pseudonym.tokensPerEpoch);
+    const pending = await blindTokens(pub, epoch, runtimeSettings().pseudonym.tokensPerEpoch);
     const res = await xrpcAuthPost('net.openfederation.pseudonym.collectTokens', user.accessJwt, { epoch, blindedMessages: pending.blinded });
     wallet = await finalizeTokens(pub, pending, res.body.blindSignatures);
   }

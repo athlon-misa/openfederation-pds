@@ -4,6 +4,7 @@ import { Secp256k1Keypair } from '@atproto/crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { withTransaction } from '../db/client.js';
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { insertUserWithRole } from '../auth/account-creation.js';
 import { encryptKeyBytes } from '../auth/encryption.js';
 import { isValidHandle, isStrongPassword, normalizeEmail, passwordValidationMessage } from '../auth/utils.js';
@@ -70,14 +71,14 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
       throw new Refusal(400, 'IncompatibleDidDoc', 'A user account moves with service auth from its old PDS (com.atproto.server.getServiceAuth)');
     }
     // The gate (#265): refused here, nothing has changed anywhere.
-    const policy = ownerKey ? config.migration.pseudonyms : config.migration.accounts;
+    const policy = ownerKey ? runtimeSettings().migration.pseudonyms : runtimeSettings().migration.accounts;
     if (policy === 'closed') throw new Refusal(403, 'MigrationNotAllowed', 'This PDS does not accept accounts moving in');
     // ADR-003: a user account moving in becomes custodial here; a pseudonym
     // is new to this server, which may have switched pseudonyms off.
-    if (custodial && !config.identity.custodyAllowed.includes('custodial')) {
+    if (custodial && !runtimeSettings().identity.custodyAllowed.includes('custodial')) {
       throw new Refusal(403, 'CustodyModeNotAllowed', 'This server does not allow custodial accounts');
     }
-    if (ownerKey && !config.identity.pseudonymsEnabled) {
+    if (ownerKey && !runtimeSettings().identity.pseudonymsEnabled) {
       throw new Refusal(403, 'MigrationNotAllowed', 'This server does not accept pseudonyms');
     }
     if (policy === 'token' && (!token || typeof token !== 'object')) {

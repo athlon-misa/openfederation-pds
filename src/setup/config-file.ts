@@ -13,6 +13,13 @@
  *  - the file is plain `KEY=value` lines, the same format as `.env`, so it
  *    can be read, backed up, or turned into environment variables by hand.
  *
+ * One exception (#410): the choices an admin can change on Admin, Server
+ * settings (pen names, invite-only sign-up, custody modes; the full list is
+ * src/settings/keys.ts) are not put into the environment. They are the
+ * wizard's initial values: an admin's change on that page wins over them,
+ * and an environment variable wins over both. Were they environment values,
+ * the page would show them as fixed on every server set up with the wizard.
+ *
  * Nothing in src/setup/ may import src/config.ts: that module reads the
  * environment once, when first imported, and the setup wizard runs before
  * the file it writes exists. tests/unit/setup-config-free.test.ts holds this.

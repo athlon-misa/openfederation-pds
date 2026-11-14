@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query, withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { claimInvite, assertInviteUsable, InviteError } from '../auth/invites.js';
@@ -35,14 +36,16 @@ export default async function registerSelfCustody(req: Request, res: Response): 
     if (!/^did:plc:[a-z2-7]{24}$/.test(did)) throw new RegistrationValidationError(400, 'InvalidRequest', 'did must be a did:plc');
     if (mode !== 'assisted' && mode !== 'self') throw new RegistrationValidationError(400, 'InvalidRequest', 'mode must be "assisted" or "self"');
     const { handle, email, password } = normalizeAndValidateCredentials(req.body ?? {});
-    if (!config.identity.custodyAllowed.includes(mode)) {
+    // One reading for the whole request: a change made meanwhile applies to the next one.
+    const settings = runtimeSettings();
+    if (!settings.identity.custodyAllowed.includes(mode)) {
       throw new RegistrationValidationError(403, 'CustodyModeNotAllowed', `This server does not allow ${mode} accounts`);
     }
-    if (config.auth.inviteRequired && !inviteCode) throw new RegistrationValidationError(403, 'InviteRequired', 'An invite code is required to register');
+    if (settings.inviteRequired && !inviteCode) throw new RegistrationValidationError(403, 'InviteRequired', 'An invite code is required to register');
 
     // Checks that refuse the request anyway run before the slow work.
     await ensureHandleEmailAvailable({ query }, handle, email);
-    if (config.auth.inviteRequired) {
+    if (settings.inviteRequired) {
       try { await assertInviteUsable({ query }, inviteCode!, email); } catch (err) {
         if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
         throw err;
@@ -73,7 +76,7 @@ export default async function registerSelfCustody(req: Request, res: Response): 
       }
 
       await insertUserWithRole(client, { userId, handle, email, passwordHash, did, status: 'pending', custodyMode: mode });
-      if (config.auth.inviteRequired) {
+      if (settings.inviteRequired) {
         try { await claimInvite(client, inviteCode!, email, userId); } catch (err) {
           if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
           throw err;
@@ -88,7 +91,7 @@ export default async function registerSelfCustody(req: Request, res: Response): 
     await initializeUserRepoAsync(did, handle, signingKeyBytes.toString('base64'));
     signingKeyBytes.fill(0);
 
-    if (config.emailVerification.policy !== 'off') {
+    if (settings.emailVerificationPolicy !== 'off') {
       void issueEmailVerification({ id: userId, handle, email }).catch((err) => console.error('[email] verification send failed:', err));
     }
     res.status(201).json({ id: userId, handle, did, email, status: 'pending', custodyMode: mode });

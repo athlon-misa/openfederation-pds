@@ -11,6 +11,7 @@ import type { AddressInfo } from 'node:net';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { api, xrpcGet, isPLCAvailable } from './helpers.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { query } from '../../src/db/client.js';
 import { registerDidPlc } from '../../src/identity/plc-client.js';
 import { signServiceAuthJwt } from '../../src/auth/service-auth.js';
@@ -22,7 +23,7 @@ import { exportedRepo, userElsewhere } from './migration-helpers.js';
 import { uniqueHandle } from './helpers.js';
 import { signCommunityProof } from '../e2e/community-move.js';
 
-const original = { ...config.migration };
+const original = { ...runtimeSettings().migration };
 const MEMBER = 'net.openfederation.community.member';
 const ATTESTATION = 'net.openfederation.community.attestation';
 
@@ -77,7 +78,7 @@ describe('community migration (this PDS as the new home)', () => {
     stubUrl = `http://127.0.0.1:${(stub.address() as AddressInfo).port}`;
   });
   afterAll(() => new Promise<void>((r) => stub.close(() => r())));
-  afterEach(() => { Object.assign(config.migration, original); });
+  afterEach(() => { Object.assign(runtimeSettings().migration, original); });
 
   const migrateIn = (body: Record<string, unknown>, jwt?: string) => {
     const r = api.post('/xrpc/net.openfederation.community.migrateIn').send(body).set('Content-Type', 'application/json');
@@ -94,17 +95,17 @@ describe('community migration (this PDS as the new home)', () => {
     const c = await communityElsewhere(stubUrl, owner.did);
     repos.set(c.did, c.car);
 
-    config.migration.communities = 'closed';
+    runtimeSettings().migration.communities = 'closed';
     const closed = await migrateIn({ did: c.did, handle: uniqueHandle('mv') }, await proofFor(c, owner.did));
     expect(closed.status).toBe(403);
     expect(closed.body.error).toBe('MigrationNotAllowed');
 
-    config.migration.communities = 'invite';
+    runtimeSettings().migration.communities = 'invite';
     const noInvite = await migrateIn({ did: c.did, handle: uniqueHandle('mv') }, await proofFor(c, owner.did));
     expect(noInvite.status).toBe(400);
     expect(noInvite.body.error).toBe('InvalidInviteCode');
 
-    config.migration.communities = 'open';
+    runtimeSettings().migration.communities = 'open';
     const noProof = await migrateIn({ did: c.did, handle: uniqueHandle('mv') });
     expect(noProof.status).toBe(401);
     const stranger = await Secp256k1Keypair.create();
@@ -119,7 +120,7 @@ describe('community migration (this PDS as the new home)', () => {
 
   it('pulls the community, rebuilds its indexes, activates once the DID points here, and receives the keys', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.communities = 'open';
+    runtimeSettings().migration.communities = 'open';
     const owner = await userElsewhere();
     const c = await communityElsewhere(stubUrl, owner.did);
     repos.set(c.did, c.car); deks.set(c.did, c.dek);

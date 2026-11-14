@@ -3,6 +3,7 @@ import type rateLimit from 'express-rate-limit';
 import type { LexiconNsid } from '../lexicon/generated.js';
 import { authLimiter, registrationLimiter, createLimiter, discoveryLimiter, walletSignLimiter, importLimiter } from './rate-limits.js';
 import { config, isChainModuleEnabled } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import createCommunity from '../api/net.openfederation.community.create.js';
 import getRecord from '../api/com.atproto.repo.getRecord.js';
 import resolveHandle from '../api/com.atproto.identity.resolveHandle.js';
@@ -49,6 +50,8 @@ import unsuspendCommunity from '../api/net.openfederation.community.unsuspend.js
 import takedownCommunity from '../api/net.openfederation.community.takedown.js';
 import adminTakedown from '../api/net.openfederation.admin.takedown.js';
 import adminReverseTakedown from '../api/net.openfederation.admin.reverseTakedown.js';
+import getServerSettings from '../api/net.openfederation.admin.getServerSettings.js';
+import updateServerSettings from '../api/net.openfederation.admin.updateServerSettings.js';
 import removeMember from '../api/net.openfederation.community.removeMember.js';
 import deleteCommunity from '../api/net.openfederation.community.delete.js';
 import listAccounts from '../api/net.openfederation.account.list.js';
@@ -375,6 +378,8 @@ const handlers = Object.freeze({
   // Export scheduler admin
   'net.openfederation.admin.takedown': { handler: adminTakedown },
   'net.openfederation.admin.reverseTakedown': { handler: adminReverseTakedown },
+  'net.openfederation.admin.getServerSettings': { handler: getServerSettings },
+  'net.openfederation.admin.updateServerSettings': { handler: updateServerSettings },
   'net.openfederation.admin.createExportSchedule': { handler: createExportSchedule },
   'net.openfederation.admin.listExportSchedules': { handler: listExportSchedules },
   'net.openfederation.admin.deleteExportSchedule': { handler: deleteExportSchedule },
@@ -484,9 +489,9 @@ const handlers = Object.freeze({
   'net.openfederation.contact.listFriendOfFriends': { handler: listFriendOfFriendsHandler },
 
   // Pseudonyms
-  'net.openfederation.pseudonym.getTokenKeys': { enabledWhen: () => config.identity.pseudonymsEnabled, handler: getTokenKeys, limiter: discoveryLimiter },
-  'net.openfederation.pseudonym.collectTokens': { enabledWhen: () => config.identity.pseudonymsEnabled, handler: collectTokens, limiter: createLimiter },
-  'net.openfederation.pseudonym.createAccount': { enabledWhen: () => config.identity.pseudonymsEnabled, handler: createPseudonymAccount, limiter: createLimiter },
+  'net.openfederation.pseudonym.getTokenKeys': { enabledWhen: () => runtimeSettings().identity.pseudonymsEnabled, handler: getTokenKeys, limiter: discoveryLimiter },
+  'net.openfederation.pseudonym.collectTokens': { enabledWhen: () => runtimeSettings().identity.pseudonymsEnabled, handler: collectTokens, limiter: createLimiter },
+  'net.openfederation.pseudonym.createAccount': { enabledWhen: () => runtimeSettings().identity.pseudonymsEnabled, handler: createPseudonymAccount, limiter: createLimiter },
   'net.openfederation.pseudonym.getLoginChallenge': { handler: getLoginChallenge, limiter: authLimiter },
   'net.openfederation.pseudonym.createSession': { handler: createPseudonymSession, limiter: authLimiter },
   'net.openfederation.pseudonym.signLink': { handler: signLink, limiter: createLimiter },

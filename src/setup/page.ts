@@ -214,6 +214,7 @@ ${progress()}
 <section class="step" id="step-5" hidden aria-labelledby="h-5">
   <h2 id="h-5" tabindex="-1">Options</h2>
   <form data-section="options" novalidate>
+    <p class="hint">These are starting choices. You can change them at any time, without a restart, in the dashboard under Admin, Server settings.</p>
     <label class="choice compact"><input type="checkbox" name="inviteOnly">
       <span><strong>Invite-only sign-up</strong><span class="hint">New people need an invite code from an admin. Recommended until you are ready to open up.</span></span></label>
     <label class="choice compact"><input type="checkbox" name="pseudonyms">

@@ -14,6 +14,7 @@ import { existsSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { resolveConfigFilePath, readConfigFile, applyConfigToEnv } from './config-file.js';
 import { decideStartMode } from './mode.js';
+import { splitSettingsFile } from '../settings/keys.js';
 import { ClaimGuard } from './claim.js';
 import { createSetupApp } from './setup-app.js';
 import { createSetupPool, createSetupStore } from './setup-store.js';
@@ -24,8 +25,12 @@ export function loadSettingsFile(env: Env): void {
   const path = resolveConfigFilePath(env);
   const values = readConfigFile(path);
   if (!values) return;
-  const applied = applyConfigToEnv(values, env);
-  const overridden = Object.keys(values).length - applied.length;
+  // The choices an admin can change on Admin, Server settings (#410) stay out
+  // of the environment: src/config.ts keeps them as the wizard's initial
+  // values, below an admin's changes. In the environment they would be fixed.
+  const { rest } = splitSettingsFile(values);
+  const applied = applyConfigToEnv(rest, env);
+  const overridden = Object.keys(rest).length - applied.length;
   console.log(`Loaded ${applied.length} setting(s) from ${path}` +
     (overridden > 0 ? `; ${overridden} more are set by environment variables, which take precedence.` : '.'));
 }

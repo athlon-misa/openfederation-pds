@@ -1,6 +1,6 @@
 import type { Response, NextFunction } from 'express';
 import type { AuthRequest } from './types.js';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query } from '../db/client.js';
 import {
   setOAuthVerifier as setAuthVerificationOAuthVerifier,
@@ -43,7 +43,7 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
   // moment the user verifies mid-session and would keep blocking them.
   // Service-auth callers are other servers, not mailbox owners; the concept
   // does not apply to them.
-  const policy = config.emailVerification.policy;
+  const policy = runtimeSettings().emailVerificationPolicy;
   // (A service-auth token signed by an account hosted *here* is that account,
   // mailbox and all; its context carries the local user id, not the DID.)
   const isRemoteServer = req.auth?.authMethod === 'service-auth' && req.auth.userId === req.auth.did;

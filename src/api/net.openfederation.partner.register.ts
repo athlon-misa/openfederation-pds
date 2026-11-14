@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import type { AuthRequest } from '../auth/types.js';
 import { requirePartnerAuth } from '../auth/guards.js';
 import { query, withTransaction } from '../db/client.js';
@@ -90,7 +90,7 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
       }
 
       // ADR-003: this path makes custodial accounts.
-      if (!config.identity.custodyAllowed.includes('custodial')) {
+      if (!runtimeSettings().identity.custodyAllowed.includes('custodial')) {
         throw new RegistrationValidationError(403, 'CustodyModeNotAllowed', 'This server does not allow custodial accounts');
       }
 

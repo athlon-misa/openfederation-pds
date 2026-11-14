@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import type { PoolClient } from 'pg';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { query } from '../db/client.js';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
 
 const MAX_RESERVATIONS = 10_000;
@@ -18,7 +18,7 @@ const MAX_RESERVATIONS = 10_000;
  * is capped FIFO, like reserveSigningKey.
  */
 export default async function reserveCustodyKey(_req: Request, res: Response): Promise<void> {
-  if (!config.identity.custodyAllowed.includes('assisted')) {
+  if (!runtimeSettings().identity.custodyAllowed.includes('assisted')) {
     res.status(403).json({ error: 'CustodyModeNotAllowed', message: 'This server does not allow assisted accounts' });
     return;
   }

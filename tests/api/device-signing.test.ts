@@ -14,6 +14,7 @@ import { Secp256k1Keypair } from '@atproto/crypto';
 import { xrpcAuthPost, xrpcAuthGet, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
 import { RepoEngine } from '../../src/repo/repo-engine.js';
 import { getKeypairForDid } from '../../src/repo/keypair-utils.js';
@@ -95,15 +96,15 @@ async function personHeld(target: 'self' | 'assisted', keys: CustodyKeys): Promi
 
 describe('device signing (#240)', () => {
   let plc = false;
-  const policyBefore = config.identity.deviceSigningAllowed;
+  const policyBefore = runtimeSettings().identity.deviceSigningAllowed;
 
   beforeAll(async () => {
     plc = await isPLCAvailable();
-    config.identity.deviceSigningAllowed = true;
+    runtimeSettings().identity.deviceSigningAllowed = true;
     setEmailSenderForTests(async () => undefined);
   });
   afterAll(() => {
-    config.identity.deviceSigningAllowed = policyBefore;
+    runtimeSettings().identity.deviceSigningAllowed = policyBefore;
     setEmailSenderForTests(null);
   });
 
@@ -119,13 +120,13 @@ describe('device signing (#240)', () => {
     it('is refused where the installation does not offer it', async () => {
       if (!plc) return;
       const u = await personHeld('self', deriveCustodyKeys(generateCustodyPhrase()));
-      config.identity.deviceSigningAllowed = false;
+      runtimeSettings().identity.deviceSigningAllowed = false;
       try {
         const res = await xrpcAuthPost(ENABLE, u.accessJwt, {});
         expect(res.status).toBe(403);
         expect(res.body.error).toBe('DeviceSigningNotAllowed');
       } finally {
-        config.identity.deviceSigningAllowed = true;
+        runtimeSettings().identity.deviceSigningAllowed = true;
       }
       const cfg = await xrpcAuthGet('net.openfederation.server.getPublicConfig', u.accessJwt);
       expect(cfg.body.identity.deviceSigningAllowed).toBe(true);

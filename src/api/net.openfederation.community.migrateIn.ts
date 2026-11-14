@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { createHash, randomBytes } from 'node:crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { isValidHandle } from '../auth/utils.js';
@@ -32,7 +33,7 @@ export default async function migrateIn(req: AuthRequest, res: Response): Promis
 
     const state = await currentPlcState(did);
     if (!state) throw new CommunityMoveError(400, 'UnresolvableDid', 'DID is not in the PLC directory');
-    const policy = config.migration.communities;
+    const policy = runtimeSettings().migration.communities;
     if (policy === 'closed') throw new CommunityMoveError(403, 'MigrationNotAllowed', 'This PDS does not accept communities moving in');
     if (policy === 'invite' && !inviteCode) throw new CommunityMoveError(400, 'InvalidInviteCode', 'An invite code is required to move a community here');
 

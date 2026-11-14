@@ -12,13 +12,13 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { issueEmailVerification } from '../email/verification.js';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 
 export default async function requestEmailConfirmation(req: AuthRequest, res: Response): Promise<void> {
   try {
     if (!requireAuth(req, res)) return;
 
-    if (config.emailVerification.policy === 'off') {
+    if (runtimeSettings().emailVerificationPolicy === 'off') {
       res.status(400).json({
         error: 'VerificationDisabled',
         message: 'Email verification is disabled on this server (EMAIL_VERIFICATION_POLICY=off).',

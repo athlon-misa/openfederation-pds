@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import { xrpcPost, xrpcAuthGet, xrpcAuthPost, createTestUser, uniqueHandle, isPLCAvailable, testServer } from './helpers.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase } from '../../packages/openfederation-pseudonym/src/index.js';
 
 const PASSWORD = 'TestPassword123!';
@@ -55,7 +56,7 @@ describe('deactivated accounts keep a limited session', () => {
     if (!plc) ctx.skip('PLC directory not available');
     const owner = await createTestUser(uniqueHandle('deact-owner'));
     const keys = await fetchTokenKeys(pdsUrl);
-    const [token] = await collectTokens({ pdsUrl, accessJwt: owner.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
+    const [token] = await collectTokens({ pdsUrl, accessJwt: owner.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
     const p = await createPseudonym({
       pdsUrl, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,
       handle: `${uniqueHandle('deact-p')}${config.handleSuffix}`, ownerDid: owner.did, token,

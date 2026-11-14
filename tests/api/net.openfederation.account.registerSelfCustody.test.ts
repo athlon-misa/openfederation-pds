@@ -11,6 +11,7 @@ import {
 } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { getShare } from '../../src/vault/vault-store.js';
 import { combineShares } from '../../src/vault/shamir.js';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -63,9 +64,9 @@ async function register(p: Prepared, mode: SelfCustodyMode) {
 
 describe('account.registerSelfCustody', () => {
   let plc = false;
-  const saved = [...config.identity.custodyAllowed];
+  const saved = [...runtimeSettings().identity.custodyAllowed];
   beforeAll(async () => { plc = await isPLCAvailable(); });
-  afterEach(() => { config.identity.custodyAllowed = [...saved]; });
+  afterEach(() => { runtimeSettings().identity.custodyAllowed = [...saved]; });
 
   it('registers a self account: pending approval, no rotation key here, signing key stored', async () => {
     if (!plc) return;
@@ -108,7 +109,7 @@ describe('account.registerSelfCustody', () => {
 
   it('refuses a mode the policy does not allow, before anything is stored', async () => {
     if (!plc) return;
-    config.identity.custodyAllowed = ['custodial', 'assisted'];
+    runtimeSettings().identity.custodyAllowed = ['custodial', 'assisted'];
     const p = await prepare('self');
     const res = await register(p, 'self');
     expect(res.status).toBe(403);

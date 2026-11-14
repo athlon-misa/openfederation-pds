@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { SERVER_VERSION } from '../server/server-version.js';
 
 /**
@@ -23,16 +24,16 @@ export default async function getPublicConfig(_req: Request, res: Response): Pro
       serviceUrl: config.pds.serviceUrl,
       webUrl: config.federation.webUiUrl || null,
       // Whether accounts from other PDSes can move here (#265).
-      migration: { accounts: config.migration.accounts, pseudonyms: config.migration.pseudonyms, communities: config.migration.communities },
+      migration: { accounts: runtimeSettings().migration.accounts, pseudonyms: runtimeSettings().migration.pseudonyms, communities: runtimeSettings().migration.communities },
       // Custody policy (ADR-003): which modes accounts may have, the default
       // applications should offer, whether new pseudonyms are accepted, and
       // whether device signing is offered.
       identity: {
-        custodyAllowed: config.identity.custodyAllowed,
-        custodyDefault: config.identity.custodyDefault,
-        pseudonymsEnabled: config.identity.pseudonymsEnabled,
+        custodyAllowed: runtimeSettings().identity.custodyAllowed,
+        custodyDefault: runtimeSettings().identity.custodyDefault,
+        pseudonymsEnabled: runtimeSettings().identity.pseudonymsEnabled,
         // Whether self and assisted accounts may have their device sign their repo (#240).
-        deviceSigningAllowed: config.identity.deviceSigningAllowed,
+        deviceSigningAllowed: runtimeSettings().identity.deviceSigningAllowed,
       },
       // The PLC directory this PDS registers and resolves DIDs with.
       plcDirectoryUrl: config.plc.directoryUrl,

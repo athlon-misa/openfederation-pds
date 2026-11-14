@@ -4,6 +4,7 @@ import { xrpcPost, xrpcAuthPost, xrpcAuthGet, isPLCAvailable, createTestUser, un
 import { hashToken, refreshTtlMs } from '../../src/auth/tokens.js';
 import { query } from '../../src/db/client.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { setPlcClientForTests } from '../../src/identity/plc-client.js';
 import { derivePseudonymKeys, generatePseudonymPhrase, signText } from '../../packages/openfederation-pseudonym/src/keys.js';
 import { buildLoginMessage } from '../../packages/openfederation-pseudonym/src/formats.js';
@@ -86,8 +87,8 @@ describe('pseudonym phrase login', () => {
 
   it('can write under EMAIL_VERIFICATION_POLICY=require-for-write', async () => {
     if (!plc) return;
-    const original = config.emailVerification.policy;
-    (config.emailVerification as any).policy = 'require-for-write';
+    const original = runtimeSettings().emailVerificationPolicy;
+    runtimeSettings().emailVerificationPolicy = 'require-for-write';
     try {
       const { res } = await login(phrase);
       const write = await xrpcAuthPost('com.atproto.repo.createRecord', res.body.accessJwt, {
@@ -96,7 +97,7 @@ describe('pseudonym phrase login', () => {
       });
       expect(write.status).toBe(200);
     } finally {
-      (config.emailVerification as any).policy = original;
+      runtimeSettings().emailVerificationPolicy = original;
     }
   });
 

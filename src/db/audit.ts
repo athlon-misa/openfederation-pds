@@ -50,6 +50,7 @@ export type AuditAction =
   | 'identity.custodyChange'
   | 'account.deviceSigning.enable'
   | 'account.deviceSigning.disable'
+  | 'server.settings.update'
   | 'identity.assistedRecovery'
   | 'account.delete'
   | 'account.export'

@@ -13,7 +13,7 @@ import {
   api, xrpcAuthGet, xrpcAuthPost, xrpcGet, createTestUser, isPLCAvailable, uniqueHandle,
 } from './helpers.js';
 import { query } from '../../src/db/client.js';
-import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { decryptKeyBytes } from '../../src/auth/encryption.js';
 import {
   signServiceAuthJwt, getServiceDid, _clearReplayCache, _resetServiceAuthRateLimiter,
@@ -54,7 +54,7 @@ describe('activity timelines', () => {
   let plc = false;
   let owner: User, viewer: User, outsider: User;
   let pubA: string, pubB: string, privC: string, privD: string, gated: string;
-  const savedPeers = config.federation.peerUrls;
+  const savedPeers = runtimeSettings().federationPeers;
 
   const createCommunity = async (who: User, visibility: 'public' | 'private', joinPolicy: 'open' | 'approval' = 'open') => {
     const res = await xrpcAuthPost('net.openfederation.community.create', who.accessJwt, {
@@ -111,12 +111,12 @@ describe('activity timelines', () => {
   afterEach(() => {
     _setRemoteActivityClient(null);
     _setRemoteTimeoutMs(null);
-    config.federation.peerUrls = savedPeers;
+    runtimeSettings().federationPeers = savedPeers;
     resetCaches();
   });
 
   afterAll(() => {
-    config.federation.peerUrls = savedPeers;
+    runtimeSettings().federationPeers = savedPeers;
   });
 
   it('requires authentication', async () => {
@@ -294,7 +294,7 @@ describe('activity timelines', () => {
       if (!plc) return;
       const client = fakeClient();
       _setRemoteActivityClient(client);
-      config.federation.peerUrls = ['https://peer.example'];
+      runtimeSettings().federationPeers = ['https://peer.example'];
 
       const res = await xrpcAuthGet(TIMELINE, viewer.accessJwt, { limit: '100' });
       expect(res.status).toBe(200);
@@ -317,7 +317,7 @@ describe('activity timelines', () => {
       if (!plc) return;
       _setRemoteActivityClient(fakeClient({ slowMs: 3_000 }));
       _setRemoteTimeoutMs(200);
-      config.federation.peerUrls = ['https://peer.example', 'https://slow.example'];
+      runtimeSettings().federationPeers = ['https://peer.example', 'https://slow.example'];
 
       const started = Date.now();
       const res = await xrpcAuthGet(TIMELINE, viewer.accessJwt, { limit: '100' });
@@ -335,7 +335,7 @@ describe('activity timelines', () => {
     it('names a peer it could not ask about memberships', async () => {
       if (!plc) return;
       _setRemoteActivityClient(fakeClient({ failDiscovery: 'https://slow.example' }));
-      config.federation.peerUrls = ['https://peer.example', 'https://slow.example'];
+      runtimeSettings().federationPeers = ['https://peer.example', 'https://slow.example'];
       const res = await xrpcAuthGet(TIMELINE, viewer.accessJwt, { limit: '100' });
       expect(res.status).toBe(200);
       expect(res.body.unreachablePeers).toEqual(['https://slow.example']);
@@ -346,7 +346,7 @@ describe('activity timelines', () => {
       if (!plc) return;
       const client = fakeClient();
       _setRemoteActivityClient(client);
-      config.federation.peerUrls = ['https://peer.example'];
+      runtimeSettings().federationPeers = ['https://peer.example'];
       const first = await xrpcAuthGet(TIMELINE, viewer.accessJwt, { limit: '1' });
       expect(first.body.entries[0].summary.title).toBe('remote 2');
       const second = await xrpcAuthGet(TIMELINE, viewer.accessJwt, { limit: '1', cursor: first.body.cursor });
@@ -402,7 +402,7 @@ describe('activity timelines', () => {
         };
       },
     });
-    config.federation.peerUrls = peers;
+    runtimeSettings().federationPeers = peers;
     // Room for a stalled event loop on a loaded machine: this part is about
     // the calls running in parallel, not about the deadline.
     _setRemoteTimeoutMs(1_000);

@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { isPLCAvailable, createTestUser, uniqueHandle, testServer, xrpcGet } from './helpers.js';
 import { startSecondPds, type SecondPds } from './second-pds.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import {
   fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase, openAccountForMove, moveAccount, type MoveStep,
 } from '../../packages/openfederation-pseudonym/src/index.js';
@@ -46,7 +47,7 @@ describe('account migration', () => {
     if (!plc || !pdsB) ctx.skip('PLC directory not available');
     const owner = await createTestUser(uniqueHandle('mig-owner'));
     const keys = await fetchTokenKeys(pdsA);
-    const [token] = await collectTokens({ pdsUrl: pdsA, accessJwt: owner.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
+    const [token] = await collectTokens({ pdsUrl: pdsA, accessJwt: owner.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
     const pseudonym = await createPseudonym({
       pdsUrl: pdsA, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,
       handle: `${uniqueHandle('mover')}${config.handleSuffix}`, ownerDid: owner.did, token,
@@ -105,7 +106,7 @@ describe('account migration', () => {
     if (!plc || !pdsB) ctx.skip('PLC directory not available');
     const owner = await createTestUser(uniqueHandle('mv-owner'));
     const keys = await fetchTokenKeys(pdsA);
-    const [token] = await collectTokens({ pdsUrl: pdsA, accessJwt: owner.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
+    const [token] = await collectTokens({ pdsUrl: pdsA, accessJwt: owner.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
     const nd = await createPseudonym({
       pdsUrl: pdsA, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,
       handle: `${uniqueHandle('nightdesk')}${config.handleSuffix}`, ownerDid: owner.did, token,

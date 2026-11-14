@@ -1,0 +1,113 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.updateServerSettings",
+  "revision": 1,
+  "description": "Change server settings at runtime, without a restart. Requires admin role. Each change is audited (server.settings.update) with its value before and after.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "All or nothing: one invalid value or combination refuses the whole request and nothing is saved. Turning a feature off applies to new actions only (existing pen names, accounts in a custody mode no longer offered, devices already signing keep working). Other instances apply the change within refreshSeconds.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "changes"
+          ],
+          "properties": {
+            "changes": {
+              "type": "unknown",
+              "description": "An object mapping setting ids (see getServerSettings) to new values, or to null to drop the admin's change and return to the setup wizard's choice or the default. Values: pseudonymsEnabled, deviceSigningAllowed, inviteRequired are booleans; pseudonymTokensPerEpoch (1-1000), pseudonymProbationDays (0-365), pseudonymProbationDailyWrites (1-100000) are integers; custodyAllowed is a non-empty list of custodial, assisted, self; custodyDefault one of those; emailVerificationPolicy one of off, advisory, require-for-write, require-for-login; migrationAccounts and migrationCommunities one of open, invite, closed; migrationPseudonyms one of open, token, closed; federationPeers a list of up to 50 https addresses."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "settings",
+            "refreshSeconds",
+            "changed"
+          ],
+          "properties": {
+            "profile": {
+              "type": "string"
+            },
+            "settings": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "net.openfederation.admin.getServerSettings#setting"
+              }
+            },
+            "problem": {
+              "type": "string"
+            },
+            "refreshSeconds": {
+              "type": "integer"
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "#change"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "No changes, or a setting that does not exist."
+        },
+        {
+          "name": "InvalidSetting",
+          "description": "A value is not valid for its setting; `setting` names it."
+        },
+        {
+          "name": "InvalidCombination",
+          "description": "The settings would contradict each other, for example the way offered first is not offered, or device signing without Self or Assisted."
+        },
+        {
+          "name": "SettingFixedByEnvironment",
+          "description": "The server's environment sets this setting; change it there and restart."
+        },
+        {
+          "name": "Forbidden",
+          "description": "The caller is not an admin."
+        }
+      ]
+    },
+    "change": {
+      "type": "object",
+      "required": [
+        "id",
+        "envVar",
+        "before",
+        "after",
+        "reset"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "envVar": {
+          "type": "string"
+        },
+        "before": {
+          "type": "unknown"
+        },
+        "after": {
+          "type": "unknown"
+        },
+        "reset": {
+          "type": "boolean",
+          "description": "True when the admin's change was dropped."
+        }
+      }
+    }
+  }
+}

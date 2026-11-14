@@ -43,6 +43,7 @@ const ACTION_TYPES = [
   'account.activate',
   'account.delete',
   'account.export',
+  'server.settings.update',
 ];
 
 export default function AdminAuditPage() {

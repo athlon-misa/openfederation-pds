@@ -88,3 +88,17 @@ describe('applyConfigToEnv', () => {
     expect(readConfigFile(path)).toBeNull();
   });
 });
+
+describe('loadSettingsFile (#410)', () => {
+  it('leaves the choices an admin can change out of the environment: they are the wizard\'s initial values', async () => {
+    const { loadSettingsFile } = await import('../../src/setup/launcher.js');
+    const path = join(tempDir(), 'of.env');
+    writeFileSync(path, 'PDS_SERVICE_URL=https://pds.example\nINVITE_REQUIRED=false\nPSEUDONYMS_ENABLED=true\nIDENTITY_CUSTODY_DEFAULT=self\n');
+    const env: Record<string, string | undefined> = { OPENFEDERATION_CONFIG_FILE: path };
+    loadSettingsFile(env);
+    expect(env.PDS_SERVICE_URL).toBe('https://pds.example');
+    expect(env.INVITE_REQUIRED).toBeUndefined();
+    expect(env.PSEUDONYMS_ENABLED).toBeUndefined();
+    expect(env.IDENTITY_CUSTODY_DEFAULT).toBeUndefined();
+  });
+});

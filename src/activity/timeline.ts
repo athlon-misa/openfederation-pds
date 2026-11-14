@@ -15,6 +15,7 @@
  * the next call usually has it.
  */
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query } from '../db/client.js';
 import type { AuthContext } from '../auth/types.js';
 import {
@@ -195,7 +196,7 @@ export async function buildUserTimeline(
 
   const local = await localMemberships(viewer);
   const hosted = new Set(local.communities);
-  const peers = config.federation.enabled ? config.federation.peerUrls : [];
+  const peers = config.federation.enabled ? runtimeSettings().federationPeers : [];
   const [localLists, ...remote] = await Promise.all([
     local.communities.length > 0
       ? loadLocalActivity(local.communities, local.withJoinRequests, limit + 1, cursor)

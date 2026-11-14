@@ -2,7 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { query, withTransaction } from '../db/client.js';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { blindSignBatch, InvalidBlindedMessageError } from '../identity/pseudonym/tokens.js';
 import { currentEpoch } from '../../packages/openfederation-pseudonym/src/formats.js';
 
@@ -19,9 +19,9 @@ export default async function collectTokens(req: AuthRequest, res: Response): Pr
     res.status(400).json({ error: 'WrongEpoch', message: `Tokens are issued for ${currentEpoch()} only` });
     return;
   }
-  if (!Array.isArray(blinded) || blinded.length !== config.pseudonym.tokensPerEpoch
+  if (!Array.isArray(blinded) || blinded.length !== runtimeSettings().pseudonym.tokensPerEpoch
     || !blinded.every((b) => typeof b === 'string' && /^[A-Za-z0-9_-]{342}$/.test(b))) {
-    res.status(400).json({ error: 'InvalidRequest', message: `blindedMessages must be ${config.pseudonym.tokensPerEpoch} base64url strings` });
+    res.status(400).json({ error: 'InvalidRequest', message: `blindedMessages must be ${runtimeSettings().pseudonym.tokensPerEpoch} base64url strings` });
     return;
   }
   if (req.auth!.authMethod === 'service-auth') {

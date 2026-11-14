@@ -14,7 +14,7 @@
  * rather than verifying an address the user no longer claims.
  *
  * What verification *gates* is the operator's decision, not this module's:
- * `EMAIL_VERIFICATION_POLICY` (see `config.emailVerification`) ranges from
+ * `EMAIL_VERIFICATION_POLICY` (see `runtimeSettings().emailVerificationPolicy`) ranges from
  * `off` to `require-for-login`, defaulting to `advisory` — recorded and
  * surfaced, blocking nothing. An open-source PDS serves operators from
  * closed single-user instances to open registration, and one strictness

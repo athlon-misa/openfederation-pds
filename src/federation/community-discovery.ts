@@ -14,6 +14,7 @@
  * private community of ours, or rename a public one.
  */
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query } from '../db/client.js';
 import { assertPublicHttpsUrl, OutboundFetchError, readLimitedText } from '../security/outbound-fetch.js';
 import { resolvePeerUrls, staticPeerSource, type PeerSource } from './peer-sources.js';
@@ -273,7 +274,7 @@ export async function getPeerDirectory(peerUrl: string): Promise<PeerResult> {
 
 /** FEDERATION_PEERS (and the older PEER_PDS_URLS); nothing when FEDERATION_PEERS_ENABLED=false. */
 const configuredPeers = staticPeerSource('FEDERATION_PEERS', () =>
-  config.federation.enabled ? config.federation.peerUrls : []);
+  config.federation.enabled ? runtimeSettings().federationPeers : []);
 
 /** Every place peers come from. A central directory would be added here. */
 export function peerSources(): PeerSource[] {
