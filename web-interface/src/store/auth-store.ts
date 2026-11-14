@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { setTokenGetter } from '@/lib/api-client';
 import { forgetPenSession } from '@/lib/pen-names/pen-session-store';
+import { AUTH_PERSIST_KEY } from '@/lib/signed-out-area';
 import { createSession, refreshSession, getSession, resolveExternal, completeExternalLogin, deleteSession } from '@/lib/api/auth';
 
 interface AuthState {
@@ -86,7 +87,7 @@ async function resolveSessionState(
   return deriveSessionState(sessionResult.data.roles, sessionResult.data.status);
 }
 
-const PERSIST_KEY = 'openfed-auth';
+const PERSIST_KEY = AUTH_PERSIST_KEY;
 
 /** The refresh token as last persisted by any tab, or null if there is none to read. */
 function readPersistedRefreshToken(): string | null {
@@ -226,6 +227,9 @@ export const useAuthStore = create<AuthState>()(
         }),
 
         hydrate: async () => {
+          // Storage is read here, not when the store is created, so the
+          // signed-out pen-name pages never load the session (lib/signed-out-area).
+          await useAuthStore.persist.rehydrate();
           const { refreshToken } = get();
           if (refreshToken) {
             await get().refresh();
@@ -236,6 +240,7 @@ export const useAuthStore = create<AuthState>()(
     },
     {
       name: PERSIST_KEY,
+      skipHydration: true,
       partialize: (state) => ({
         refreshToken: state.refreshToken,
         did: state.did,

@@ -197,15 +197,37 @@ export const PEN_NAMES = {
   responsible: 'Keeping the pen name\'s 12 words safe. Pen names have no recovery: if you lose them, the pen name cannot be used again.',
   wrong: 'Your writing, habits and the people you talk to can still give you away; the server cannot protect against that.',
   undo: 'Nobody can tell that a pen name is yours unless you choose to prove it. A proof, once shown, cannot be taken back. You can end a pen name for good with its 12 words.',
-  where: 'The pen name\'s 12 words never leave this device. This browser keeps a list of the pen names you made or used here (their names and where they live, never their words), so you can find them again; the list is not sent to any server. Anyone who uses this browser with your account can see it, and you can remove a pen name from it at any time.',
+  where: 'The pen name\'s 12 words never leave this device. This browser keeps a list of the pen names you made or used here (their names and where they live, never their words), so you can find them again; the list is not sent to any server. Anyone who uses this browser can see it, and you can remove a pen name from it at any time. Tor Browser forgets it when you close it or choose New Identity.',
 } as const;
 
 /** Creation passes (blind tokens). */
 export const PASSES = {
-  means: 'Making a pen name costs one pass. Each account can collect a batch of passes once a month. This server signs them without seeing them, so when a pass is used it cannot tell which account it came from.',
-  kept: 'Passes are kept in this browser. If you clear its data, they are gone until next month.',
-  seen: 'The server sees that you collected passes this month, as any account can. It never learns which pass becomes which pen name, or whether you use any.',
+  means: 'Making a pen name costs one pass. Each account gets the same batch of passes once a month. This server signs them without seeing them, so when a pass is used it cannot tell which account it came from.',
+  auto: 'The dashboard collects your batch for you, the first time you sign in each month, whether or not you used any. Every account does the same, so collecting says nothing about you.',
+  seen: 'The server sees that your account collected this month\'s batch, as every account does. It never learns which pass becomes which pen name, or whether you use any.',
+  kept: 'Passes are kept in this browser, and work for the month they were collected and the month after. Then they expire, and this page drops them.',
 } as const;
+
+/** Saving passes to a file, said before the file is made. */
+export const PASS_FILE: ChoiceText = {
+  title: 'Save my passes to a file',
+  summary: 'A small file with your passes, to create a pen name from another browser or Tor Browser without signing in.',
+  means: 'The file holds your passes for this server, the month each expires, and your account\'s DID, which a new pen name keeps sealed in its public entry so you can prove later that it is yours. The signed-out page for creating a pen name loads it; nothing in it is sent to a server except the one pass a new pen name uses.',
+  responsible: 'Keeping the file private, and deleting it once its passes have expired or been used. Anyone who has the file can create pen names on this server with these passes. They cannot link those pen names to you.',
+  wrong: 'If someone else gets the file, they can use up your passes, and they can see from it which account collected them. If you use the same pass twice (from this browser and from the file), the second try fails, and the server sees that the two tries came from the same batch.',
+  undo: 'You cannot take back a copy you made. Passes in it stop working when they expire.',
+};
+
+/** Printing a pass. */
+export const PASS_PRINT = {
+  means: 'One pass per page, as a QR code and as text with a checksum. The text is long (about 500 characters), so the QR code is the practical paper form; the text is there if a QR code cannot be read.',
+  wrong: 'Anyone who finds the paper can create one pen name on this server with it. They cannot link it to you, but the paper shows which account collected it.',
+} as const;
+
+export const REMOVE_AFTER_COPY = 'So a pass is not used twice, remove the passes you copied from this browser. Then use them only from the file or the paper.';
+
+/** The signed-out pages say this when this browser also holds the person's own session. */
+export const SIGNED_IN_HERE = 'You are signed in to your own account in this browser. For a pen name nobody can link to you, use a different browser or Tor Browser.';
 
 /** The specific thing the person confirms before a pen name is created. */
 export const PEN_CREATE_ACK = 'I understand that this pen name has no recovery: if I lose its 12 words, nobody can give it back.';
@@ -213,9 +235,18 @@ export const PEN_CREATE_ACK = 'I understand that this pen name has no recovery: 
 /** The honest limit, said in plain words before creating. */
 export const PEN_LIMIT = {
   server: 'This server cannot link the pen name to you through its data. The request that creates it carries nothing about you, and the pass it uses cannot be traced back to your account.',
-  timing: 'But you would be creating it from the same browser, network and time as your own account. Whoever runs this server, or watches its network, could guess from the timing and your network address that the two belong together. The same goes for using it: signing in as the pen name right after your own account, from the same place, connects them.',
-  better: 'For real protection, collect passes now and create the pen name later, from another network or through Tor, and use it from there.',
+  timing: 'What can link them is the same browser, the same network or the same moment. Whoever runs this server, or watches its network, could guess that your account and the pen name belong together if they are used from the same place, or one right after the other.',
+  better: 'So create and use the pen name from another browser and network, or Tor Browser, and never in the same session as your own account.',
 } as const;
+
+/** How to keep a pen name apart from your account, step by step. */
+export const PEN_CHECKLIST = [
+  'Your passes are collected automatically. Save them to a file (or print one) here, on your normal network.',
+  'Open the signed-out pen-name page in Tor Browser (or another browser, on another network).',
+  'Load your passes there and create the pen name.',
+  'Use the pen name only there.',
+  'Never sign in to your own account in the same Tor session. Use Tor Browser\'s "New Identity" between them.',
+] as const;
 
 export const PEN_PASSKEY: ChoiceText = {
   title: 'Passkey for a pen name',
@@ -238,6 +269,8 @@ export const PEN_PROOF: ChoiceText = {
 };
 
 export const PEN_PUBLIC_PROOF_ACK = 'I understand that this puts the link between this pen name and my account in public, in both accounts\' files, and that it cannot be taken back.';
+
+export const PEN_SHOW_PROOF_ACK = 'I understand that whoever I give this link or file to can see that this pen name is mine and pass it on, and that once shown it cannot be taken back.';
 
 export const PEN_MOVE: ChoiceText = {
   title: 'Move a pen name',
@@ -316,7 +349,8 @@ export const GLOSSARY_SECTIONS: { title: string; terms: GlossaryTerm[] }[] = [
       { id: 'signed-in-device', term: 'Signed-in device', technical: 'session', text: 'A browser or app where you are signed in with your password. Signing one out does not change your identity.' },
       { id: 'pen-name', term: PEN_NAMES.title, technical: 'pseudonym', text: PEN_NAMES.means },
       { id: 'pen-name-words', term: 'A pen name\'s 12 words', technical: 'pseudonym phrase; its owner key is the only rotation key of its DID', text: 'Twelve ordinary words, made on your device, that are the pen name: whoever has them can sign in as it, move it, prove it, or end it. There is no recovery and no reset. They are different from your own 12 words.' },
-      { id: 'pass', term: 'Pass', technical: 'blind creation token (RSA blind signatures, RFC 9474)', text: `${PASSES.means} ${PASSES.seen}` },
+      { id: 'pass', term: 'Pass', technical: 'blind creation token (RSA blind signatures, RFC 9474)', text: `${PASSES.means} ${PASSES.auto} ${PASSES.kept}` },
+      { id: 'pass-file', term: 'Pass file', text: `${PASS_FILE.means} ${PASS_FILE.responsible}` },
       { id: 'pen-proof', term: 'Proof that a pen name is yours', technical: 'reveal bundle; pseudonym commitment', text: PEN_PROOF.means },
       { id: 'in-person-proof', term: 'In-person proof', technical: 'presence proof', text: 'Someone says a word; the pen name\'s 12 words sign it on your device, and they check the signature on their own phone. It shows you hold the pen name\'s words, without naming your account.' },
       { id: 'end-pen-name', term: PEN_END.title, technical: 'account deletion and PLC tombstone', text: PEN_END.means },

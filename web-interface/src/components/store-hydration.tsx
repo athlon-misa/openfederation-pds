@@ -1,22 +1,32 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
+import { isSessionFreePage, isSignedOutArea, isTabSealed, sealThisTab } from '@/lib/signed-out-area';
 
 export function StoreHydration({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const hydrate = useAuthStore((s) => s.hydrate);
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const refresh = useAuthStore((s) => s.refresh);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The signed-out pen-name pages and /verify never load or refresh the
+  // person's session, and neither does a tab after it showed a pen-name page.
+  // The path alone decides the first render, the same on the server and in
+  // the browser; the tab's seal is kept in the browser only (a server module
+  // is shared by every visitor).
+  if (isSignedOutArea(pathname) && typeof window !== 'undefined') sealThisTab();
+  const sealed = isSessionFreePage(pathname) || (typeof window !== 'undefined' && isTabSealed());
 
   useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+    if (!sealed) void hydrate();
+  }, [hydrate, sealed]);
 
   // Set up auto-refresh every 10 minutes when authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !sealed) {
       intervalRef.current = setInterval(() => {
         refresh();
       }, 10 * 60 * 1000);
@@ -26,9 +36,9 @@ export function StoreHydration({ children }: { children: React.ReactNode }) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isAuthenticated, refresh]);
+  }, [isAuthenticated, refresh, sealed]);
 
-  if (!isHydrated) {
+  if (!isHydrated && !sealed) {
     return null;
   }
 
