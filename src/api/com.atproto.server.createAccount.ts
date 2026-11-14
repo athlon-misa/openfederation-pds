@@ -35,8 +35,11 @@ class Refusal extends Error {
  * Proof of control is a service-auth-shaped JWT (iss = did, aud = this
  * PDS's service DID, lxm = this method) signed by one of the DID's current
  * PLC rotation keys. A pseudonym's owner key is its only rotation key, so
- * the owner can move without help from the old PDS. Service auth from the
- * old PDS, the standard proof for custodial accounts, comes with #266.
+ * the owner can move without help from the old PDS. A user account moves
+ * with service auth from its old PDS (#266) and becomes custodial here; or,
+ * if its DID publishes `openfederation_owner` (an `assisted` or `self`
+ * account), with the same kind of JWT signed by its top rotation key, and
+ * becomes `self` here (ADR-004, #382).
  *
  * The account starts deactivated, with an empty repo signed by the key
  * reserved here for this DID. Pseudonyms are not audited, as everywhere else.
@@ -67,21 +70,30 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
     const custodial = req.auth?.authMethod === 'service-auth';
     if (custodial && req.auth!.did !== did) throw new Refusal(401, 'InvalidToken', 'Service auth token was issued for another DID');
     if (custodial && ownerKey) throw new Refusal(400, 'IncompatibleDidDoc', 'A pseudonym moves with its own key, not with service auth from a PDS');
-    if (!custodial && !ownerKey) {
+    // ADR-004: an `assisted` or `self` account (its DID publishes the owner
+    // key) may instead prove control with its top rotation key, and arrives
+    // as `self`: this server holds none of its keys.
+    const selfMove = !custodial && !ownerKey && typeof state.verificationMethods.openfederation_owner === 'string';
+    if (!custodial && !ownerKey && !selfMove) {
       throw new Refusal(400, 'IncompatibleDidDoc', 'A user account moves with service auth from its old PDS (com.atproto.server.getServiceAuth)');
     }
+    const local = custodial || selfMove; // a user account: email, password, invite
     // The gate (#265): refused here, nothing has changed anywhere.
     const policy = ownerKey ? runtimeSettings().migration.pseudonyms : runtimeSettings().migration.accounts;
     if (policy === 'closed') throw new Refusal(403, 'MigrationNotAllowed', 'This PDS does not accept accounts moving in');
-    // ADR-003: a user account moving in becomes custodial here; a pseudonym
-    // is new to this server, which may have switched pseudonyms off.
+    // ADR-003: a user account moving in with service auth becomes custodial
+    // here; a pseudonym is new to this server, which may have switched
+    // pseudonyms off.
     if (custodial && !runtimeSettings().identity.custodyAllowed.includes('custodial')) {
       throw new Refusal(403, 'CustodyModeNotAllowed', 'This server does not allow custodial accounts');
+    }
+    if (selfMove && !runtimeSettings().identity.custodyAllowed.includes('self')) {
+      throw new Refusal(403, 'CustodyModeNotAllowed', 'This server does not allow self accounts');
     }
     if (ownerKey && !runtimeSettings().identity.pseudonymsEnabled) {
       throw new Refusal(403, 'MigrationNotAllowed', 'This server does not accept pseudonyms');
     }
-    if (custodial) {
+    if (local) {
       if (!email || !password) throw new Refusal(400, 'InvalidRequest', 'email and password are required for a user account');
       if (!isStrongPassword(password)) throw new Refusal(400, 'InvalidPassword', passwordValidationMessage());
       if (policy === 'invite' && !inviteCode) throw new Refusal(400, 'InvalidInviteCode', 'An invite code is required to move an account here');
@@ -93,7 +105,10 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
     if (!custodial) try {
       const claims = await verifyServiceAuthJwt(jwt, {
         expectedLxm: NSID,
-        resolveVerificationKeys: async () => state.rotationKeys,
+        // A pseudonym has one rotation key. For an ADR-003 account only the
+        // top one counts: in `assisted` the old PDS holds a lower key, and a
+        // recovery key ranks below the phrase key too.
+        resolveVerificationKeys: async () => (selfMove ? state.rotationKeys.slice(0, 1) : state.rotationKeys),
       });
       if (claims.iss !== did) throw new Refusal(401, 'InvalidToken', 'Token was issued for another DID');
       if (claims.lxm !== NSID) throw new Refusal(401, 'InvalidToken', `Token must be scoped to ${NSID}`);
@@ -108,7 +123,7 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
     }
 
     const userId = crypto.randomUUID();
-    const passwordHash = custodial ? await hashPassword(password) : null;
+    const passwordHash = local ? await hashPassword(password) : null;
     // A user account gets a rotation key made here, split 2-of-3 like at
     // sign-up: shares 2 and 3 stay in the vault, share 1 goes to the user.
     // Only its public half is kept whole, to recommend for the PLC update.
@@ -126,7 +141,7 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
       const taken = await client.query(
         'SELECT 1 FROM users WHERE handle = $1 UNION ALL SELECT 1 FROM communities WHERE handle = $1', [label]);
       if (taken.rows.length > 0) throw new Refusal(400, 'HandleNotAvailable', 'Handle is already taken');
-      if (custodial) {
+      if (local) {
         const emailTaken = await client.query('SELECT 1 FROM users WHERE email = $1', [email]);
         if (emailTaken.rows.length > 0) throw new Refusal(400, 'InvalidRequest', 'Email is already in use');
       }
@@ -139,16 +154,23 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
         if (redeemed === 'spent') throw new Refusal(400, 'TokenSpent', 'Creation token was already used');
       }
       const reserved = await consumeReservedSigningKeyForDid(client, did);
+      // After leavePds the DID already names this server: it must name the
+      // key reserved here, or the account could never be activated.
+      if (selfMove && state.services.atproto_pds?.endpoint === config.pds.serviceUrl
+        && reserved?.signingKey !== state.verificationMethods.atproto) {
+        throw new Refusal(400, 'SigningKeyNotReserved', 'The DID names a signing key this PDS did not reserve for it (com.atproto.server.reserveSigningKey before leavePds)');
+      }
       const bytes = reserved?.keyBytes
         ?? Buffer.from(await (await Secp256k1Keypair.create({ exportable: true })).export());
-      await insertUserWithRole(client, custodial ? {
+      await insertUserWithRole(client, local ? {
         userId, handle: label, email, passwordHash, did, status: 'deactivated', authType: 'local', migratingIn: true,
+        custodyMode: selfMove ? 'self' : 'custodial',
       } : {
         userId, handle: label, email: null, passwordHash: null, did,
         status: 'deactivated', authType: 'pseudonym', pseudonymOwnerKey: ownerKey!, migratingIn: true,
       });
       if (rotation) await client.query('UPDATE users SET rotation_did_key = $2 WHERE id = $1', [userId, rotation.did()]);
-      if (custodial && policy === 'invite') {
+      if (local && policy === 'invite') {
         try {
           await claimInvite(client, inviteCode, email, userId); // after the row: invites.used_by references it
         } catch (err) {
@@ -171,6 +193,7 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
       rotationDeviceShare = shares[0];
       await auditLog('account.migrateIn', userId, userId, { did, handle: label });
     }
+    if (selfMove) await auditLog('account.moveIn', userId, userId, { did, handle: label, method: 'rotation-key' });
 
     // An empty repo signed by this PDS's key, as the reference PDS does;
     // importRepo replaces it with the account's own.
@@ -190,8 +213,8 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
     }
 
     const session = await issueSession(
-      { id: userId, handle: label, email: custodial ? email : null, did, status: 'deactivated', token_version: 0 },
-      { pseudonym: !custodial },
+      { id: userId, handle: label, email: local ? email : null, did, status: 'deactivated', token_version: 0 },
+      { pseudonym: !local },
     );
     res.status(200).json({
       did, handle, accessJwt: session.accessJwt, refreshJwt: session.refreshJwt,

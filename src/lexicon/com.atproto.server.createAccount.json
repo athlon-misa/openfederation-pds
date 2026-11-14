@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "com.atproto.server.createAccount",
-  "revision": 4,
+  "revision": 5,
   "description": "AT Protocol createAccount, used here to import an account from another PDS.",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Create an account. On this PDS it only imports an existing did (account migration); new accounts use net.openfederation.account.register. Proof of control: a JWT (iss = did, aud = this PDS service DID, lxm = this method) signed by one of the DID's current PLC rotation keys, sent as the Bearer token.",
+      "description": "Create an account. On this PDS it only imports an existing did (account migration); new accounts use net.openfederation.account.register. Proof of control, sent as the Bearer token: service auth from the old PDS for a user account (it becomes custodial here); or a JWT (iss = did, aud = this PDS service DID, lxm = this method, at most 300 seconds) signed by the DID's PLC rotation key: a pseudonym's only key, or, for a user account whose DID publishes openfederation_owner (assisted or self), its first rotation key only. Such an account arrives as self (ADR-004).",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -17,7 +17,7 @@
           "properties": {
             "email": {
               "type": "string",
-              "description": "Email for a user account moving here (service auth from the old PDS)."
+              "description": "Email for a user account moving here (service auth from the old PDS, or the rotation-key proof of an assisted or self account)."
             },
             "handle": {
               "type": "string",
@@ -140,7 +140,7 @@
         },
         {
           "name": "InvalidToken",
-          "description": "The proof JWT is missing a valid signature by a rotation key, is expired or replayed, names another DID, or is not scoped to this method."
+          "description": "The proof JWT is missing a valid signature by the right rotation key (a user account's first one), is expired or replayed, names another DID, or is not scoped to this method."
         },
         {
           "name": "AlreadyExists",
@@ -172,7 +172,11 @@
         },
         {
           "name": "CustodyModeNotAllowed",
-          "description": "This server does not allow custodial accounts (IDENTITY_CUSTODY_ALLOWED)."
+          "description": "This server does not allow the custody mode the account would arrive in: custodial with service auth, self with a rotation-key proof (IDENTITY_CUSTODY_ALLOWED)."
+        },
+        {
+          "name": "SigningKeyNotReserved",
+          "description": "The DID already points at this PDS but names a signing key this PDS did not reserve for it (com.atproto.server.reserveSigningKey before leavePds)."
         }
       ]
     }
