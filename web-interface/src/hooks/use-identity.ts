@@ -2,8 +2,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { call } from '@/lib/move/xrpc';
 import { identityPolicy, type CustodyMode, type IdentityPolicy } from '@/lib/custody/custody';
 import { useAuthStore } from '@/store/auth-store';
+import { THIS_PDS } from '@/lib/this-pds';
 
-export const THIS_PDS = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+export { THIS_PDS };
 
 export interface IdentityStatus {
   /** Null for accounts without a custody mode: signed in from another server, or the local admin. */
