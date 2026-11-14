@@ -42,7 +42,7 @@ export default function LoginPage() {
       if (result.error === 'AccountNotApproved') {
         setError('Your account is pending admin approval.');
       } else if (result.error === 'Unauthorized') {
-        setError('Invalid credentials. Please check your handle/email and password.');
+        setError('That handle or email and password do not match. Check both, or reset your password.');
       } else {
         setError(result.message);
       }
@@ -77,7 +77,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive" role="alert">
               {error}
             </div>
           )}
@@ -111,6 +111,7 @@ export default function LoginPage() {
                 type="button"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -136,7 +137,7 @@ export default function LoginPage() {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-card px-2 text-muted-foreground">
-            Or sign in with ATProto
+            Or use an account from another server
           </span>
         </div>
       </div>
@@ -149,7 +150,7 @@ export default function LoginPage() {
             </div>
           )}
           <div className="space-y-2">
-            <Label htmlFor="externalHandle">ATProto handle</Label>
+            <Label htmlFor="externalHandle">Your handle on the other server</Label>
             <Input
               id="externalHandle"
               type="text"
@@ -159,13 +160,13 @@ export default function LoginPage() {
               required
             />
             <p className="text-xs text-muted-foreground">
-              Sign in with your existing Bluesky or ATProto account
+              For example a Bluesky account, or any server on the same network (the AT Protocol). You sign in there; your identity stays with that server.
             </p>
           </div>
         </CardContent>
         <CardFooter>
           <Button type="submit" variant="outline" className="w-full" disabled={externalLoading}>
-            {externalLoading ? 'Redirecting...' : 'Sign in with ATProto'}
+            {externalLoading ? 'Taking you there…' : 'Sign in with your other server'}
           </Button>
         </CardFooter>
       </form>

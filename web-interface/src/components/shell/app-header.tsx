@@ -26,7 +26,15 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
     users: 'Users',
     invites: 'Invites',
     audit: 'Audit Log',
-    settings: 'Settings',
+    settings: 'Your account',
+    account: 'Your account',
+    identity: 'Identity & keys',
+    recovery: 'Recovery',
+    devices: 'Devices & passkeys',
+    history: 'Identity changes',
+    move: 'Move to another server',
+    'pen-names': 'Pen names',
+    'partner-keys': 'Partner Keys',
     new: 'New',
   };
 
@@ -59,8 +67,8 @@ export function AppHeader() {
     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mr-2 !h-4" />
-      <Breadcrumb>
-        <BreadcrumbList>
+      <Breadcrumb className="min-w-0 overflow-hidden">
+        <BreadcrumbList className="flex-nowrap">
           <BreadcrumbItem>
             <BreadcrumbLink href="/">Home</BreadcrumbLink>
           </BreadcrumbItem>
@@ -71,7 +79,7 @@ export function AppHeader() {
                 {crumb.href ? (
                   <BreadcrumbLink href={crumb.href}>{crumb.label}</BreadcrumbLink>
                 ) : (
-                  <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                  <BreadcrumbPage className="truncate">{crumb.label}</BreadcrumbPage>
                 )}
               </BreadcrumbItem>
             </span>

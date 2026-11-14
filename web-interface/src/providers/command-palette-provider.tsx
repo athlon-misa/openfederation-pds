@@ -12,6 +12,7 @@ import {
 } from 'kbar';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
+import { ACCOUNT_SECTIONS, GLOSSARY_LINK } from '@/components/account/account-nav';
 
 function RenderResults() {
   const { results } = useMatches();
@@ -51,14 +52,14 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
   const actions: Action[] = [
     {
       id: 'dashboard',
-      name: 'Dashboard',
+      name: 'Home',
       shortcut: ['g', 'd'],
       section: 'Navigation',
       perform: () => router.push('/'),
     },
     {
       id: 'my-communities',
-      name: 'My Communities',
+      name: 'Your communities',
       shortcut: ['g', 'c'],
       section: 'Navigation',
       perform: () => router.push('/communities'),
@@ -70,6 +71,13 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
       section: 'Navigation',
       perform: () => router.push('/explore'),
     },
+    ...[...ACCOUNT_SECTIONS, GLOSSARY_LINK].map((s) => ({
+      id: `account-${s.href}`,
+      name: s.title,
+      subtitle: s.hint,
+      section: 'Your account',
+      perform: () => router.push(s.href),
+    })),
     {
       id: 'create-community',
       name: 'Create Community',

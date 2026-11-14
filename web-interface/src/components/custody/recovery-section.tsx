@@ -12,11 +12,13 @@ import {
   assertPhraseBelongs, currentRecoveryKey, setUpRecovery, removeRecovery, assertRecoveryPhraseBelongs, recoverWithRecoveryPhrase,
   type RecoveryMode,
 } from '@/lib/custody/custody';
+import { RECOVERY, recoveryAck, removeRecoveryAck } from '@/lib/copy/glossary';
+import { Acknowledge, ChoiceExplainer, StatusMessage } from '@/components/account/explain';
 import { ExistingPhrase, NewPhrase, TypedPhrase } from './phrase-inputs';
 import { QrCode } from './qr-code';
 
 /**
- * Settings → Identity custody → Recovery (#238, ADR-003 decision 13). An
+ * Account → Recovery (#238, ADR-003 decision 13; words from #404). An
  * optional second key the person holds, kept as a backup phrase or split
  * into shares among contacts or with their newsroom. Made and used here;
  * this server never sees the key or the shares and does not know which
@@ -27,35 +29,20 @@ const pdsUrl = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
 
 type Kind = 'phrase' | 'contacts' | 'newsroom';
 
-const KINDS: Record<Kind, { title: string; what: string }> = {
-  phrase: {
-    title: 'Backup phrase',
-    what: 'A second set of 12 words, kept whole: on paper, in a safe, away from your identity phrase.',
-  },
-  contacts: {
-    title: 'Split among contacts',
-    what: 'Shares for people you trust (an editor, a colleague, a lawyer). Any few of them together can recover your identity; fewer learn nothing.',
-  },
-  newsroom: {
-    title: 'With my newsroom',
-    what: 'Your newsroom holds one share; you and people you trust hold the others. Your newsroom can never recover on its own, even if it runs this server.',
-  },
-};
-
 type Step =
   | { at: 'idle' }
-  | { at: 'choose'; kind: Kind; k: number; n: number }
+  | { at: 'choose'; kind: Kind; k: number; n: number; ack: boolean }
   | { at: 'identity'; kind: Kind; k: number; n: number }
   | { at: 'backup'; phrase: string }
   | { at: 'shares'; kind: Kind; phrase: string; recoveryPhrase: string; shares: RecoveryShare[]; shown: number; handed: boolean }
-  | { at: 'remove' }
+  | { at: 'remove'; ack: boolean }
   | { at: 'recover' }
   | { at: 'recover-phrase' }
   | { at: 'recover-shares' }
   | { at: 'recover-new'; recoveryPhrase: string };
 
 function holderOf(kind: Kind, index: number): string {
-  if (kind === 'newsroom') return index === 1 ? 'your newsroom' : index === 2 ? 'you (keep it apart from your phrase)' : 'someone you trust';
+  if (kind === 'newsroom') return index === 1 ? 'your newsroom' : index === 2 ? 'you (keep it apart from your 12 words)' : 'someone you trust';
   return 'someone you trust';
 }
 
@@ -70,7 +57,7 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
   onActive: (active: boolean) => void;
   /** The DID changed (reload the list of changes). */
   onChanged: () => void;
-  /** Recovered with a new identity phrase (offer the passkey for it). */
+  /** Recovered with new 12 words (offer the passkey for them). */
   onRecovered: (newPhrase: string) => void;
 }) {
   const [key, setKey] = useState<string | null | undefined>(undefined);
@@ -104,7 +91,7 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
     setBusy(true); setMessage(null);
     try {
       await removeRecovery({ pdsUrl, did, mode, phrase });
-      setMessage({ ok: true, text: 'Recovery is off. Backup phrases or shares made for it no longer do anything; you can destroy them.' });
+      setMessage({ ok: true, text: 'Recovery is off. The backup phrase or shares made for it no longer do anything; you can destroy them.' });
       close(); setReloads((n) => n + 1); onChanged();
     } catch (e) { failed(e); } finally { setBusy(false); }
   }
@@ -123,67 +110,77 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
       const { cancelUntil } = await recoverWithRecoveryPhrase({ pdsUrl, did, mode, recoveryPhrase, newPhrase });
       setMessage({
         ok: true,
-        text: `Recovered: your new phrase controls your identity. Until ${cancelUntil.toLocaleString()} the old phrase can still cancel this (see Changes to your identity). If your backup phrase or shares may have been seen, remove recovery and set it up again.`,
+        text: `Recovered: your new 12 words control your identity. Until ${cancelUntil.toLocaleString()} your old words can still cancel this (see Identity changes). If your backup phrase or shares may have been seen by someone else, remove recovery and set it up again.`,
       });
       close(); setReloads((n) => n + 1); onChanged(); onRecovered(newPhrase);
     } catch (e) { failed(e); } finally { setBusy(false); }
   }
 
   const none = mode === 'self'
-    ? 'No recovery is set up. If you lose your phrase, nobody can restore your identity, including this server.'
-    : 'No recovery key of your own. If you lose your phrase, this server\'s operator can restore it after checking who you are.';
+    ? 'No recovery is set up. If you lose your 12 words, nobody can give you back control of your identity, including this server.'
+    : 'No recovery of your own is set up. If you lose your 12 words, this server\'s operator can give you new ones after checking who you are.';
 
   return (
-    <div className="space-y-3 border-t pt-4">
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Recovery</p>
-        {key === undefined && <p className="text-sm text-muted-foreground">Reading your identity from the PLC directory…</p>}
+    <div className="space-y-3">
+      <div className="space-y-1" aria-live="polite">
+        <h3 className="text-sm font-semibold">{key === undefined ? 'Checking…' : key === null ? 'Recovery is off' : 'Recovery is on'}</h3>
+        {key === undefined && <p className="text-sm text-muted-foreground">Reading your identity from the public directory…</p>}
         {key === null && <p className="text-sm text-muted-foreground">{none}</p>}
         {key && (
           <p className="text-sm text-muted-foreground">
-            A recovery key is set (<span className="font-mono text-xs">{shortKey(key)}</span>), kept as a backup phrase or as shares; this server does not know which.
-            Whoever holds it can start a recovery, which your phrase can cancel for 72 hours.
+            Your identity has a recovery key, kept as a backup phrase or as shares; this server does not know which.
+            Whoever holds it can start a recovery, which your 12 words can cancel for 72 hours.
+            <span className="mt-1 block font-mono text-xs">Recovery key: {shortKey(key)}</span>
           </p>
         )}
       </div>
 
       {step.at === 'idle' && key !== undefined && (
         <div className="flex flex-wrap gap-2">
-          {key === null && <Button type="button" variant="outline" onClick={() => { setMessage(null); setStep({ at: 'choose', kind: 'phrase', k: 2, n: 3 }); }}>Set up recovery</Button>}
-          {key && <Button type="button" variant="outline" onClick={() => { setMessage(null); setStep({ at: 'recover' }); }}>Lost your phrase? Recover with your backup</Button>}
-          {key && <Button type="button" variant="ghost" onClick={() => { setMessage(null); setStep({ at: 'remove' }); }}>Remove recovery</Button>}
+          {key === null && <Button type="button" onClick={() => { setMessage(null); setStep({ at: 'choose', kind: 'phrase', k: 2, n: 3, ack: false }); }}>Set up recovery…</Button>}
+          {key && <Button type="button" variant="outline" onClick={() => { setMessage(null); setStep({ at: 'recover' }); }}>Lost your 12 words? Recover with your backup</Button>}
+          {key && <Button type="button" variant="ghost" onClick={() => { setMessage(null); setStep({ at: 'remove', ack: false }); }}>Remove recovery…</Button>}
         </div>
       )}
 
       {step.at === 'choose' && (
-        <div className="space-y-3 rounded-md border p-4">
-          <p className="text-sm font-medium">How do you want to keep your recovery key?</p>
-          <div className="space-y-2" role="radiogroup" aria-label="Recovery option">
-            {(Object.keys(KINDS) as Kind[]).map((kind) => (
-              <label key={kind} className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm ${step.kind === kind ? 'border-primary' : ''}`}>
-                <input type="radio" name="recovery-kind" className="mt-1" checked={step.kind === kind} onChange={() => setStep({ ...step, kind })} />
-                <span><span className="font-medium">{KINDS[kind].title}</span><span className="block text-muted-foreground">{KINDS[kind].what}</span></span>
+        <div className="space-y-4 rounded-md border p-4">
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-semibold">How do you want to keep your backup?</legend>
+            {(['phrase', 'contacts', 'newsroom'] as Kind[]).map((kind) => (
+              <label key={kind} className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm focus-within:ring-[3px] focus-within:ring-ring/50 ${step.kind === kind ? 'border-primary bg-muted/60' : ''}`}>
+                <input type="radio" name="recovery-kind" className="mt-1" checked={step.kind === kind} onChange={() => setStep({ ...step, kind, ack: false })} />
+                <span>
+                  <span className="font-medium">{RECOVERY[kind].title}</span>
+                  {step.kind === kind && <span className="ml-2 text-xs font-medium">(selected)</span>}
+                  <span className="block text-muted-foreground">{RECOVERY[kind].summary}</span>
+                </span>
               </label>
             ))}
-          </div>
+          </fieldset>
           {step.kind !== 'phrase' && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Label htmlFor="recovery-n">Shares</Label>
+              <Label htmlFor="recovery-n">Number of shares</Label>
               <select id="recovery-n" className="h-9 rounded-md border bg-background px-2" value={step.n}
-                onChange={(e) => { const n = Number(e.target.value); setStep({ ...step, n, k: Math.min(step.k, n) }); }}>
+                onChange={(e) => { const n = Number(e.target.value); setStep({ ...step, n, k: Math.min(step.k, n), ack: false }); }}>
                 {[2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
               <Label htmlFor="recovery-k">needed to recover</Label>
               <select id="recovery-k" className="h-9 rounded-md border bg-background px-2" value={step.k}
-                onChange={(e) => setStep({ ...step, k: Number(e.target.value) })}>
+                onChange={(e) => setStep({ ...step, k: Number(e.target.value), ack: false })}>
                 {Array.from({ length: step.n - 1 }, (_, i) => i + 2).map((k) => <option key={k} value={k}>{k}</option>)}
               </select>
-              <span className="text-muted-foreground">Any {step.k} of the {step.n} recover your identity{step.kind === 'newsroom' ? '; your newsroom holds one' : ''}.</span>
+              <span className="basis-full text-muted-foreground">Any {step.k} of the {step.n} shares together recover your identity{step.kind === 'newsroom' ? '; your newsroom holds exactly one' : ''}. Fewer learn nothing.</span>
             </div>
           )}
-          <p className="text-sm text-muted-foreground">Next, your identity phrase signs the change. Nothing about your choice or who holds what is sent to this server.</p>
-          <div className="flex gap-2">
-            <Button type="button" onClick={() => setStep({ at: 'identity', kind: step.kind, k: step.k, n: step.n })}>Continue</Button>
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">{RECOVERY[step.kind].title}: before you choose</h4>
+            <ChoiceExplainer text={RECOVERY[step.kind]} extra={[{ label: 'Who must help to recover', text: RECOVERY[step.kind].who }, { label: 'Protects you against', text: RECOVERY[step.kind].protects }]} />
+          </div>
+          <Acknowledge id="recovery-ack" text={recoveryAck(step.kind, step.k)} checked={step.ack} onChange={(ack) => setStep({ ...step, ack })} />
+          <p className="text-sm text-muted-foreground">Next, your 12 words sign the change. Nothing about your choice or who holds what is sent to this server.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={!step.ack} onClick={() => setStep({ at: 'identity', kind: step.kind, k: step.k, n: step.n })}>Continue</Button>
             <Button type="button" variant="ghost" onClick={close}>Cancel</Button>
           </div>
         </div>
@@ -191,8 +188,8 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
 
       {step.at === 'identity' && (
         <div className="space-y-3 rounded-md border p-4">
-          <p className="text-sm font-medium">Your identity phrase</p>
-          <p className="text-sm text-muted-foreground">It signs the change that adds your recovery key. It stays on this device.</p>
+          <h4 className="text-sm font-semibold">Your 12 words</h4>
+          <p className="text-sm text-muted-foreground">They sign the change that adds your recovery key. They stay on this device.</p>
           {busy ? <p className="text-sm text-muted-foreground">Checking…</p> : <ExistingPhrase did={did} onReady={async (phrase) => {
             // Check the phrase before showing anything to write down.
             setBusy(true); setMessage(null);
@@ -208,10 +205,10 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
 
       {step.at === 'backup' && (
         <div className="space-y-3 rounded-md border p-4">
-          <p className="text-sm font-medium">Your backup phrase</p>
+          <h4 className="text-sm font-semibold">Your backup phrase</h4>
           {busy
             ? <p className="text-sm text-muted-foreground">Adding your recovery key…</p>
-            : <NewPhrase intro="Write these 12 words on paper, in order, and keep them apart from your identity phrase (another place, a safe). With them you can recover your identity if you lose your phrase. This page will not show them again." onReady={(recoveryPhrase) => turnOn(step.phrase, recoveryPhrase, 'keep your backup phrase safe and apart from your identity phrase.')} />}
+            : <NewPhrase intro="These are not your 12 words: they are your backup phrase. Write them on paper, in order, and keep them in a different place from your 12 words (another building, a safe). With them you can recover your identity if you lose your 12 words. This page will not show them again." onReady={(recoveryPhrase) => turnOn(step.phrase, recoveryPhrase, 'keep your backup phrase safe and apart from your 12 words.')} />}
           {!busy && <Button type="button" variant="ghost" onClick={close}>Cancel</Button>}
         </div>
       )}
@@ -222,25 +219,22 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
         const label = `Share ${share.index} of ${step.shares.length}`;
         return (
           <div className="space-y-3 rounded-md border p-4">
-            <p className="text-sm font-medium">{label}: for {holderOf(step.kind, share.index)}</p>
+            <h4 className="text-sm font-semibold">{label}: for {holderOf(step.kind, share.index)}</h4>
             <p className="text-sm">
               {step.kind === 'newsroom' && share.index === 2
-                ? 'Keep this one yourself: write it down and keep it apart from your phrase.'
+                ? 'Keep this one yourself: write it down and keep it apart from your 12 words.'
                 : `Hand this to ${step.kind === 'newsroom' && share.index === 1 ? 'your newsroom' : 'someone you trust'}, in person or on paper.`}{' '}
               Any {share.threshold} shares together recover your identity; one alone is useless. This page will not show it again.
             </p>
             <div className="space-y-3">
               <QrCode text={share.code} label={`${label}, as a QR code`} />
-              <ol className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border p-3 font-mono text-sm" aria-label={`${label}, 20 words`}>
+              <ol className="grid grid-cols-2 gap-x-4 gap-y-1 rounded-md border p-3 font-mono text-sm sm:grid-cols-4" aria-label={`${label}, 20 words`}>
                 {share.words.split(' ').map((w, i) => <li key={i}><span className="text-muted-foreground">{i + 1}.</span> {w}</li>)}
               </ol>
             </div>
             <p className="break-all font-mono text-xs text-muted-foreground">{share.code}</p>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={step.handed} onChange={(e) => setStep({ ...step, handed: e.target.checked })} />
-              This share is written down or with its holder
-            </label>
-            <div className="flex gap-2">
+            <Acknowledge id={`share-handed-${share.index}`} text="This share is written down or with its holder, and nobody else has seen it." checked={step.handed} onChange={(handed) => setStep({ ...step, handed })} />
+            <div className="flex flex-wrap gap-2">
               {!last && <Button type="button" disabled={!step.handed} onClick={() => setStep({ ...step, shown: step.shown + 1, handed: false })}>Next share</Button>}
               {last && (
                 <Button type="button" disabled={!step.handed || busy} onClick={() => turnOn(step.phrase, step.recoveryPhrase,
@@ -248,7 +242,7 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
                   {busy ? 'Adding your recovery key…' : 'Turn on recovery'}
                 </Button>
               )}
-              <Button type="button" variant="ghost" onClick={close} disabled={busy}>Cancel (the shares shown so far will not work)</Button>
+              <Button type="button" variant="ghost" className="h-auto whitespace-normal text-left" onClick={close} disabled={busy}>Cancel (the shares shown so far will not work)</Button>
             </div>
           </div>
         );
@@ -256,18 +250,20 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
 
       {step.at === 'remove' && (
         <div className="space-y-3 rounded-md border p-4">
-          <p className="text-sm font-medium">Remove recovery</p>
-          <p className="text-sm text-muted-foreground">Your identity phrase signs it. Afterwards the backup phrase or shares no longer work.</p>
-          {busy ? <p className="text-sm text-muted-foreground">Removing…</p> : <ExistingPhrase did={did} onReady={remove} />}
+          <h4 className="text-sm font-semibold">Remove recovery</h4>
+          <p className="text-sm text-muted-foreground">Your 12 words sign it. Afterwards the backup phrase or shares no longer work. You can set recovery up again later, while you have your 12 words.</p>
+          <Acknowledge id="remove-ack" text={removeRecoveryAck(mode)} checked={step.ack} onChange={(ack) => setStep({ ...step, ack })} disabled={busy} />
+          {step.ack && (busy ? <p className="text-sm text-muted-foreground">Removing…</p> : <ExistingPhrase did={did} onReady={remove} />)}
           <Button type="button" variant="ghost" onClick={close} disabled={busy}>Cancel</Button>
         </div>
       )}
 
       {step.at === 'recover' && (
         <div className="space-y-3 rounded-md border p-4">
-          <p className="text-sm font-medium">Recover with your recovery key</p>
+          <h4 className="text-sm font-semibold">Recover with your backup</h4>
           <p className="text-sm text-muted-foreground">
-            You get a new identity phrase. Your old phrase can cancel this for 72 hours, so a recovery someone else starts fails while the real phrase still exists.
+            You get new 12 words. Your old 12 words can cancel this for 72 hours, so a recovery someone else starts fails while the real words still exist.
+            If you still have your 12 words, you do not need this.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={() => setStep({ at: 'recover-phrase' })}>I have my backup phrase</Button>
@@ -293,15 +289,15 @@ export function RecoverySection({ did, mode, onActive, onChanged, onRecovered }:
 
       {step.at === 'recover-new' && (
         <div className="space-y-3 rounded-md border p-4">
-          <p className="text-sm font-medium">Your new identity phrase</p>
+          <h4 className="text-sm font-semibold">Your new 12 words</h4>
           {busy
-            ? <p className="text-sm text-muted-foreground">Signing your new phrase in…</p>
+            ? <p className="text-sm text-muted-foreground">Putting your new 12 words in charge…</p>
             : <NewPhrase onReady={(newPhrase) => recover(step.recoveryPhrase, newPhrase)} />}
           {!busy && <Button type="button" variant="ghost" onClick={close}>Cancel</Button>}
         </div>
       )}
 
-      {message && <p className={`text-sm ${message.ok ? 'text-green-700' : 'text-destructive'}`} role="status">{message.text}</p>}
+      {message && <StatusMessage ok={message.ok} text={message.text} />}
     </div>
   );
 }
@@ -329,7 +325,7 @@ function ShareCollector({ busy, onReady }: { busy: boolean; onReady: (recoveryPh
           <Label htmlFor={`share-${i}`}>Share {i + 1}</Label>
           <Textarea id={`share-${i}`} autoComplete="off" spellCheck={false} className="font-mono" value={t}
             onChange={(e) => setTexts(texts.map((x, j) => (j === i ? e.target.value : x)))} />
-          {parsed[i]?.share && <p className="text-sm text-green-700">Share {parsed[i]?.share?.index} checks out (any {parsed[i]?.share?.threshold} shares recover).</p>}
+          {parsed[i]?.share && <p className="text-sm text-green-800 dark:text-green-400">✓ Share {parsed[i]?.share?.index} checks out (any {parsed[i]?.share?.threshold} shares recover).</p>}
           {parsed[i]?.problem && <p className="text-sm text-destructive">{parsed[i]?.problem}.</p>}
         </div>
       ))}

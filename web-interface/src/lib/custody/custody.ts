@@ -11,13 +11,8 @@ import {
 } from '@open-federation/sdk/custody';
 import { call, plcDirectoryOf, MoveError } from '@/lib/move/xrpc';
 
-export type CustodyMode = 'custodial' | 'assisted' | 'self';
-
-export const MODE_TEXT: Record<CustodyMode, { title: string; what: string }> = {
-  custodial: { title: 'Custodial', what: 'This server holds the key that controls your identity. If you lose access, the server can restore it.' },
-  assisted: { title: 'Assisted', what: 'You hold the key that controls your identity; this server keeps a backup key. If the server ever uses it, you are emailed and can cancel the change for 72 hours with your phrase.' },
-  self: { title: 'Self', what: 'Only you hold the key that controls your identity, in your 12-word phrase. Nobody, including this server, can restore it if you lose the phrase.' },
-};
+import type { CustodyMode } from '@/lib/copy/glossary';
+export type { CustodyMode } from '@/lib/copy/glossary';
 
 export interface IdentityPolicy { custodyAllowed: CustodyMode[]; custodyDefault: CustodyMode; pseudonymsEnabled: boolean }
 
@@ -28,7 +23,7 @@ export async function identityPolicy(pdsUrl: string): Promise<IdentityPolicy | n
 
 async function plcData(plcUrl: string, did: string): Promise<{ rotationKeys: string[]; verificationMethods: Record<string, string> }> {
   const res = await fetch(`${plcUrl}/${did}/data`);
-  if (!res.ok) throw new MoveError('Could not read your identity from the PLC directory');
+  if (!res.ok) throw new MoveError('Could not read your identity from the public directory');
   return res.json();
 }
 
@@ -36,7 +31,7 @@ async function plcData(plcUrl: string, did: string): Promise<{ rotationKeys: str
 export async function assertPhraseBelongs(pdsUrl: string, did: string, phrase: string): Promise<ReturnType<typeof deriveCustodyKeys>> {
   const keys = deriveCustodyKeys(phrase);
   const data = await plcData(await plcDirectoryOf(pdsUrl), did);
-  if (data.rotationKeys[0] !== keys.rotationDidKey) throw new MoveError('This phrase does not belong to this account.');
+  if (data.rotationKeys[0] !== keys.rotationDidKey) throw new MoveError('These 12 words do not belong to this account.');
   return keys;
 }
 
@@ -67,6 +62,8 @@ export async function changeCustody(p: {
   });
 }
 
+const CANCEL_WINDOW_MS = 72 * 60 * 60 * 1000;
+
 export interface IdentityChange {
   cid: string;
   createdAt: string;
@@ -81,35 +78,54 @@ export interface IdentityChange {
   cancellable: boolean;
   /** A key below the phrase key signed it: the server's backup key (assisted) or the person's recovery key (#238). */
   signedByLowerKey: boolean;
+  /** The did:key that signed it, when known. */
+  signedBy?: string | null;
+  /** Its place among the rotation keys before the change (0 = the top key; -1 = unknown). */
+  signerRank?: number;
+  /** Before the change, the person held a key of their own (assisted or self). */
+  personHeld?: boolean;
 }
 
-const CANCEL_WINDOW_MS = 72 * 60 * 60 * 1000;
+export const CANCEL_WINDOW = CANCEL_WINDOW_MS;
+
 
 function describe(before: SignedPlcOperation, after: SignedPlcOperation): string[] {
   const out: string[] = [];
-  if (JSON.stringify(before.rotationKeys) !== JSON.stringify(after.rotationKeys)) out.push('who controls the identity (rotation keys)');
-  if (before.verificationMethods.openfederation_owner !== after.verificationMethods.openfederation_owner) out.push('the owner key');
-  if (before.verificationMethods.atproto !== after.verificationMethods.atproto) out.push('the signing key');
-  if (before.services.atproto_pds.endpoint !== after.services.atproto_pds.endpoint) out.push(`the server (now ${after.services.atproto_pds.endpoint})`);
-  if (JSON.stringify(before.alsoKnownAs) !== JSON.stringify(after.alsoKnownAs)) out.push('the handle');
-  return out.length ? out : ['nothing changed: it restored the state before (a cancellation)'];
+  if (JSON.stringify(before.rotationKeys) !== JSON.stringify(after.rotationKeys)) out.push('who controls your identity');
+  if (before.verificationMethods.openfederation_owner !== after.verificationMethods.openfederation_owner) out.push('the key you sign statements with');
+  if (before.verificationMethods.atproto !== after.verificationMethods.atproto) out.push('the key your posts are signed with');
+  if (before.services.atproto_pds.endpoint !== after.services.atproto_pds.endpoint) out.push(`your server (now ${after.services.atproto_pds.endpoint.replace(/^https?:\/\//, '')})`);
+  if (JSON.stringify(before.alsoKnownAs) !== JSON.stringify(after.alsoKnownAs)) out.push('your handle');
+  return out.length ? out : ['nothing: it put back an earlier state (a cancellation)'];
 }
 
-/** Changes to the DID in the last 72 hours that a higher key can still cancel. */
-export async function recentIdentityChanges(pdsUrl: string, did: string): Promise<IdentityChange[]> {
+/** Every change to the DID, newest first; those within 72 hours that a higher key can cancel are marked. */
+export async function identityHistory(pdsUrl: string, did: string): Promise<{ created: string | null; changes: IdentityChange[] }> {
   const res = await fetch(`${await plcDirectoryOf(pdsUrl)}/${did}/log/audit`);
-  if (!res.ok) throw new MoveError('Could not read your identity history from the PLC directory');
+  if (!res.ok) throw new MoveError('Could not read your identity history from the public directory');
   const audit = (await res.json()) as { cid: string; createdAt: string; nullified: boolean; operation: SignedPlcOperation }[];
   const live = audit.filter((e) => !e.nullified);
   const changes: IdentityChange[] = [];
   for (let i = 1; i < live.length; i++) {
-    if (Date.now() - new Date(live[i].createdAt).getTime() > CANCEL_WINDOW_MS) continue;
+    const recent = Date.now() - new Date(live[i].createdAt).getTime() <= CANCEL_WINDOW_MS;
     const before = live[i - 1].operation;
     const signer = plcOperationSigner(live[i].operation, before.rotationKeys);
-    const lower = !!signer && before.rotationKeys.indexOf(signer) > 0;
-    changes.push({ cid: live[i].cid, createdAt: live[i].createdAt, summary: describe(before, live[i].operation), before, cancellable: lower, signedByLowerKey: lower });
+    const index = signer ? before.rotationKeys.indexOf(signer) : -1;
+    const lower = index > 0;
+    changes.push({
+      cid: live[i].cid, createdAt: live[i].createdAt, summary: describe(before, live[i].operation), before,
+      cancellable: lower && recent, signedByLowerKey: lower,
+      signedBy: signer, signerRank: index,
+      personHeld: !!before.verificationMethods.openfederation_owner,
+    });
   }
-  return changes.reverse();
+  return { created: live[0]?.createdAt ?? null, changes: changes.reverse() };
+}
+
+/** Changes to the DID in the last 72 hours. */
+export async function recentIdentityChanges(pdsUrl: string, did: string): Promise<IdentityChange[]> {
+  const { changes } = await identityHistory(pdsUrl, did);
+  return changes.filter((c) => Date.now() - new Date(c.createdAt).getTime() <= CANCEL_WINDOW_MS);
 }
 
 export async function cancelIdentityChange(p: { pdsUrl: string; did: string; phrase: string; change: IdentityChange }): Promise<void> {
@@ -209,9 +225,9 @@ export async function removeRecovery(p: { pdsUrl: string; did: string; mode: Rec
 /** Throws unless the recovery phrase (typed, or combined from shares) holds this account's recovery key. */
 export async function assertRecoveryPhraseBelongs(pdsUrl: string, did: string, mode: RecoveryMode, recoveryPhrase: string): Promise<void> {
   const current = await currentRecoveryKey(pdsUrl, did, mode);
-  if (!current) throw new MoveError('This account has no recovery key.');
+  if (!current) throw new MoveError('This account has no recovery set up.');
   if (deriveRecoveryKey(recoveryPhrase).recoveryDidKey !== current) {
-    throw new MoveError('This is not the recovery key of this account (an older one, or another account\'s).');
+    throw new MoveError('This backup does not belong to this account (it may be an older one, or another account\'s).');
   }
 }
 
