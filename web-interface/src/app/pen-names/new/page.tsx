@@ -19,6 +19,7 @@ import { saveFile } from '@/components/pen-names/pen-parts';
 import { passFileBlob, serverFacts, signInPenName, SIGNED_OUT_SCOPE } from '@/lib/pen-names/pen-names';
 import { passExpiry, type LoadedPasses } from '@/lib/pen-names/pass-file';
 import { THIS_PDS } from '@/lib/this-pds';
+import { serverProblem } from '@/lib/pen-names/service-pin';
 
 const host = (url: string) => url.replace(/^https?:\/\//, '');
 const plural = (n: number) => `${n} ${n === 1 ? 'pass' : 'passes'}`;
@@ -44,7 +45,7 @@ export default function CreatePenNamePage() {
       </div>
 
       {server.isLoading && <Skeleton className="h-40 rounded-xl" />}
-      {server.error && <StatusMessage ok={false} text={`Could not reach this server: ${(server.error as Error).message}`} />}
+      {server.error && <StatusMessage ok={false} text={serverProblem(server.error, 'Could not reach this server')} />}
       {server.data && !server.data.pseudonymsEnabled && (
         <Note>This server does not allow new pen names. Pen names that already exist here keep working: <a className="underline underline-offset-4" href="/pen-names">use one</a>.</Note>
       )}

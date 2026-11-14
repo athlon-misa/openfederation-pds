@@ -19,6 +19,7 @@ import {
   type PenNameEntry, type PenSession,
 } from '@/lib/pen-names/pen-names';
 import { THIS_PDS } from '@/lib/this-pds';
+import { serverProblem } from '@/lib/pen-names/service-pin';
 
 export default function UsePenNamePage() {
   const server = useQuery({ queryKey: ['pen-server', THIS_PDS], queryFn: () => serverFacts(THIS_PDS) });
@@ -47,7 +48,7 @@ export default function UsePenNamePage() {
       </div>
 
       {server.isLoading && <Skeleton className="h-40 rounded-xl" />}
-      {server.error && <StatusMessage ok={false} text={`Could not reach this server: ${(server.error as Error).message}`} />}
+      {server.error && <StatusMessage ok={false} text={serverProblem(server.error, 'Could not reach this server')} />}
 
       {facts && (
         <>

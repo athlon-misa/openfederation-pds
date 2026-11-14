@@ -10,6 +10,7 @@ import { AccountGate, type AccountContext } from '@/components/account/account-g
 import { ChoiceExplainer, Note, Section, StatusMessage, WhatIsThis } from '@/components/account/explain';
 import { PassesSection } from '@/components/pen-names/passes-section';
 import { UseSection } from '@/components/pen-names/use-section';
+import { serverProblem } from '@/lib/pen-names/service-pin';
 import { PenSessionPanel } from '@/components/pen-names/pen-session-panel';
 import { identityPolicy } from '@/lib/custody/custody';
 import {
@@ -75,7 +76,7 @@ function PenNameScreens({ ctx, creationAllowed }: { ctx: AccountContext; creatio
 
   if (server.isLoading) return <Skeleton className="h-40 rounded-xl" />;
   if (server.error || !server.data) {
-    return <StatusMessage ok={false} text={`Could not read this server's settings: ${(server.error as Error | null)?.message ?? 'no answer'}`} />;
+    return <StatusMessage ok={false} text={serverProblem(server.error, "Could not read this server's settings")} />;
   }
   const facts: ServerFacts = server.data;
 

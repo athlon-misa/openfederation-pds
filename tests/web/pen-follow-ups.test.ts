@@ -13,7 +13,7 @@ import { revealLinkRecord } from '../../packages/openfederation-pseudonym/src/cl
 import {
   IN_PERSON_CONTEXT, STAGE_PRESENCE_CONTEXT, presenceContextOf, withPresenceContext,
 } from '../../web-interface/src/lib/verify/presence-context.js';
-import { assertPinnedServiceDid } from '../../web-interface/src/lib/pen-names/service-pin.js';
+import { assertPinnedServiceDid, serverProblem } from '../../web-interface/src/lib/pen-names/service-pin.js';
 import { IN_PERSON_CONTEXT as PACKAGE_IN_PERSON, STAGE_PRESENCE_CONTEXT as PACKAGE_STAGE } from '../../packages/openfederation-pseudonym/src/verify.js';
 
 const PLC = 'http://plc.test';
@@ -87,6 +87,12 @@ describe('pinned service DID (dashboard)', () => {
     expect(() => assertPinnedServiceDid(`${THIS}/`, 'did:web:pds.example.com', THIS, 'did:web:pds.example.com')).not.toThrow();
     expect(() => assertPinnedServiceDid(THIS, 'did:web:evil.example', THIS, 'did:web:pds.example.com')).toThrow(/set up for did:web:pds\.example\.com/);
     expect(() => assertPinnedServiceDid(THIS, '', THIS, 'did:web:pds.example.com')).toThrow();
+  });
+  it('a mismatch is shown as it is; other failures with their context', () => {
+    let err: unknown;
+    try { assertPinnedServiceDid(THIS, 'did:web:evil.example', THIS, 'did:web:pds.example.com'); } catch (e) { err = e; }
+    expect(serverProblem(err, 'Could not reach this server')).toMatch(/^This server says it is did:web:evil\.example/);
+    expect(serverProblem(new Error('timeout'), 'Could not reach this server')).toBe('Could not reach this server: timeout');
   });
   it('set: other servers (typed by the person) are not pinned', () => {
     expect(() => assertPinnedServiceDid('https://other.example', 'did:web:other.example', THIS, 'did:web:pds.example.com')).not.toThrow();

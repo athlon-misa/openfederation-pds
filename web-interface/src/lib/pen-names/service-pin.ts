@@ -12,6 +12,13 @@ import { THIS_PDS, THIS_PDS_SERVICE_DID } from '@/lib/this-pds';
 
 const trim = (u: string) => u.replace(/\/+$/, '');
 
+/** A server lookup's failure in words: a pinned-DID mismatch as it is, anything else as `fallback: message`. */
+export function serverProblem(err: unknown, fallback: string): string {
+  const e = err as (Error & { code?: string }) | null;
+  if (e?.code === 'ServiceDidMismatch') return e.message;
+  return `${fallback}: ${e?.message ?? 'no answer'}`;
+}
+
 export function assertPinnedServiceDid(url: string, did: string, thisPds: string = THIS_PDS, pinned: string = THIS_PDS_SERVICE_DID): void {
   if (!pinned || trim(url) !== trim(thisPds) || did === pinned) return;
   throw new MoveError(
