@@ -255,7 +255,7 @@ ${progress()}
       <label class="choice compact"><input type="radio" name="appearance" value="pds-basic">
         <span><strong>PDS Basic</strong><span class="hint">The original, plain look.</span></span></label>
       <label class="choice compact"><input type="radio" name="appearance" value="opennewsrooms">
-        <span><strong>OpenNewsrooms</strong><span class="hint">The look made for newsrooms.</span></span></label>
+        <span><strong>Open Newsrooms</strong><span class="hint">Newsprint, serif type, and a red mark.</span></span></label>
       <p class="error" data-error="appearance" hidden></p>
     </fieldset>
     <div class="nav"><button type="button" class="back">Back</button><button type="submit" class="primary">Next</button></div>

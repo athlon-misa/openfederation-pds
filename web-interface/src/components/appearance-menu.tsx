@@ -1,14 +1,14 @@
 'use client';
 
-import { Monitor, Moon, Palette, Sun } from 'lucide-react';
+import { Monitor, Moon, Palette, RotateCcw, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { PRESETS } from '@/lib/appearance';
 import { useAppearance } from '@/providers/appearance-provider';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export function AppearanceMenu() {
-  const { preset, setPreset, ready } = useAppearance();
+  const { preset, setPreset, ready, personal, followServerDefault } = useAppearance();
   const { theme, setTheme } = useTheme();
   return (
     <DropdownMenu>
@@ -27,6 +27,11 @@ export function AppearanceMenu() {
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
+        {personal && (
+          <DropdownMenuItem onSelect={followServerDefault}>
+            <RotateCcw aria-hidden />Use this server&apos;s default look
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuLabel>Color mode</DropdownMenuLabel>
         <DropdownMenuRadioGroup aria-label="Color mode" value={theme ?? 'light'} onValueChange={setTheme}>

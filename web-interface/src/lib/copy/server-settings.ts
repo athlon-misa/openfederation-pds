@@ -21,17 +21,17 @@ export interface GroupText {
   settings: SettingId[];
 }
 
-export type GroupId = 'signup' | 'custody' | 'penNames' | 'moving' | 'federation';
+export type GroupId = 'signup' | 'custody' | 'penNames' | 'moving' | 'federation' | 'appearance';
 
 export const GROUPS: Record<GroupId, GroupText> = {
   signup: {
     title: 'Who can sign up',
-    summary: 'Whether new people need an invite, and what happens until they confirm their email.',
-    means: 'Invite-only sign-up asks new people for an invite code from an admin. Email verification decides what someone who has not yet confirmed their email address can do.',
-    alreadyHere: 'Invite-only sign-up only affects new sign-ups. Email verification applies at once to everyone: a stricter choice holds back anyone who has not confirmed their email until they do.',
-    undo: 'Change it back at any time. Accounts created while sign-up was open stay, and people who were held back can act again straight away.',
+    summary: 'Whether new people need an invite, whether an admin approves each new account, and what happens until they confirm their email.',
+    means: 'Invite-only sign-up asks new people for an invite code from an admin. Approving new accounts decides whether a new account waits until an admin approves it, or gets in straight away. Email verification decides what someone who has not yet confirmed their email address can do.',
+    alreadyHere: 'Invite-only sign-up and approving new accounts only affect new sign-ups: turning on automatic approval does not approve the people already waiting; approve them on Admin, Users. Email verification applies at once to everyone: a stricter choice holds back anyone who has not confirmed their email until they do.',
+    undo: 'Change it back at any time. Accounts created or approved meanwhile stay as they are, and people who were held back can act again straight away.',
     terms: [],
-    settings: ['inviteRequired', 'emailVerificationPolicy'],
+    settings: ['inviteRequired', 'accountApproval', 'emailVerificationPolicy'],
   },
   custody: {
     title: 'How accounts are looked after',
@@ -69,12 +69,22 @@ export const GROUPS: Record<GroupId, GroupText> = {
     terms: [],
     settings: ['federationPeers'],
   },
+  appearance: {
+    title: 'Appearance',
+    summary: 'How the dashboard looks to someone who has not chosen a look of their own.',
+    means: 'The look people see when they open this server\'s dashboard. Anyone can still pick another look for themselves under Appearance in the top bar; their own choice always wins.',
+    alreadyHere: 'People who chose a look keep it. Everyone else sees the new look the next time they open the dashboard. Nothing about their account changes.',
+    undo: 'Choose another look at any time.',
+    terms: [],
+    settings: ['defaultAppearance'],
+  },
 };
 
-export const GROUP_ORDER: GroupId[] = ['signup', 'custody', 'penNames', 'moving', 'federation'];
+export const GROUP_ORDER: GroupId[] = ['signup', 'custody', 'penNames', 'moving', 'federation', 'appearance'];
 
 export const SETTING_LABEL: Record<SettingId, string> = {
   inviteRequired: 'Invite-only sign-up',
+  accountApproval: 'Approving new accounts',
   emailVerificationPolicy: 'Email verification',
   custodyAllowed: 'Ways offered',
   custodyDefault: 'Offered first',
@@ -87,6 +97,7 @@ export const SETTING_LABEL: Record<SettingId, string> = {
   migrationPseudonyms: 'Pen names',
   migrationCommunities: 'Communities',
   federationPeers: 'Servers to ask',
+  defaultAppearance: 'Default look',
 };
 
 export const SETTING_HINT: Partial<Record<SettingId, string>> = {
@@ -98,6 +109,19 @@ export const SETTING_HINT: Partial<Record<SettingId, string>> = {
   pseudonymProbationDailyWrites: 'How many times a day a pen name on probation can post.',
   custodyDefault: 'The way apps suggest first. It must be one of the ways offered.',
   federationPeers: 'One web address per line, like https://pds.example.org. Up to 50.',
+  defaultAppearance: 'What the dashboard looks like until a person chooses their own look.',
+};
+
+export const APPROVAL: Record<string, { title: string; text: string }> = {
+  manual: { title: 'An admin approves each new account', text: 'New accounts wait on Admin, Users until an admin approves them. Until then they cannot sign in.' },
+  automatic: { title: 'Approve new accounts automatically', text: 'Anyone who can sign up gets in straight away, with nobody checking first. Keep invite-only sign-up on to decide who can sign up at all.' },
+};
+
+/** Every look the server offers, including any this dashboard does not have yet. */
+export const LOOKS: Record<string, { title: string; text: string }> = {
+  openfederation: { title: 'OpenFederation', text: 'Paper, ink, and a little teal.' },
+  'pds-basic': { title: 'PDS Basic', text: 'The original, plain look.' },
+  opennewsrooms: { title: 'Open Newsrooms', text: 'Newsprint, serif type, and a red mark.' },
 };
 
 export const EMAIL_POLICY: Record<string, { title: string; text: string; strictness: number }> = {
@@ -125,6 +149,8 @@ export function formatValue(id: SettingId, value: SettingValue): string {
   }
   if (id === 'custodyDefault') return CUSTODY[value as CustodyMode]?.title ?? String(value);
   if (id === 'emailVerificationPolicy') return EMAIL_POLICY[String(value)]?.title ?? String(value);
+  if (id === 'accountApproval') return value === 'automatic' ? 'Automatic' : 'By an admin';
+  if (id === 'defaultAppearance') return LOOKS[String(value)]?.title ?? String(value);
   if (id.startsWith('migration')) return MOVE_POLICY[String(value)]?.title ?? String(value);
   return String(value);
 }
@@ -172,6 +198,13 @@ export function effectsOnPeople(before: Partial<Record<SettingId, SettingValue>>
   }
   if (changed('inviteRequired') && after.inviteRequired === false) {
     notes.push('Anyone who can reach this server can sign up, without an invite code.');
+  }
+  if (changed('accountApproval') && after.accountApproval === 'automatic') {
+    const open = (after.inviteRequired ?? before.inviteRequired) === false;
+    notes.push(open
+      ? 'Anyone who can reach this server can sign up and get in straight away: sign-up is open and nobody approves new accounts. Turn invite-only sign-up on to keep control.'
+      : 'New accounts get in straight away, without an admin approving them. Invite-only sign-up still decides who can sign up.');
+    notes.push('People already waiting for approval are not approved by this. Approve them on Admin, Users.');
   }
   if (changed('emailVerificationPolicy')
     && (EMAIL_POLICY[String(after.emailVerificationPolicy)]?.strictness ?? 0) > (EMAIL_POLICY[String(before.emailVerificationPolicy)]?.strictness ?? 0)) {

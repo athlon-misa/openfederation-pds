@@ -43,6 +43,8 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // The server may approve new accounts automatically: then there is nothing to wait for.
+  const [approved, setApproved] = useState(false);
   // Custody modes this server offers (ADR-003). Only shown when there is a choice.
   const [modes, setModes] = useState<CustodyMode[]>(['custodial']);
   const [mode, setMode] = useState<CustodyMode>('custodial');
@@ -98,6 +100,7 @@ export default function RegisterPage() {
     const result = await registerAccount(handle, email, password, inviteCode || undefined);
 
     if (result.ok) {
+      setApproved(result.data.status === 'approved');
       setSuccess(true);
     } else {
       setError(ERROR_MESSAGES[result.error] || result.message);
@@ -110,7 +113,8 @@ export default function RegisterPage() {
     setLoading(true);
     setError('');
     try {
-      await registerWithOwnKeys({ pdsUrl: THIS_PDS, mode: mode as 'assisted' | 'self', phrase: chosen, handle, email, password, inviteCode: inviteCode || undefined });
+      const done = await registerWithOwnKeys({ pdsUrl: THIS_PDS, mode: mode as 'assisted' | 'self', phrase: chosen, handle, email, password, inviteCode: inviteCode || undefined });
+      setApproved(done.status === 'approved');
       setSuccess(true);
     } catch (e) {
       const err = e as Error & { code?: string };
@@ -139,18 +143,19 @@ export default function RegisterPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Registration submitted</CardTitle>
+          <CardTitle className="text-2xl">{approved ? 'Your account is ready' : 'Registration submitted'}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Your account has been created and is pending admin approval.
-            You will be able to sign in once an administrator approves your account.
+            {approved
+              ? 'Your account has been created and approved. You can sign in now.'
+              : 'Your account has been created and is pending admin approval. You will be able to sign in once an administrator approves your account.'}
           </p>
         </CardContent>
         <CardFooter>
           <Link href="/login" className="w-full">
-            <Button variant="outline" className="w-full">
-              Back to sign in
+            <Button variant={approved ? 'default' : 'outline'} className="w-full">
+              {approved ? 'Sign in' : 'Back to sign in'}
             </Button>
           </Link>
         </CardFooter>
