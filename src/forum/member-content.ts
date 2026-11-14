@@ -29,6 +29,7 @@ import {
 export type { AuthorSignature } from '../governance/author-signature.js';
 import { FORUM_THREAD, FORUM_POST, CALENDAR_RSVP } from './forum-index.js';
 import { VOTE_COLLECTION, OBJECTION_COLLECTION, PROPOSAL_COLLECTION } from '../governance/decision-rules.js';
+import { removeHomeMembershipsForCommunity, type HomeMembershipRemoval } from '../community/membership/home-record.js';
 
 const SETTINGS_COLLECTION = 'net.openfederation.community.settings';
 
@@ -267,9 +268,14 @@ export async function relocateMemberContent(communityDid: string): Promise<{ thr
  * here is logged, and the next settings write (or a call to
  * `community.update`) moves whatever is left.
  */
-export async function placeMemberContentForVisibility(communityDid: string): Promise<void> {
+export async function placeMemberContentForVisibility(communityDid: string): Promise<HomeMembershipRemoval | null> {
   try {
-    if (!(await isPrivateCommunity(communityDid))) return;
+    if (!(await isPrivateCommunity(communityDid))) return null;
+  } catch (err) {
+    console.error('community %s: could not read its visibility:', communityDid, err);
+    return null;
+  }
+  try {
     const moved = await relocateMemberContent(communityDid);
     const total = moved.threads + moved.posts + moved.rsvps + moved.votes + moved.objections;
     if (total > 0) {
@@ -277,5 +283,12 @@ export async function placeMemberContentForVisibility(communityDid: string): Pro
     }
   } catch (err) {
     console.error('community %s: could not move member content into its repository:', communityDid, err);
+  }
+  // Membership records in members' repos would say who belongs to it (#385).
+  try {
+    return await removeHomeMembershipsForCommunity(communityDid);
+  } catch (err) {
+    console.error('community %s: could not remove membership records from members\' repositories:', communityDid, err);
+    return null;
   }
 }

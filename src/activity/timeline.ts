@@ -4,9 +4,15 @@
  * Home-PDS fan-out. The caller's own PDS gathers, in parallel:
  *   - communities hosted here: straight from the database, one query for all
  *     of them (src/activity/feed.ts);
- *   - communities on each configured peer PDS: asks the peer which ones the
- *     caller belongs to there, then for their activity, with service-auth
- *     tokens for the caller (src/activity/remote.ts).
+ *   - communities elsewhere named by the caller's own membership records
+ *     (#385, `net.openfederation.community.membership` in their repo): the
+ *     community's PDS is resolved from its DID, then asked which communities
+ *     the caller belongs to there (its member records confirm the claim; an
+ *     unconfirmed one is a bookmark and is not shown) and for their activity;
+ *   - each configured peer PDS, the same way: the fallback for memberships
+ *     with no home record (private communities, joins before #385).
+ * Remote calls carry service-auth tokens for the caller (src/activity/remote.ts).
+ * A server named both ways is asked once.
  * Then it merges by time and pages with a cursor. No push index, no AppView.
  *
  * A peer gets `remoteTimeoutMs` to answer. One that does not is left out of
@@ -28,11 +34,17 @@ import {
   MAX_ACTIVITY_LIMIT,
 } from './feed.js';
 import { getRemoteActivityClient, MAX_COMMUNITIES_PER_CALL, type RemoteActivityPage } from './remote.js';
+import { MEMBERSHIP_COLLECTION } from '../community/membership/home-record.js';
+import { resolveDidToPds } from '../federation/remote-verify.js';
 
 /** Communities hosted here that one timeline reads, most recently joined first. */
 export const MAX_LOCAL_COMMUNITIES = 100;
 /** Communities per peer that one timeline reads (in calls of 25). */
 export const MAX_REMOTE_COMMUNITIES_PER_PEER = 100;
+/** Home membership records one timeline reads, most recent first (#385). */
+export const MAX_HOME_MEMBERSHIPS = 100;
+/** Servers, other than configured peers, that home records may send one timeline to. */
+export const MAX_HOME_SERVERS = 20;
 
 const DEFAULT_REMOTE_TIMEOUT_MS = 450;
 const REMOTE_HARD_TIMEOUT_MS = 5_000;
@@ -58,6 +70,7 @@ export interface UserTimeline {
 type CacheSlot<T> = { at: number; promise: Promise<T> };
 const membershipCache = new Map<string, CacheSlot<string[]>>();
 const remoteFeedCache = new Map<string, CacheSlot<RemoteActivityPage>>();
+const communityPdsCache = new Map<string, CacheSlot<string | null>>();
 
 function cached<T>(cache: Map<string, CacheSlot<T>>, key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
   const slot = cache.get(key);
@@ -80,6 +93,7 @@ function cached<T>(cache: Map<string, CacheSlot<T>>, key: string, ttlMs: number,
 export function _clearRemoteActivityCache(): void {
   membershipCache.clear();
   remoteFeedCache.clear();
+  communityPdsCache.clear();
 }
 
 function withHardTimeout<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -133,6 +147,66 @@ async function localMemberships(viewer: AuthContext): Promise<{ communities: str
   };
 }
 
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Communities not hosted here that the viewer's own repo says they belong to
+ * (#385): `net.openfederation.community.membership` records, newest first.
+ * Claims only; the community's PDS confirms them.
+ */
+async function homeMembershipClaims(viewerDid: string): Promise<string[]> {
+  const rows = await query<{ community: string }>(
+    `SELECT ri.record->>'community' AS community
+       FROM records_index ri
+      WHERE ri.community_did = $1 AND ri.collection = $2
+        AND ri.record->>'community' LIKE 'did:%'
+        -- Hosted and served here: read from the database. A copy that moved
+        -- away is not, so its claim goes to wherever the DID points now.
+        AND NOT EXISTS (SELECT 1 FROM communities c
+                         WHERE c.did = ri.record->>'community' AND c.status IN ('active', 'suspended'))
+      ORDER BY ri.updated_at DESC
+      LIMIT $3`,
+    [viewerDid, MEMBERSHIP_COLLECTION, MAX_HOME_MEMBERSHIPS],
+  );
+  return [...new Set(rows.rows.map((r) => r.community))];
+}
+
+/**
+ * The servers the claimed communities live on, by origin, from their DID
+ * documents. A DID that does not resolve in time is left out of this page
+ * (and resolved in the background for the next one). Not this server, and at
+ * most MAX_HOME_SERVERS of them.
+ */
+async function homeServers(claims: string[], deadline: number): Promise<Map<string, string[]>> {
+  const remote = getRemoteActivityClient();
+  const self = originOf(config.pds.serviceUrl);
+  const resolved = await Promise.all(claims.map(async (did) => {
+    try {
+      const pds = await beforeDeadline(
+        cached(communityPdsCache, did, config.federation.cacheTtlMs, () => withHardTimeout((signal) =>
+          remote.resolveCommunityPds ? remote.resolveCommunityPds(did, signal) : resolveDidToPds(did))),
+        deadline,
+      );
+      return { did, origin: pds ? originOf(pds) : null };
+    } catch {
+      return { did, origin: null };
+    }
+  }));
+  const servers = new Map<string, string[]>();
+  for (const { did, origin } of resolved) {
+    if (!origin || origin === self) continue;
+    if (!servers.has(origin) && servers.size >= MAX_HOME_SERVERS) continue;
+    servers.set(origin, [...(servers.get(origin) ?? []), did]);
+  }
+  return servers;
+}
+
 async function peerSource(
   peerUrl: string,
   viewerDid: string,
@@ -142,6 +216,8 @@ async function peerSource(
   deadline: number,
   unreachable: string[],
   unreachablePeers: string[],
+  /** For a server asked only because home records name it: the communities they claim there. */
+  claimed: string[] | null = null,
 ): Promise<SourceResult> {
   const remote = getRemoteActivityClient();
   let communities: string[];
@@ -152,7 +228,10 @@ async function peerSource(
       deadline,
     );
   } catch {
-    unreachablePeers.push(peerUrl);
+    // A configured peer is named; a server reached through home records is
+    // not a peer, so the communities that sent us there are.
+    if (claimed) unreachable.push(...claimed);
+    else unreachablePeers.push(peerUrl);
     return { lists: [], truncated: false };
   }
 
@@ -196,16 +275,33 @@ export async function buildUserTimeline(
 
   const local = await localMemberships(viewer);
   const hosted = new Set(local.communities);
-  const peers = config.federation.enabled ? runtimeSettings().federationPeers : [];
-  const [localLists, ...remote] = await Promise.all([
+  const federating = config.federation.enabled;
+  const peers = federating ? runtimeSettings().federationPeers : [];
+  const peerOrigins = new Set(peers.map(originOf).filter((o): o is string => o !== null));
+
+  // Servers named by the viewer's own membership records, other than the
+  // configured peers (asked anyway): resolved, then asked like a peer.
+  const homeSources = (async (): Promise<SourceResult[]> => {
+    if (!federating) return [];
+    const claims = await homeMembershipClaims(viewer.did);
+    if (claims.length === 0) return [];
+    const servers = await homeServers(claims, deadline);
+    return Promise.all([...servers]
+      .filter(([origin]) => !peerOrigins.has(origin))
+      .map(([origin, claimed]) =>
+        peerSource(origin, viewer.did, limit, rawCursor, hosted, deadline, unreachable, unreachablePeers, claimed)));
+  })();
+
+  const [localLists, fromHome, ...remote] = await Promise.all([
     local.communities.length > 0
       ? loadLocalActivity(local.communities, local.withJoinRequests, limit + 1, cursor)
       : Promise.resolve([] as ActivityEntry[][]),
+    homeSources,
     ...peers.map((peerUrl) =>
       peerSource(peerUrl, viewer.did, limit, rawCursor, hosted, deadline, unreachable, unreachablePeers)),
-  ]) as [ActivityEntry[][], ...SourceResult[]];
+  ]) as [ActivityEntry[][], SourceResult[], ...SourceResult[]];
 
-  const sources: SourceResult[] = [{ lists: localLists, truncated: false }, ...remote];
+  const sources: SourceResult[] = [{ lists: localLists, truncated: false }, ...fromHome, ...remote];
   const page = mergeActivityPage(sources.flatMap((s) => s.lists), limit, cursor);
   // A peer caps a page at 100: when it had more and the page is full, there
   // is a next page even though fewer than limit + 1 entries were seen.

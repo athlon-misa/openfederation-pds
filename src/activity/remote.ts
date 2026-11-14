@@ -1,10 +1,13 @@
 /**
  * Asking another PDS about a viewer's communities there (#42).
  *
- * A home PDS does not know which communities on other PDSes its account
- * belongs to: membership is a record in the *community's* repo, on the
- * community's PDS, and joining writes nothing on the member's side. What it
- * can do is ask. For each configured peer (FEDERATION_PEERS, with the older PEER_PDS_URLS) it calls, with a
+ * Membership is a record in the *community's* repo, on the community's PDS.
+ * Since #385 the member's own repo also holds a
+ * `net.openfederation.community.membership` record per public community,
+ * which tells the home PDS which servers to ask; configured peers are asked
+ * too, for memberships with no home record (private communities, older
+ * joins). The community's PDS confirms each membership: a home record it does
+ * not confirm is a bookmark. For each such server it calls, with a
  * service-auth token signed by the viewer's own key (aud = the peer's service
  * DID, lxm = the method):
  *
@@ -13,7 +16,8 @@
  *
  * The peer checks the token against the viewer's DID document and applies its
  * own privacy rules; nothing here can widen what the viewer may see there.
- * Communities on PDSes that are not configured peers are not reached.
+ * A community on a server that is neither a configured peer nor named by a
+ * home membership record is not reached.
  */
 import { config } from '../config.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
@@ -35,6 +39,12 @@ export interface RemoteActivityPage {
 }
 
 export interface RemoteActivityClient {
+  /**
+   * The PDS a community lives on, from its DID document (#385: a membership
+   * record at home names the community, not its server). Optional so test
+   * clients may leave it out; then the DID is resolved over the network.
+   */
+  resolveCommunityPds?(did: string, signal: AbortSignal): Promise<string | null>;
   /** DIDs of the communities on `peerUrl` that `viewerDid` is a member of. */
   listMemberships(peerUrl: string, viewerDid: string, signal: AbortSignal): Promise<string[]>;
   /** Activity of `communities` on `peerUrl`, newest first, as the peer returns it. */
@@ -93,6 +103,10 @@ function sameOrigin(a: string, b: string): boolean {
 }
 
 export const httpRemoteActivityClient: RemoteActivityClient = {
+  async resolveCommunityPds(did) {
+    return resolveDidToPds(did);
+  },
+
   async listMemberships(peerUrl, viewerDid, signal) {
     const aud = await peerServiceDid(peerUrl, signal);
     const url = new URL(`/xrpc/${LIST_MINE_NSID}`, peerUrl);

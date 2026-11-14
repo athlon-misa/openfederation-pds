@@ -8,6 +8,7 @@ import { requireApprovedUser, requireLocalAccount } from '../auth/guards.js';
 import { fullHandle, isValidHandle } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { getDefaultRoleRecords, ROLE_COLLECTION } from '../auth/permissions.js';
+import { writeHomeMembership } from '../community/membership/home-record.js';
 
 interface CreateCommunityInput {
   handle: string;
@@ -179,6 +180,9 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
     ];
 
     await engine.createRepo(keypair, initialRecords);
+
+    // The owner's own record of the membership (#385): public communities only.
+    if (visibility !== 'private') await writeHomeMembership(req.auth!.did, did);
 
     await auditLog('community.create', req.auth!.userId, did, {
       handle: input.handle,

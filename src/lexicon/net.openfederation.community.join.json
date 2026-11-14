@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.join",
-  "revision": 4,
+  "revision": 5,
   "description": "Join a community or submit a join request. Requires an approved user account. Optional `kind`, `tags`, and `attributes` classify the membership semantically (see issue #50).",
   "defs": {
     "main": {
@@ -45,6 +45,11 @@
             "status": {
               "type": "string",
               "description": "Result status: 'joined' if immediately joined, 'pending' if join request submitted."
+            },
+            "homeRecord": {
+              "type": "ref",
+              "ref": "#homeRecord",
+              "description": "Present when status is 'joined' and the community is public: the net.openfederation.community.membership record for the member's own repo (#385). Absent for private communities, which get no home record."
             }
           },
           "required": [
@@ -90,6 +95,41 @@
           "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
+    },
+    "homeRecord": {
+      "type": "object",
+      "description": "The membership record for the member's own repo.",
+      "required": [
+        "uri",
+        "collection",
+        "rkey",
+        "record",
+        "written"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "Where the record lives: at://{member DID}/net.openfederation.community.membership/{community DID}."
+        },
+        "collection": {
+          "type": "string",
+          "format": "nsid",
+          "description": "Always net.openfederation.community.membership."
+        },
+        "rkey": {
+          "type": "string",
+          "description": "The community's DID."
+        },
+        "record": {
+          "type": "unknown",
+          "description": "The record: { $type, community, createdAt }."
+        },
+        "written": {
+          "type": "boolean",
+          "description": "True when this PDS wrote it into the member's repo. False when the member's home PDS or device must write it: a caller from another PDS, or an account using device signing (#240)."
+        }
+      }
     }
   }
 }

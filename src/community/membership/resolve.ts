@@ -5,6 +5,7 @@ import { auditLog } from '../../db/audit.js';
 import {
   requireString, getCommunityOwner, ensureCommunityWritable, createMemberRecordForDid, getUserHandle, getMemberRkey,
 } from './utils.js';
+import { writeHomeMembership } from './home-record.js';
 
 const RESOLVE_JOIN_REQUEST_NSID = 'net.openfederation.community.resolveJoinRequest';
 
@@ -96,6 +97,11 @@ export async function resolveJoinRequestLifecycle(
       );
       throw err;
     }
+    // The member's own record of it (#385), when their repo is here. Never
+    // undoes the approval: the community-side record is what counts.
+    await writeHomeMembership(request.user_did, request.community_did).catch((err) => {
+      console.error('could not write membership record after approval:', err);
+    });
   }
 
   const auditAction = action === 'approve' ? 'join_request.approve' as const : 'join_request.reject' as const;
