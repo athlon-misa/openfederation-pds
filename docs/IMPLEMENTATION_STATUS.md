@@ -24,7 +24,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - User identities: real `did:plc` + signing key + initial `app.bsky.actor.profile` repo record. PDS holds rotation + signing keys for users (separate `user_signing_keys` table)
 - PLC directory service (`plc-server/`) for self-hosted deployment
 
-## Install & first-run setup — setup page and Railway **shipped**, Docker **planned** ([#405](https://github.com/athlon-misa/openfederation-pds/issues/405))
+## Install & first-run setup — setup page, Railway, images, VPS appliance and Synology project **shipped** ([#405](https://github.com/athlon-misa/openfederation-pds/issues/405))
 
 - `src/index.ts` loads the settings file, runs setup mode when needed (`src/setup/launcher.ts`, `mode.ts`), then imports the server, so `src/config.ts` reads the wizard's settings on its first import. Nothing in `src/setup/` imports `src/config.ts` (`tests/unit/setup-config-free.test.ts`).
 - Setup mode: production with neither `AUTH_JWT_SECRET` nor `KEY_ENCRYPTION_SECRET` and no settings file, or `OPENFEDERATION_SETUP=on`. Serves `/setup`, its assets and API, and `/health` (`status: "setup"`); everything else 503 `SetupRequired`.
@@ -33,6 +33,9 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - In normal mode `/setup` says the server is set up and `/setup/api/*` answers 410.
 - `/.well-known/atproto-did` answers the DID for this server's own handles (by `Host`).
 - Railway template: [docs/RAILWAY-TEMPLATE.md](RAILWAY-TEMPLATE.md) (made in Railway's UI); guide: [docs/INSTALL-RAILWAY.md](INSTALL-RAILWAY.md).
+- Images: `.github/workflows/images.yml` builds `ghcr.io/athlon-misa/openfederation-pds` and `-dashboard` for linux/amd64 + linux/arm64 (QEMU) and pushes `X.Y.Z`, `X.Y`, `latest` on a `vX.Y.Z` release or a manual run; pull requests build without pushing. Dashboard image: `web-interface/Dockerfile` (standalone output only when `NEXT_OUTPUT=standalone`, so Railway's Nixpacks build is unchanged).
+- Dashboard PDS address at runtime: `/runtime-config.js` (route handler, `PDS_URL` then `NEXT_PUBLIC_PDS_URL`) loaded with next/script `beforeInteractive`; `src/lib/runtime-config.ts` resolves it (`tests/web/runtime-config.test.ts`).
+- Appliance: `deploy/appliance/` (Compose: PDS, PostgreSQL 15, dashboard, Caddy; one `data/` folder; first start in setup mode). Caddy's on-demand TLS for `*.<handle domain>` asks `GET /tls-check?domain=` (`src/server/tls-check.ts`: 200 only for this server's own handles). `deploy/install.sh` (Debian/Ubuntu; embeds the appliance files, `tests/unit/install-script.test.ts` keeps them identical). Synology: `deploy/synology/compose.yaml`. Guides: [docs/install/](install/README.md).
 
 ## Auth — **shipped**
 

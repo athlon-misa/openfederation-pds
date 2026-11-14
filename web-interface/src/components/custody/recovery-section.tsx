@@ -16,6 +16,7 @@ import { RECOVERY, recoveryAck, removeRecoveryAck } from '@/lib/copy/glossary';
 import { Acknowledge, ChoiceExplainer, StatusMessage } from '@/components/account/explain';
 import { ExistingPhrase, NewPhrase, TypedPhrase } from './phrase-inputs';
 import { QrCode } from './qr-code';
+import { THIS_PDS } from '@/lib/this-pds';
 
 /**
  * Account → Recovery (#238, ADR-003 decision 13; words from #404). An
@@ -25,7 +26,7 @@ import { QrCode } from './qr-code';
  * option was chosen.
  */
 
-const pdsUrl = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+const pdsUrl = THIS_PDS;
 
 type Kind = 'phrase' | 'contacts' | 'newsroom';
 

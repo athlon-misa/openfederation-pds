@@ -122,7 +122,7 @@ The names are listed in the expert guide ([RAILWAY.md](../RAILWAY.md) and the ta
 
 ### Changing the dashboard address
 
-The dashboard learns the server's address when it is built. If you give the **server** a new address, also change `NEXT_PUBLIC_PDS_URL` on the **openfederation-dashboard** service and click **Redeploy** there.
+The dashboard reads the server's address from its `NEXT_PUBLIC_PDS_URL` variable. If you give the **server** a new address, also change `NEXT_PUBLIC_PDS_URL` on the **openfederation-dashboard** service and click **Deploy** (or **Redeploy**) there.
 
 ## If something goes wrong
 

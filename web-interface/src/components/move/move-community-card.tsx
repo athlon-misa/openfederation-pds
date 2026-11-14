@@ -11,8 +11,7 @@ import { parsePrivateKey } from '@/lib/move/jwt';
 import { describeTarget, type TargetInfo } from '@/lib/move/xrpc';
 import { useAuthStore } from '@/store/auth-store';
 import { StepList, policyNote } from './move-parts';
-
-const THIS_PDS = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+import { THIS_PDS } from '@/lib/this-pds';
 
 export function MoveCommunityCard({ communityDid, communityHandle }: { communityDid: string; communityHandle: string }) {
   const ownerDid = useAuthStore((s) => s.did);

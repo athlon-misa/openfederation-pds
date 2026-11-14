@@ -10,6 +10,7 @@ import { buildLocalDirectory } from '../federation/community-discovery.js';
 import { toMultibaseMultikeySecp256k1 } from '../identity/manager.js';
 import { decryptKeyBytes } from '../auth/encryption.js';
 import { buildSecurityTxt, securityContactsFromEnv } from './security-txt.js';
+import { handleForHost, localDidForHandle } from './tls-check.js';
 
 export function createWellKnownRouter(): Router {
   const router = Router();
@@ -154,18 +155,8 @@ export function createWellKnownRouter(): Router {
   // own names only.
   router.get('/atproto-did', discoveryLimiter, async (req: Request, res: Response) => {
     try {
-      const host = (req.hostname || '').toLowerCase();
-      const suffix = config.handleSuffix.toLowerCase();
-      const bare = suffix && host.endsWith(suffix) ? host.slice(0, -suffix.length) : '';
-      if (!bare || bare.includes('.')) {
-        res.status(404).type('text/plain').send('Not found');
-        return;
-      }
-      const [user, community] = await Promise.all([
-        query<{ did: string }>('SELECT did FROM users WHERE handle = $1', [bare]),
-        query<{ did: string }>('SELECT did FROM communities WHERE handle = $1', [bare]),
-      ]);
-      const did = user.rows[0]?.did ?? community.rows[0]?.did;
+      const bare = handleForHost(req.hostname || '');
+      const did = bare ? await localDidForHandle(bare) : null;
       if (!did) {
         res.status(404).type('text/plain').send('Not found');
         return;

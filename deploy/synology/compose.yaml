@@ -1,0 +1,95 @@
+# OpenFederation on a Synology NAS: a Container Manager project (#405).
+#
+# Step by step: docs/install/synology.md. In short:
+#   1. In File Station, create docker/openfederation/postgres and
+#      docker/openfederation/pds (Container Manager will not create them).
+#   2. Container Manager > Project > Create, path docker/openfederation,
+#      "Create docker-compose.yml", paste this file, change every line
+#      marked CHANGE ME (five), and build.
+#   3. DSM's reverse proxy (Control Panel > Login Portal > Advanced) sends
+#      https://pds.example.org to port 18080 and https://dashboard.example.org
+#      to port 13000, with a Let's Encrypt certificate from Control Panel >
+#      Security > Certificate. No Caddy here: DSM does HTTPS.
+#   4. Container Manager > Container > openfederation-pds > Log: copy the
+#      "Setup code", open https://pds.example.org/setup.
+#
+# The two ports are bound to 127.0.0.1, so only DSM's reverse proxy on the NAS
+# itself reaches them. The database is never published. Never forward DSM's
+# own ports (5000/5001) on your router: forward only 80 and 443.
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: openfederation-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openfederation
+      POSTGRES_USER: openfederation
+      POSTGRES_PASSWORD: CHANGE-ME-database-password # CHANGE ME (long and random); the same value again below
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "effective_cache_size=512MB", "-c", "work_mem=4MB", "-c", "max_connections=50"]
+    volumes:
+      # Put the docker shared folder on an SSD volume if the NAS has one.
+      - /volume1/docker/openfederation/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfederation -d openfederation"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-off: hand the PDS folder to the image's unprivileged user (uid 1000).
+  pds-permissions:
+    image: ghcr.io/athlon-misa/openfederation-pds:latest
+    container_name: openfederation-pds-permissions
+    user: "0"
+    entrypoint: ["sh", "-c", "mkdir -p /data/blobs && chown -R 1000:1000 /data"]
+    volumes:
+      - /volume1/docker/openfederation/pds:/data
+    restart: "no"
+
+  pds:
+    image: ghcr.io/athlon-misa/openfederation-pds:latest
+    container_name: openfederation-pds
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: openfederation
+      DB_USER: openfederation
+      DB_PASSWORD: CHANGE-ME-database-password # CHANGE ME: the same value as POSTGRES_PASSWORD above
+      OPENFEDERATION_CONFIG_FILE: /data/openfederation.env
+      BLOB_STORAGE_PATH: /data/blobs
+      # DSM's reverse proxy is the one proxy in front of the PDS.
+      EXPRESS_TRUST_PROXY: "1"
+      # Only pre-fill the setup wizard; you can change them there.
+      SETUP_PUBLIC_URL: https://pds.example.org # CHANGE ME
+      SETUP_DASHBOARD_URL: https://dashboard.example.org # CHANGE ME
+      NODE_OPTIONS: --max-old-space-size=512
+    volumes:
+      - /volume1/docker/openfederation/pds:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pds-permissions:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  dashboard:
+    image: ghcr.io/athlon-misa/openfederation-dashboard:latest
+    container_name: openfederation-dashboard
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:13000:3000"
+    environment:
+      PDS_URL: https://pds.example.org # CHANGE ME: the same address as SETUP_PUBLIC_URL
+      NODE_OPTIONS: --max-old-space-size=192
+    depends_on:
+      - pds

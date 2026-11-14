@@ -1,3 +1,5 @@
+import { configuredPdsUrl } from '../runtime-config';
+
 /** Which PLC directory the public verifier reads. */
 export const DEFAULT_PLC_URL = 'https://plc.openfederation.net';
 
@@ -13,7 +15,7 @@ export async function verifierPlcUrl(search: string): Promise<string> {
     const override = new URLSearchParams(search).get('plc');
     if (override && /^https?:\/\/[^\s]+$/.test(override)) return trim(override);
   }
-  const pds = process.env.NEXT_PUBLIC_PDS_URL;
+  const pds = configuredPdsUrl();
   if (pds) {
     try {
       const res = await fetch(`${trim(pds)}/xrpc/net.openfederation.server.getPublicConfig`, { signal: AbortSignal.timeout(8000) });

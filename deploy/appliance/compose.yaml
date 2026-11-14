@@ -1,0 +1,144 @@
+# OpenFederation "appliance": everything one server needs, in one folder (#405).
+#
+#   PostgreSQL 15 + the PDS + the dashboard + Caddy (automatic HTTPS)
+#
+# Usage (deploy/install.sh does all of this for you):
+#   cp .env.example .env      # set PDS_DOMAIN, DASHBOARD_DOMAIN, POSTGRES_PASSWORD
+#   docker compose up -d
+#   docker compose logs pds   # copy the "Setup code", open https://PDS_DOMAIN/setup
+#
+# No PDS secret goes in .env. The first start runs the setup wizard, which
+# generates the secrets and saves them in ./data/pds/openfederation.env.
+# Everything that must survive (database, uploads, settings, certificates)
+# lives under ./data: back up that folder (see docs/install/vps.md).
+#
+# Memory: sized for a 2 GB server. With 4 GB or more, raise PDS_NODE_HEAP_MB
+# and POSTGRES_SHARED_BUFFERS in .env (see .env.example).
+
+name: openfederation
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openfederation
+      POSTGRES_USER: openfederation
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (install.sh generates one)}
+    # Small-server tuning. shared_buffers is the database's own cache; the
+    # rest of its memory use grows with connections (the PDS opens at most 30).
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-128MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-512MB}
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=50
+    volumes:
+      - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfederation -d openfederation"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *logging
+    # Not published: only the PDS reaches the database.
+
+  # One-off: hand the PDS folder to the image's unprivileged user (uid 1000),
+  # since a folder Docker creates for a bind mount belongs to root.
+  pds-permissions:
+    image: ghcr.io/athlon-misa/openfederation-pds:${OPENFEDERATION_VERSION:-latest}
+    user: "0"
+    entrypoint: ["sh", "-c", "mkdir -p /data/blobs && chown -R 1000:1000 /data"]
+    volumes:
+      - ${DATA_DIR:-./data}/pds:/data
+    restart: "no"
+    logging: *logging
+
+  pds:
+    image: ghcr.io/athlon-misa/openfederation-pds:${OPENFEDERATION_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: openfederation
+      DB_USER: openfederation
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # The wizard's settings file and uploaded files, on the persistent folder.
+      OPENFEDERATION_CONFIG_FILE: /data/openfederation.env
+      BLOB_STORAGE_PATH: /data/blobs
+      # Caddy is the one proxy in front of the PDS.
+      EXPRESS_TRUST_PROXY: "1"
+      # Only pre-fill the setup wizard; they are not configuration.
+      SETUP_PUBLIC_URL: ${PDS_PUBLIC_URL:-https://${PDS_DOMAIN:?Set PDS_DOMAIN in .env}}
+      SETUP_DASHBOARD_URL: ${DASHBOARD_PUBLIC_URL:-https://${DASHBOARD_DOMAIN:?Set DASHBOARD_DOMAIN in .env}}
+      SETUP_DASHBOARD_HOST: ${DASHBOARD_DOMAIN}
+      SETUP_HANDLE_DOMAIN: ${HANDLE_DOMAIN:-}
+      # Heap ceiling for the PDS (the image's default is 1024 MB).
+      NODE_OPTIONS: --max-old-space-size=${PDS_NODE_HEAP_MB:-512}
+    volumes:
+      - ${DATA_DIR:-./data}/pds:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pds-permissions:
+        condition: service_completed_successfully
+    # /health answers in setup mode too ({"status":"setup"}).
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging: *logging
+
+  dashboard:
+    image: ghcr.io/athlon-misa/openfederation-dashboard:${OPENFEDERATION_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      # Read when the dashboard starts: the address of the PDS it talks to.
+      PDS_URL: ${PDS_PUBLIC_URL:-https://${PDS_DOMAIN}}
+      NODE_OPTIONS: --max-old-space-size=${DASHBOARD_NODE_HEAP_MB:-192}
+    depends_on:
+      - pds
+    # The image has its own healthcheck (GET /runtime-config.js).
+    logging: *logging
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    environment:
+      PDS_DOMAIN: ${PDS_DOMAIN}
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN}
+      # The Caddyfile needs a domain here; .invalid can never be in DNS.
+      HANDLE_DOMAIN: ${HANDLE_DOMAIN:-handles.invalid}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DATA_DIR:-./data}/caddy/data:/data
+      - ${DATA_DIR:-./data}/caddy/config:/config
+    depends_on:
+      - pds
+      - dashboard
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: *logging

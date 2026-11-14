@@ -1,6 +1,5 @@
 import type { ApiResult } from './api/types';
-
-const PDS_URL = process.env.NEXT_PUBLIC_PDS_URL || 'http://localhost:3000';
+import { pdsUrl } from './runtime-config';
 
 let tokenGetter: (() => string | null) | null = null;
 
@@ -18,7 +17,7 @@ interface XrpcOptions {
 export async function xrpc<T>(nsid: string, options: XrpcOptions = {}): Promise<ApiResult<T>> {
   const { method = 'POST', params, body, noAuth = false } = options;
 
-  let url = `${PDS_URL}/xrpc/${nsid}`;
+  let url = `${pdsUrl()}/xrpc/${nsid}`;
 
   if (params) {
     const searchParams = new URLSearchParams();

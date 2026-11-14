@@ -1,0 +1,48 @@
+# Caddy in front of the OpenFederation appliance (#405).
+#
+# Caddy gets and renews the HTTPS certificates by itself (Let's Encrypt or
+# ZeroSSL), as long as ports 80 and 443 reach this server and the names below
+# point at it in DNS. The names come from .env (PDS_DOMAIN, DASHBOARD_DOMAIN,
+# HANDLE_DOMAIN) through compose.yaml.
+
+{
+	# People's names (alice.example.org) get a certificate each, fetched the
+	# first time someone opens that name. Caddy asks the PDS first and only
+	# goes ahead for a name that is a handle on this server, so nobody can
+	# make it request certificates for made-up names.
+	on_demand_tls {
+		ask http://pds:8080/tls-check
+	}
+}
+
+# The PDS: AT Protocol API, OAuth, the setup wizard (/setup).
+{$PDS_DOMAIN} {
+	encode zstd gzip
+	# Only Caddy itself needs this question answered.
+	@tlscheck path /tls-check
+	respond @tlscheck 404
+	reverse_proxy pds:8080
+}
+
+# The dashboard.
+{$DASHBOARD_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy dashboard:3000
+}
+
+# People's names: https://alice.example.org/.well-known/atproto-did, once the
+# DNS record *.example.org points here. The two names above have their own
+# certificates and are never asked about. Without HANDLE_DOMAIN this block
+# stands for *.handles.invalid, a name no DNS record can point at.
+*.{$HANDLE_DOMAIN} {
+	tls {
+		on_demand
+	}
+	@atproto path /.well-known/atproto-did
+	handle @atproto {
+		reverse_proxy pds:8080
+	}
+	handle {
+		respond "Not found" 404
+	}
+}

@@ -65,7 +65,7 @@ No secret is set in the template. The setup wizard generates `AUTH_JWT_SECRET`, 
      NEXT_PUBLIC_PDS_URL=https://${{openfederation-pds.RAILWAY_PUBLIC_DOMAIN}}
      ```
 
-     `NEXT_PUBLIC_PDS_URL` is read when the dashboard is **built**, so the PDS domain must exist before the first dashboard build. Railway generates the template's domains before building, so this works on deploy. If someone later gives the PDS a custom domain, they change this variable and redeploy the dashboard (the install guide says so).
+     `NEXT_PUBLIC_PDS_URL` is inlined when the dashboard is built and also read again when it runs (`/runtime-config.js`, `web-interface/src/lib/runtime-config.ts`), so a changed value takes effect on the next deploy. Railway generates the template's domains before building, so this works on deploy. If someone later gives the PDS a custom domain, they change this variable and redeploy the dashboard (the install guide says so). (`PDS_URL`, read only at runtime, would work too; it is what the container images use.)
 5. *(Optional, own-PLC variant only)* **Add New**, **Database**, **PostgreSQL**, rename it `Postgres-PLC`. **Add New**, **GitHub Repo**, same repository, rename to `openfederation-plc`, root directory `/plc-server`, builder **Nixpacks**, **Generate Domain**, variables:
 
    ```

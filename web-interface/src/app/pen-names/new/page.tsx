@@ -5,7 +5,7 @@
  * /verify). Passes come from a file, pasted text or a photo of a printed QR
  * code; the person's own session is never loaded or sent from here.
  */
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
@@ -22,11 +22,16 @@ import { THIS_PDS } from '@/lib/this-pds';
 import { serverProblem } from '@/lib/pen-names/service-pin';
 
 const host = (url: string) => url.replace(/^https?:\/\//, '');
+// The page is prerendered at build time, before the runtime PDS address is
+// known: render a neutral word there and the real host once in the browser.
+const noSubscribe = () => () => {};
+const useThisHost = () => useSyncExternalStore(noSubscribe, () => host(THIS_PDS), () => 'this server');
 const plural = (n: number) => `${n} ${n === 1 ? 'pass' : 'passes'}`;
 const day = (d: Date) => d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 export default function CreatePenNamePage() {
   const router = useRouter();
+  const thisHost = useThisHost();
   const server = useQuery({ queryKey: ['pen-server', THIS_PDS], queryFn: () => serverFacts(THIS_PDS) });
   const [loaded, setLoaded] = useState<LoadedPasses | null>(null);
   const [usedSince, setUsedSince] = useState(0);
@@ -40,7 +45,7 @@ export default function CreatePenNamePage() {
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold">Create a pen name</h1>
         <div className="text-muted-foreground">
-          A separate identity on {host(THIS_PDS)} to publish under, made here with one of your passes. <WhatIsThis term="pen-name" className="mt-1" />
+          A separate identity on {thisHost} to publish under, made here with one of your passes. <WhatIsThis term="pen-name" className="mt-1" />
         </div>
       </div>
 
