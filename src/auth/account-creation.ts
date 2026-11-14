@@ -25,6 +25,8 @@ import { storeUserSigningKey } from '../identity/user-identity.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import type { RowReader } from './invites.js';
 import { query } from '../db/client.js';
+import { auditLog } from '../db/audit.js';
+import type { RuntimeSettings } from '../settings/runtime-settings.js';
 
 export class RegistrationValidationError extends Error {
   constructor(
@@ -141,6 +143,28 @@ export async function insertUserWithRole(client: PoolClient, params: InsertUserP
     ],
   );
   await client.query(`INSERT INTO user_roles (user_id, role) VALUES ($1, 'user')`, [params.userId]);
+}
+
+/**
+ * The status a new local account starts with (ACCOUNT_APPROVAL): waiting for
+ * an admin, or approved at once. Pass the request's one reading of the
+ * settings, so the whole sign-up sees the same value.
+ *
+ * Only for people signing up here (account.register, registerSelfCustody,
+ * OAuth sign-up). Pen names, accounts moving in and partner sign-ups have
+ * their own rules and do not call this.
+ */
+export function newAccountStatus(settings: Pick<RuntimeSettings, 'accountApproval'>): 'pending' | 'approved' {
+  return settings.accountApproval === 'automatic' ? 'approved' : 'pending';
+}
+
+/**
+ * Audit an account approved by ACCOUNT_APPROVAL=automatic as an approval with
+ * no person as the actor, like the approval that email verification gives a
+ * partner sign-up. Call once the account is complete. auditLog never throws.
+ */
+export async function auditAutomaticApproval(userId: string, handle: string): Promise<void> {
+  await auditLog('account.approve', null, userId, { handle, via: 'automatic', setting: 'ACCOUNT_APPROVAL' });
 }
 
 /**

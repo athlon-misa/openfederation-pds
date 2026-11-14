@@ -84,6 +84,8 @@ describe('resolveSetup', () => {
       PSEUDONYMS_ENABLED: 'false',
       IDENTITY_CUSTODY_ALLOWED: 'custodial,assisted,self',
       IDENTITY_CUSTODY_DEFAULT: 'custodial',
+      ACCOUNT_APPROVAL: 'manual',
+      DEFAULT_APPEARANCE: 'openfederation',
     });
     expect(r.admin).toEqual({ handle: 'maria', email: 'maria@example.org' });
     expect(resolveIdentityPolicy(r.env)).toMatchObject({ profile: 'community', pseudonymsEnabled: false, custodyDefault: 'custodial' });
@@ -103,6 +105,22 @@ describe('resolveSetup', () => {
     expect(r.env.WEB_UI_URL).toBeUndefined();
     expect(r.env.CORS_ORIGINS).toBeUndefined();
     expect(resolveIdentityPolicy(r.env)).toEqual({ profile: 'privacy', custodyAllowed: ['assisted', 'self'], custodyDefault: 'self', pseudonymsEnabled: true, deviceSigningAllowed: true });
+  });
+
+  it('approving new accounts automatically and the dashboard\'s look are starting choices too', () => {
+    expect(defaultOptions('community')).toMatchObject({ accountApproval: 'manual', appearance: 'openfederation' });
+    expect(defaultOptions('privacy')).toMatchObject({ accountApproval: 'manual', appearance: 'openfederation' });
+    const r = resolveSetup(input({ options: { ...defaultOptions('community'), accountApproval: 'automatic', appearance: 'opennewsrooms' } }), false);
+    expect(r.env).toMatchObject({ ACCOUNT_APPROVAL: 'automatic', DEFAULT_APPEARANCE: 'opennewsrooms' });
+    // An answer from an older page, without them: the defaults.
+    const { accountApproval: _a, appearance: _b, ...older } = defaultOptions('community');
+    expect(resolveSetup(input({ options: older }), false).env).toMatchObject({ ACCOUNT_APPROVAL: 'manual', DEFAULT_APPEARANCE: 'openfederation' });
+  });
+
+  it('refuses an approval mode or a look that does not exist', () => {
+    const bad = validateSection('options', input({ options: { ...defaultOptions('community'), accountApproval: 'sometimes' as never, appearance: 'neon' as never } }), false);
+    expect(bad.accountApproval).toBeTruthy();
+    expect(bad.appearance).toBeTruthy();
   });
 
   it('port 465 means TLS from the first byte', () => {

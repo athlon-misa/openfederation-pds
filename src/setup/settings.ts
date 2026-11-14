@@ -7,6 +7,9 @@
  */
 import { isStrongPassword, isValidEmail, isWellFormedHandle, isValidDomain, normalizeEmail, normalizeHandle } from '../auth/credential-rules.js';
 import { CUSTODY_MODES, resolveIdentityPolicy, type CustodyMode } from '../identity/custody-policy.js';
+import {
+  ACCOUNT_APPROVAL_POLICIES, APPEARANCE_PRESETS, type AccountApprovalPolicy, type AppearancePreset,
+} from '../settings/keys.js';
 
 export const DEFAULT_PLC_URL = 'https://plc.openfederation.net';
 
@@ -29,6 +32,10 @@ export interface SetupInput {
     pseudonyms: boolean;
     custody: CustodyMode[];
     custodyDefault: CustodyMode;
+    /** New accounts wait for an admin (manual) or get in at once. Absent: manual. */
+    accountApproval?: AccountApprovalPolicy;
+    /** The dashboard's look until a person chooses their own. Absent: openfederation. */
+    appearance?: AppearancePreset;
   };
 }
 
@@ -38,8 +45,8 @@ export type FieldErrors = Record<string, string>;
 /** The defaults the options step starts from, per kind of server. */
 export function defaultOptions(kind: ServerKind): SetupInput['options'] {
   return kind === 'privacy'
-    ? { inviteOnly: true, pseudonyms: true, custody: [...CUSTODY_MODES], custodyDefault: 'self' }
-    : { inviteOnly: true, pseudonyms: false, custody: [...CUSTODY_MODES], custodyDefault: 'custodial' };
+    ? { inviteOnly: true, pseudonyms: true, custody: [...CUSTODY_MODES], custodyDefault: 'self', accountApproval: 'manual', appearance: 'openfederation' }
+    : { inviteOnly: true, pseudonyms: false, custody: [...CUSTODY_MODES], custodyDefault: 'custodial', accountApproval: 'manual', appearance: 'openfederation' };
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -143,6 +150,12 @@ export function validateSection(section: SetupSection, input: Partial<SetupInput
       } else if (!custody.includes(o!.custodyDefault)) {
         errors.custodyDefault = 'The first choice offered must be one of the ways you allow.';
       }
+      if (o?.accountApproval !== undefined && !(ACCOUNT_APPROVAL_POLICIES as readonly string[]).includes(o.accountApproval)) {
+        errors.accountApproval = 'Choose whether new accounts wait for you or get in straight away.';
+      }
+      if (o?.appearance !== undefined && !(APPEARANCE_PRESETS as readonly string[]).includes(o.appearance)) {
+        errors.appearance = 'Choose one of the looks shown.';
+      }
       break;
     }
   }
@@ -207,6 +220,8 @@ export function resolveSetup(input: SetupInput, allowLocalHttp: boolean): Resolv
   env.PSEUDONYMS_ENABLED = input.options.pseudonyms ? 'true' : 'false';
   env.IDENTITY_CUSTODY_ALLOWED = custody.join(',');
   env.IDENTITY_CUSTODY_DEFAULT = input.options.custodyDefault;
+  env.ACCOUNT_APPROVAL = input.options.accountApproval ?? 'manual';
+  env.DEFAULT_APPEARANCE = input.options.appearance ?? 'openfederation';
 
   // The same check the server runs when it starts, so a choice it would
   // refuse is caught here instead of after the restart.

@@ -217,6 +217,14 @@ ${progress()}
     <p class="hint">These are starting choices. You can change them at any time, without a restart, in the dashboard under Admin, Server settings.</p>
     <label class="choice compact"><input type="checkbox" name="inviteOnly">
       <span><strong>Invite-only sign-up</strong><span class="hint">New people need an invite code from an admin. Recommended until you are ready to open up.</span></span></label>
+    <fieldset class="field">
+      <legend><strong>When someone signs up</strong></legend>
+      <label class="choice compact"><input type="radio" name="accountApproval" value="manual">
+        <span><strong>An admin approves each new account</strong> (recommended)<span class="hint">New accounts wait until you or another admin approves them in the dashboard. Until then they cannot sign in.</span></span></label>
+      <label class="choice compact"><input type="radio" name="accountApproval" value="automatic">
+        <span><strong>Approve new accounts automatically</strong><span class="hint">Anyone who can sign up gets in straight away, with nobody checking first. Keep invite-only sign-up on if you want to decide who can sign up at all.</span></span></label>
+      <p class="error" data-error="accountApproval" hidden></p>
+    </fieldset>
     <label class="choice compact"><input type="checkbox" name="pseudonyms">
       <span><strong>Allow pseudonyms</strong><span class="hint">Anonymous accounts that are not linked to anyone's main account, not even on this server. Useful for sources and whistle-blowers.</span></span></label>
     <fieldset class="field">
@@ -239,6 +247,17 @@ ${progress()}
     </fieldset>
     <label class="choice compact disabled"><input type="checkbox" name="deviceSigning" disabled>
       <span><strong>Device signing</strong> (coming soon)<span class="hint">Lets people approve important actions on their own phone or computer instead of trusting the server. It is being built; you will be able to turn it on later.</span></span></label>
+    <fieldset class="field">
+      <legend><strong>How the dashboard looks</strong></legend>
+      <p class="hint">What people see when they open the dashboard. Each person can still pick another look for themselves.</p>
+      <label class="choice compact"><input type="radio" name="appearance" value="openfederation">
+        <span><strong>OpenFederation</strong><span class="hint">Paper, ink, and a little teal.</span></span></label>
+      <label class="choice compact"><input type="radio" name="appearance" value="pds-basic">
+        <span><strong>PDS Basic</strong><span class="hint">The original, plain look.</span></span></label>
+      <label class="choice compact"><input type="radio" name="appearance" value="opennewsrooms">
+        <span><strong>OpenNewsrooms</strong><span class="hint">The look made for newsrooms.</span></span></label>
+      <p class="error" data-error="appearance" hidden></p>
+    </fieldset>
     <div class="nav"><button type="button" class="back">Back</button><button type="submit" class="primary">Next</button></div>
   </form>
 </section>
