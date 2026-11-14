@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query, withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { claimInvite, assertInviteUsable, InviteError } from '../auth/invites.js';
@@ -36,7 +36,9 @@ export default async function registerAccount(req: Request, res: Response): Prom
   }
   const { handle, email, password } = credentials;
 
-  if (config.auth.inviteRequired && !input.inviteCode) {
+  // One reading for the whole request: a change made meanwhile applies to the next one.
+  const settings = runtimeSettings();
+  if (settings.inviteRequired && !input.inviteCode) {
     res.status(403).json({
       error: 'InviteRequired',
       message: 'An invite code is required to register',
@@ -54,7 +56,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
     // below repeats them for real; this only stops every refused request
     // from leaving a registered DID behind.
     await ensureHandleEmailAvailable({ query }, handle, email);
-    if (config.auth.inviteRequired) {
+    if (settings.inviteRequired) {
       try {
         await assertInviteUsable({ query }, input.inviteCode!, input.email);
       } catch (err) {
@@ -64,7 +66,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
     }
 
     // ADR-003: this path makes custodial accounts.
-    if (!config.identity.custodyAllowed.includes('custodial')) {
+    if (!settings.identity.custodyAllowed.includes('custodial')) {
       throw new RegistrationValidationError(403, 'CustodyModeNotAllowed', 'This server does not allow custodial accounts');
     }
 
@@ -98,7 +100,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
         status: 'pending',
       });
 
-      if (config.auth.inviteRequired) {
+      if (settings.inviteRequired) {
         try {
           await claimInvite(client, input.inviteCode!, input.email, userId);
         } catch (err) {
@@ -115,7 +117,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
     // Verification email, off the response path: registration succeeded
     // whether or not the link could be sent, and the resend endpoint exists
     // for exactly the case where it could not (#83).
-    if (config.emailVerification.policy !== 'off') {
+    if (settings.emailVerificationPolicy !== 'off') {
       void issueEmailVerification({ id: result.userId, handle, email }).then((delivery) => {
         if (delivery.outcome !== 'sent' && delivery.outcome !== 'not-configured') {
           console.error(`[email] verification link for ${handle} was not delivered: ${delivery.outcome}`);

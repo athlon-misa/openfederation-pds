@@ -1,0 +1,127 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.admin.getServerSettings",
+  "revision": 1,
+  "description": "The server settings an admin can change at runtime: pen names, custody modes, device signing, invite-only sign-up, email verification, moving here and federation peers. Requires admin role.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Each setting's value in effect and where it comes from. Precedence: environment variable, then an admin's change, then the setup wizard's choice, then the profile or built-in default. A setting the environment sets is fixed: shown, never changeable here.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "ref",
+          "ref": "#settingsView"
+        }
+      },
+      "errors": [
+        {
+          "name": "Forbidden",
+          "description": "The caller is not an admin."
+        }
+      ]
+    },
+    "settingsView": {
+      "type": "object",
+      "required": [
+        "settings",
+        "refreshSeconds"
+      ],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "knownValues": [
+            "community",
+            "privacy"
+          ],
+          "description": "OPENFEDERATION_PROFILE, which supplies defaults; absent or null when unset."
+        },
+        "settings": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "#setting"
+          }
+        },
+        "problem": {
+          "type": "string",
+          "description": "Set when the saved changes conflict with the environment and are ignored until that is fixed."
+        },
+        "refreshSeconds": {
+          "type": "integer",
+          "description": "How often every instance re-reads the settings; a change reaches other instances within this time."
+        }
+      }
+    },
+    "setting": {
+      "type": "object",
+      "required": [
+        "id",
+        "envVar",
+        "value",
+        "source",
+        "fixed",
+        "fallback",
+        "fallbackSource"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "knownValues": [
+            "pseudonymsEnabled",
+            "pseudonymTokensPerEpoch",
+            "pseudonymProbationDays",
+            "pseudonymProbationDailyWrites",
+            "custodyAllowed",
+            "custodyDefault",
+            "deviceSigningAllowed",
+            "inviteRequired",
+            "emailVerificationPolicy",
+            "migrationAccounts",
+            "migrationPseudonyms",
+            "migrationCommunities",
+            "federationPeers"
+          ]
+        },
+        "envVar": {
+          "type": "string",
+          "description": "The environment variable that sets it, and fixes it when set."
+        },
+        "value": {
+          "type": "unknown",
+          "description": "The value in effect: a boolean, an integer, a string, or a list of strings."
+        },
+        "source": {
+          "type": "string",
+          "knownValues": [
+            "environment",
+            "admin",
+            "setup",
+            "default"
+          ]
+        },
+        "fixed": {
+          "type": "boolean",
+          "description": "True when the environment sets it."
+        },
+        "fallback": {
+          "type": "unknown",
+          "description": "The value without an admin's change."
+        },
+        "fallbackSource": {
+          "type": "string",
+          "knownValues": [
+            "environment",
+            "setup",
+            "default"
+          ]
+        },
+        "changedAt": {
+          "type": "string",
+          "format": "datetime",
+          "description": "When an admin last changed it, when the admin's value is in effect."
+        }
+      }
+    }
+  }
+}

@@ -5,12 +5,12 @@
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { xrpcPost, xrpcAuthGet, xrpcAuthPost, getAdminToken, isPLCAvailable } from './helpers.js';
-import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { query } from '../../src/db/client.js';
 import { userElsewhere, serviceAuthFor, createAccount, newHandle } from './migration-helpers.js';
 
 const PASSWORD = 'MovingHouse-2026!';
-const original = { ...config.migration };
+const original = { ...runtimeSettings().migration };
 
 async function body(u: { did: string }, extra: Record<string, unknown> = {}) {
   return { did: u.did, handle: newHandle(), email: `${u.did.slice(-8)}@moved.example`, password: PASSWORD, ...extra };
@@ -19,11 +19,11 @@ async function body(u: { did: string }, extra: Record<string, unknown> = {}) {
 describe('com.atproto.server.createAccount (user account, service auth)', () => {
   let plc = false;
   beforeAll(async () => { plc = await isPLCAvailable(); });
-  afterEach(() => { Object.assign(config.migration, original); });
+  afterEach(() => { Object.assign(runtimeSettings().migration, original); });
 
   it('opens a deactivated account with a password and a custodial rotation key', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.accounts = 'open';
+    runtimeSettings().migration.accounts = 'open';
     const u = await userElsewhere();
     const b = await body(u);
     const res = await createAccount(b, await serviceAuthFor(u));
@@ -51,7 +51,7 @@ describe('com.atproto.server.createAccount (user account, service auth)', () => 
 
   it('refuses a token minted for another DID, a weak password, and the closed gate', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.accounts = 'open';
+    runtimeSettings().migration.accounts = 'open';
     const u = await userElsewhere();
     const other = await userElsewhere();
     const wrongDid = await createAccount(await body(u), await serviceAuthFor(other));
@@ -62,7 +62,7 @@ describe('com.atproto.server.createAccount (user account, service auth)', () => 
     expect(weak.status).toBe(400);
     expect(weak.body.error).toBe('InvalidPassword');
 
-    config.migration.accounts = 'closed';
+    runtimeSettings().migration.accounts = 'closed';
     const closed = await createAccount(await body(u), await serviceAuthFor(u));
     expect(closed.status).toBe(403);
     expect(closed.body.error).toBe('MigrationNotAllowed');
@@ -71,7 +71,7 @@ describe('com.atproto.server.createAccount (user account, service auth)', () => 
 
   it('invite mode: needs a valid invite code, claimed once', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.accounts = 'invite';
+    runtimeSettings().migration.accounts = 'invite';
     const u = await userElsewhere();
     const none = await createAccount(await body(u), await serviceAuthFor(u));
     expect(none.status).toBe(400);
@@ -93,7 +93,7 @@ describe('com.atproto.server.createAccount (user account, service auth)', () => 
 
   it('a user DID without service auth is told how to move', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.accounts = 'open';
+    runtimeSettings().migration.accounts = 'open';
     const u = await userElsewhere();
     const res = await createAccount(await body(u));
     expect(res.status).toBe(400);

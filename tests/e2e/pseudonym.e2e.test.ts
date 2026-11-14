@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { vi } from 'vitest';
 import { isPLCAvailable, createTestUser, uniqueHandle, xrpcAuthPost, testServer } from './helpers.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import {
   fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase, createRevealBundle, publishReveal, signPresence,
 } from '../../packages/openfederation-pseudonym/src/index.js';
@@ -23,8 +24,8 @@ describe('pseudonym lifecycle', () => {
     if (!plc) ctx.skip('PLC directory not available');
     const ana = await createTestUser(uniqueHandle('ana'));
     const keys = await fetchTokenKeys(pdsUrl);
-    const tokens = await collectTokens({ pdsUrl, accessJwt: ana.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
-    expect(tokens).toHaveLength(config.pseudonym.tokensPerEpoch);
+    const tokens = await collectTokens({ pdsUrl, accessJwt: ana.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
+    expect(tokens).toHaveLength(runtimeSettings().pseudonym.tokensPerEpoch);
 
     const created = await createPseudonym({
       pdsUrl, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,

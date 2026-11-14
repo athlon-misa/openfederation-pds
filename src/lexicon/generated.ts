@@ -601,6 +601,24 @@ export type NetOpenfederationAdminDeleteExportScheduleOutput = {
 };
 export type NetOpenfederationAdminDeleteExportScheduleError = "NotFound";
 
+export type NetOpenfederationAdminGetServerSettingsInput = undefined;
+export type NetOpenfederationAdminGetServerSettingsOutput = {
+  "profile"?: string;
+  "settings": Array<{
+  "id": string;
+  "envVar": string;
+  "value": unknown;
+  "source": string;
+  "fixed": boolean;
+  "fallback": unknown;
+  "fallbackSource": string;
+  "changedAt"?: string;
+}>;
+  "problem"?: string;
+  "refreshSeconds": number;
+};
+export type NetOpenfederationAdminGetServerSettingsError = "Forbidden";
+
 export type NetOpenfederationAdminImportRepoInput = undefined;
 export type NetOpenfederationAdminImportRepoOutput = {
   "did": string;
@@ -650,6 +668,24 @@ export type NetOpenfederationAdminTakedownOutput = {
   "exportUrl"?: string;
 };
 export type NetOpenfederationAdminTakedownError = "Forbidden" | "InvalidDeadline" | "InvalidRequest" | "NotFound";
+
+export type NetOpenfederationAdminUpdateServerSettingsInput = {
+  "changes": unknown;
+};
+export type NetOpenfederationAdminUpdateServerSettingsOutput = {
+  "profile"?: string;
+  "settings": Array<undefined>;
+  "problem"?: string;
+  "refreshSeconds": number;
+  "changed": Array<{
+  "id": string;
+  "envVar": string;
+  "before": unknown;
+  "after": unknown;
+  "reset": boolean;
+}>;
+};
+export type NetOpenfederationAdminUpdateServerSettingsError = "Forbidden" | "InvalidCombination" | "InvalidRequest" | "InvalidSetting" | "SettingFixedByEnvironment";
 
 export type NetOpenfederationAdminVerifyChallengeInput = JsonObject;
 export type NetOpenfederationAdminVerifyChallengeOutput = JsonObject;
@@ -2718,11 +2754,13 @@ export interface LexiconInputMap {
   'net.openfederation.admin.createExportSchedule': NetOpenfederationAdminCreateExportScheduleInput;
   'net.openfederation.admin.createVerificationChallenge': NetOpenfederationAdminCreateVerificationChallengeInput;
   'net.openfederation.admin.deleteExportSchedule': NetOpenfederationAdminDeleteExportScheduleInput;
+  'net.openfederation.admin.getServerSettings': NetOpenfederationAdminGetServerSettingsInput;
   'net.openfederation.admin.importRepo': NetOpenfederationAdminImportRepoInput;
   'net.openfederation.admin.listExportSchedules': NetOpenfederationAdminListExportSchedulesInput;
   'net.openfederation.admin.listExportSnapshots': NetOpenfederationAdminListExportSnapshotsInput;
   'net.openfederation.admin.reverseTakedown': NetOpenfederationAdminReverseTakedownInput;
   'net.openfederation.admin.takedown': NetOpenfederationAdminTakedownInput;
+  'net.openfederation.admin.updateServerSettings': NetOpenfederationAdminUpdateServerSettingsInput;
   'net.openfederation.admin.verifyChallenge': NetOpenfederationAdminVerifyChallengeInput;
   'net.openfederation.attestation.createViewingGrant': NetOpenfederationAttestationCreateViewingGrantInput;
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureInput;
@@ -2942,11 +2980,13 @@ export interface LexiconOutputMap {
   'net.openfederation.admin.createExportSchedule': NetOpenfederationAdminCreateExportScheduleOutput;
   'net.openfederation.admin.createVerificationChallenge': NetOpenfederationAdminCreateVerificationChallengeOutput;
   'net.openfederation.admin.deleteExportSchedule': NetOpenfederationAdminDeleteExportScheduleOutput;
+  'net.openfederation.admin.getServerSettings': NetOpenfederationAdminGetServerSettingsOutput;
   'net.openfederation.admin.importRepo': NetOpenfederationAdminImportRepoOutput;
   'net.openfederation.admin.listExportSchedules': NetOpenfederationAdminListExportSchedulesOutput;
   'net.openfederation.admin.listExportSnapshots': NetOpenfederationAdminListExportSnapshotsOutput;
   'net.openfederation.admin.reverseTakedown': NetOpenfederationAdminReverseTakedownOutput;
   'net.openfederation.admin.takedown': NetOpenfederationAdminTakedownOutput;
+  'net.openfederation.admin.updateServerSettings': NetOpenfederationAdminUpdateServerSettingsOutput;
   'net.openfederation.admin.verifyChallenge': NetOpenfederationAdminVerifyChallengeOutput;
   'net.openfederation.attestation.createViewingGrant': NetOpenfederationAttestationCreateViewingGrantOutput;
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureOutput;
@@ -3166,11 +3206,13 @@ export interface LexiconErrorMap {
   'net.openfederation.admin.createExportSchedule': NetOpenfederationAdminCreateExportScheduleError;
   'net.openfederation.admin.createVerificationChallenge': NetOpenfederationAdminCreateVerificationChallengeError;
   'net.openfederation.admin.deleteExportSchedule': NetOpenfederationAdminDeleteExportScheduleError;
+  'net.openfederation.admin.getServerSettings': NetOpenfederationAdminGetServerSettingsError;
   'net.openfederation.admin.importRepo': NetOpenfederationAdminImportRepoError;
   'net.openfederation.admin.listExportSchedules': NetOpenfederationAdminListExportSchedulesError;
   'net.openfederation.admin.listExportSnapshots': NetOpenfederationAdminListExportSnapshotsError;
   'net.openfederation.admin.reverseTakedown': NetOpenfederationAdminReverseTakedownError;
   'net.openfederation.admin.takedown': NetOpenfederationAdminTakedownError;
+  'net.openfederation.admin.updateServerSettings': NetOpenfederationAdminUpdateServerSettingsError;
   'net.openfederation.admin.verifyChallenge': NetOpenfederationAdminVerifyChallengeError;
   'net.openfederation.attestation.createViewingGrant': NetOpenfederationAttestationCreateViewingGrantError;
   'net.openfederation.attestation.requestDisclosure': NetOpenfederationAttestationRequestDisclosureError;
@@ -3392,11 +3434,13 @@ export const lexiconContracts = {
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
   'net.openfederation.admin.createVerificationChallenge': { revision: 3, errors: ["EmailDeliveryFailed", "NoEmail", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },
+  'net.openfederation.admin.getServerSettings': { revision: 1, errors: ["Forbidden"] as const },
   'net.openfederation.admin.importRepo': { revision: 4, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidRequest", "InvalidSignature", "PayloadTooLarge", "RepoAlreadyExists", "UnresolvableDid"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },
   'net.openfederation.admin.listExportSnapshots': { revision: 1, errors: [] as const },
   'net.openfederation.admin.reverseTakedown': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotTakenDown"] as const },
   'net.openfederation.admin.takedown': { revision: 1, errors: ["Forbidden", "InvalidDeadline", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.admin.updateServerSettings': { revision: 1, errors: ["Forbidden", "InvalidCombination", "InvalidRequest", "InvalidSetting", "SettingFixedByEnvironment"] as const },
   'net.openfederation.admin.verifyChallenge': { revision: 1, errors: ["InvalidNonce", "NotFound"] as const },
   'net.openfederation.attestation.createViewingGrant': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },

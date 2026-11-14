@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { api, xrpcAuthPost, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
 import { query } from '../../src/db/client.js';
-import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
 import {
   pseudonymElsewhere, openHere, proofFor, pointHere, userElsewhere, serviceAuthFor, createAccount, newHandle,
@@ -38,18 +38,18 @@ const exists = async (did: string) => (await query('SELECT 1 FROM users WHERE di
 
 describe('owner-side account deletion', () => {
   let plc = false;
-  const saved = { accounts: config.migration.accounts, pseudonyms: config.migration.pseudonyms };
+  const saved = { accounts: runtimeSettings().migration.accounts, pseudonyms: runtimeSettings().migration.pseudonyms };
 
   beforeAll(async () => {
     plc = await isPLCAvailable();
     setEmailSenderForTests(async (to, subject, html) => { mails.push({ to, subject, html }); });
-    config.migration.accounts = 'open';
-    config.migration.pseudonyms = 'open';
+    runtimeSettings().migration.accounts = 'open';
+    runtimeSettings().migration.pseudonyms = 'open';
   });
   afterAll(() => {
     setEmailSenderForTests(null);
-    config.migration.accounts = saved.accounts;
-    config.migration.pseudonyms = saved.pseudonyms;
+    runtimeSettings().migration.accounts = saved.accounts;
+    runtimeSettings().migration.pseudonyms = saved.pseudonyms;
   });
   beforeEach(() => { mails.length = 0; });
 

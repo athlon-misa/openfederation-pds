@@ -7,6 +7,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireAuth, requireApprovedUser, requireLocalAccount } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
 import { isCustodyMode, type CustodyMode } from './custody-policy.js';
 import { CustodyChangeError, type ChangeInputs } from './custody-change.js';
@@ -23,7 +24,7 @@ export async function authorize(req: AuthRequest, res: Response): Promise<{ acco
   }
   const target = req.body?.targetMode;
   if (!isCustodyMode(target)) throw new CustodyChangeError(400, 'InvalidRequest', 'targetMode must be custodial, assisted or self');
-  if (!config.identity.custodyAllowed.includes(target)) throw new CustodyChangeError(403, 'CustodyModeNotAllowed', `This server does not allow ${target} accounts`);
+  if (!runtimeSettings().identity.custodyAllowed.includes(target)) throw new CustodyChangeError(403, 'CustodyModeNotAllowed', `This server does not allow ${target} accounts`);
   // Custodial accounts cannot have device signing (#240): the change keeps the
   // DID's atproto key, which would leave a custodial account whose repo only
   // its device can write.

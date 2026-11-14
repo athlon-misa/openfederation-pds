@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { isPrivateHost } from './remote-verify.js';
 import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
 import { cleanText, isPeerDid, isPeerHandle, peerCount, safeHttpOrigin } from './peer-data.js';
@@ -101,7 +102,7 @@ export async function getCachedPeerCommunities(): Promise<{ communities: PeerCom
 
   inFlightCommunities = (async () => {
     try {
-      const peerUrls = config.federation.peerUrls;
+      const peerUrls = runtimeSettings().federationPeers;
       if (peerUrls.length === 0) {
         cachedCommunities = [];
         communitiesCachedAt = Date.now();
@@ -185,7 +186,7 @@ export async function getCachedPeerInfo(): Promise<PeerInfo[]> {
 
   inFlightPeerInfo = (async () => {
     try {
-      const peerUrls = config.federation.peerUrls;
+      const peerUrls = runtimeSettings().federationPeers;
       if (peerUrls.length === 0) {
         cachedPeerInfo = [];
         peerInfoCachedAt = Date.now();

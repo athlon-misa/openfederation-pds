@@ -46,6 +46,7 @@ import {
   initializeUserRepoAsync,
 } from '../auth/account-creation.js';
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import crypto from 'crypto';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
 
@@ -55,14 +56,16 @@ export class PgAccountStore implements AccountStore {
   async createAccount(data: CreateAccountData): Promise<Account> {
     const { handle, email, password } = normalizeAndValidateCredentials(data);
 
-    if (config.auth.inviteRequired) {
+    // One reading for the whole sign-up: a change made meanwhile applies to the next one.
+    const settings = runtimeSettings();
+    if (settings.inviteRequired) {
       if (!data.inviteCode) {
         throw new Error('An invite code is required to register');
       }
     }
 
     // ADR-003: OAuth sign-up makes custodial accounts.
-    if (!config.identity.custodyAllowed.includes('custodial')) {
+    if (!settings.identity.custodyAllowed.includes('custodial')) {
       throw new Error('This server does not allow custodial accounts');
     }
 
@@ -75,7 +78,7 @@ export class PgAccountStore implements AccountStore {
         hashPassword(password),
       ]);
 
-      if (config.auth.inviteRequired && data.inviteCode) {
+      if (settings.inviteRequired && data.inviteCode) {
         const invite = await client.query<{ max_uses: number; uses_count: number; expires_at: string | null; bound_to: string | null }>(
           'SELECT max_uses, uses_count, expires_at, bound_to FROM invites WHERE code = $1 FOR UPDATE',
           [data.inviteCode],
@@ -98,7 +101,7 @@ export class PgAccountStore implements AccountStore {
         status: 'pending',
       });
 
-      if (config.auth.inviteRequired && data.inviteCode) {
+      if (settings.inviteRequired && data.inviteCode) {
         await client.query(
           'UPDATE invites SET uses_count = uses_count + 1, used_by = $1, used_at = CURRENT_TIMESTAMP WHERE code = $2',
           [userId, data.inviteCode]

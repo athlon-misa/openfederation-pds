@@ -1,7 +1,6 @@
 import dotenv from 'dotenv';
 import { readConfigFile, resolveConfigFilePath, applyConfigToEnv } from './setup/config-file.js';
-import { resolveIdentityPolicy } from './identity/custody-policy.js';
-import { parseFederationPeers, mergePeerLists } from './federation/peer-sources.js';
+import { splitSettingsFile } from './settings/keys.js';
 
 // quiet: dotenv 17 prints an informational banner to stdout on every load,
 // which corrupts machine-readable output from the ofc CLI. Loading is unchanged.
@@ -9,10 +8,19 @@ dotenv.config({ quiet: true, path: process.env.DOTENV_CONFIG_PATH || undefined }
 // The settings file the setup wizard writes (#405) fills in whatever the
 // environment (and .env) leaves unset, for every entry point: the server, the
 // CLI and the maintenance scripts alike. No file, no change.
-{
+//
+// Except the settings an admin can change on Admin, Server settings (#410):
+// the wizard's choices for those are its initial values, kept here and read
+// by src/settings/runtime-settings.ts below an admin's changes. Putting them
+// into the environment would make them look set by the operator, which wins
+// over everything, and the page would be read-only on every wizard install.
+const setupFileSettings: Readonly<Record<string, string>> = (() => {
   const settings = readConfigFile(resolveConfigFilePath(process.env));
-  if (settings) applyConfigToEnv(settings, process.env);
-}
+  if (!settings) return {};
+  const { runtime, rest } = splitSettingsFile(settings);
+  applyConfigToEnv(rest, process.env);
+  return Object.freeze(runtime);
+})();
 
 const INSECURE_JWT_DEFAULTS = ['dev-secret-change-me', 'change_me', ''];
 
@@ -88,7 +96,6 @@ export const config = {
     // this window both continue; after it, presenting a rotated token is
     // treated as theft and revokes every session. 0 disables the window.
     refreshReuseGraceMs: Math.max(0, parseInt(process.env.REFRESH_REUSE_GRACE_SECONDS || '10', 10) || 0) * 1000,
-    inviteRequired: process.env.INVITE_REQUIRED !== 'false',
     bootstrapAdminEmail: process.env.BOOTSTRAP_ADMIN_EMAIL || '',
     bootstrapAdminHandle: process.env.BOOTSTRAP_ADMIN_HANDLE || '',
     bootstrapAdminPassword: process.env.BOOTSTRAP_ADMIN_PASSWORD || '',
@@ -114,19 +121,8 @@ export const config = {
   // Federation / peer PDS discovery
   federation: {
     enabled: process.env.FEDERATION_PEERS_ENABLED !== 'false',
-    // FEDERATION_PEERS (validated; invalid values stop the server) plus the
-    // older PEER_PDS_URLS, kept as it was so existing deployments keep working.
-    peerUrls: mergePeerLists(
-      parseFederationPeers(process.env.FEDERATION_PEERS, {
-        isProduction: process.env.NODE_ENV === 'production',
-        selfUrl: process.env.PDS_SERVICE_URL || '',
-      }),
-      (process.env.PEER_PDS_URLS || '')
-        .split(',')
-        .map(u => u.trim())
-        .filter(Boolean)
-        .filter(u => u !== (process.env.PDS_SERVICE_URL || '')), // exclude self
-    ),
+    // The peer list itself (FEDERATION_PEERS, with the older PEER_PDS_URLS)
+    // is a runtime setting: runtimeSettings().federationPeers.
     cacheTtlMs: parseInt(process.env.FEDERATION_CACHE_TTL_MS || '300000', 10), // 5 min
     // How long one peer gets to answer community discovery before it counts as failed.
     peerTimeoutMs: parseInt(process.env.FEDERATION_PEER_TIMEOUT_MS || '3000', 10),
@@ -161,41 +157,10 @@ export const config = {
     redisUrl: process.env.REDIS_URL || '',
   },
 
-  // Email configuration
-  /**
-   * What an unverified email blocks (#83). The operator's decision, because an
-   * open-source PDS serves closed single-user instances and open registration
-   * alike:
-   *   off                nothing sent, nothing gated
-   *   advisory (default) verification emails sent, state surfaced, nothing gated
-   *   require-for-write  unverified accounts read and log in, but cannot act
-   *   require-for-login  unverified local accounts cannot create sessions
-   * An unrecognized value falls back to advisory with a loud warning: a typo
-   * must not silently lock users out, and equally must not silently disable
-   * verification the operator thought was on.
-   */
-  emailVerification: {
-    policy: (() => {
-      const v = process.env.EMAIL_VERIFICATION_POLICY || 'advisory';
-      if (v === 'off' || v === 'advisory' || v === 'require-for-write' || v === 'require-for-login') return v;
-      console.warn(`WARNING: EMAIL_VERIFICATION_POLICY "${v}" is not recognized; using "advisory".`);
-      return 'advisory';
-    })() as 'off' | 'advisory' | 'require-for-write' | 'require-for-login',
-  },
-  pseudonym: {
-    tokensPerEpoch: (v => Number.isFinite(v) && v >= 1 ? v : 20)(parseInt(process.env.PSEUDONYM_TOKENS_PER_EPOCH ?? '20', 10)),
-    probationDays: (v => Number.isFinite(v) && v >= 0 ? v : 7)(parseInt(process.env.PSEUDONYM_PROBATION_DAYS ?? '7', 10)),
-    probationDailyWrites: (v => Number.isFinite(v) && v >= 1 ? v : 20)(parseInt(process.env.PSEUDONYM_PROBATION_DAILY_WRITES ?? '20', 10)),
-  },
-  // Custody modes and pseudonyms (ADR-003): OPENFEDERATION_PROFILE,
-  // IDENTITY_CUSTODY_ALLOWED, IDENTITY_CUSTODY_DEFAULT, PSEUDONYMS_ENABLED.
-  identity: resolveIdentityPolicy(process.env),
-  // Accounts moving in from another PDS (#265). Pseudonyms never use invite
-  // codes: a code can say who handed it out.
+  // Pen names, custody modes, device signing, invite-only sign-up, the email
+  // verification policy and who may move here are runtime settings (#410):
+  // see src/settings/runtime-settings.ts, read with runtimeSettings().
   migration: {
-    accounts: (['open', 'invite', 'closed'] as const).find((v) => v === process.env.MIGRATION_ACCOUNTS) ?? 'invite',
-    pseudonyms: (['open', 'token', 'closed'] as const).find((v) => v === process.env.MIGRATION_PSEUDONYMS) ?? 'open',
-    communities: (['open', 'invite', 'closed'] as const).find((v) => v === process.env.MIGRATION_COMMUNITIES) ?? 'invite',
     // Days between clean-up sweeps of accounts that never activated here; 0 disables.
     cleanupDays: (v => Number.isFinite(v) && v >= 0 ? v : 7)(parseInt(process.env.MIGRATION_CLEANUP_DAYS ?? '7', 10)),
   },
@@ -226,6 +191,9 @@ export const config = {
 
   // Express trust proxy configuration (for rate limiting and req.ip with proxies)
   trustProxy: parseTrustProxy(process.env.EXPRESS_TRUST_PROXY),
+
+  // The setup wizard's initial choices for the runtime settings (#410).
+  setupFileSettings,
 
   // Node environment
   env: {

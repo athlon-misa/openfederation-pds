@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { xrpcAuthPost, createTestUser, uniqueHandle, isPLCAvailable, testServer } from './helpers.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
 import { fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase, cidForPlcOp } from '../../packages/openfederation-pseudonym/src/index.js';
 
@@ -71,7 +72,7 @@ describe('com.atproto.identity.{request,sign,submit}PlcOperation', () => {
     if (!plc) ctx.skip('PLC directory not available');
     const owner = await createTestUser(uniqueHandle('plc-owner'));
     const keys = await fetchTokenKeys(pdsUrl);
-    const [token] = await collectTokens({ pdsUrl, accessJwt: owner.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
+    const [token] = await collectTokens({ pdsUrl, accessJwt: owner.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
     const p = await createPseudonym({
       pdsUrl, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,
       handle: `${uniqueHandle('plc-p')}${config.handleSuffix}`, ownerDid: owner.did, token,

@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { xrpcGet, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 
 describe('server discovery', () => {
   it('com.atproto.server.describeServer names the service DID and handle domain', async () => {
@@ -21,7 +22,7 @@ describe('server discovery', () => {
     const res = await xrpcGet('net.openfederation.server.getPublicConfig');
     expect(res.status).toBe(200);
     expect(res.body.migration).toEqual({
-      accounts: config.migration.accounts, pseudonyms: config.migration.pseudonyms, communities: config.migration.communities,
+      accounts: runtimeSettings().migration.accounts, pseudonyms: runtimeSettings().migration.pseudonyms, communities: runtimeSettings().migration.communities,
     });
     expect(res.body.plcDirectoryUrl).toBe(config.plc.directoryUrl);
   });

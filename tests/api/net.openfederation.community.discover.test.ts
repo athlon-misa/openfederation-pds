@@ -14,6 +14,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { api, xrpcGet, xrpcAuthPost, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { _clearDiscoveryCache } from '../../src/federation/community-discovery.js';
 
 const WELL_KNOWN = '/.well-known/openfederation-communities.json';
@@ -56,7 +57,7 @@ describe('community discovery across servers (#41)', () => {
   let garbagePeer: Peer;
   let hugePeer: Peer;
   let badWebPeer: Peer;
-  const savedPeers = config.federation.peerUrls;
+  const savedPeers = runtimeSettings().federationPeers;
   const savedEnabled = config.federation.enabled;
   const savedTimeout = config.federation.peerTimeoutMs;
   const savedTtl = config.federation.cacheTtlMs;
@@ -134,7 +135,7 @@ describe('community discovery across servers (#41)', () => {
     });
 
     config.federation.enabled = true;
-    config.federation.peerUrls = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url, badWebPeer.url];
+    runtimeSettings().federationPeers = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url, badWebPeer.url];
     config.federation.peerTimeoutMs = 500;
     config.federation.webUiUrl = `${LOCAL_WEB_UI}/`;
     config.federation.cacheTtlMs = 60_000;
@@ -142,7 +143,7 @@ describe('community discovery across servers (#41)', () => {
   });
 
   afterAll(async () => {
-    config.federation.peerUrls = savedPeers;
+    runtimeSettings().federationPeers = savedPeers;
     config.federation.enabled = savedEnabled;
     config.federation.peerTimeoutMs = savedTimeout;
     config.federation.cacheTtlMs = savedTtl;
@@ -328,7 +329,7 @@ describe('community discovery across servers (#41)', () => {
 
     it('answers with local communities only when no peers are configured', async () => {
       if (!plcAvailable) return;
-      config.federation.peerUrls = [];
+      runtimeSettings().federationPeers = [];
       _clearDiscoveryCache();
       try {
         const res = await xrpcGet('net.openfederation.community.discover', { limit: '100' });
@@ -338,7 +339,7 @@ describe('community discovery across servers (#41)', () => {
         expect(res.body.communities.some((c: any) => c.did === publicDid)).toBe(true);
         expect(res.body.communities.some((c: any) => c.did === privateDid)).toBe(false);
       } finally {
-        config.federation.peerUrls = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url, badWebPeer.url];
+        runtimeSettings().federationPeers = [goodPeer.url, slowPeer.url, garbagePeer.url, hugePeer.url, badWebPeer.url];
         _clearDiscoveryCache();
       }
     });

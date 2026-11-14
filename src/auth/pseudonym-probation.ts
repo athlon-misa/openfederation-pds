@@ -7,7 +7,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from './types.js';
 import { query } from '../db/client.js';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 
 const counters = new Map<string, { day: string; count: number }>();
 
@@ -16,7 +16,7 @@ export function resetProbationForTests(): void {
 }
 
 export async function enforcePseudonymProbation(req: AuthRequest, res: Response): Promise<boolean> {
-  const { probationDays, probationDailyWrites } = config.pseudonym;
+  const { probationDays, probationDailyWrites } = runtimeSettings().pseudonym;
   if (!req.auth || probationDays <= 0) return true;
   const row = (await query<{ in_probation: boolean }>(
     `SELECT (created_at > NOW() - make_interval(days => $2)) AS in_probation

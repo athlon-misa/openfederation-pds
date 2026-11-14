@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import type { AuthRequest, AuthContext, UserRole, CommunityRole, CommunityStatus } from './types.js';
 import type { PartnerContext } from './partner-guard.js';
 import { query } from '../db/client.js';
@@ -74,7 +74,7 @@ export function requireApprovedUser(req: AuthRequest, res: Response): boolean {
   // identity, community membership, creation), which is exactly the surface
   // "write" means here. The flag was loaded by authMiddleware; undefined
   // means the policy is not gating and nothing changes (#83).
-  if (config.emailVerification.policy === 'require-for-write' && req.auth.emailVerified === false) {
+  if (runtimeSettings().emailVerificationPolicy === 'require-for-write' && req.auth.emailVerified === false) {
     res.status(403).json({
       error: 'EmailNotVerified',
       message: 'Verify your email address to perform this action. Use com.atproto.server.requestEmailConfirmation to resend the link.',

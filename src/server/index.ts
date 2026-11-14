@@ -32,6 +32,7 @@ import { createXrpcRouter } from './xrpc-router.js';
 import { createWellKnownRouter } from './well-known-routes.js';
 import { SERVER_VERSION } from './server-version.js';
 import { applyMigrations } from '../db/migrate.js';
+import { startRuntimeSettings, stopRuntimeSettings } from '../settings/runtime-settings.js';
 import type { Server } from 'http';
 import { createAccountPagesRouter } from './account-pages.js';
 import { createWalletConsentRouter } from './wallet-consent-page.js';
@@ -461,6 +462,9 @@ export async function startServer(): Promise<Server> {
   } else {
     console.log('Database connection successful');
     await ensureSchema();
+    // The settings an admin changed on the dashboard (#410), then re-read
+    // periodically so a change made on another instance reaches this one.
+    await startRuntimeSettings();
     await ensureBootstrapAdmin();
     // The first admin chosen in the setup wizard, created on the first start after it.
     const setupAdmin = await completePendingSetupAdmin();
@@ -528,6 +532,7 @@ export async function releaseServerResources(): Promise<void> {
   stopExportScheduler();
   stopMigrationCleanup();
   stopTakedownSweep();
+  stopRuntimeSettings();
   if (sessionCleanupTimer) {
     clearInterval(sessionCleanupTimer);
     sessionCleanupTimer = null;

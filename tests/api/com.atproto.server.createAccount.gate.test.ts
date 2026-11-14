@@ -6,12 +6,12 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import { xrpcGet, isPLCAvailable, createTestUser, uniqueHandle, testServer } from './helpers.js';
-import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { query } from '../../src/db/client.js';
 import { fetchTokenKeys, collectTokens } from '../../packages/openfederation-pseudonym/src/index.js';
 import { pseudonymElsewhere, createAccount, proofFor, newHandle } from './migration-helpers.js';
 
-const original = { ...config.migration };
+const original = { ...runtimeSettings().migration };
 
 describe('migration gate (createAccount)', () => {
   let plc = false;
@@ -20,19 +20,19 @@ describe('migration gate (createAccount)', () => {
     plc = await isPLCAvailable();
     pdsUrl = `http://127.0.0.1:${(testServer.address() as AddressInfo).port}`;
   });
-  afterEach(() => { Object.assign(config.migration, original); });
+  afterEach(() => { Object.assign(runtimeSettings().migration, original); });
 
   it('is published in getPublicConfig', async () => {
-    config.migration.pseudonyms = 'token';
-    config.migration.accounts = 'closed';
+    runtimeSettings().migration.pseudonyms = 'token';
+    runtimeSettings().migration.accounts = 'closed';
     const res = await xrpcGet('net.openfederation.server.getPublicConfig');
     expect(res.status).toBe(200);
-    expect(res.body.migration).toEqual({ accounts: 'closed', pseudonyms: 'token', communities: config.migration.communities });
+    expect(res.body.migration).toEqual({ accounts: 'closed', pseudonyms: 'token', communities: runtimeSettings().migration.communities });
   });
 
   it('closed: refuses before anything is stored', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.pseudonyms = 'closed';
+    runtimeSettings().migration.pseudonyms = 'closed';
     const p = await pseudonymElsewhere();
     const res = await createAccount({ did: p.did, handle: newHandle() }, proofFor(p));
     expect(res.status).toBe(403);
@@ -43,7 +43,7 @@ describe('migration gate (createAccount)', () => {
 
   it('token: asks for a blind creation token and spends it once', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.pseudonyms = 'token';
+    runtimeSettings().migration.pseudonyms = 'token';
     const p = await pseudonymElsewhere();
     const without = await createAccount({ did: p.did, handle: newHandle() }, proofFor(p));
     expect(without.status).toBe(400);
@@ -51,7 +51,7 @@ describe('migration gate (createAccount)', () => {
 
     const owner = await createTestUser(uniqueHandle('gate-owner'));
     const keys = await fetchTokenKeys(pdsUrl);
-    const [token] = await collectTokens({ pdsUrl, accessJwt: owner.accessJwt, keys, count: config.pseudonym.tokensPerEpoch });
+    const [token] = await collectTokens({ pdsUrl, accessJwt: owner.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
     const forged = { ...token, signature: token.signature.replace(/[A-Za-z]/, (c) => (c === 'A' ? 'B' : 'A')) };
     const bad = await createAccount({ did: p.did, handle: newHandle(), token: forged }, proofFor(p));
     expect(bad.status).toBe(400);
@@ -69,7 +69,7 @@ describe('migration gate (createAccount)', () => {
 
   it('open: a token is not needed and is ignored when sent', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.pseudonyms = 'open';
+    runtimeSettings().migration.pseudonyms = 'open';
     const p = await pseudonymElsewhere();
     const res = await createAccount({ did: p.did, handle: newHandle(), token: { epoch: 'x', prepared: 'y', signature: 'z' } }, proofFor(p));
     expect(res.status).toBe(200);
@@ -77,8 +77,8 @@ describe('migration gate (createAccount)', () => {
 
   it('never asks a pseudonym for an invite code', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
-    config.migration.accounts = 'closed';
-    config.migration.pseudonyms = 'open';
+    runtimeSettings().migration.accounts = 'closed';
+    runtimeSettings().migration.pseudonyms = 'open';
     const p = await pseudonymElsewhere();
     const res = await createAccount({ did: p.did, handle: newHandle(), inviteCode: 'ABCD-EFGH' }, proofFor(p));
     // The user policy does not apply to pseudonyms, and the code is not part of the contract.

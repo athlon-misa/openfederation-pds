@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { xrpcAuthPost, xrpcAuthGet, createTestUser, isPLCAvailable, uniqueHandle } from './helpers.js';
 import { query } from '../../src/db/client.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
 import { getShare } from '../../src/vault/vault-store.js';
 import { combineShares } from '../../src/vault/shamir.js';
@@ -47,7 +48,7 @@ describe('changing custody modes', () => {
   let user: User;
   let keys: CustodyKeys;
   let originalPdsKey: string;
-  const savedAllowed = [...config.identity.custodyAllowed];
+  const savedAllowed = [...runtimeSettings().identity.custodyAllowed];
 
   beforeAll(async () => {
     plc = await isPLCAvailable();
@@ -57,8 +58,8 @@ describe('changing custody modes', () => {
     keys = deriveCustodyKeys(generateCustodyPhrase());
     originalPdsKey = (await pdsKeyHeld(user.did))!;
   });
-  afterAll(() => { setEmailSenderForTests(null); config.identity.custodyAllowed = [...savedAllowed]; });
-  beforeEach(() => { mails.length = 0; config.identity.custodyAllowed = [...savedAllowed]; });
+  afterAll(() => { setEmailSenderForTests(null); runtimeSettings().identity.custodyAllowed = [...savedAllowed]; });
+  beforeEach(() => { mails.length = 0; runtimeSettings().identity.custodyAllowed = [...savedAllowed]; });
 
   const prepare = (target: string, extra: Record<string, unknown> = {}) =>
     xrpcAuthPost(PREPARE, user.accessJwt, { password: PASSWORD, targetMode: target, ...extra });
@@ -163,7 +164,7 @@ describe('changing custody modes', () => {
     const newKeys = { userRotationDidKey: k.rotationDidKey, ownerDidKey: k.ownerDidKey };
     const same = await xrpcAuthPost(PREPARE, other.accessJwt, { password: PASSWORD, targetMode: 'custodial' });
     expect(same.body.error).toBe('InvalidRequest');
-    config.identity.custodyAllowed = ['custodial', 'assisted'];
+    runtimeSettings().identity.custodyAllowed = ['custodial', 'assisted'];
     const excluded = await xrpcAuthPost(PREPARE, other.accessJwt, { password: PASSWORD, targetMode: 'self', ...newKeys });
     expect(excluded.status).toBe(403);
     expect(excluded.body.error).toBe('CustodyModeNotAllowed');

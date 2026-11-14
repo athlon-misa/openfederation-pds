@@ -3,7 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { currentAtprotoKey, serverAtprotoKey, isRepoSigningDidKey } from '../identity/device-signing.js';
 import { heldRotationDidKey } from '../identity/custody-change.js';
 import { HttpError, renderXrpcError } from '../xrpc/errors.js';
@@ -27,7 +27,7 @@ export default async function enableDeviceSigning(req: AuthRequest, res: Respons
   try {
     if (!requireAuth(req, res)) return;
     const did = req.auth.did;
-    if (!config.identity.deviceSigningAllowed) {
+    if (!runtimeSettings().identity.deviceSigningAllowed) {
       throw new HttpError(403, 'DeviceSigningNotAllowed', 'This server does not offer device signing');
     }
     const user = (await query<{ id: string; custody_mode: string | null }>(

@@ -12,7 +12,7 @@ import {
   api, xrpcPost, xrpcAuthGet, xrpcAuthPost,
   createTestUser, isPLCAvailable, uniqueHandle, hrefContaining } from './helpers.js';
 import { setEmailSenderForTests } from '../../src/email/email-service.js';
-import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { query } from '../../src/db/client.js';
 
 type Captured = { to: string; subject: string; html: string };
@@ -43,7 +43,7 @@ async function waitForMail(email: string, tries = 50): Promise<{ token: string; 
 
 describe('email verification (#83)', () => {
   let plcAvailable: boolean;
-  const originalPolicy = config.emailVerification.policy;
+  const originalPolicy = runtimeSettings().emailVerificationPolicy;
 
   beforeAll(async () => {
     plcAvailable = await isPLCAvailable();
@@ -51,7 +51,7 @@ describe('email verification (#83)', () => {
   });
   afterAll(() => {
     setEmailSenderForTests(null);
-    config.emailVerification.policy = originalPolicy;
+    runtimeSettings().emailVerificationPolicy = originalPolicy;
   });
 
   describe('the token round trip', () => {
@@ -197,7 +197,7 @@ describe('email verification (#83)', () => {
       password = 'TestPassword123!';
     });
 
-    afterAll(() => { config.emailVerification.policy = originalPolicy; });
+    afterAll(() => { runtimeSettings().emailVerificationPolicy = originalPolicy; });
 
     // The probe: community.join with a nonexistent DID. Input validates (so
     // the router does not 400 first), requireApprovedUser runs before the
@@ -209,14 +209,14 @@ describe('email verification (#83)', () => {
 
     it('advisory (the default) gates nothing', async () => {
       if (!plcAvailable) return;
-      config.emailVerification.policy = 'advisory';
+      runtimeSettings().emailVerificationPolicy = 'advisory';
       const res = await probe();
       expect(res.body.error).not.toBe('EmailNotVerified');
     });
 
     it('require-for-write refuses an acting endpoint for an unverified account', async () => {
       if (!plcAvailable) return;
-      config.emailVerification.policy = 'require-for-write';
+      runtimeSettings().emailVerificationPolicy = 'require-for-write';
       const res = await probe();
       expect(res.status).toBe(403);
       expect(res.body.error).toBe('EmailNotVerified');
@@ -224,7 +224,7 @@ describe('email verification (#83)', () => {
 
     it('require-for-login refuses a new session until verified, then admits', async () => {
       if (!plcAvailable) return;
-      config.emailVerification.policy = 'require-for-login';
+      runtimeSettings().emailVerificationPolicy = 'require-for-login';
 
       const refused = await xrpcPost('com.atproto.server.createSession', {
         identifier: unverified.handle, password,
@@ -247,7 +247,7 @@ describe('email verification (#83)', () => {
 
     it('write access returns once verified', async () => {
       if (!plcAvailable) return;
-      config.emailVerification.policy = 'require-for-write';
+      runtimeSettings().emailVerificationPolicy = 'require-for-write';
       const res = await probe();
       expect(res.body.error).not.toBe('EmailNotVerified');
     });

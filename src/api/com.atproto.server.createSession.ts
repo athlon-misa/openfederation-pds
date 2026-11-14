@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { query } from '../db/client.js';
-import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { verifyPassword } from '../auth/password.js';
 import { issueSession } from '../auth/session-issue.js';
 import { localHandle, normalizeEmail } from '../auth/utils.js';
@@ -156,7 +156,7 @@ export default async function createSession(req: Request, res: Response): Promis
     // correctly and is still refused a session — with an error that names the
     // way out. confirmEmail deliberately works without a session, so this
     // cannot deadlock (#83).
-    if (config.emailVerification.policy === 'require-for-login') {
+    if (runtimeSettings().emailVerificationPolicy === 'require-for-login') {
       const verified = await query<{ v: boolean }>(
         'SELECT (email_verified_at IS NOT NULL) AS v FROM users WHERE id = $1', [user.id],
       );

@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 import { SERVER_VERSION } from '../server/server-version.js';
 
 export default async function getServerConfig(req: AuthRequest, res: Response): Promise<void> {
@@ -42,7 +43,7 @@ export default async function getServerConfig(req: AuthRequest, res: Response): 
       service: 'OpenFederation PDS',
       version: SERVER_VERSION,
       hostname: config.pds.hostname,
-      inviteRequired: config.auth.inviteRequired,
+      inviteRequired: runtimeSettings().inviteRequired,
       stats: {
         totalUsers: parseInt(users.total, 10),
         pendingUsers: parseInt(users.pending, 10),
