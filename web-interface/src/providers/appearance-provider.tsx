@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useSyncExternalStore } from 'react';
+import { createContext, useContext, useEffect, useSyncExternalStore } from 'react';
 import { ThemeProvider } from 'next-themes';
 import { APPEARANCE_KEY, DEFAULT_PRESET, MODE_KEY, normalizePreset, readPreset, savePreset, type Preset } from '@/lib/appearance';
 
@@ -34,8 +34,29 @@ function setPreset(value: string) {
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
+/**
+ * Presets with their own tab icon. The extra <link> is ours, added last so it
+ * wins over the app icon; the one Next renders from metadata is never touched.
+ */
+const PRESET_ICONS: Partial<Record<Preset, string>> = { opennewsrooms: '/opennewsrooms/favicon-32.png' };
+const ICON_ID = 'preset-icon';
+function usePresetIcon(preset: Preset | null) {
+  useEffect(() => {
+    const href = preset ? PRESET_ICONS[preset] : undefined;
+    let link = document.getElementById(ICON_ID) as HTMLLinkElement | null;
+    if (!href) { link?.remove(); return; }
+    if (!link) {
+      link = document.createElement('link');
+      link.id = ICON_ID; link.rel = 'icon'; link.type = 'image/png'; link.setAttribute('sizes', '32x32');
+    }
+    link.href = href;
+    document.head.append(link);
+  }, [preset]);
+}
+
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const preset = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  usePresetIcon(preset);
   return (
     <ThemeProvider attribute="class" storageKey={MODE_KEY} defaultTheme="light" enableSystem disableTransitionOnChange>
       <AppearanceContext.Provider value={{ preset: preset ?? DEFAULT_PRESET, ready: preset !== null, setPreset }}>

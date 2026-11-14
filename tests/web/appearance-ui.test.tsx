@@ -54,7 +54,7 @@ describe('appearance integration', () => {
     await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: APPEARANCE_KEY, newValue: null })));
     expect(document.documentElement.dataset.theme).toBe('openfederation');
   });
-  it('opens an accessible portalled menu containing both named themes and all color modes', async () => {
+  it('opens an accessible portalled menu containing every named theme and all color modes', async () => {
     await render();
     const trigger = host.querySelector('[aria-label="Appearance: choose theme and color mode"]')!;
     await act(async () => trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' })));
@@ -63,11 +63,24 @@ describe('appearance integration', () => {
     expect(host.contains(menu)).toBe(false);
     expect(menu?.textContent).toContain('PDS Basic');
     expect(menu?.textContent).toContain('OpenFederation');
-    expect(menu?.querySelectorAll('[role="menuitemradio"]').length).toBe(5);
+    expect(menu?.textContent).toContain('Open Newsrooms');
+    expect(menu?.querySelectorAll('[role="menuitemradio"]').length).toBe(6);
     expect(menu?.querySelector('[data-state="checked"]')?.textContent).toContain('OpenFederation');
     const basic = [...menu!.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((item) => item.textContent?.includes('PDS Basic'))!;
     await act(async () => basic.click());
     expect(document.documentElement.dataset.theme).toBe('pds-basic');
     expect(localStorage.getItem(APPEARANCE_KEY)).toBe('pds-basic');
+  });
+  it('swaps in the Open Newsrooms tab icon only while that preset is active', async () => {
+    await render();
+    const icon = () => document.head.querySelector<HTMLLinkElement>('link#preset-icon');
+    expect(icon()).toBeNull();
+    localStorage.setItem(APPEARANCE_KEY, 'opennewsrooms');
+    await act(async () => window.dispatchEvent(new StorageEvent('storage', { key: APPEARANCE_KEY, newValue: 'opennewsrooms' })));
+    expect(document.documentElement.dataset.theme).toBe('opennewsrooms');
+    expect(icon()?.getAttribute('href')).toBe('/opennewsrooms/favicon-32.png');
+    expect(document.head.lastElementChild).toBe(icon());
+    await click('Basic');
+    expect(icon()).toBeNull();
   });
 });

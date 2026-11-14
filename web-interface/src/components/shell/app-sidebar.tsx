@@ -84,8 +84,9 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <div data-brand-mark className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <Globe className="brand-basic size-4" />
+                  <span className="brand-newsrooms brand-newsrooms-mark" aria-hidden="true">“</span>
                   <svg className="brand-federation size-6" viewBox="0 0 44 44" aria-hidden="true">
                     <rect x="6" y="6" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" />
                     <rect x="24" y="24" width="14" height="14" fill="currentColor" />
@@ -96,8 +97,9 @@ export function AppSidebar() {
                   <span className="truncate font-semibold">
                     <span className="brand-basic">OpenFederation</span>
                     <span className="brand-federation font-mono text-xs tracking-tight">open<span className="text-primary">::</span>federation</span>
+                    <span className="brand-newsrooms brand-newsrooms-name">Open<br />{' '}<em>Newsrooms</em></span>
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">PDS</span>
+                  <span className="brand-subtitle truncate text-xs text-muted-foreground">PDS</span>
                 </div>
               </Link>
             </SidebarMenuButton>

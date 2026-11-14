@@ -205,9 +205,10 @@
 body { font-family: var(--app-font-sans), sans-serif; }
 .font-mono { font-family: var(--app-font-mono), monospace; }
 .brand-basic { display: inline; }
-.brand-federation { display: none; }
-[data-theme="openfederation"] .brand-basic { display: none; }
+.brand-federation, .brand-newsrooms { display: none; }
+[data-theme="openfederation"] .brand-basic, [data-theme="opennewsrooms"] .brand-basic { display: none; }
 [data-theme="openfederation"] .brand-federation { display: inline; }
+[data-theme="opennewsrooms"] .brand-newsrooms { display: inline; }
 [data-theme="openfederation"] [data-page-title] {
   font-family: var(--font-source-serif), Georgia, serif;
   font-size: clamp(1.875rem, 3vw, 2.5rem);
@@ -229,6 +230,199 @@ body { font-family: var(--app-font-sans), sans-serif; }
 }
 [data-theme="openfederation"] [data-slot="table-cell"] { padding-block: 0.875rem; }
 [data-theme="openfederation"] .app-header { background: var(--card); }
+
+/*
+ * Open Newsrooms: the opennewsrooms.com look. Newsprint paper, ink rules,
+ * Newsreader serif for reading and IBM Plex Mono for labels and buttons,
+ * square corners, red only as the mark and on hover. The font files are the
+ * website's own (SIL OFL 1.1, public/opennewsrooms/fonts/OFL.txt); they load
+ * only while this preset is in use.
+ */
+@font-face { font-family: 'ON Newsreader'; font-style: normal; font-weight: 200 800; font-display: swap; src: url("/opennewsrooms/fonts/newsreader-normal-300-800-latin.woff2") format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'ON Newsreader'; font-style: normal; font-weight: 200 800; font-display: swap; src: url("/opennewsrooms/fonts/newsreader-normal-300-800-latin-ext.woff2") format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'ON Newsreader'; font-style: italic; font-weight: 200 800; font-display: swap; src: url("/opennewsrooms/fonts/newsreader-italic-300-800-latin.woff2") format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'ON Newsreader'; font-style: italic; font-weight: 200 800; font-display: swap; src: url("/opennewsrooms/fonts/newsreader-italic-300-800-latin-ext.woff2") format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'ON Plex Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url("/opennewsrooms/fonts/ibm-plex-mono-normal-400-latin.woff2") format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'ON Plex Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url("/opennewsrooms/fonts/ibm-plex-mono-normal-400-latin-ext.woff2") format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'ON Plex Mono'; font-style: normal; font-weight: 500 700; font-display: swap; src: url("/opennewsrooms/fonts/ibm-plex-mono-normal-500-latin.woff2") format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'ON Plex Mono'; font-style: normal; font-weight: 500 700; font-display: swap; src: url("/opennewsrooms/fonts/ibm-plex-mono-normal-500-latin-ext.woff2") format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+:root[data-theme="opennewsrooms"] {
+  --app-font-sans: 'ON Newsreader', Georgia;
+  --app-font-mono: 'ON Plex Mono', ui-monospace;
+  --on-red: #b3261e;
+  --on-rule: #1a1815;
+  --radius: 0rem;
+  --background: #f5f1e8;
+  --foreground: #1a1815;
+  --card: #f5f1e8;
+  --card-foreground: #1a1815;
+  --popover: #fbf9f4;
+  --popover-foreground: #1a1815;
+  --primary: #1a1815;
+  --primary-foreground: #f5f1e8;
+  --secondary: #ebe6da;
+  --secondary-foreground: #1a1815;
+  --muted: #ebe6da;
+  --muted-foreground: #6b655a;
+  --accent: #e4ddcd;
+  --accent-foreground: #1a1815;
+  --destructive: #b3261e;
+  --border: #d8d3c8;
+  --input: #8a8377;
+  --ring: #b3261e;
+  --sidebar: #f5f1e8;
+  --sidebar-foreground: #2e2a24;
+  --sidebar-primary: #1a1815;
+  --sidebar-primary-foreground: #f5f1e8;
+  --sidebar-accent: #e4ddcd;
+  --sidebar-accent-foreground: #1a1815;
+  --sidebar-border: #1a1815;
+  --sidebar-ring: #b3261e;
+  --chart-1: #b3261e;
+  --chart-2: #1a1815;
+  --chart-3: #6b655a;
+  --chart-4: #8a6a2f;
+  --chart-5: #3f5f6b;
+}
+/* The website's dark sections: ink paper, paper ink, the lighter red for text. */
+:root[data-theme="opennewsrooms"].dark {
+  --on-red: #ff8a80;
+  --on-rule: #8a8377;
+  --background: #1a1815;
+  --foreground: #f5f1e8;
+  --card: #1a1815;
+  --card-foreground: #f5f1e8;
+  --popover: #221f1b;
+  --popover-foreground: #f5f1e8;
+  --primary: #f5f1e8;
+  --primary-foreground: #1a1815;
+  --secondary: #2c2823;
+  --secondary-foreground: #f5f1e8;
+  --muted: #2c2823;
+  --muted-foreground: #b8b2a6;
+  --accent: #2f2a24;
+  --accent-foreground: #f5f1e8;
+  --destructive: #ff8a80;
+  --border: #3d3933;
+  --input: #7a7468;
+  --ring: #ff8a80;
+  --sidebar: #161411;
+  --sidebar-foreground: #d9d3c6;
+  --sidebar-primary: #f5f1e8;
+  --sidebar-primary-foreground: #1a1815;
+  --sidebar-accent: #2f2a24;
+  --sidebar-accent-foreground: #f5f1e8;
+  --sidebar-border: #8a8377;
+  --sidebar-ring: #ff8a80;
+  --chart-1: #ff8a80;
+  --chart-2: #f5f1e8;
+  --chart-3: #b8b2a6;
+  --chart-4: #d9b26a;
+  --chart-5: #8fb3c0;
+}
+[data-theme="opennewsrooms"] code, [data-theme="opennewsrooms"] kbd { font-family: var(--app-font-mono), monospace; }
+[data-theme="opennewsrooms"] h1, [data-theme="opennewsrooms"] h2, [data-theme="opennewsrooms"] h3 { letter-spacing: -0.015em; }
+[data-theme="opennewsrooms"] [data-page-header] {
+  margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--on-rule);
+}
+[data-theme="opennewsrooms"] [data-page-title] {
+  font-size: clamp(2rem, 3.6vw, 2.875rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+[data-theme="opennewsrooms"] [data-page-header] p { font-size: 1.0625rem; margin-top: 0.5rem; }
+/* Cards are ruled boxes on the page, as on the website, not raised panels. */
+[data-theme="opennewsrooms"] [data-slot="card"],
+[data-theme="opennewsrooms"] main .border.bg-card { border-color: var(--on-rule); border-radius: 0; box-shadow: none; }
+[data-theme="opennewsrooms"] main .bg-card h2.text-lg { font-size: 1.375rem; letter-spacing: -0.01em; }
+[data-theme="opennewsrooms"] [data-slot="card-title"] { font-size: 1.375rem; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em; }
+[data-theme="opennewsrooms"] [data-slot="card-description"] { font-size: 1rem; }
+/*
+ * Buttons: mono labels in a square box; hover turns red, like .btn on the site.
+ * [data-variant][data-size] is every Button, also when a trigger (asChild) renames its data-slot.
+ */
+[data-theme="opennewsrooms"] [data-variant][data-size] {
+  font-family: var(--app-font-mono), monospace; font-size: 0.8125rem; font-weight: 500; box-shadow: none;
+}
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="default"] { border: 1px solid var(--primary); }
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="default"]:hover,
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="outline"]:hover {
+  background: #b3261e; border-color: #b3261e; color: #f5f1e8;
+}
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="outline"] {
+  background: transparent; border-color: var(--foreground); color: var(--foreground);
+}
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="destructive"] {
+  background: #b3261e; color: #f5f1e8; border: 1px solid #b3261e;
+}
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="destructive"]:hover { background: #8f1e18; border-color: #8f1e18; }
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="link"] {
+  color: var(--foreground); text-decoration: underline; text-underline-offset: 3px;
+}
+[data-theme="opennewsrooms"] [data-variant][data-size][data-variant="link"]:hover { color: var(--on-red); }
+/* Links read in ink and turn red on hover; buttons and nav keep their own styles. */
+[data-theme="opennewsrooms"] main a:not([data-slot]):not([data-variant]) { text-underline-offset: 3px; }
+[data-theme="opennewsrooms"] main a:not([data-slot]):not([data-variant]):hover { color: var(--on-red); }
+[data-theme="opennewsrooms"] main a.text-primary:not([data-slot]) { text-decoration: underline; }
+[data-theme="opennewsrooms"] [data-slot="badge"] {
+  font-family: var(--app-font-mono), monospace; font-weight: 500; letter-spacing: 0; border-radius: 0;
+}
+[data-theme="opennewsrooms"] [data-slot="input"],
+[data-theme="opennewsrooms"] [data-slot="textarea"],
+[data-theme="opennewsrooms"] [data-slot="select-trigger"] {
+  background: transparent; box-shadow: none; font-family: var(--app-font-mono), monospace; font-size: 0.875rem;
+}
+[data-theme="opennewsrooms"] [data-slot="input"]:focus-visible,
+[data-theme="opennewsrooms"] [data-slot="textarea"]:focus-visible { border-color: var(--on-red); }
+[data-theme="opennewsrooms"] [data-slot="label"] {
+  font-family: var(--app-font-mono), monospace; font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground);
+}
+[data-theme="opennewsrooms"] [data-slot="table-head"] {
+  font-family: var(--app-font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--on-rule);
+}
+[data-theme="opennewsrooms"] [data-slot="table-header"] [data-slot="table-row"] { border-bottom-color: var(--on-rule); }
+[data-theme="opennewsrooms"] [data-slot="table-cell"] { padding-block: 0.875rem; }
+[data-theme="opennewsrooms"] [data-slot="tabs-list"] { background: transparent; border-bottom: 1px solid var(--on-rule); padding: 0; }
+[data-theme="opennewsrooms"] [data-slot="tabs-trigger"] {
+  font-family: var(--app-font-mono), monospace; font-size: 0.8125rem; box-shadow: none; border: 0;
+}
+[data-theme="opennewsrooms"] [data-slot="tabs-trigger"][data-state="active"] {
+  background: transparent; box-shadow: inset 0 -2px var(--foreground);
+}
+/* The site header: paper, one ink rule underneath. */
+[data-theme="opennewsrooms"] .app-header { background: var(--background); border-bottom-color: var(--on-rule); }
+[data-theme="opennewsrooms"] [data-slot="breadcrumb-list"] { font-family: var(--app-font-mono), monospace; font-size: 0.8125rem; }
+/* Sidebar: mono navigation like the site's menu, the current page marked in red. */
+[data-theme="opennewsrooms"] [data-slot="sidebar-group-label"] {
+  font-family: var(--app-font-mono), monospace; font-size: 0.6875rem; color: var(--muted-foreground);
+}
+[data-theme="opennewsrooms"] [data-slot="sidebar-content"] [data-slot="sidebar-menu-button"] {
+  font-family: var(--app-font-mono), monospace; font-size: 0.8125rem;
+}
+[data-theme="opennewsrooms"] [data-slot="sidebar-menu-button"][data-active="true"] {
+  box-shadow: inset 3px 0 var(--on-red);
+  font-weight: 500;
+}
+[data-theme="opennewsrooms"] [data-slot="sidebar-container"] { border-color: var(--sidebar-border); }
+[data-theme="opennewsrooms"] [data-slot="sidebar-footer"] { border-top: 1px solid var(--sidebar-border); }
+/* The logo: a red square holding a large opening quote, then "Open / Newsrooms". */
+[data-theme="opennewsrooms"] [data-brand-mark] { background: #b3261e; color: #f5f1e8; border-radius: 0; }
+.brand-newsrooms-mark {
+  padding-top: 0.95rem;
+  font-family: var(--app-font-sans), Georgia, serif;
+  font-size: 3.125rem; line-height: .5; font-weight: 700; letter-spacing: -0.06em;
+}
+.brand-newsrooms-name { font-family: var(--app-font-sans), Georgia, serif; font-size: 1rem; line-height: 1.05; font-weight: 500; letter-spacing: -0.02em; color: var(--foreground); }
+[data-theme="opennewsrooms"] .brand-newsrooms-name { display: block; padding-block: 1px; }
+/* The logo is the whole lockup, as on the site; the "PDS" line would crowd it. */
+[data-theme="opennewsrooms"] .brand-subtitle { display: none; }
+.brand-newsrooms-name em { font-weight: 400; }
 /* Layout is shared by both visual presets. Reading panels size their own text. */
 .app-content { width: 100%; }
 .page-section-grid {
