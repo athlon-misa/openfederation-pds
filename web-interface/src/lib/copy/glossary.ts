@@ -196,9 +196,72 @@ export const PEN_NAMES = {
   means: 'A pen name is a separate identity you can publish under without your name on it. It has its own 12 words, kept only on your device; this server holds no key to it, and nothing on this server links it to your account.',
   responsible: 'Keeping the pen name\'s 12 words safe. Pen names have no recovery: if you lose them, the pen name cannot be used again.',
   wrong: 'Your writing, habits and the people you talk to can still give you away; the server cannot protect against that.',
-  undo: 'Nobody can tell that a pen name is yours unless you choose to prove it. A proof, once shown, cannot be taken back.',
-  where: 'You create and use pen names in an app built for them, which keeps their 12 words on your device. This dashboard does not hold or list them, so nothing here links them to you.',
+  undo: 'Nobody can tell that a pen name is yours unless you choose to prove it. A proof, once shown, cannot be taken back. You can end a pen name for good with its 12 words.',
+  where: 'The pen name\'s 12 words never leave this device. This browser keeps a list of the pen names you made or used here (their names and where they live, never their words), so you can find them again; the list is not sent to any server. Anyone who uses this browser with your account can see it, and you can remove a pen name from it at any time.',
 } as const;
+
+/** Creation passes (blind tokens). */
+export const PASSES = {
+  means: 'Making a pen name costs one pass. Each account can collect a batch of passes once a month. This server signs them without seeing them, so when a pass is used it cannot tell which account it came from.',
+  kept: 'Passes are kept in this browser. If you clear its data, they are gone until next month.',
+  seen: 'The server sees that you collected passes this month, as any account can. It never learns which pass becomes which pen name, or whether you use any.',
+} as const;
+
+/** The specific thing the person confirms before a pen name is created. */
+export const PEN_CREATE_ACK = 'I understand that this pen name has no recovery: if I lose its 12 words, nobody can give it back.';
+
+/** The honest limit, said in plain words before creating. */
+export const PEN_LIMIT = {
+  server: 'This server cannot link the pen name to you through its data. The request that creates it carries nothing about you, and the pass it uses cannot be traced back to your account.',
+  timing: 'But you would be creating it from the same browser, network and time as your own account. Whoever runs this server, or watches its network, could guess from the timing and your network address that the two belong together. The same goes for using it: signing in as the pen name right after your own account, from the same place, connects them.',
+  better: 'For real protection, collect passes now and create the pen name later, from another network or through Tor, and use it from there.',
+} as const;
+
+export const PEN_PASSKEY: ChoiceText = {
+  title: 'Passkey for a pen name',
+  summary: 'Unlock the pen name\'s 12 words with Face ID, Touch ID, Windows Hello or a security key instead of typing them.',
+  means: 'This browser keeps the pen name\'s 12 words on this device, locked with a passkey, so you do not type them each time. They are never stored unlocked, and no server sees them or the passkey.',
+  responsible: 'Keeping the paper copy. The passkey is a convenience, not a backup: a pen name has no recovery.',
+  wrong: 'If you lose this device or clear this browser\'s data, the saved copy is gone; the paper copy still works. Anyone who can unlock this device\'s passkey can sign in as the pen name in this browser. A pen name that is saved on this device is also easier to find on it.',
+  undo: 'Forget it on this device at any time. The 12 words keep working.',
+};
+
+export const PEN_PASSKEY_NOTE = 'Password managers that sync passkeys keep the passkey\'s name in your account with them, so it is named just "Pen name", never the pen name itself.';
+
+export const PEN_PROOF: ChoiceText = {
+  title: 'Prove a pen name is yours',
+  summary: 'A proof signed by the pen name and by you, that anyone can check against the public directory.',
+  means: 'The pen name\'s 12 words and your own account both sign the same sentence: this pen name belongs to this account. When the pen name was made, a sealed note naming your account was locked into its public entry; the proof opens it. Anyone can check the proof on their own device.',
+  responsible: 'Deciding who sees the proof. Whoever has the link or file can show it to anyone else.',
+  wrong: 'Once someone has seen the proof, they know, and they can pass it on. If this server holds your keys (Custodial), the proof shows that your server signed for your account, not that you did in person.',
+  undo: 'You cannot take a proof back once it is shown. A proof you made but never showed does nothing; just delete it.',
+};
+
+export const PEN_PUBLIC_PROOF_ACK = 'I understand that this puts the link between this pen name and my account in public, in both accounts\' files, and that it cannot be taken back.';
+
+export const PEN_MOVE: ChoiceText = {
+  title: 'Move a pen name',
+  summary: 'Take the pen name and its files to another server. Its 12 words do it; no server has to agree.',
+  means: 'The pen name\'s files are copied to the new server and checked. Only then do its 12 words point it at the new server, and the copy here is switched off. Its identity stays the same; its handle becomes one of the new server\'s.',
+  responsible: 'Choosing a server you trust with the pen name. Signing in there afterwards.',
+  wrong: 'If anything fails before the pen name is pointed at the new server, nothing changes. Moving from this browser connects the two servers\' records of the move with your network address, as any use of the pen name does.',
+  undo: 'Move it again, with its 12 words, to any server that accepts pen names, including this one.',
+};
+
+export const PEN_MOVE_ACK = 'I understand that once the pen name points at the new server, it lives there, and I sign in as it there from then on.';
+
+export const PEN_END: ChoiceText = {
+  title: 'End a pen name',
+  summary: 'Delete the pen name\'s account and files and retire it in the public directory, for good.',
+  means: 'Its account and files are deleted on its server (and on servers it moved away from), and its 12 words sign a final entry in the public directory that retires it. After that nobody, including you, can sign in as it, move it or prove it is yours.',
+  responsible: 'Keeping a backup first if you want its files. Telling the people who need to know.',
+  wrong: 'Copies other people or services already made of its posts can stay. A proof you showed before remains valid for what it said then.',
+  undo: 'You cannot. An ended pen name is gone for good.',
+};
+
+export function penEndAck(handle: string): string {
+  return `I understand that ${handle} ends for good: its account and files are deleted, and nobody, including me, can use it again.`;
+}
 
 /** One term of the glossary page. */
 export interface GlossaryTerm {
@@ -252,6 +315,11 @@ export const GLOSSARY_SECTIONS: { title: string; terms: GlossaryTerm[] }[] = [
       { id: 'passkey', term: PASSKEY.title, technical: 'WebAuthn passkey with the PRF extension', text: PASSKEY.means },
       { id: 'signed-in-device', term: 'Signed-in device', technical: 'session', text: 'A browser or app where you are signed in with your password. Signing one out does not change your identity.' },
       { id: 'pen-name', term: PEN_NAMES.title, technical: 'pseudonym', text: PEN_NAMES.means },
+      { id: 'pen-name-words', term: 'A pen name\'s 12 words', technical: 'pseudonym phrase; its owner key is the only rotation key of its DID', text: 'Twelve ordinary words, made on your device, that are the pen name: whoever has them can sign in as it, move it, prove it, or end it. There is no recovery and no reset. They are different from your own 12 words.' },
+      { id: 'pass', term: 'Pass', technical: 'blind creation token (RSA blind signatures, RFC 9474)', text: `${PASSES.means} ${PASSES.seen}` },
+      { id: 'pen-proof', term: 'Proof that a pen name is yours', technical: 'reveal bundle; pseudonym commitment', text: PEN_PROOF.means },
+      { id: 'in-person-proof', term: 'In-person proof', technical: 'presence proof', text: 'Someone says a word; the pen name\'s 12 words sign it on your device, and they check the signature on their own phone. It shows you hold the pen name\'s words, without naming your account.' },
+      { id: 'end-pen-name', term: PEN_END.title, technical: 'account deletion and PLC tombstone', text: PEN_END.means },
       { id: 'moving', term: MOVING.title, technical: 'account migration', text: MOVING.summary },
     ],
   },
