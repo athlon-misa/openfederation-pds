@@ -21,7 +21,9 @@ No technical background needed: one click creates the server, its database and t
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/openfederation-pds)
 
-Step by step: [Install on Railway](docs/INSTALL-RAILWAY.md). Operators who prefer environment variables: [RAILWAY.md](RAILWAY.md) and [DEPLOYMENT.md](DEPLOYMENT.md). A Docker install is planned ([#405](https://github.com/athlon-misa/openfederation-pds/issues/405)).
+Step by step: [Install on Railway](docs/INSTALL-RAILWAY.md). Operators who prefer environment variables: [RAILWAY.md](RAILWAY.md) and [DEPLOYMENT.md](DEPLOYMENT.md). Your own Linux server (a small VPS) or a Synology NAS: [install guides](docs/install/README.md), with a one-command installer for [any VPS](docs/install/vps.md), plus step-by-step guides for [netcup](docs/install/netcup.md) and [Synology](docs/install/synology.md).
+
+Compare costs, minimum requirements, and tradeoffs for VPS providers, shared hosting, home servers, and NAS platforms in the [hosting comparison](docs/HOSTING-COMPARISON.md).
 
 ## Setup (development)
 
