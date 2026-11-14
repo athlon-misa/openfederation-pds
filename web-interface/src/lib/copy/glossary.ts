@@ -270,6 +270,8 @@ export const PEN_PROOF: ChoiceText = {
 
 export const PEN_PUBLIC_PROOF_ACK = 'I understand that this puts the link between this pen name and my account in public, in both accounts\' files, and that it cannot be taken back.';
 
+export const PEN_SHOW_PROOF_ACK = 'I understand that whoever I give this link or file to can see that this pen name is mine and pass it on, and that once shown it cannot be taken back.';
+
 export const PEN_MOVE: ChoiceText = {
   title: 'Move a pen name',
   summary: 'Take the pen name and its files to another server. Its 12 words do it; no server has to agree.',

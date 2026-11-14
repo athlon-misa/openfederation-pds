@@ -14,8 +14,12 @@ export default defineConfig({
     fileParallelism: false,
   },
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
+    // Exact package names → their source, so tests don't depend on a built
+    // dist/ (CI builds neither package before the tests).
+    alias: [
+      { find: /^@open-federation\/pseudonym$/, replacement: resolve(__dirname, 'packages/openfederation-pseudonym/src/index.ts') },
+      { find: /^@open-federation\/sdk\/custody$/, replacement: resolve(__dirname, 'packages/openfederation-sdk/src/custody/index.ts') },
+      { find: '@', replacement: resolve(__dirname, 'src') },
+    ],
   },
 });

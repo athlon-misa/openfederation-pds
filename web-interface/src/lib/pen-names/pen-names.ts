@@ -17,13 +17,14 @@ import {
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
   createRevealBundle, publishReveal, signPresence, challengeForWord, checkPresence,
   revealLinkFragment, presenceLinkFragment, moveAccount, signOwnerJwt, tombstone,
-  rememberPhraseWithPasskey, unlockPhraseWithPasskey,
+  rememberPhraseWithPasskey, unlockPhraseWithPasskey, fetchGenesisOp, didDocKey, verifyRevealBundle,
   type CreationToken, type RememberedPhrase, type RevealBundleV2, type MoveStep, type OwnerSigner,
 } from '@open-federation/pseudonym';
 import { deriveCustodyKeys, signOwnerRaw } from '@open-federation/sdk/custody';
 import { call, MoveError } from '@/lib/move/xrpc';
 import { PEN_SESSION_KEY, forgetPenSession } from './pen-session-store';
 import { buildPassFile, isExpired, keyFingerprint, passId, type Pass } from './pass-file';
+import { checkOwnerKey, isPlcDid, ownerCandidates, OWNER_KEY_PROBLEM, SEALED_TO_KEY, sealNames, sealedOwner } from './own-proof';
 
 export { generatePseudonymPhrase };
 
@@ -85,6 +86,7 @@ export function forgetPenName(scope: string, did: string): PenNameEntry[] {
   const next = loadPenNames(scope).filter((e) => e.did !== did);
   write(local, LIST_KEY(scope), next);
   forgetPenPasskey(did);
+  remove(tab, SEALED_TO_KEY(did));
   const s = loadPenSession();
   if (s?.did === did) forgetPenSession();
   return next;
@@ -370,6 +372,8 @@ export async function createPenName(p: {
   if (created.did !== did) throw new MoveError(`The server opened ${created.did}, not ${did}`);
   const entry: PenNameEntry = { did, handle: created.handle, home: { url: p.server.url, serviceDid: p.server.serviceDid }, createdAt: new Date().toISOString() };
   savePenName(p.scope, entry);
+  // This tab only, for the proof that names the account: closing the tab forgets it.
+  write(tab, SEALED_TO_KEY(did), p.ownerDid);
   return entry;
 }
 
@@ -522,6 +526,80 @@ export async function makeProof(p: {
     if (/signLink failed/.test(msg)) throw new MoveError(`This server would not sign your half of the proof (${msg.replace(/^.*signLink failed /, '')}).`);
     throw new MoveError(msg);
   }
+}
+
+// The same proof on the signed-out pages, for an owner who holds their own
+// keys (Assisted or Self): their 12 words sign their half on this device, so
+// no session of their account is needed or sent. Only the public directory is
+// read (lib/pen-names/own-proof.ts has the checks).
+
+/** The pen name's first public entry, and the opener of its sealed note (from its own 12 words). */
+async function penSeal(plcUrl: string, penDid: string, penPhrase: string): Promise<{ names: string[]; opener: string }> {
+  const opener = derivePseudonymKeys(penPhrase).commitmentSaltHex;
+  const genesis = await fetchGenesisOp(penDid, { plcUrl }).catch(() => null);
+  if (!genesis) throw new MoveError('Could not read the pen name from the public directory.');
+  return { names: (genesis as { alsoKnownAs?: string[] }).alsoKnownAs ?? [], opener };
+}
+
+/** The account this browser knows that the pen name is sealed to, or null. Reads storage and the directory only. */
+export async function suggestOwner(plcUrl: string, penDid: string, penPhrase: string): Promise<string | null> {
+  const safe = (s: () => Storage) => { try { return s(); } catch { return null; } };
+  const candidates = ownerCandidates(penDid, safe(tab), safe(local));
+  if (!candidates.length) return null;
+  const seal = await penSeal(plcUrl, penDid, penPhrase).catch(() => null);
+  return seal ? sealedOwner(candidates, seal.names, seal.opener) : null;
+}
+
+/** The owner key an account publishes in the public directory, or null. */
+async function publishedOwnerKey(plcUrl: string, ownerDid: string): Promise<string | null> {
+  const res = await fetch(`${plcUrl}/${ownerDid}`, { headers: { Accept: 'application/json' } }).catch(() => null);
+  if (res?.status === 404) throw new MoveError('There is no account with this DID in the public directory.');
+  if (!res?.ok) throw new MoveError('Could not read your account from the public directory.');
+  return didDocKey(await res.json() as Record<string, unknown>, 'openfederation_owner');
+}
+
+/**
+ * Throws, in plain words, unless the pen name is sealed to `ownerDid` and
+ * that account publishes a key of its own (Assisted or Self).
+ */
+export async function checkOwnAccount(p: { plcUrl: string; penDid: string; penPhrase: string; ownerDid: string }): Promise<void> {
+  const ownerDid = p.ownerDid.trim();
+  if (!isPlcDid(ownerDid)) throw new MoveError('That is not an account’s DID. It starts with did:plc: and is 32 characters long; it is on your account page and in your pass file.');
+  const { names, opener } = await penSeal(p.plcUrl, p.penDid, p.penPhrase);
+  if (!sealNames(names, ownerDid, opener)) throw new MoveError('The sealed note in the pen name’s public entry does not name this account. Check the DID: it must be the account whose passes made this pen name.');
+  if (!await publishedOwnerKey(p.plcUrl, ownerDid)) throw new MoveError(OWNER_KEY_PROBLEM['no-owner-key']);
+}
+
+/** Throws, in plain words, unless these words hold the key `ownerDid` publishes. */
+export async function assertOwnWords(plcUrl: string, ownerDid: string, identityPhrase: string): Promise<void> {
+  let derived: string;
+  try { derived = deriveCustodyKeys(identityPhrase).ownerDidKey; } catch { throw new MoveError('These are not 12 valid words. Check the spelling and order.'); }
+  const check = checkOwnerKey(await publishedOwnerKey(plcUrl, ownerDid.trim()), derived);
+  if (check !== 'ok') throw new MoveError(OWNER_KEY_PROBLEM[check]);
+}
+
+/**
+ * Make the proof with the person's own 12 words, checked again first, then
+ * check the result as /verify will. No request carries any credentials.
+ */
+export async function makeOwnProof(p: { plcUrl: string; penPhrase: string; penDid: string; ownerDid: string; identityPhrase: string }): Promise<RevealBundleV2> {
+  const ownerDid = p.ownerDid.trim();
+  await checkOwnAccount({ ...p, ownerDid });
+  await assertOwnWords(p.plcUrl, ownerDid, p.identityPhrase);
+  let bundle: RevealBundleV2;
+  try {
+    // With ownerSigner the owner's server is never asked: no address, no token.
+    bundle = await createRevealBundle({
+      pdsUrl: '', ownerAccessJwt: '', plcUrl: p.plcUrl, phrase: p.penPhrase, pseudonymDid: p.penDid,
+      ownerDid, ownerSigner: ownerSignerFromWords(p.identityPhrase),
+    });
+  } catch (e) { throw new MoveError((e as Error).message); }
+  const verdict = await verifyRevealBundle(bundle, { online: true, plcUrl: p.plcUrl });
+  if (!verdict.valid || verdict.ownerAttestation !== 'person') {
+    const failed = verdict.checks.filter((c) => !c.ok).map((c) => c.detail ?? c.name).join('; ');
+    throw new MoveError(`The proof did not check out against the public directory, so it is not shown (${failed || 'not signed by the person'}).`);
+  }
+  return bundle;
 }
 
 export function proofLink(origin: string, bundle: RevealBundleV2): string {
