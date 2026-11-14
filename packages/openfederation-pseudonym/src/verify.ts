@@ -300,12 +300,29 @@ export async function checkPresence(p: { plcUrl: string; pseudonymDid: string; c
   }
 }
 
+/** The context an in-person proof is signed in unless an application names its own. */
+export const IN_PERSON_CONTEXT = 'OpenFederation in-person proof';
+/**
+ * The context of presence links that name none (no `c=`): the first ones,
+ * made by the OpenNewsrooms stage demo. Verifiers read such a link in it.
+ */
+export const STAGE_PRESENCE_CONTEXT = 'OpenNewsrooms stage challenge';
+const MAX_CONTEXT_LENGTH = 200;
+
+/** Throws unless `context` fits in a link: 1 to 200 characters, on one line. */
+function checkContext(context: string): string {
+  if (!context || context.length > MAX_CONTEXT_LENGTH || /[\r\n]/.test(context)) throw new Error('Not a presence context');
+  return context;
+}
+
 /**
  * A spoken word as a 64-hex presence challenge: sha256 of `context`, a
  * newline and the word (trimmed, lower case). The signer and every verifier
- * must use the same context, e.g. "OpenNewsrooms stage challenge".
+ * must use the same context: IN_PERSON_CONTEXT unless an application names
+ * its own (the stage demo's is STAGE_PRESENCE_CONTEXT). Links name it
+ * (presenceLinkFragment's `context`).
  */
-export function challengeForWord(word: string, context: string): string {
+export function challengeForWord(word: string, context: string = IN_PERSON_CONTEXT): string {
   return bytesToHex(sha256(utf8ToBytes(`${context}\n${word.trim().toLowerCase()}`)));
 }
 
@@ -313,7 +330,11 @@ export function challengeForWord(word: string, context: string): string {
 
 /** What a verifier link carries. Fragments never reach a server log. */
 export type VerifyLink =
-  | { kind: 'presence'; pseudonymDid: string; word: string; signature: string }
+  | {
+    kind: 'presence'; pseudonymDid: string; word: string; signature: string;
+    /** The context the word was signed in (`c=`). Absent from links that name none, which mean STAGE_PRESENCE_CONTEXT. */
+    context?: string;
+  }
   | {
     kind: 'reveal'; pseudonymDid: string; ownerDid: string; issuedAt: string;
     keyRef: 'openfederation_owner' | 'atproto'; pseudonymSig: string; ownerSig: string; commitmentSalt: string;
@@ -346,9 +367,17 @@ export function revealLinkFragment(bundle: RevealBundleV2): string {
   }).toString();
 }
 
-/** A fragment (without `#`) for a presence proof: the pseudonym, the word and the signature. */
-export function presenceLinkFragment(p: { pseudonymDid: string; word: string; signature: string }): string {
-  return new URLSearchParams({ w: p.word.trim(), d: plcSuffix(p.pseudonymDid), s: p.signature }).toString();
+/**
+ * A fragment (without `#`) for a presence proof: the pseudonym, the word, the
+ * signature and, as `c`, the context the word was signed in. Pass the context
+ * you signed with: without one the link names none, and verifiers read it in
+ * STAGE_PRESENCE_CONTEXT, as before links named a context.
+ */
+export function presenceLinkFragment(p: { pseudonymDid: string; word: string; signature: string; context?: string }): string {
+  return new URLSearchParams({
+    w: p.word.trim(), d: plcSuffix(p.pseudonymDid), s: p.signature,
+    ...(p.context === undefined ? {} : { c: checkContext(p.context) }),
+  }).toString();
 }
 
 /** Read a verifier link's fragment (with or without `#`). Throws on anything malformed. */
@@ -367,7 +396,11 @@ export function parseVerifyLink(fragment: string): VerifyLink {
   if (q.has('w') && q.has('d') && q.has('s')) {
     const word = q.get('w')!.trim();
     if (!word) throw new Error('Not a presence link');
-    return { kind: 'presence', pseudonymDid: plcDid(q.get('d')), word, signature: q.get('s')! };
+    const context = q.get('c');
+    if (context !== null) {
+      try { checkContext(context); } catch { throw new Error('Not a presence link'); }
+    }
+    return { kind: 'presence', pseudonymDid: plcDid(q.get('d')), word, signature: q.get('s')!, ...(context !== null ? { context } : {}) };
   }
   throw new Error('Not a verifier link');
 }
@@ -400,7 +433,12 @@ export function handleFromDoc(doc: Record<string, unknown> | null): string | und
 
 /** What a verifier page shows for a link: the verdict, and who, by handle as the directory names them. */
 export type LinkVerdict =
-  | { kind: 'presence'; valid: boolean; pseudonymDid: string; pseudonymHandle?: string; word: string; directoryKey?: string; error?: string }
+  | {
+    kind: 'presence'; valid: boolean; pseudonymDid: string; pseudonymHandle?: string; word: string;
+    /** The context the word was checked in. */
+    context: string;
+    directoryKey?: string; error?: string;
+  }
   | {
     kind: 'reveal'; valid: boolean; pseudonymDid: string; pseudonymHandle?: string; ownerDid: string; ownerHandle?: string;
     ownerAttestation: RevealVerdict['ownerAttestation']; checks: RevealVerdict['checks']; error?: string;
@@ -409,19 +447,21 @@ export type LinkVerdict =
 /**
  * Check a verifier link against the PLC directory, as a phone does: the
  * presence proof with the key in the pseudonym's genesis operation, or the
- * reveal with both DIDs resolved. `presenceContext` is the context the
- * signer turned the word into a challenge with (see challengeForWord).
- * Throws only on a malformed link.
+ * reveal with both DIDs resolved. A presence link is checked in the context
+ * it names (`c=`); one that names none in `presenceContext`, by default
+ * STAGE_PRESENCE_CONTEXT, the context of every link made before links named
+ * one. Throws only on a malformed link.
  */
-export async function verifyLink(fragment: string, opts: { plcUrl: string; presenceContext: string }): Promise<LinkVerdict> {
+export async function verifyLink(fragment: string, opts: { plcUrl: string; presenceContext?: string }): Promise<LinkVerdict> {
   const link = parseVerifyLink(fragment);
   const handle = (did: string) => resolveDidDoc(did, opts).then(handleFromDoc, () => undefined);
   if (link.kind === 'presence') {
+    const context = link.context ?? opts.presenceContext ?? STAGE_PRESENCE_CONTEXT;
     const [r, pseudonymHandle] = await Promise.all([
-      checkPresence({ plcUrl: opts.plcUrl, pseudonymDid: link.pseudonymDid, challenge: challengeForWord(link.word, opts.presenceContext), signature: link.signature }),
+      checkPresence({ plcUrl: opts.plcUrl, pseudonymDid: link.pseudonymDid, challenge: challengeForWord(link.word, context), signature: link.signature }),
       handle(link.pseudonymDid),
     ]);
-    return { kind: 'presence', pseudonymDid: link.pseudonymDid, pseudonymHandle, word: link.word, ...r };
+    return { kind: 'presence', pseudonymDid: link.pseudonymDid, pseudonymHandle, word: link.word, context, ...r };
   }
   const base = { kind: 'reveal' as const, pseudonymDid: link.pseudonymDid, ownerDid: link.ownerDid };
   const [pseudonymHandle, ownerHandle] = await Promise.all([handle(link.pseudonymDid), handle(link.ownerDid)]);

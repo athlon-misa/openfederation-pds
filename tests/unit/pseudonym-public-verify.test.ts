@@ -13,7 +13,7 @@ import { buildLinkStatement } from '../../packages/openfederation-pseudonym/src/
 import { signPresence, type RevealBundleV2 } from '../../packages/openfederation-pseudonym/src/client.js';
 import {
   verifyRevealBundle, verifyPresence, checkPresence, challengeForWord, revealLinkFragment, presenceLinkFragment,
-  parseVerifyLink, revealBundleFromLink, didKeyFromMultibase, verifyLink,
+  parseVerifyLink, revealBundleFromLink, didKeyFromMultibase, verifyLink, IN_PERSON_CONTEXT, STAGE_PRESENCE_CONTEXT,
 } from '../../packages/openfederation-pseudonym/src/verify.js';
 import { deriveCustodyKeys, generateCustodyPhrase, signOwnerRaw } from '../../packages/openfederation-sdk/src/custody/index.js';
 import { verifyRevealBundle as serverVerify, verifyPresence as serverPresence } from '../../src/identity/pseudonym/verify.js';
@@ -228,6 +228,19 @@ describe('verifier links', () => {
     expect(parseVerifyLink(fragment)).toEqual({ kind: 'presence', pseudonymDid: ELENA, word: 'Lantern', signature: 'abc_-' });
   });
 
+  it('a presence link names its context as c=; links without one have none', () => {
+    const fragment = presenceLinkFragment({ pseudonymDid: ELENA, word: 'lantern', signature: 'abc', context: IN_PERSON_CONTEXT });
+    expect(new URLSearchParams(fragment).get('c')).toBe(IN_PERSON_CONTEXT);
+    expect(parseVerifyLink(fragment)).toEqual({ kind: 'presence', pseudonymDid: ELENA, word: 'lantern', signature: 'abc', context: IN_PERSON_CONTEXT });
+    expect(new URLSearchParams(presenceLinkFragment({ pseudonymDid: ELENA, word: 'lantern', signature: 'abc' })).has('c')).toBe(false);
+    // A context must fit on one line, in at most 200 characters.
+    expect(() => presenceLinkFragment({ pseudonymDid: ELENA, word: 'w', signature: 's', context: 'two\nlines' })).toThrow();
+    expect(() => presenceLinkFragment({ pseudonymDid: ELENA, word: 'w', signature: 's', context: '' })).toThrow();
+    expect(() => parseVerifyLink(`w=a&d=${ELENA.slice(8)}&s=x&c=${'x'.repeat(201)}`)).toThrow();
+    expect(() => parseVerifyLink(`w=a&d=${ELENA.slice(8)}&s=x&c=a%0Ab`)).toThrow();
+    expect(() => parseVerifyLink(`w=a&d=${ELENA.slice(8)}&s=x&c=`)).toThrow();
+  });
+
   it('refuses malformed links', () => {
     expect(() => parseVerifyLink('')).toThrow();
     expect(() => parseVerifyLink('r=2&p=x')).toThrow();
@@ -250,6 +263,43 @@ describe('verifyLink: what the /verify page shows', () => {
     const tampered = signature.slice(0, 10) + (signature[10] === 'A' ? 'B' : 'A') + signature.slice(11);
     expect((await verifyLink(presenceLinkFragment({ pseudonymDid: nd.did, word: 'lantern', signature: tampered }), opts)).valid).toBe(false);
     expect((await verifyLink(presenceLinkFragment({ pseudonymDid: nightDesk().did, word: 'lantern', signature }), opts)).valid).toBe(false);
+  });
+
+  it('the in-person context is generic by default; the stage demo\'s is its own', () => {
+    expect(IN_PERSON_CONTEXT).toBe('OpenFederation in-person proof');
+    expect(STAGE_PRESENCE_CONTEXT).toBe(CONTEXT);
+    expect(challengeForWord('lantern')).toBe(challengeForWord('lantern', IN_PERSON_CONTEXT));
+    expect(challengeForWord('lantern')).not.toBe(challengeForWord('lantern', STAGE_PRESENCE_CONTEXT));
+  });
+
+  it('an old link (no c=, the stage context) still verifies, with or without presenceContext', async () => {
+    stubPlc();
+    const nd = nightDesk();
+    const signature = signPresence({ phrase: nd.phrase, pseudonymDid: nd.did, challenge: challengeForWord('lantern', STAGE_PRESENCE_CONTEXT) }).signature;
+    const old = new URLSearchParams({ w: 'lantern', d: nd.did.slice(8), s: signature }).toString();
+    expect(await verifyLink(old, { plcUrl: PLC })).toMatchObject({ kind: 'presence', valid: true, context: STAGE_PRESENCE_CONTEXT });
+    expect(await verifyLink(old, opts)).toMatchObject({ valid: true, context: STAGE_PRESENCE_CONTEXT });
+    // The stage demo now names its context in the link: the same verdict.
+    expect(await verifyLink(presenceLinkFragment({ pseudonymDid: nd.did, word: 'lantern', signature, context: STAGE_PRESENCE_CONTEXT }), { plcUrl: PLC }))
+      .toMatchObject({ valid: true, context: STAGE_PRESENCE_CONTEXT });
+  });
+
+  it('a new link carries the generic context and verifies in it; with its context altered or dropped it is INVALID', async () => {
+    stubPlc();
+    const nd = nightDesk();
+    const signature = signPresence({ phrase: nd.phrase, pseudonymDid: nd.did, challenge: challengeForWord('lantern') }).signature;
+    const fragment = presenceLinkFragment({ pseudonymDid: nd.did, word: 'lantern', signature, context: IN_PERSON_CONTEXT });
+    expect(await verifyLink(fragment, { plcUrl: PLC })).toMatchObject({ valid: true, context: IN_PERSON_CONTEXT });
+    // The link's context wins over the caller's fallback.
+    expect(await verifyLink(fragment, { plcUrl: PLC, presenceContext: 'another context' })).toMatchObject({ valid: true, context: IN_PERSON_CONTEXT });
+
+    const altered = new URLSearchParams(fragment);
+    altered.set('c', 'OpenFederation in-person proof, altered');
+    expect(await verifyLink(altered.toString(), { plcUrl: PLC })).toMatchObject({ valid: false, context: 'OpenFederation in-person proof, altered' });
+    altered.set('c', STAGE_PRESENCE_CONTEXT);
+    expect((await verifyLink(altered.toString(), { plcUrl: PLC })).valid).toBe(false);
+    altered.delete('c');
+    expect(await verifyLink(altered.toString(), { plcUrl: PLC })).toMatchObject({ valid: false, context: STAGE_PRESENCE_CONTEXT });
   });
 
   it('a reveal link: who, and whether the person or the server-held key signed', async () => {

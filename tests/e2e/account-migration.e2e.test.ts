@@ -9,7 +9,7 @@ import { startSecondPds, type SecondPds } from './second-pds.js';
 import { config } from '../../src/config.js';
 import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import {
-  fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase, openAccountForMove, moveAccount, type MoveStep,
+  fetchTokenKeys, collectTokens, createPseudonym, loginWithPhrase, openAccountForMove, moveAccount, signOwnerJwt, type MoveStep,
 } from '../../packages/openfederation-pseudonym/src/index.js';
 
 let plc = false;
@@ -194,5 +194,54 @@ describe('account migration', () => {
     expect((await fetch(`${pdsA}/xrpc/com.atproto.sync.getBlob?did=${nd.did}&cid=${avatar.ref.$link}`)).status).toBe(200);
     const onB = await get(pdsB!.url, 'com.atproto.server.checkAccountStatus', session.accessJwt);
     expect(onB.status).toBe(401); // B's session ended with the deactivation there
+  });
+
+  it('moves into a server that asks for one of its own passes (MIGRATION_PSEUDONYMS=token) with creationToken (#412)', async (ctx) => {
+    if (!plc || !pdsB) ctx.skip('PLC directory not available');
+    const original = runtimeSettings().migration.pseudonyms;
+    try {
+      const owner = await createTestUser(uniqueHandle('tk-owner'));
+      const keys = await fetchTokenKeys(pdsA);
+      const [create, pass] = await collectTokens({ pdsUrl: pdsA, accessJwt: owner.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
+      const nd = await createPseudonym({
+        pdsUrl: pdsA, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,
+        handle: `${uniqueHandle('tk')}${config.handleSuffix}`, ownerDid: owner.did, token: create,
+      });
+      const label = nd.handle.slice(0, -config.handleSuffix.length);
+      const atB = await moveAccount({
+        oldPdsUrl: pdsA, oldServiceDid: config.pds.serviceDid, newPdsUrl: pdsB!.url, newServiceDid: pdsB!.serviceDid,
+        plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle: `${label}${pdsB!.handleSuffix}`,
+      });
+      // A write at B, so B's export is signed by B's key, the DID's current one.
+      expect((await post(pdsB!.url, atB.accessJwt, nd.did, 'https://news.example/at-b')).status).toBe(200);
+      // A forgets the copy left behind, so coming back is a move into a server it is new to.
+      const del = await fetch(`${pdsA}/xrpc/com.atproto.server.deleteAccount`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signOwnerJwt({ phrase: nd.phrase, did: nd.did, aud: config.pds.serviceDid, lxm: 'com.atproto.server.deleteAccount' })}` },
+        body: JSON.stringify({ did: nd.did }),
+      });
+      expect(del.status).toBe(200);
+      runtimeSettings().migration.pseudonyms = 'token';
+      const back = {
+        oldPdsUrl: pdsB!.url, oldServiceDid: pdsB!.serviceDid, newPdsUrl: pdsA, newServiceDid: config.pds.serviceDid,
+        plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle: nd.handle,
+      };
+
+      // Without a pass, or with a forged one: refused at the first step, nothing changed.
+      const steps: MoveStep[] = [];
+      await expect(moveAccount({ ...back, onStep: (s) => steps.push(s) })).rejects.toThrow(/InvalidToken/);
+      const forged = { ...pass, signature: pass.signature.replace(/[A-Za-z]/, (c) => (c === 'A' ? 'B' : 'A')) };
+      await expect(moveAccount({ ...back, creationToken: forged, onStep: (s) => steps.push(s) })).rejects.toThrow(/InvalidToken/);
+      expect(steps).toEqual(['open', 'open']);
+      expect((await (await fetch(`${config.plc.directoryUrl}/${nd.did}`)).json()).service[0].serviceEndpoint).toBe(pdsB!.url);
+
+      // With one of A's passes: the whole move.
+      const home = await moveAccount({ ...back, creationToken: pass });
+      expect(home.did).toBe(nd.did);
+      expect((await (await fetch(`${config.plc.directoryUrl}/${nd.did}`)).json()).service[0].serviceEndpoint).toBe(config.pds.serviceUrl);
+      expect((await post(pdsA, home.accessJwt, nd.did, 'https://news.example/back-with-a-pass')).status).toBe(200);
+    } finally {
+      runtimeSettings().migration.pseudonyms = original;
+    }
   });
 });

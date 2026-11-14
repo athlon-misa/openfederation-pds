@@ -9,6 +9,7 @@ import { derivePseudonymKeys, signBytes } from './keys.js';
 import { base64UrlEncode } from './formats.js';
 import { buildMoveOp, signPlcOp } from './plc.js';
 import { loginWithPhrase } from './client.js';
+import type { CreationToken } from './tokens.js';
 
 const CREATE_ACCOUNT = 'com.atproto.server.createAccount';
 
@@ -46,14 +47,19 @@ async function call<T>(pdsUrl: string, nsid: string, body: unknown, bearer?: str
  * pseudonym's account there. The account starts deactivated; nothing changes
  * for readers until the DID is pointed at the new PDS and the account is
  * activated. `newServiceDid` is the DID of the PDS you mean to move to.
+ *
+ * `creationToken`: one of the new PDS's own creation tokens, for a PDS that
+ * accepts pseudonyms moving in only with one (`migration.pseudonyms: 'token'`
+ * in its net.openfederation.server.getPublicConfig). It is spent there, and
+ * tells that PDS only that some account's token was used. Other PDSes ignore it.
  */
 export async function openAccountForMove(p: {
-  newPdsUrl: string; newServiceDid: string; phrase: string; did: string; handle: string;
+  newPdsUrl: string; newServiceDid: string; phrase: string; did: string; handle: string; creationToken?: CreationToken;
 }): Promise<{ did: string; handle: string; signingKey: string; accessJwt: string; refreshJwt: string }> {
   const { signingKey } = await call<{ signingKey: string }>(p.newPdsUrl, 'com.atproto.server.reserveSigningKey', { did: p.did });
   const proof = signOwnerJwt({ phrase: p.phrase, did: p.did, aud: p.newServiceDid, lxm: CREATE_ACCOUNT });
   const created = await call<{ did: string; handle: string; accessJwt: string; refreshJwt: string }>(
-    p.newPdsUrl, CREATE_ACCOUNT, { did: p.did, handle: p.handle }, proof);
+    p.newPdsUrl, CREATE_ACCOUNT, { did: p.did, handle: p.handle, ...(p.creationToken ? { token: p.creationToken } : {}) }, proof);
   if (created.did !== p.did) throw new Error(`New PDS opened ${created.did}, expected ${p.did}`);
   return { ...created, signingKey };
 }
@@ -109,12 +115,15 @@ export async function copyMissingBlobs(p: { oldPdsUrl: string; newPdsUrl: string
  * repository the old one exported and every blob it references, so a refusal or failure at any earlier
  * step leaves the pseudonym working where it was. Returns a session at the
  * new home. `onStep` is called (and awaited) as each step starts, for progress
- * displays.
+ * displays. `creationToken` is one of the new PDS's own tokens, for a PDS
+ * that asks for one (see openAccountForMove); a refused token fails the
+ * 'open' step, before anything has changed.
  */
 export async function moveAccount(p: {
   oldPdsUrl: string; oldServiceDid: string;
   newPdsUrl: string; newServiceDid: string;
   plcUrl: string; phrase: string; did: string; newHandle: string;
+  creationToken?: CreationToken;
   onStep?: (step: MoveStep) => void | Promise<void>;
 }): Promise<{ did: string; handle: string; accessJwt: string; refreshJwt: string }> {
   const step = async (s: MoveStep) => { await p.onStep?.(s); };
@@ -124,6 +133,7 @@ export async function moveAccount(p: {
   try {
     opened = await openAccountForMove({
       newPdsUrl: p.newPdsUrl, newServiceDid: p.newServiceDid, phrase: p.phrase, did: p.did, handle: p.newHandle,
+      ...(p.creationToken ? { creationToken: p.creationToken } : {}),
     });
   } catch (err) {
     // Moving back: the PDS still holds the copy left behind by an earlier

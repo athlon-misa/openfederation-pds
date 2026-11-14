@@ -127,20 +127,35 @@ export async function createRevealBundle(p: {
   };
 }
 
-export async function publishReveal(p: { pdsUrl: string; bundle: RevealBundle; pseudonymAccessJwt: string; ownerAccessJwt: string }): Promise<void> {
-  const b = p.bundle;
+/** The net.openfederation.pseudonym.link record publishReveal writes into both repositories. */
+export function revealLinkRecord(b: RevealBundle, createdAt: string = new Date().toISOString()): Record<string, unknown> {
   // ownerSig stays a string for readers of revision 1; v2 adds the key name and the full signature.
   const ownerSig = b.version === 1 ? b.owner.sig : b.owner.signature.format === 'raw' ? b.owner.signature.sig : b.owner.signature.signature;
-  const record = {
+  return {
     $type: 'net.openfederation.pseudonym.link',
     statement: b.statement, pseudonymSig: b.pseudonym.sig, ownerSig,
     ownerSigningKey: b.owner.signingKey, commitmentSalt: b.commitmentSalt,
-    genesisOp: b.pseudonym.genesisOp, createdAt: new Date().toISOString(),
+    genesisOp: b.pseudonym.genesisOp, createdAt,
     ...(b.version === 2 ? { ownerKeyRef: b.owner.keyRef, ownerSignature: b.owner.signature } : {}),
   };
-  const targets: [string, string][] = [[p.bundle.pseudonym.did, p.pseudonymAccessJwt], [p.bundle.owner.did, p.ownerAccessJwt]];
-  for (const [repo, jwt] of targets) {
-    await xrpc(p.pdsUrl, 'com.atproto.repo.createRecord', { repo, collection: 'net.openfederation.pseudonym.link', record }, jwt);
+}
+
+/**
+ * Publish a reveal: the same link record in the pseudonym's repository and in
+ * the owner's, each written with its own account's token at its own PDS.
+ * `pdsUrl` is the owner's PDS; `pseudonymPdsUrl` the pseudonym's, when it
+ * lives on another one (default: the same).
+ */
+export async function publishReveal(p: {
+  pdsUrl: string; pseudonymPdsUrl?: string; bundle: RevealBundle; pseudonymAccessJwt: string; ownerAccessJwt: string;
+}): Promise<void> {
+  const record = revealLinkRecord(p.bundle);
+  const targets: [string, string, string][] = [
+    [p.pseudonymPdsUrl ?? p.pdsUrl, p.bundle.pseudonym.did, p.pseudonymAccessJwt],
+    [p.pdsUrl, p.bundle.owner.did, p.ownerAccessJwt],
+  ];
+  for (const [pdsUrl, repo, jwt] of targets) {
+    await xrpc(pdsUrl, 'com.atproto.repo.createRecord', { repo, collection: 'net.openfederation.pseudonym.link', record }, jwt);
   }
 }
 
