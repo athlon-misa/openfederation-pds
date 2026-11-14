@@ -118,6 +118,32 @@ describe('community migration (this PDS as the new home)', () => {
     expect((await query('SELECT 1 FROM communities WHERE did = $1', [c.did])).rows).toHaveLength(0);
   });
 
+  it('needs no invite to come back to a copy it left here, but closed still refuses (#431)', async (ctx) => {
+    if (!plc) ctx.skip('PLC directory not available');
+    const owner = await userElsewhere();
+    const c = await communityElsewhere(stubUrl, owner.did);
+    repos.set(c.did, c.car);
+    runtimeSettings().migration.communities = 'open';
+    const first = await migrateIn({ did: c.did, handle: uniqueHandle('back') }, await proofFor(c, owner.did));
+    expect(first.status).toBe(200);
+    // As if the community had lived here and moved away, leaving its copy.
+    await query(`UPDATE communities SET status = 'moved' WHERE did = $1`, [c.did]);
+
+    runtimeSettings().migration.communities = 'invite';
+    const back = await migrateIn({ did: c.did, handle: uniqueHandle('back') }, await proofFor(c, owner.did));
+    expect(back.status).toBe(200);
+    expect(back.body.status).toBe('importing');
+    // A repeat call while importing needs none either: the copy exists.
+    const again = await migrateIn({ did: c.did, handle: uniqueHandle('back') }, await proofFor(c, owner.did));
+    expect(again.status).toBe(200);
+
+    await query(`UPDATE communities SET status = 'moved' WHERE did = $1`, [c.did]);
+    runtimeSettings().migration.communities = 'closed';
+    const closed = await migrateIn({ did: c.did, handle: uniqueHandle('back') }, await proofFor(c, owner.did));
+    expect(closed.status).toBe(403);
+    expect(closed.body.error).toBe('MigrationNotAllowed');
+  });
+
   it('pulls the community, rebuilds its indexes, activates once the DID points here, and receives the keys', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
     runtimeSettings().migration.communities = 'open';
