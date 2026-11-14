@@ -39,6 +39,8 @@ Always rebuild **and restart** after backend changes — stale `dist/` is the mo
 
 See `.env.example` for the full list. Critical ones:
 
+**Runtime settings (#410):** `PSEUDONYMS_ENABLED`, `PSEUDONYM_*`, `IDENTITY_CUSTODY_*`, `DEVICE_SIGNING_ALLOWED`, `INVITE_REQUIRED`, `EMAIL_VERIFICATION_POLICY`, `MIGRATION_ACCOUNTS/PSEUDONYMS/COMMUNITIES` and `FEDERATION_PEERS` can also be changed by an admin on Admin → Server settings, without a restart (`src/settings/runtime-settings.ts`, read with `runtimeSettings()`, never `config`). Precedence: environment variable > admin's change (`server_settings`) > setup wizard's choice (settings file) > profile default > built-in default. Set in the environment, a setting is fixed (read-only on the page).
+
 | Variable | Required | Notes |
 |----------|:---:|-------|
 | `AUTH_JWT_SECRET` | Production | ≥32 random chars; server refuses to start in production without it |
