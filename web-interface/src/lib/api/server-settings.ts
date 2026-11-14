@@ -10,11 +10,13 @@ export type SettingId =
   | 'custodyDefault'
   | 'deviceSigningAllowed'
   | 'inviteRequired'
+  | 'accountApproval'
   | 'emailVerificationPolicy'
   | 'migrationAccounts'
   | 'migrationPseudonyms'
   | 'migrationCommunities'
-  | 'federationPeers';
+  | 'federationPeers'
+  | 'defaultAppearance';
 
 export type SettingValue = boolean | number | string | string[];
 export type SettingSource = 'environment' | 'admin' | 'setup' | 'default';

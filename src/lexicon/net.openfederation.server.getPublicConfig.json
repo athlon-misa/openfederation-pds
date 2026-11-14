@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.server.getPublicConfig",
-  "revision": 5,
+  "revision": 6,
   "description": "Generated XRPC contract for net.openfederation.server.getPublicConfig.",
   "defs": {
     "main": {
       "type": "query",
-      "description": "Generated contract for net.openfederation.server.getPublicConfig. Includes the migration policies (accounts, pseudonyms, communities) and the PLC directory URL, for clients moving an account or community here. Also the custody policy (identity: custodyAllowed, custodyDefault, pseudonymsEnabled, deviceSigningAllowed; ADR-003).",
+      "description": "Generated contract for net.openfederation.server.getPublicConfig. Includes the migration policies (accounts, pseudonyms, communities) and the PLC directory URL, for clients moving an account or community here. Also the custody policy (identity: custodyAllowed, custodyDefault, pseudonymsEnabled, deviceSigningAllowed; ADR-003), and appearance.defaultPreset: the dashboard look (pds-basic, openfederation, opennewsrooms) a person sees until they choose their own.",
       "parameters": {
         "type": "params",
         "properties": {}

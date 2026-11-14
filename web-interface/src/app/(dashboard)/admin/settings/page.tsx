@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Lock, RotateCcw } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { PageHeader } from '@/components/page-header';
@@ -13,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useServerSettingsQuery, useUpdateServerSettingsMutation } from '@/hooks/use-server-settings';
 import type { ServerSetting, SettingId, SettingValue } from '@/lib/api/server-settings';
 import {
-  CONFIRM_ACK, CUSTODY, CUSTODY_ORDER, EMAIL_POLICY, GROUPS, GROUP_ORDER, MOVE_POLICY, SETTING_HINT, SETTING_LABEL,
+  APPROVAL, CONFIRM_ACK, CUSTODY, CUSTODY_ORDER, EMAIL_POLICY, GROUPS, LOOKS, GROUP_ORDER, MOVE_POLICY, SETTING_HINT, SETTING_LABEL,
   effectsOnPeople, fallbackText, formatValue, sourceText, type GroupId,
 } from '@/lib/copy/server-settings';
 
@@ -305,9 +306,13 @@ function SettingField({ setting, value, onChange, onReset, profile, busy, draft 
     );
   }
 
-  if (setting.id === 'emailVerificationPolicy' || setting.id.startsWith('migration')) {
-    const options = setting.id === 'emailVerificationPolicy'
-      ? Object.entries(EMAIL_POLICY).map(([v, t]) => ({ v, title: t.title, text: t.text }))
+  if (setting.id === 'emailVerificationPolicy' || setting.id === 'accountApproval' || setting.id === 'defaultAppearance'
+    || setting.id.startsWith('migration')) {
+    const fromText = (texts: Record<string, { title: string; text: string }>) =>
+      Object.entries(texts).map(([v, t]) => ({ v, title: t.title, text: t.text }));
+    const options = setting.id === 'emailVerificationPolicy' ? fromText(EMAIL_POLICY)
+      : setting.id === 'accountApproval' ? fromText(APPROVAL)
+      : setting.id === 'defaultAppearance' ? fromText(LOOKS)
       : (setting.id === 'migrationPseudonyms' ? ['open', 'token', 'closed'] : ['open', 'invite', 'closed'])
         .map((v) => ({ v, title: MOVE_POLICY[v].title, text: '' }));
     return (
@@ -327,6 +332,12 @@ function SettingField({ setting, value, onChange, onReset, profile, busy, draft 
             </div>
           ))}
         </div>
+        {setting.id === 'accountApproval' && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Automatic approval does not approve people already waiting.{' '}
+            <Link href="/admin/users?status=pending" className="underline underline-offset-4 hover:no-underline">See who is waiting for approval</Link>.
+          </p>
+        )}
         {source}
       </fieldset>
     );

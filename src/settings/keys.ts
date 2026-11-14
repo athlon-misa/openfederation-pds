@@ -17,12 +17,29 @@ export const RUNTIME_SETTING_ENV_VARS = [
   'IDENTITY_CUSTODY_DEFAULT',
   'DEVICE_SIGNING_ALLOWED',
   'INVITE_REQUIRED',
+  'ACCOUNT_APPROVAL',
   'EMAIL_VERIFICATION_POLICY',
   'MIGRATION_ACCOUNTS',
   'MIGRATION_PSEUDONYMS',
   'MIGRATION_COMMUNITIES',
   'FEDERATION_PEERS',
+  'DEFAULT_APPEARANCE',
 ] as const;
+
+/**
+ * ACCOUNT_APPROVAL: whether a new local account waits for an admin (manual,
+ * the default) or is approved when it is created (automatic).
+ */
+export const ACCOUNT_APPROVAL_POLICIES = ['manual', 'automatic'] as const;
+export type AccountApprovalPolicy = (typeof ACCOUNT_APPROVAL_POLICIES)[number];
+
+/**
+ * DEFAULT_APPEARANCE: the dashboard looks a person sees until they choose
+ * their own. Kept in step with PRESETS in web-interface/src/lib/appearance.ts;
+ * the dashboard ignores an id it does not have.
+ */
+export const APPEARANCE_PRESETS = ['pds-basic', 'openfederation', 'opennewsrooms'] as const;
+export type AppearancePreset = (typeof APPEARANCE_PRESETS)[number];
 
 export type RuntimeSettingEnvVar = (typeof RUNTIME_SETTING_ENV_VARS)[number];
 

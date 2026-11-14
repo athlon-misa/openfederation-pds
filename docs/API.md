@@ -35,7 +35,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 
 | Method | NSID | Auth | Description |
 |:---|:---|:---|:---|
-| POST | `net.openfederation.account.register` | No | Register (invite required) |
+| POST | `net.openfederation.account.register` | No | Register (invite required when `INVITE_REQUIRED`). `status` is `pending` until an admin approves, or `approved` at once under `ACCOUNT_APPROVAL=automatic` |
 | GET  | `net.openfederation.account.listPending` | Admin/Mod | List pending registrations |
 | POST | `net.openfederation.account.approve` | Admin/Mod | Approve a pending user |
 | POST | `net.openfederation.account.reject` | Admin/Mod | Reject a pending user |
@@ -197,7 +197,11 @@ For `self` and `assisted` accounts, where `getPublicConfig` says `identity.devic
 
 ### Server settings (#410)
 
-Settings ids and the environment variable each is otherwise read from: `pseudonymsEnabled` (`PSEUDONYMS_ENABLED`), `pseudonymTokensPerEpoch` (1–1000), `pseudonymProbationDays` (0–365), `pseudonymProbationDailyWrites` (1–100000), `custodyAllowed` (list of `custodial`/`assisted`/`self`), `custodyDefault`, `deviceSigningAllowed`, `inviteRequired`, `emailVerificationPolicy`, `migrationAccounts` / `migrationCommunities` (`open`/`invite`/`closed`), `migrationPseudonyms` (`open`/`token`/`closed`), `federationPeers` (up to 50 https addresses; `PEER_PDS_URLS` still adds to it from the environment).
+Settings ids and the environment variable each is otherwise read from: `pseudonymsEnabled` (`PSEUDONYMS_ENABLED`), `pseudonymTokensPerEpoch` (1–1000), `pseudonymProbationDays` (0–365), `pseudonymProbationDailyWrites` (1–100000), `custodyAllowed` (list of `custodial`/`assisted`/`self`), `custodyDefault`, `deviceSigningAllowed`, `inviteRequired`, `emailVerificationPolicy`, `migrationAccounts` / `migrationCommunities` (`open`/`invite`/`closed`), `migrationPseudonyms` (`open`/`token`/`closed`), `federationPeers` (up to 50 https addresses; `PEER_PDS_URLS` still adds to it from the environment), `accountApproval` (`ACCOUNT_APPROVAL`: `manual`/`automatic`), `defaultAppearance` (`DEFAULT_APPEARANCE`: `pds-basic`/`openfederation`/`opennewsrooms`).
+
+**Approving new accounts (`accountApproval`).** `manual` (the default, under both profiles): a new account from `account.register`, `account.registerSelfCustody` or OAuth sign-up starts `pending` and cannot sign in until an admin or moderator calls `account.approve`. `automatic`: it starts `approved` (with `approved_at`, `approved_by` NULL) and is audited as `account.approve` with no actor and `meta: { via: 'automatic', setting: 'ACCOUNT_APPROVAL', handle }`, like the approval email verification gives a partner sign-up. Invite-only sign-up still applies. Turning it on approves nobody already waiting. Unaffected: pen names (their own path, never audited), accounts moving in (`com.atproto.server.createAccount` opens them deactivated; `activateAccount` approves them, gated by `MIGRATION_ACCOUNTS`), and `partner.register` (a signed ticket approves; without one, verifying the email does).
+
+**Default appearance (`defaultAppearance`).** Published as `getPublicConfig.appearance.defaultPreset`. The dashboard uses it for anyone who has not chosen a look; a person's own choice always wins. An unknown value in the environment warns and falls back to `openfederation`; a dashboard that lacks a preset ignores it.
 
 **Precedence:** environment variable > an admin's change (table `server_settings`) > the setup wizard's choice (its settings file) > the `OPENFEDERATION_PROFILE` default > the built-in default. The wizard's choices for these settings are not loaded into the environment, so they stay changeable here. Turning something off only stops new things: existing pen names, accounts in a mode no longer offered, devices already signing and finished moves keep working. `getPublicConfig`, `describeServer` and `server.getConfig` show the values in effect.
 

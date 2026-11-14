@@ -66,7 +66,21 @@ describe('account.registerSelfCustody', () => {
   let plc = false;
   const saved = [...runtimeSettings().identity.custodyAllowed];
   beforeAll(async () => { plc = await isPLCAvailable(); });
-  afterEach(() => { runtimeSettings().identity.custodyAllowed = [...saved]; });
+  afterEach(() => { runtimeSettings().identity.custodyAllowed = [...saved]; runtimeSettings().accountApproval = 'manual'; });
+
+  it('approves the account at once when the server approves new accounts automatically', async () => {
+    if (!plc) return;
+    runtimeSettings().accountApproval = 'automatic';
+    const p = await prepare('self');
+    const res = await register(p, 'self');
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe('approved');
+    const row = await query<{ id: string; status: string; approved_at: Date | null }>('SELECT id, status, approved_at FROM users WHERE did = $1', [p.did]);
+    expect(row.rows[0].status).toBe('approved');
+    expect(row.rows[0].approved_at).not.toBeNull();
+    const audit = await query(`SELECT 1 FROM audit_log WHERE action = 'account.approve' AND target_id = $1 AND meta->>'via' = 'automatic'`, [row.rows[0].id]);
+    expect(audit.rows).toHaveLength(1);
+  });
 
   it('registers a self account: pending approval, no rotation key here, signing key stored', async () => {
     if (!plc) return;

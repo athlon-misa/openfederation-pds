@@ -31,7 +31,10 @@ import {
   CUSTODY_MODES, isCustodyMode, resolveIdentityPolicy, type CustodyMode, type IdentityPolicy, type IdentityProfile,
 } from '../identity/custody-policy.js';
 import { parseFederationPeers, mergePeerLists } from '../federation/peer-sources.js';
-import { RUNTIME_SETTING_ENV_VARS, type RuntimeSettingEnvVar } from './keys.js';
+import {
+  RUNTIME_SETTING_ENV_VARS, ACCOUNT_APPROVAL_POLICIES, APPEARANCE_PRESETS,
+  type RuntimeSettingEnvVar, type AccountApprovalPolicy, type AppearancePreset,
+} from './keys.js';
 
 /**
  * What an unverified email blocks (#83). The operator's decision, because an
@@ -49,6 +52,10 @@ export const EMAIL_VERIFICATION_POLICIES = ['off', 'advisory', 'require-for-writ
 export type EmailVerificationPolicy = (typeof EMAIL_VERIFICATION_POLICIES)[number];
 export const ACCOUNT_MIGRATION_POLICIES = ['open', 'invite', 'closed'] as const;
 export const PSEUDONYM_MIGRATION_POLICIES = ['open', 'token', 'closed'] as const;
+// Both profiles keep ACCOUNT_APPROVAL manual: under privacy, approval is how
+// a newsroom keeps strangers out; under community, invite-only is already the
+// gate and opening the door should be the operator's deliberate choice.
+export { ACCOUNT_APPROVAL_POLICIES, APPEARANCE_PRESETS, type AccountApprovalPolicy, type AppearancePreset };
 export type AccountMigrationPolicy = (typeof ACCOUNT_MIGRATION_POLICIES)[number];
 export type PseudonymMigrationPolicy = (typeof PSEUDONYM_MIGRATION_POLICIES)[number];
 
@@ -59,9 +66,12 @@ export interface RuntimeSettings {
   /** Who may move here from another PDS (#265). Pen names never use invite codes. */
   migration: { accounts: AccountMigrationPolicy; pseudonyms: PseudonymMigrationPolicy; communities: AccountMigrationPolicy };
   inviteRequired: boolean;
+  accountApproval: AccountApprovalPolicy;
   emailVerificationPolicy: EmailVerificationPolicy;
   /** FEDERATION_PEERS plus the older PEER_PDS_URLS (environment only). */
   federationPeers: string[];
+  /** What the dashboard looks like until a person chooses (getPublicConfig.appearance). */
+  appearance: { defaultPreset: AppearancePreset };
 }
 
 /** The dashboard's name for each setting, and the environment variable it is read from. */
@@ -74,11 +84,13 @@ export const SETTING_IDS = {
   custodyDefault: 'IDENTITY_CUSTODY_DEFAULT',
   deviceSigningAllowed: 'DEVICE_SIGNING_ALLOWED',
   inviteRequired: 'INVITE_REQUIRED',
+  accountApproval: 'ACCOUNT_APPROVAL',
   emailVerificationPolicy: 'EMAIL_VERIFICATION_POLICY',
   migrationAccounts: 'MIGRATION_ACCOUNTS',
   migrationPseudonyms: 'MIGRATION_PSEUDONYMS',
   migrationCommunities: 'MIGRATION_COMMUNITIES',
   federationPeers: 'FEDERATION_PEERS',
+  defaultAppearance: 'DEFAULT_APPEARANCE',
 } as const satisfies Record<string, RuntimeSettingEnvVar>;
 
 export type SettingId = keyof typeof SETTING_IDS;
@@ -137,6 +149,8 @@ export function encodeSetting(id: SettingId, value: unknown, env: Env = process.
     }
     case 'custodyDefault': return oneOf(id, value, CUSTODY_MODES, 'The way offered first');
     case 'emailVerificationPolicy': return oneOf(id, value, EMAIL_VERIFICATION_POLICIES, 'Email verification');
+    case 'accountApproval': return oneOf(id, value, ACCOUNT_APPROVAL_POLICIES, 'Approving new accounts');
+    case 'defaultAppearance': return oneOf(id, value, APPEARANCE_PRESETS, 'The dashboard\'s default look');
     case 'migrationAccounts': return oneOf(id, value, ACCOUNT_MIGRATION_POLICIES, 'Accounts moving here');
     case 'migrationPseudonyms': return oneOf(id, value, PSEUDONYM_MIGRATION_POLICIES, 'Pen names moving here');
     case 'migrationCommunities': return oneOf(id, value, ACCOUNT_MIGRATION_POLICIES, 'Communities moving here');
@@ -175,6 +189,7 @@ export interface Resolved {
 }
 
 let warnedEmailPolicy: string | null = null;
+let warnedAppearance: string | null = null;
 
 /**
  * The effective settings from the layers, highest first: environment, admin,
@@ -213,6 +228,25 @@ export function resolveRuntimeSettings(env: Env, admin: Layer, setup: Layer): Re
     }
   }
 
+  // Who gets in is not a value to guess at: an unknown one stops the server.
+  const rawApproval = merged.ACCOUNT_APPROVAL?.trim();
+  const accountApproval = rawApproval === undefined ? 'manual' : ACCOUNT_APPROVAL_POLICIES.find((v) => v === rawApproval);
+  if (!accountApproval) {
+    throw new Error(`ACCOUNT_APPROVAL must be one of: ${ACCOUNT_APPROVAL_POLICIES.join(', ')} (got "${rawApproval}").`);
+  }
+
+  // A look is harmless to get wrong: warn, and use the built-in one.
+  let defaultPreset: AppearancePreset = 'openfederation';
+  const rawAppearance = merged.DEFAULT_APPEARANCE?.trim();
+  if (rawAppearance !== undefined) {
+    const found = APPEARANCE_PRESETS.find((v) => v === rawAppearance);
+    if (found) defaultPreset = found;
+    else if (warnedAppearance !== rawAppearance) {
+      warnedAppearance = rawAppearance;
+      console.warn(`WARNING: DEFAULT_APPEARANCE "${rawAppearance}" is not one of ${APPEARANCE_PRESETS.join(', ')}; using "openfederation".`);
+    }
+  }
+
   const selfUrl = env.PDS_SERVICE_URL || '';
   const federationPeers = mergePeerLists(
     // Validated; an invalid value in the environment stops the server.
@@ -235,8 +269,10 @@ export function resolveRuntimeSettings(env: Env, admin: Layer, setup: Layer): Re
         communities: pick(ACCOUNT_MIGRATION_POLICIES, merged.MIGRATION_COMMUNITIES, 'invite'),
       },
       inviteRequired: merged.INVITE_REQUIRED !== 'false',
+      accountApproval,
       emailVerificationPolicy,
       federationPeers,
+      appearance: { defaultPreset },
     },
     sources,
   };
@@ -253,6 +289,8 @@ export function settingValue(s: RuntimeSettings, id: SettingId, env: Env = proce
     case 'custodyDefault': return s.identity.custodyDefault;
     case 'deviceSigningAllowed': return s.identity.deviceSigningAllowed;
     case 'inviteRequired': return s.inviteRequired;
+    case 'accountApproval': return s.accountApproval;
+    case 'defaultAppearance': return s.appearance.defaultPreset;
     case 'emailVerificationPolicy': return s.emailVerificationPolicy;
     case 'migrationAccounts': return s.migration.accounts;
     case 'migrationPseudonyms': return s.migration.pseudonyms;

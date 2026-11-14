@@ -39,7 +39,7 @@ Always rebuild **and restart** after backend changes — stale `dist/` is the mo
 
 See `.env.example` for the full list. Critical ones:
 
-**Runtime settings (#410):** `PSEUDONYMS_ENABLED`, `PSEUDONYM_*`, `IDENTITY_CUSTODY_*`, `DEVICE_SIGNING_ALLOWED`, `INVITE_REQUIRED`, `EMAIL_VERIFICATION_POLICY`, `MIGRATION_ACCOUNTS/PSEUDONYMS/COMMUNITIES` and `FEDERATION_PEERS` can also be changed by an admin on Admin → Server settings, without a restart (`src/settings/runtime-settings.ts`, read with `runtimeSettings()`, never `config`). Precedence: environment variable > admin's change (`server_settings`) > setup wizard's choice (settings file) > profile default > built-in default. Set in the environment, a setting is fixed (read-only on the page).
+**Runtime settings (#410):** `PSEUDONYMS_ENABLED`, `PSEUDONYM_*`, `IDENTITY_CUSTODY_*`, `DEVICE_SIGNING_ALLOWED`, `INVITE_REQUIRED`, `ACCOUNT_APPROVAL`, `EMAIL_VERIFICATION_POLICY`, `MIGRATION_ACCOUNTS/PSEUDONYMS/COMMUNITIES`, `FEDERATION_PEERS` and `DEFAULT_APPEARANCE` can also be changed by an admin on Admin → Server settings, without a restart (`src/settings/runtime-settings.ts`, read with `runtimeSettings()`, never `config`). Precedence: environment variable > admin's change (`server_settings`) > setup wizard's choice (settings file) > profile default > built-in default. Set in the environment, a setting is fixed (read-only on the page).
 
 | Variable | Required | Notes |
 |----------|:---:|-------|
@@ -78,6 +78,8 @@ See `.env.example` for the full list. Critical ones:
 | `SHUTDOWN_TIMEOUT_SECONDS` | No | Default 20; how long in-flight requests get to finish on SIGTERM/SIGINT before the pool is closed |
 | `ORACLE_TRUST_UNVERIFIED_PROOFS` | No | Default off; `true` accepts a governance proof for a chain with no adapter on the oracle's word |
 | `EMAIL_VERIFICATION_POLICY` | No | `off` / `advisory` (default) / `require-for-write` / `require-for-login` — what an unverified email blocks |
+| `ACCOUNT_APPROVAL` | No | `manual` (default, both profiles) / `automatic`: new local accounts (register, registerSelfCustody, OAuth sign-up) start `approved`, audited `account.approve` with no actor and `via: automatic`. Invite-only still applies; pen names, migrated-in and partner accounts unaffected; people already waiting stay pending. Invalid values stop the server |
+| `DEFAULT_APPEARANCE` | No | `pds-basic` / `openfederation` (default) / `opennewsrooms`: the dashboard look until a person picks one (`getPublicConfig.appearance.defaultPreset`); unknown values warn and fall back |
 | `WALLET_CONSENT_MAX_HOURS` | No | Default 24; longest a custodial signing consent may last (default consent 1h). Consents are approved by the user on `/wallet/consent/:id` |
 | `FEDERATION_PEERS` | No | Comma-separated base URLs of other OpenFederation PDSes whose public communities `community.discover` merges in (https in production; invalid values stop the server). Unset: this PDS's communities only. Older `PEER_PDS_URLS` is merged in; `FEDERATION_PEERS_ENABLED=false` turns peer fetching off |
 | `SECURITY_CONTACT` | No | Comma-separated emails or https URLs for `/.well-known/security.txt`; the project advisory form is always listed |

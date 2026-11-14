@@ -11,6 +11,8 @@ import {
   ensureHandleEmailAvailable,
   insertUserWithRole,
   initializeUserRepoAsync,
+  newAccountStatus,
+  auditAutomaticApproval,
 } from '../auth/account-creation.js';
 import crypto from 'crypto';
 import { fullHandle } from '../auth/utils.js';
@@ -39,6 +41,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
   // One reading for the whole request: a change made meanwhile applies to the next one.
   const settings = runtimeSettings();
+  const status = newAccountStatus(settings);
   if (settings.inviteRequired && !input.inviteCode) {
     res.status(403).json({
       error: 'InviteRequired',
@@ -98,7 +101,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
         email,
         passwordHash,
         did: identity.did,
-        status: 'pending',
+        status,
       });
 
       if (settings.inviteRequired) {
@@ -114,6 +117,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
     });
 
     await initializeUserRepoAsync(result.identity.did, handle, result.identity.signingKeyBase64);
+    if (status === 'approved') await auditAutomaticApproval(result.userId, handle);
 
     // Verification email, off the response path: registration succeeded
     // whether or not the link could be sent, and the resend endpoint exists
@@ -131,7 +135,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
       handle: fullHandle(handle),
       did: result.identity.did,
       email,
-      status: 'pending',
+      status,
     });
   } catch (err) {
     if (err instanceof RegistrationValidationError) {

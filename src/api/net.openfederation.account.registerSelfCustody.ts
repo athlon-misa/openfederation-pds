@@ -15,7 +15,7 @@ import { consumeReservedSigningKey } from './com.atproto.server.reserveSigningKe
 import { consumeReservedRotationKey } from './net.openfederation.account.reserveCustodyKey.js';
 import {
   RegistrationValidationError, normalizeAndValidateCredentials, ensureHandleEmailAvailable,
-  insertUserWithRole, initializeUserRepoAsync,
+  insertUserWithRole, initializeUserRepoAsync, newAccountStatus, auditAutomaticApproval,
 } from '../auth/account-creation.js';
 
 /**
@@ -39,6 +39,7 @@ export default async function registerSelfCustody(req: Request, res: Response): 
     const { handle, email, password } = normalizeAndValidateCredentials(req.body ?? {});
     // One reading for the whole request: a change made meanwhile applies to the next one.
     const settings = runtimeSettings();
+    const status = newAccountStatus(settings);
     if (!settings.identity.custodyAllowed.includes(mode)) {
       throw new RegistrationValidationError(403, 'CustodyModeNotAllowed', `This server does not allow ${mode} accounts`);
     }
@@ -76,7 +77,7 @@ export default async function registerSelfCustody(req: Request, res: Response): 
         pdsKey.fill(0);
       }
 
-      await insertUserWithRole(client, { userId, handle, email, passwordHash, did, status: 'pending', custodyMode: mode });
+      await insertUserWithRole(client, { userId, handle, email, passwordHash, did, status, custodyMode: mode });
       if (settings.inviteRequired) {
         try { await claimInvite(client, inviteCode!, email, userId); } catch (err) {
           if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
@@ -91,11 +92,12 @@ export default async function registerSelfCustody(req: Request, res: Response): 
     }
     await initializeUserRepoAsync(did, handle, signingKeyBytes.toString('base64'));
     signingKeyBytes.fill(0);
+    if (status === 'approved') await auditAutomaticApproval(userId, handle);
 
     if (settings.emailVerificationPolicy !== 'off') {
       void issueEmailVerification({ id: userId, handle, email }).catch((err) => console.error('[email] verification send failed:', err));
     }
-    res.status(201).json({ id: userId, handle: fullHandle(handle), did, email, status: 'pending', custodyMode: mode });
+    res.status(201).json({ id: userId, handle: fullHandle(handle), did, email, status, custodyMode: mode });
   } catch (err) {
     if (err instanceof RegistrationValidationError) {
       res.status(err.status).json({ error: err.code, message: err.message });

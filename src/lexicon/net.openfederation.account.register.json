@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.register",
-  "revision": 5,
+  "revision": 6,
   "description": "Register a new account. Requires an invite code if the server has invite-only registration enabled.",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Create a new pending account.",
+      "description": "Create a new account: pending until an admin approves it, or approved at once when the server approves new accounts automatically (ACCOUNT_APPROVAL=automatic).",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -58,7 +58,11 @@
             },
             "status": {
               "type": "string",
-              "description": "Always 'pending' for new registrations."
+              "knownValues": [
+                "pending",
+                "approved"
+              ],
+              "description": "'pending' (an admin approves it) or, when the server approves new accounts automatically, 'approved' (it can sign in at once)."
             }
           },
           "required": [

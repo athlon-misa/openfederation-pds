@@ -44,6 +44,8 @@ import {
   ensureHandleEmailAvailable,
   insertUserWithRole,
   initializeUserRepoAsync,
+  newAccountStatus,
+  auditAutomaticApproval,
 } from '../auth/account-creation.js';
 import { config } from '../config.js';
 import { runtimeSettings } from '../settings/runtime-settings.js';
@@ -58,6 +60,7 @@ export class PgAccountStore implements AccountStore {
 
     // One reading for the whole sign-up: a change made meanwhile applies to the next one.
     const settings = runtimeSettings();
+    const status = newAccountStatus(settings);
     if (settings.inviteRequired) {
       if (!data.inviteCode) {
         throw new Error('An invite code is required to register');
@@ -98,7 +101,7 @@ export class PgAccountStore implements AccountStore {
         email,
         passwordHash,
         did: createdIdentity.did,
-        status: 'pending',
+        status,
       });
 
       if (settings.inviteRequired && data.inviteCode) {
@@ -115,6 +118,7 @@ export class PgAccountStore implements AccountStore {
     // Previously the OAuth path only stored the signing key and skipped
     // repo initialization entirely — now aligned with the other two flows.
     await initializeUserRepoAsync(identity.did, handle, identity.signingKeyBase64);
+    if (status === 'approved') await auditAutomaticApproval(userId, handle);
 
     return {
       sub: identity.did,

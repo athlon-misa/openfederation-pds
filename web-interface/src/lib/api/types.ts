@@ -25,7 +25,8 @@ export interface RegisterResponse {
   id: string;
   handle: string;
   email: string;
-  status: 'pending';
+  /** 'approved' when the server approves new accounts automatically. */
+  status: 'pending' | 'approved';
 }
 
 // Invite types

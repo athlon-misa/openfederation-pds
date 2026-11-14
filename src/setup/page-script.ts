@@ -8,6 +8,7 @@ export const SETUP_SCRIPT = `(function () {
   var STORE_KEY = 'of-setup-draft';
   var SECRET_FIELDS = { admin: ['password', 'repeat'], email: ['password'] };
   var SECTION_STEP = { kind: 1, addresses: 2, email: 3, admin: 4, options: 5 };
+  var LOOK_NAMES = { openfederation: 'OpenFederation', 'pds-basic': 'PDS Basic', opennewsrooms: 'Open Newsrooms' };
   var status = null;
   var settingsText = null;
   var state = { kind: '', addresses: {}, email: { mode: '' }, admin: {}, options: null, optionsFor: '' };
@@ -130,7 +131,12 @@ export const SETUP_SCRIPT = `(function () {
       var custody = [];
       var boxes = f.querySelectorAll('input[name=custody]:checked');
       for (var i = 0; i < boxes.length; i++) custody.push(boxes[i].value);
-      state.options = { inviteOnly: f.inviteOnly.checked, pseudonyms: f.pseudonyms.checked, custody: custody, custodyDefault: f.custodyDefault.value };
+      var approval = f.querySelector('input[name=accountApproval]:checked');
+      var look = f.querySelector('input[name=appearance]:checked');
+      state.options = {
+        inviteOnly: f.inviteOnly.checked, pseudonyms: f.pseudonyms.checked, custody: custody, custodyDefault: f.custodyDefault.value,
+        accountApproval: approval ? approval.value : 'manual', appearance: look ? look.value : 'openfederation',
+      };
     }
     saveDraft();
   }
@@ -169,6 +175,11 @@ export const SETUP_SCRIPT = `(function () {
     var boxes = f.querySelectorAll('input[name=custody]');
     for (var i = 0; i < boxes.length; i++) boxes[i].checked = o.custody.indexOf(boxes[i].value) !== -1;
     f.custodyDefault.value = o.custodyDefault;
+    // A draft saved by an older page has neither: the defaults.
+    var approval = f.querySelector('input[name=accountApproval][value="' + (o.accountApproval === 'automatic' ? 'automatic' : 'manual') + '"]');
+    if (approval) approval.checked = true;
+    var look = f.querySelector('input[name=appearance][value="' + (LOOK_NAMES[o.appearance] ? o.appearance : 'openfederation') + '"]');
+    if (look) look.checked = true;
   }
 
   function updateDomainSample() {
@@ -299,6 +310,8 @@ export const SETUP_SCRIPT = `(function () {
       ['Pseudonyms', o.pseudonyms ? 'Allowed' : 'Not allowed'],
       ['Keys', (o.custody || []).map(function (m) { return CUSTODY_NAMES[m]; }).join(', ')],
       ['Offered first', CUSTODY_NAMES[o.custodyDefault] || ''],
+      ['New accounts', o.accountApproval === 'automatic' ? 'Approved automatically' : 'Approved by an admin'],
+      ['Dashboard look', LOOK_NAMES[o.appearance] || LOOK_NAMES.openfederation],
     ]);
     box.appendChild(wrap);
 

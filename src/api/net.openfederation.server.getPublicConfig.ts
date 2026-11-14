@@ -35,6 +35,8 @@ export default async function getPublicConfig(_req: Request, res: Response): Pro
         // Whether self and assisted accounts may have their device sign their repo (#240).
         deviceSigningAllowed: runtimeSettings().identity.deviceSigningAllowed,
       },
+      // What the dashboard looks like until a person chooses their own.
+      appearance: { defaultPreset: runtimeSettings().appearance.defaultPreset },
       // The PLC directory this PDS registers and resolves DIDs with.
       plcDirectoryUrl: config.plc.directoryUrl,
       stats: {

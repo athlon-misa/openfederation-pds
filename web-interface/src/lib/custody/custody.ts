@@ -157,7 +157,7 @@ export function forgetRemembered(did: string): void {
  */
 export async function registerWithOwnKeys(p: {
   pdsUrl: string; mode: 'assisted' | 'self'; phrase: string; handle: string; email: string; password: string; inviteCode?: string;
-}): Promise<{ did: string }> {
+}): Promise<{ did: string; status: 'pending' | 'approved' }> {
   const keys = deriveCustodyKeys(p.phrase);
   const described = await call<{ availableUserDomains?: string[] }>(p.pdsUrl, 'com.atproto.server.describeServer');
   const suffix = described.availableUserDomains?.[0];
@@ -172,10 +172,10 @@ export async function registerWithOwnKeys(p: {
   }), keys.rotationPrivateKey);
   const did = didForGenesisOp(genesis);
   await submitPlcOperation(await plcDirectoryOf(p.pdsUrl), did, genesis);
-  await call(p.pdsUrl, 'net.openfederation.account.registerSelfCustody', {
+  const registered = await call<{ status?: string }>(p.pdsUrl, 'net.openfederation.account.registerSelfCustody', {
     body: { did, mode: p.mode, handle: p.handle, email: p.email, password: p.password, ...(p.inviteCode ? { inviteCode: p.inviteCode } : {}) },
   });
-  return { did };
+  return { did, status: registered?.status === 'approved' ? 'approved' : 'pending' };
 }
 
 /**
