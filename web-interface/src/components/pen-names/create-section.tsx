@@ -34,7 +34,13 @@ function Steps({ current }: { current: number }) {
 
 /** Any of the loaded passes: no order the server could learn anything from. */
 function anyPass(passes: Pass[]): Pass {
-  return passes[crypto.getRandomValues(new Uint32Array(1))[0] % passes.length];
+  // Rejection sampling: draws above the largest multiple of n are retried, so
+  // every pass is exactly equally likely (plain modulo is slightly biased).
+  const n = passes.length;
+  const limit = Math.floor(0x100000000 / n) * n;
+  const draw = new Uint32Array(1);
+  do crypto.getRandomValues(draw); while (draw[0] >= limit);
+  return passes[draw[0] % n];
 }
 
 /**
