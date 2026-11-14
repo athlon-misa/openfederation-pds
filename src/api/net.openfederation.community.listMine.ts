@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 /**
  * net.openfederation.community.listMine
@@ -44,7 +45,7 @@ export default async function listMyCommunities(req: AuthRequest, res: Response)
 
   const communities = result.rows.map((c) => ({
     did: c.did,
-    handle: c.handle,
+    handle: fullHandle(c.handle),
     didMethod: c.did_method,
     displayName: c.profile_display_name || c.handle,
     description: c.profile_description || '',

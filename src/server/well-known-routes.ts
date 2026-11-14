@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { Secp256k1Keypair } from '@atproto/crypto';
 import { query } from '../db/client.js';
+import { localHandle } from '../auth/utils.js';
 import { config } from '../config.js';
 import { discoveryLimiter } from './rate-limits.js';
 import { communityFederationView } from '../federation/privacy.js';
@@ -222,7 +223,8 @@ export function createWellKnownRouter(): Router {
         if (atIndex === -1) {
           return res.status(400).json({ error: 'BadRequest', message: 'Invalid acct URI format' });
         }
-        const handle = acct.substring(0, atIndex);
+        // The short name or the full handle (name + this server's domain).
+        const handle = localHandle(acct.substring(0, atIndex));
         subject = resource;
 
         // Try users first

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { config } from '../config.js';
+import { fullHandle } from '../auth/utils.js';
 import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query, withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
@@ -94,7 +95,7 @@ export default async function registerSelfCustody(req: Request, res: Response): 
     if (settings.emailVerificationPolicy !== 'off') {
       void issueEmailVerification({ id: userId, handle, email }).catch((err) => console.error('[email] verification send failed:', err));
     }
-    res.status(201).json({ id: userId, handle, did, email, status: 'pending', custodyMode: mode });
+    res.status(201).json({ id: userId, handle: fullHandle(handle), did, email, status: 'pending', custodyMode: mode });
   } catch (err) {
     if (err instanceof RegistrationValidationError) {
       res.status(err.status).json({ error: err.code, message: err.message });

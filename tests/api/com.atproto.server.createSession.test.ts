@@ -18,7 +18,9 @@ describe('com.atproto.server.createSession', () => {
     });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('did');
-    expect(res.body).toHaveProperty('handle', handle);
+    // The full handle (#411): the bootstrap admin is local only, with no PLC
+    // identity, and is named like every account here, the name resolveHandle answers to.
+    expect(res.body).toHaveProperty('handle', `${handle}${config.handleSuffix}`);
     expect(res.body).toHaveProperty('accessJwt');
     expect(res.body).toHaveProperty('refreshJwt');
     expect(res.body.active).toBe(true);
@@ -32,7 +34,7 @@ describe('com.atproto.server.createSession', () => {
       password,
     });
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('handle', handle);
+    expect(res.body).toHaveProperty('handle', `${handle}${config.handleSuffix}`);
   });
 
   it('does not strip another server\'s domain from the handle', async () => {

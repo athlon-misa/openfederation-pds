@@ -40,7 +40,8 @@ describe('pseudonym phrase login', () => {
     if (!plc) return;
     const { res } = await login(phrase);
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ did, handle: bare, active: true });
+    // The full handle, the one in the DID document (#411).
+    expect(res.body).toMatchObject({ did, handle, active: true });
     expect(res.body.email).toBeUndefined();
     expect((await xrpcAuthPost('com.atproto.server.refreshSession', res.body.refreshJwt, {})).status).toBe(200);
   });

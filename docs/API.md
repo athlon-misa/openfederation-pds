@@ -2,6 +2,8 @@
 
 Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/lexicon/` are the source of truth; this file is a navigable summary.
 
+**Handles.** Every response gives a handle in full, as AT Protocol does: the name plus this server's handle domain (`HANDLE_SUFFIX`, listed in `describeServer` as `availableUserDomains`), the same name as the `at://` entry in the DID document's `alsoKnownAs` (#411). That includes the bootstrap admin, which has no PLC identity. A handle that is not one of this server's names is given as it is: an external account's own handle or its `plc-…` placeholder, or a member handle another server wrote into a record. Wherever a handle is an input, the short name and the full handle are both accepted; this server's domain is removed before the lookup, any other domain is not. The database, access tokens and audit entries keep the short name.
+
 ## ATProto Standard
 
 | Method | NSID | Auth | Description |

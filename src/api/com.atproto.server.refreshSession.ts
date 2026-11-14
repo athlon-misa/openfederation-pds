@@ -7,6 +7,7 @@ import { auditLog } from '../db/audit.js';
 import { pseudonymSessionExpiry } from '../auth/session-issue.js';
 import type { UserRole, UserStatus } from '../auth/types.js';
 import { revokeOAuthGrants } from '../auth/revoke-grants.js';
+import { fullHandle } from '../auth/utils.js';
 
 interface RefreshSessionInput {
   refreshJwt?: string;
@@ -194,7 +195,7 @@ export default async function refreshSession(req: Request, res: Response): Promi
 
     res.status(200).json({
       did: user.did,
-      handle: user.handle,
+      handle: fullHandle(user.handle),
       email: user.email ?? '',
       accessJwt,
       refreshJwt: newRefreshJwt,

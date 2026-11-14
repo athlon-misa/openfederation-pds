@@ -37,7 +37,7 @@ import type {
 
 import { query, withTransaction } from '../db/client.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
-import { normalizeHandle } from '../auth/utils.js';
+import { fullHandle, localHandle } from '../auth/utils.js';
 import { createUserIdentity } from '../identity/user-identity.js';
 import {
   normalizeAndValidateCredentials,
@@ -120,13 +120,15 @@ export class PgAccountStore implements AccountStore {
       sub: identity.did,
       aud: config.pds.serviceUrl,
       email,
-      name: handle,
-      preferred_username: handle,
+      name: fullHandle(handle),
+      preferred_username: fullHandle(handle),
     };
   }
 
   async authenticateAccount(data: AuthenticateAccountData): Promise<Account> {
-    const identifier = data.username.trim().toLowerCase();
+    const raw = data.username.trim().toLowerCase();
+    // A full handle (with this server's domain) signs in as the stored short name.
+    const identifier = raw.includes('@') ? raw : localHandle(raw);
 
     const result = await query<{
       id: string;
@@ -171,8 +173,8 @@ export class PgAccountStore implements AccountStore {
       sub: user.did,
       aud: config.pds.serviceUrl,
       email: user.email ?? '',
-      name: user.handle,
-      preferred_username: user.handle,
+      name: fullHandle(user.handle),
+      preferred_username: fullHandle(user.handle),
     };
   }
 
@@ -206,8 +208,8 @@ export class PgAccountStore implements AccountStore {
       sub: user.did,
       aud: config.pds.serviceUrl,
       email: user.email ?? '',
-      name: user.handle,
-      preferred_username: user.handle,
+      name: fullHandle(user.handle),
+      preferred_username: fullHandle(user.handle),
     };
 
     const clientsResult = await query<{
@@ -348,7 +350,7 @@ export class PgAccountStore implements AccountStore {
   }
 
   async verifyHandleAvailability(handle: string): Promise<void> {
-    const normalized = normalizeHandle(handle);
+    const normalized = localHandle(handle);
     const result = await query('SELECT id FROM users WHERE handle = $1', [normalized]);
     if (result.rows.length > 0) {
       throw new Error('Handle is already taken');
@@ -622,8 +624,8 @@ export class PgTokenStore implements TokenStore {
       sub: user.did,
       aud: config.pds.serviceUrl,
       email: user.email ?? '',
-      name: user.handle,
-      preferred_username: user.handle,
+      name: fullHandle(user.handle),
+      preferred_username: fullHandle(user.handle),
     };
 
     return {

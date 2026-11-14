@@ -14,6 +14,7 @@ import {
   uniqueHandle,
   isPLCAvailable,
 } from './helpers.js';
+import { config } from '../../src/config.js';
 
 describe('member display projection (issue #66)', () => {
   let plcAvailable: boolean;
@@ -59,7 +60,7 @@ describe('member display projection (issue #66)', () => {
 
     const memberRow = res.body.members.find((m: any) => m.did === memberDid);
     expect(memberRow).toBeDefined();
-    expect(memberRow.handle).toBe(memberHandle);
+    expect(memberRow.handle).toBe(`${memberHandle}${config.handleSuffix}`); // full handle (#411)
     // displayName is required in the new schema — falls back to handle
     expect(typeof memberRow.displayName).toBe('string');
     expect(memberRow.displayName.length).toBeGreaterThan(0);

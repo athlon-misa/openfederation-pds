@@ -5,7 +5,7 @@ import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { query } from '../db/client.js';
 import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser, requireLocalAccount } from '../auth/guards.js';
-import { isValidHandle } from '../auth/utils.js';
+import { fullHandle, isValidHandle } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { getDefaultRoleRecords, ROLE_COLLECTION } from '../auth/permissions.js';
 
@@ -188,7 +188,7 @@ export default async function createCommunity(req: AuthRequest, res: Response): 
     // 5. Return the result
     const response: any = {
       did,
-      handle: input.handle,
+      handle: fullHandle(input.handle),
       didMethod: input.didMethod,
     };
 

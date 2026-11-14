@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle, localHandle } from '../auth/utils.js';
 
 export default async function listAccounts(req: AuthRequest, res: Response): Promise<void> {
   if (!requireRole(req, res, ['admin', 'moderator', 'auditor'])) {
@@ -44,9 +45,10 @@ export default async function listAccounts(req: AuthRequest, res: Response): Pro
     }
 
     if (q) {
-      conditions.push(`(u.handle ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex})`);
-      params.push(`%${q}%`);
-      paramIndex++;
+      // A full handle (name + this server's domain) finds the stored short name.
+      conditions.push(`(u.handle ILIKE $${paramIndex} OR u.email ILIKE $${paramIndex + 1})`);
+      params.push(`%${localHandle(q)}%`, `%${q}%`);
+      paramIndex += 2;
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -91,7 +93,7 @@ export default async function listAccounts(req: AuthRequest, res: Response): Pro
 
     const users = dataResult.rows.map(u => ({
       id: u.id,
-      handle: u.handle,
+      handle: fullHandle(u.handle),
       // Pseudonym accounts have no email; omit the field rather than send null.
       email: u.email ?? undefined,
       did: u.did,

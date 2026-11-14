@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
-import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
+import { fullHandle, localHandle, normalizeEmail } from '../auth/utils.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 
@@ -18,7 +18,7 @@ export default async function rejectAccount(req: AuthRequest, res: Response): Pr
 
   const input: RejectInput = req.body || {};
   const userId = input.userId?.trim();
-  const handle = input.handle ? normalizeHandle(input.handle) : '';
+  const handle = input.handle ? localHandle(input.handle) : '';
   const email = input.email ? normalizeEmail(input.email) : '';
 
   if (!userId && !handle && !email) {
@@ -76,5 +76,5 @@ export default async function rejectAccount(req: AuthRequest, res: Response): Pr
     handle: rows[0].handle,
   });
 
-  res.status(200).json(rows[0]);
+  res.status(200).json({ ...rows[0], handle: fullHandle(rows[0].handle) });
 }

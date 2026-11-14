@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 export default async function listPendingAccounts(req: AuthRequest, res: Response): Promise<void> {
   if (!requireRole(req, res, ['admin', 'moderator'])) {
@@ -28,7 +29,7 @@ export default async function listPendingAccounts(req: AuthRequest, res: Respons
   res.status(200).json({
     users: result.rows.map((u) => ({
       id: u.id,
-      handle: u.handle,
+      handle: fullHandle(u.handle),
       email: u.email,
       createdAt: new Date(u.created_at).toISOString(),
     })),

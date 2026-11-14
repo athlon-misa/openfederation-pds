@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 export default async function listExportSchedules(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -15,7 +16,7 @@ export default async function listExportSchedules(req: AuthRequest, res: Respons
 
     res.status(200).json({
       schedules: result.rows.map(r => ({
-        id: r.id, communityDid: r.community_did, communityHandle: r.handle,
+        id: r.id, communityDid: r.community_did, communityHandle: fullHandle(r.handle),
         interval: r.interval, retentionCount: r.retention_count, enabled: r.enabled,
         lastExportAt: r.last_export_at, lastStatus: r.last_status, lastError: r.last_error,
       })),

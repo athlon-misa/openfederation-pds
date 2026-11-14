@@ -21,6 +21,29 @@ export function localHandle(identifier: string): string {
     : handle;
 }
 
+/** The stand-in an external account gets when its own handle can't be used (`plc-` + its PLC id). */
+const EXTERNAL_PLACEHOLDER = /^plc-[a-z2-7]{24}$/;
+
+/**
+ * A stored handle as responses give it: the full AT Protocol handle, the name
+ * plus this server's handle domain (`elena` → `elena.openfederation.net`),
+ * matching the `at://` name in the account's DID document (#411).
+ *
+ * Accounts and communities here store the short form. Anything that is not a
+ * short name of this server is returned unchanged: a handle that already has
+ * a domain (an external account's own handle, a remote member's), a DID, or
+ * the placeholder an external account gets when its own handle can't be used
+ * (that name was never issued here, so this server's domain is not added).
+ */
+export function fullHandle(stored: string): string;
+export function fullHandle(stored: string | null | undefined): string | null;
+export function fullHandle(stored: string | null | undefined): string | null {
+  if (!stored) return stored ?? null;
+  if (!/^[a-z0-9-]+$/.test(stored) || EXTERNAL_PLACEHOLDER.test(stored)) return stored;
+  // Exactly as identities are registered in PLC (`at://` + name + suffix).
+  return `${stored}${config.handleSuffix}`;
+}
+
 export function generateInviteCode(): string {
   return crypto.randomBytes(12).toString('base64url');
 }

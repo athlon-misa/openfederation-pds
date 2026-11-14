@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { auditLog } from '../db/audit.js';
 
@@ -119,7 +120,7 @@ export default async function exportAccount(req: AuthRequest, res: Response): Pr
       exportedBy: req.auth!.did,
       account: {
         did: user.did,
-        handle: user.handle,
+        handle: fullHandle(user.handle),
         email: isSelf ? user.email : undefined, // Only include email for self-export
         status: user.status,
         createdAt: user.created_at,

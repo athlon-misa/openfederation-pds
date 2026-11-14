@@ -7,6 +7,7 @@
 
 import { randomUUID, randomBytes } from 'crypto';
 import { query, withTransaction } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 class WalletLinkRejection extends Error {
   constructor(public readonly reason: string) {
@@ -250,6 +251,6 @@ export async function resolveWallet(
 
   return {
     did: result.rows[0].user_did,
-    handle: result.rows[0].handle,
+    handle: fullHandle(result.rows[0].handle),
   };
 }

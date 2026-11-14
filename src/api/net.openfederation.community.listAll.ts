@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 /**
  * net.openfederation.community.listAll
@@ -148,7 +149,7 @@ export default async function listAllCommunities(req: AuthRequest, res: Response
 
     const communities = dataResult.rows.map((c: any) => ({
       did: c.did,
-      handle: c.handle,
+      handle: fullHandle(c.handle),
       didMethod: c.did_method,
       displayName: c.profile?.displayName || c.handle,
       description: c.profile?.description || '',

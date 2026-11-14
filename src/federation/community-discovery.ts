@@ -16,6 +16,7 @@
 import { config } from '../config.js';
 import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { assertPublicHttpsUrl, OutboundFetchError, readLimitedText } from '../security/outbound-fetch.js';
 import { resolvePeerUrls, staticPeerSource, type PeerSource } from './peer-sources.js';
 import { cleanText, isPeerDid, isPeerHandle, safeHttpOrigin } from './peer-data.js';
@@ -94,7 +95,7 @@ export async function listLocalDirectoryEntries(): Promise<DirectoryEntry[]> {
   const pdsUrl = config.pds.serviceUrl;
   return result.rows.map((row) => ({
     did: row.did,
-    handle: row.handle,
+    handle: fullHandle(row.handle),
     displayName: cleanText(row.profile?.displayName, MAX_DISPLAY_NAME_LENGTH) || row.handle,
     description: cleanText(row.profile?.description, MAX_DESCRIPTION_LENGTH),
     memberCount: row.member_count,

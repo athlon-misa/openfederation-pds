@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.registerSelfCustody",
-  "revision": 1,
+  "revision": 2,
   "description": "Register an assisted or self custody account (ADR-003). The client put the DID's genesis operation in PLC: rotation keys [the user's key] (self) or [the user's key, the key from account.reserveCustodyKey] (assisted), signed by the user's key; verificationMethods.atproto from com.atproto.server.reserveSigningKey and openfederation_owner = the user's owner key; this server's endpoint; at://<handle><suffix>. Same rules as account.register (invite, email, password, approval).",
   "defs": {
     "main": {
@@ -32,7 +32,7 @@
             },
             "handle": {
               "type": "string",
-              "description": "The label; must match the genesis operation's at:// handle without this server's suffix."
+              "description": "The label, or the full handle with this server's handle domain; must match the genesis operation's at:// handle. The response gives the full handle."
             },
             "email": {
               "type": "string"

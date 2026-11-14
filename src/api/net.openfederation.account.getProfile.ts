@@ -2,6 +2,7 @@ import { requireRepoReadable } from '../auth/guards.js';
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 const DEFAULT_COLLECTION = 'app.bsky.actor.profile';
 
@@ -52,7 +53,7 @@ export default async function getProfile(req: AuthRequest, res: Response): Promi
 
     res.status(200).json({
       did,
-      handle: userResult.rows[0]?.handle || null,
+      handle: fullHandle(userResult.rows[0]?.handle) || null,
       profile: profileResult.rows[0].record,
       ...(Object.keys(customProfiles).length > 0 ? { customProfiles } : {}),
     });

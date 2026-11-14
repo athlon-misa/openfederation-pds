@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { getCommunityAccess, canViewPrivateCommunity } from '../community/visibility.js';
 
 /**
@@ -43,10 +44,10 @@ export default async function listJoinRequests(req: AuthRequest, res: Response):
       user_did: string;
       status: string;
       created_at: string;
-      handle: string;
+      handle: string | null;
     }>(
       `SELECT jr.id, jr.user_id, jr.user_did, jr.status, jr.created_at,
-              COALESCE(u.handle, 'unknown') as handle
+              u.handle
        FROM join_requests jr
        LEFT JOIN users u ON u.id = jr.user_id
        WHERE jr.community_did = $1 AND jr.status = 'pending'
@@ -64,7 +65,7 @@ export default async function listJoinRequests(req: AuthRequest, res: Response):
       id: r.id,
       userId: r.user_id,
       userDid: r.user_did,
-      handle: r.handle,
+      handle: fullHandle(r.handle) ?? 'unknown',
       status: r.status,
       createdAt: new Date(r.created_at).toISOString(),
     }));

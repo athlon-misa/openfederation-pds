@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRepoReadable } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 /**
  * com.atproto.repo.describeRepo
@@ -58,7 +59,7 @@ export default async function describeRepo(req: Request, res: Response): Promise
     const collections = collectionsResult.rows.map(r => r.collection);
 
     res.status(200).json({
-      handle: repoOwner.handle,
+      handle: fullHandle(repoOwner.handle),
       did: repoOwner.did,
       didDoc: {}, // TODO: build from PLC/web identity
       collections,

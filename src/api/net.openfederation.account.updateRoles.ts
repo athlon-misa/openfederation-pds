@@ -3,6 +3,7 @@ import type { AuthRequest } from '../auth/types.js';
 import type { UserRole } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { invalidateAuthContext } from '../auth/auth-context-cache.js';
 
@@ -111,7 +112,7 @@ export default async function updateRoles(req: AuthRequest, res: Response): Prom
 
     res.status(200).json({
       did: user.did,
-      handle: user.handle,
+      handle: fullHandle(user.handle),
       roles: currentRoles,
     });
   } catch (error) {

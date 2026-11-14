@@ -1,11 +1,10 @@
 import { Response } from 'express';
 import { createHash, randomBytes } from 'node:crypto';
 import type { AuthRequest } from '../auth/types.js';
-import { config } from '../config.js';
 import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query, withTransaction } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
-import { isValidHandle } from '../auth/utils.js';
+import { fullHandle, isValidHandle, localHandle } from '../auth/utils.js';
 import { claimInvite, InviteError } from '../auth/invites.js';
 import { ServiceAuthError, verifyServiceAuthJwt } from '../auth/service-auth.js';
 import { currentPlcState } from '../identity/account-migration.js';
@@ -25,7 +24,8 @@ const MAX_PROOF_TTL_SECONDS = 300;
  */
 export default async function migrateIn(req: AuthRequest, res: Response): Promise<void> {
   const did = typeof req.body?.did === 'string' ? req.body.did : '';
-  const handle = typeof req.body?.handle === 'string' ? req.body.handle.trim().toLowerCase() : '';
+  // The label is stored; the full handle (with this server's domain) is accepted too.
+  const handle = typeof req.body?.handle === 'string' ? localHandle(req.body.handle) : '';
   const inviteCode = typeof req.body?.inviteCode === 'string' ? req.body.inviteCode.trim() : '';
   try {
     if (!/^did:plc:[a-z2-7]{24}$/.test(did)) throw new CommunityMoveError(400, 'UnresolvableDid', 'did must be a did:plc');
@@ -102,7 +102,7 @@ export default async function migrateIn(req: AuthRequest, res: Response): Promis
     const blobs = await pullCommunityBlobs(did, fromPds);
     await auditLog('community.migrateIn', null, did, { ownerDid, fromPds, records: repo.records, members: repo.members, attestations: repo.attestations, blobs: blobs.copied });
     res.status(200).json({
-      did, handle: `${handle}${config.handleSuffix}`, status: 'importing', fromPds,
+      did, handle: fullHandle(handle), status: 'importing', fromPds,
       repoCommit: repo.root, indexedRecords: repo.records, members: repo.members, attestations: repo.attestations,
       expectedBlobs: blobs.expected, importedBlobs: blobs.expected,
       recommended: await recommendedCommunityCredentials(did, state),

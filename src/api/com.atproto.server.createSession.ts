@@ -3,7 +3,7 @@ import { query } from '../db/client.js';
 import { runtimeSettings } from '../settings/runtime-settings.js';
 import { verifyPassword } from '../auth/password.js';
 import { issueSession } from '../auth/session-issue.js';
-import { localHandle, normalizeEmail } from '../auth/utils.js';
+import { fullHandle, localHandle, normalizeEmail } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
 
@@ -176,7 +176,7 @@ export default async function createSession(req: Request, res: Response): Promis
 
     res.status(200).json({
       did: user.did,
-      handle: user.handle,
+      handle: fullHandle(user.handle),
       email: user.email,
       accessJwt,
       refreshJwt,

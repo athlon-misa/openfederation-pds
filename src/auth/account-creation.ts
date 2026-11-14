@@ -17,8 +17,8 @@ import {
   isStrongPassword,
   isValidEmail,
   isValidHandle,
+  localHandle,
   normalizeEmail,
-  normalizeHandle,
   passwordValidationMessage,
 } from './utils.js';
 import { storeUserSigningKey } from '../identity/user-identity.js';
@@ -58,7 +58,8 @@ export function normalizeAndValidateCredentials(input: CredentialsInput): Normal
   if (!input.handle || !input.email || !input.password) {
     throw new RegistrationValidationError(400, 'InvalidRequest', 'handle, email, and password are required');
   }
-  const handle = normalizeHandle(input.handle);
+  // The short name is stored; the full handle (with this server's domain) is accepted too.
+  const handle = localHandle(input.handle);
   const email = normalizeEmail(input.email);
   if (!isValidHandle(handle)) {
     throw new RegistrationValidationError(

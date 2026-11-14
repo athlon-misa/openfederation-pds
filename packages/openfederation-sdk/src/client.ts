@@ -17,7 +17,7 @@ import type {
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
-import { displayHandle as displayHandleUtil, xrpcUrl } from './utils.js';
+import { displayHandle as displayHandleUtil, fullHandle, isShortHandle, xrpcUrl } from './utils.js';
 import { errorFromResponse, AuthenticationError } from './errors.js';
 import { provisionTier2, provisionTier3 } from './wallet/provision.js';
 import { sessionFromWrappedSecret } from './wallet/unlock.js';
@@ -38,6 +38,9 @@ export class OpenFederationClient implements AuthProvider {
   private autoRefresh: boolean;
   private authChangeListeners: Set<(user: User | null) => void> = new Set();
   private refreshPromise: Promise<void> | null = null;
+  /** The server's handle domain, asked for only when a server answers with a short handle. */
+  private handleDomainPromise: Promise<string | undefined> | null = null;
+  private handleDomain: string | undefined;
 
   constructor(config: ClientConfig) {
     this.serverUrl = config.serverUrl.replace(/\/$/, '');
@@ -54,6 +57,35 @@ export class OpenFederationClient implements AuthProvider {
     if (this.autoRefresh) {
       this.tokens.setRefreshCallback(() => this.doRefresh());
     }
+  }
+
+  /** The server's handle domain (`availableUserDomains[0]` of describeServer), asked once. */
+  private serverHandleDomain(): Promise<string | undefined> {
+    if (!this.handleDomainPromise) {
+      this.handleDomainPromise = fetch(xrpcUrl(this.serverUrl, 'com.atproto.server.describeServer'))
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`describeServer ${res.status}`);
+          const body = await res.json() as { availableUserDomains?: unknown };
+          const domain = Array.isArray(body.availableUserDomains) && typeof body.availableUserDomains[0] === 'string'
+            ? body.availableUserDomains[0] : undefined;
+          this.handleDomain = domain;
+          return domain;
+        })
+        .catch(() => {
+          this.handleDomainPromise = null; // ask again next time
+          return undefined;
+        });
+    }
+    return this.handleDomainPromise;
+  }
+
+  /**
+   * The handle as the server gave it. Servers return the full handle (#411);
+   * an older one answers with the name only, completed here with its domain.
+   */
+  private async completeHandle(handle: string): Promise<string> {
+    if (!isShortHandle(handle)) return handle;
+    return fullHandle(handle, await this.serverHandleDomain());
   }
 
   private notifyAuthChange(user: User | null): void {
@@ -97,12 +129,12 @@ export class OpenFederationClient implements AuthProvider {
     // No session came back: the account exists but has to verify its email
     // first. Nothing is stored and nobody is signed in.
     if (!data.accessJwt || !data.refreshJwt) {
-      return { did: data.did, handle: data.handle, email: data.email, active: false, emailVerificationRequired: true };
+      return { did: data.did, handle: await this.completeHandle(data.handle), email: data.email, active: false, emailVerificationRequired: true };
     }
 
     const user: User = {
       did: data.did,
-      handle: data.handle,
+      handle: await this.completeHandle(data.handle),
       email: data.email,
       active: data.active ?? true,
     };
@@ -135,7 +167,7 @@ export class OpenFederationClient implements AuthProvider {
     const data: SessionResponse = await res.json();
     const user: User = {
       did: data.did,
-      handle: data.handle,
+      handle: await this.completeHandle(data.handle),
       email: data.email,
       active: data.active ?? true,
     };
@@ -310,7 +342,7 @@ export class OpenFederationClient implements AuthProvider {
     const data: SessionResponse = await res.json();
     const user: User = {
       did: data.did,
-      handle: data.handle,
+      handle: await this.completeHandle(data.handle),
       email: data.email,
       active: data.active ?? true,
     };
@@ -325,7 +357,7 @@ export class OpenFederationClient implements AuthProvider {
    * "alice.openfederation.net" → "alice"
    */
   displayHandle(handle: string): string {
-    return displayHandleUtil(handle);
+    return displayHandleUtil(handle, this.handleDomain);
   }
 
   /**
@@ -1094,6 +1126,7 @@ export class OpenFederationClient implements AuthProvider {
     const outcome = await coordinatedRefresh({
       tokens: this.tokens,
       lockName: `openfederation-sdk-refresh:${this.serverUrl}`,
+      completeHandle: (handle) => this.completeHandle(handle),
       doFetch: (refreshJwt) => fetch(xrpcUrl(this.serverUrl, 'com.atproto.server.refreshSession'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${refreshJwt}` },

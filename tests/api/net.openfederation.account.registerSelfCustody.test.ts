@@ -73,7 +73,8 @@ describe('account.registerSelfCustody', () => {
     const p = await prepare('self');
     const res = await register(p, 'self');
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ did: p.did, handle: p.label, status: 'pending', custodyMode: 'self' });
+    // The full handle, the one in the genesis operation (#411).
+    expect(res.body).toMatchObject({ did: p.did, handle: `${p.label}${config.handleSuffix}`, status: 'pending', custodyMode: 'self' });
     const row = await query<{ custody_mode: string; status: string }>('SELECT custody_mode, status FROM users WHERE did = $1', [p.did]);
     expect(row.rows[0]).toEqual({ custody_mode: 'self', status: 'pending' });
     expect((await query('SELECT 1 FROM vault_shares WHERE user_did = $1', [p.did])).rows).toHaveLength(0);
