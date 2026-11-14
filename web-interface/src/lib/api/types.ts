@@ -157,6 +157,8 @@ export interface ResolveJoinRequestResponse {
 
 export interface UpdateCommunityResponse {
   success: boolean;
+  /** Present when the community is private after the update (#385). */
+  membershipRecords?: { removed: number; keptOnDevice: number; elsewhere: number };
 }
 
 // Community export type
