@@ -1,0 +1,157 @@
+name: Container images
+
+# Prebuilt multi-architecture images (linux/amd64 + linux/arm64) for the PDS
+# and the dashboard on GitHub Container Registry, so a small VPS or a NAS never
+# builds from source (#405):
+#
+#   ghcr.io/athlon-misa/openfederation-pds:<version> and :latest
+#   ghcr.io/athlon-misa/openfederation-dashboard:<version> and :latest
+#
+# - A published PDS release (tag vX.Y.Z) builds and pushes both images.
+#   Package releases made by changesets (@open-federation/sdk@…) are skipped.
+# - "Run workflow" (workflow_dispatch) with a release tag rebuilds and pushes
+#   that release, e.g. after a base-image security fix.
+# - A pull request that touches what goes into an image builds both platforms
+#   and pushes nothing, so a broken image is caught before release.
+#
+# The deploy files (deploy/appliance, deploy/synology) use these images.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and push (vX.Y.Z)
+        required: true
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - package.json
+      - package-lock.json
+      - tsconfig*.json
+      - src/**
+      - cli/**
+      - scripts/**
+      - packages/**
+      - web-interface/**
+      - .github/workflows/images.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Pull requests: build both images for both platforms, push nothing.
+  verify:
+    if: github.event_name == 'pull_request'
+    name: Build ${{ matrix.image }} (no push)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: openfederation-pds
+            context: .
+          - image: openfederation-dashboard
+            context: web-interface
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build linux/amd64 + linux/arm64
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # Releases and manual runs: build and push to ghcr.io.
+  publish:
+    if: >-
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')) ||
+      github.event_name == 'workflow_dispatch'
+    name: Publish ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # push to ghcr.io with GITHUB_TOKEN
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: openfederation-pds
+            context: .
+            title: OpenFederation PDS
+            description: OpenFederation Personal Data Server (AT Protocol). First start opens the setup wizard.
+          - image: openfederation-dashboard
+            context: web-interface
+            title: OpenFederation dashboard
+            description: Admin and account dashboard for an OpenFederation PDS. Set PDS_URL at runtime.
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      PRERELEASE: ${{ github.event.release.prerelease || false }}
+    steps:
+      - name: Check the tag is a PDS release
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$TAG' is not a PDS release tag (vX.Y.Z)."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          # Put the description on the multi-arch index too, where GHCR reads it.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }}
+            type=raw,value=latest,enable=${{ env.PRERELEASE != 'true' && !contains(env.TAG, '-') }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.licenses=MIT OR Apache-2.0
+          annotations: |
+            org.opencontainers.image.title=${{ matrix.title }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.licenses=MIT OR Apache-2.0
+      - name: Build and push linux/amd64 + linux/arm64
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
