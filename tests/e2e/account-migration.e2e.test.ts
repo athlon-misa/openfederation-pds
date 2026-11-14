@@ -196,6 +196,44 @@ describe('account migration', () => {
     expect(onB.status).toBe(401); // B's session ended with the deactivation there
   });
 
+  it('moves back right after a move, with no write in between (#422)', async (ctx) => {
+    if (!plc || !pdsB) ctx.skip('PLC directory not available');
+    const owner = await createTestUser(uniqueHandle('rb-owner'));
+    const keys = await fetchTokenKeys(pdsA);
+    const [token] = await collectTokens({ pdsUrl: pdsA, accessJwt: owner.accessJwt, keys, count: runtimeSettings().pseudonym.tokensPerEpoch });
+    const nd = await createPseudonym({
+      pdsUrl: pdsA, plcUrl: config.plc.directoryUrl, pdsServiceUrl: config.pds.serviceUrl,
+      handle: `${uniqueHandle('rb')}${config.handleSuffix}`, ownerDid: owner.did, token,
+    });
+    const atA = await loginWithPhrase({ pdsUrl: pdsA, phrase: nd.phrase, expectedServiceDid: config.pds.serviceDid });
+    expect((await post(pdsA, atA.accessJwt, nd.did, 'https://news.example/only-story')).status).toBe(200);
+    const latest = async (base: string) => (await (await fetch(`${base}/xrpc/com.atproto.sync.getLatestCommit?did=${nd.did}`)).json()) as { cid: string; rev: string };
+    const beforeMove = await latest(pdsA);
+
+    const label = nd.handle.slice(0, -config.handleSuffix.length);
+    await moveAccount({
+      oldPdsUrl: pdsA, oldServiceDid: config.pds.serviceDid, newPdsUrl: pdsB!.url, newServiceDid: pdsB!.serviceDid,
+      plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle: `${label}${pdsB!.handleSuffix}`,
+    });
+    // B switched the account on with a commit of its own: same records, a later rev.
+    const atB = await latest(pdsB!.url);
+    expect(atB.cid).not.toBe(beforeMove.cid);
+    expect(atB.rev > beforeMove.rev).toBe(true);
+
+    const home = await moveAccount({
+      oldPdsUrl: pdsB!.url, oldServiceDid: pdsB!.serviceDid, newPdsUrl: pdsA, newServiceDid: config.pds.serviceDid,
+      plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle: nd.handle,
+    });
+    expect(home.did).toBe(nd.did);
+    expect((await (await fetch(`${config.plc.directoryUrl}/${nd.did}`)).json()).service[0].serviceEndpoint).toBe(config.pds.serviceUrl);
+    const backAtA = await latest(pdsA);
+    expect(backAtA.rev > atB.rev).toBe(true);
+    const urls = (await (await fetch(`${pdsA}/xrpc/com.atproto.repo.listRecords?repo=${nd.did}&collection=net.openfederation.authorship.claim`)).json())
+      .records.map((r: { value: { url: string } }) => r.value.url);
+    expect(urls).toEqual(['https://news.example/only-story']);
+    expect((await post(pdsA, home.accessJwt, nd.did, 'https://news.example/home-again')).status).toBe(200);
+  });
+
   it('moves into a server that asks for one of its own passes (MIGRATION_PSEUDONYMS=token) with creationToken (#412)', async (ctx) => {
     if (!plc || !pdsB) ctx.skip('PLC directory not available');
     const original = runtimeSettings().migration.pseudonyms;
@@ -212,8 +250,8 @@ describe('account migration', () => {
         oldPdsUrl: pdsA, oldServiceDid: config.pds.serviceDid, newPdsUrl: pdsB!.url, newServiceDid: pdsB!.serviceDid,
         plcUrl: config.plc.directoryUrl, phrase: nd.phrase, did: nd.did, newHandle: `${label}${pdsB!.handleSuffix}`,
       });
-      // A write at B, so B's export is signed by B's key, the DID's current one.
-      expect((await post(pdsB!.url, atB.accessJwt, nd.did, 'https://news.example/at-b')).status).toBe(200);
+      // No write at B before coming back (#422): B re-signed the repo when it switched on.
+      expect(atB.did).toBe(nd.did);
       // A forgets the copy left behind, so coming back is a move into a server it is new to.
       const del = await fetch(`${pdsA}/xrpc/com.atproto.server.deleteAccount`, {
         method: 'POST',

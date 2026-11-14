@@ -35,6 +35,8 @@ export async function moveCommunity(p: {
   oldPdsUrl: string; newPdsUrl: string; newServiceDid: string; plcUrl: string;
   did: string; ownerDid: string; ownerOldAccessJwt: string; primaryRotationKeyBase64: string;
   newHandle: string; inviteCode?: string; onStep?: (s: CommunityMoveStep) => void;
+  /** Where the owner's account lives (it signs them in to activate); defaults to the old PDS. */
+  ownerPdsUrl?: string;
 }): Promise<{ status: string; missingAttestationKeys: number }> {
   const step = (s: CommunityMoveStep) => p.onStep?.(s);
 
@@ -63,8 +65,10 @@ export async function moveCommunity(p: {
   if (!plc.ok) throw new Error(`PLC refused the update (${plc.status}): ${await plc.text()}`);
 
   step('activate');
-  const { token } = await xrpc<{ token: string }>(p.oldPdsUrl, 'com.atproto.server.getServiceAuth',
-    { jwt: p.ownerOldAccessJwt, query: { aud: p.newServiceDid, lxm: 'net.openfederation.community.activate' } });
+  // The owner's own PDS takes their session; any other needs service auth from it.
+  const ownerPds = p.ownerPdsUrl ?? p.oldPdsUrl;
+  const token = ownerPds === p.newPdsUrl ? p.ownerOldAccessJwt : (await xrpc<{ token: string }>(ownerPds, 'com.atproto.server.getServiceAuth',
+    { jwt: p.ownerOldAccessJwt, query: { aud: p.newServiceDid, lxm: 'net.openfederation.community.activate' } })).token;
   const activated = await xrpc<{ status: string; missingAttestationKeys: number }>(p.newPdsUrl, 'net.openfederation.community.activate', { jwt: token, body: { did: p.did } });
 
   step('retire');

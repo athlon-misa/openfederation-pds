@@ -16,6 +16,7 @@ import {
   cborToLex,
   BlockMap,
   CidSet,
+  verifyCommitSig,
 } from '@atproto/repo';
 import type {
   RecordCreateOp,
@@ -373,6 +374,35 @@ export class RepoEngine {
       this.storage.applyCommit(commit, (client) => this.applyIndexOps(client, prepared.indexOps)),
     );
     return { cid: commitCid.toString(), rev: prepared.rev };
+  }
+
+  /**
+   * Re-sign the repo head with `keypair` (#422): a new commit on the same tree
+   * (no record changes, so `records_index` stays as it is), with a later rev
+   * (`TID.nextStr` of the current one). Does nothing, and returns null, when
+   * there is no repo or the head is already signed by `keypair`.
+   *
+   * After a move the imported head is still signed by the old home's key,
+   * while the DID now names this PDS's key; without this, the next export
+   * would not verify against the DID until the account wrote something.
+   */
+  async resignHead(keypair: Keypair): Promise<{ cid: string; rev: string } | null> {
+    if (!(await this.hasRepo())) return null;
+    return serializeRepoWrite(this.did, async () => {
+      for (let attempt = 1; ; attempt++) {
+        const repo = await Repo.load(this.storage);
+        if (await verifyCommitSig(repo.commit, keypair.did())) return null;
+        // The server never signs for an account whose device holds the repo key (#240).
+        await assertServerMaySign(this.did);
+        const commit = await repo.formatCommit([], keypair);
+        try {
+          await this.storage.applyCommit(commit);
+          return { cid: commit.cid.toString(), rev: commit.rev };
+        } catch (err) {
+          if (!(err instanceof RepoConcurrentWriteError) || attempt >= MAX_COMMIT_ATTEMPTS) throw err;
+        }
+      }
+    });
   }
 
   /**

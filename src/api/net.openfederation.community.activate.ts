@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { resignHeadForThisPds } from '../repo/resign-head.js';
 import { currentPlcState, pointsHere } from '../identity/account-migration.js';
 import { CommunityMoveError, fetchMovedKeys, missingAttestationKeys } from '../community/migration.js';
 
@@ -30,6 +31,11 @@ export default async function activateCommunity(req: AuthRequest, res: Response)
     if (!state || !pointsHere(state, config.pds.serviceUrl, keypair.did())) {
       throw new CommunityMoveError(400, 'IncompatibleDidDoc', 'The DID does not point to this PDS and its signing key yet; update it in the PLC directory first');
     }
+
+    // The pulled head is still signed by the old home's key; sign it with
+    // ours so the repo verifies against the DID right away (#422). A no-op
+    // once it is ours, so a repeat call changes nothing.
+    await resignHeadForThisPds(did);
 
     let keysImported: number | null = null;
     if (c.from_pds && (await missingAttestationKeys(did)) > 0) {
