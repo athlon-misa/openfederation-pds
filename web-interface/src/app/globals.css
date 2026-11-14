@@ -124,3 +124,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Printing passes (components/pen-names/pass-print.tsx): only the pass pages
+ * print, one per sheet, black on white.
+ */
+.pen-print-root { display: none; }
+@media print {
+  body.pen-printing > *:not(.pen-print-root) { display: none !important; }
+  body.pen-printing { background: #fff !important; color: #000 !important; }
+  body.pen-printing .pen-print-root { display: block; }
+  .pen-print-page { break-after: page; page-break-after: always; }
+  .pen-print-page:last-child { break-after: auto; page-break-after: auto; }
+}

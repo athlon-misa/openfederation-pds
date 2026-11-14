@@ -26,21 +26,27 @@ function ownerHalf(mode: CustodyMode | null): { text: string; possible: boolean 
   return { possible: false, text: 'This server does not control your identity (you signed in with an account from another server, or this is the administrator account), so it cannot sign your half here.' };
 }
 
+/** The person's own account, on the account page only. The signed-out pages have none. */
+export interface ProofOwner { did: string; accessJwt: string; pdsUrl: string; mode: CustodyMode | null }
+
 /**
  * Prove the pen name is the person's: a proof both sign, as a /verify link
  * and QR code (or a file, or public); and an in-person proof of a spoken word.
+ * Without `owner` (the signed-out pages) only the in-person proof is offered:
+ * the other one needs the person's own account.
  */
-export function ProveSection({ session, ownerDid, ownerAccessJwt, ownerPdsUrl, mode, plcUrl, penPhrase, onPenPhrase }: {
+export function ProveSection({ session, owner, plcUrl, penPhrase, onPenPhrase }: {
   session: PenSession;
-  ownerDid: string;
-  ownerAccessJwt: string;
-  ownerPdsUrl: string;
-  mode: CustodyMode | null;
+  owner: ProofOwner | null;
   plcUrl: string;
   penPhrase: string | null;
   onPenPhrase: (phrase: string) => void;
 }) {
   const client = useQueryClient();
+  const mode = owner?.mode ?? null;
+  const ownerDid = owner?.did ?? '';
+  const ownerAccessJwt = owner?.accessJwt ?? '';
+  const ownerPdsUrl = owner?.pdsUrl ?? '';
   const half = ownerHalf(mode);
   const ownWords = mode === 'assisted' || mode === 'self';
   const [identityPhrase, setIdentityPhrase] = useState<string | null>(null);
@@ -114,7 +120,18 @@ export function ProveSection({ session, ownerDid, ownerAccessJwt, ownerPdsUrl, m
         </div>
       )}
 
-      <section aria-labelledby="proof-title" className="space-y-3">
+      {!owner && (
+        <section aria-labelledby="proof-title" className="space-y-3">
+          <h3 id="proof-title" className="text-base font-semibold">A proof that names your account</h3>
+          <Note>
+            This proof is signed by your own account as well, so it is made on your account&apos;s Pen names page, signed in to both.
+            Making it there tells this server that the two belong together, even before you show the proof to anyone, so do it only once you have decided to reveal.
+            The in-person proof below names no account and can be made here.
+          </Note>
+        </section>
+      )}
+
+      {owner && <section aria-labelledby="proof-title" className="space-y-3">
         <h3 id="proof-title" className="text-base font-semibold">A proof to show</h3>
         <Note>{half.text}</Note>
         {half.possible && needIdentityWords && (
@@ -150,7 +167,7 @@ export function ProveSection({ session, ownerDid, ownerAccessJwt, ownerPdsUrl, m
             <Button type="button" variant="ghost" onClick={() => { setBundle(null); setPublished(false); }}>Delete this proof from the page</Button>
           </>
         )}
-      </section>
+      </section>}
 
       <section aria-labelledby="presence-title" className="space-y-3 border-t pt-6">
         <h3 id="presence-title" className="text-base font-semibold">In person</h3>

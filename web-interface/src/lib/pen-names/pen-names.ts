@@ -6,14 +6,14 @@
  * Two identities are in play and their credentials never mix:
  * - the person: the dashboard session (auth store, apiClient). Used only to
  *   collect passes and, for a custodial owner, to have this server sign the
- *   owner half of a proof.
+ *   owner half of a proof. The signed-out pages (/pen-names) never load it.
  * - the pen name: its own session, kept in this tab's sessionStorage under
  *   its own key. Every pen-name request goes through `penCall` with that
  *   token, or with none; never with the person's.
  * Creating a pen name sends no credentials at all.
  */
 import {
-  fetchTokenKeys, collectTokens, currentEpoch, previousEpoch, loginWithPhrase,
+  fetchTokenKeys, collectTokens, currentEpoch, importTokenPublicKey, base64UrlDecode, loginWithPhrase,
   generatePseudonymPhrase, derivePseudonymKeys, buildPseudonymGenesisOp, signGenesisOp, didForSignedOp,
   createRevealBundle, publishReveal, signPresence, challengeForWord, checkPresence,
   revealLinkFragment, presenceLinkFragment, moveAccount, signOwnerJwt, tombstone,
@@ -23,6 +23,7 @@ import {
 import { deriveCustodyKeys, signOwnerRaw } from '@open-federation/sdk/custody';
 import { call, MoveError } from '@/lib/move/xrpc';
 import { PEN_SESSION_KEY, forgetPenSession } from './pen-session-store';
+import { buildPassFile, isExpired, keyFingerprint, passId, type Pass } from './pass-file';
 
 export { generatePseudonymPhrase };
 
@@ -48,7 +49,12 @@ const trim = (u: string) => u.replace(/\/+$/, '');
 
 // ---------------------------------------------------------------- storage ----
 
-const LIST_KEY = (ownerDid: string) => `of.penNames.list.${ownerDid}`;
+/**
+ * Which list a pen name is kept in: the person's DID on the account page, or
+ * SIGNED_OUT_SCOPE on the signed-out pages, which know no account.
+ */
+const LIST_KEY = (scope: string) => `of.penNames.list.${scope}`;
+export const SIGNED_OUT_SCOPE = 'signed-out';
 const PASSES_KEY = (ownerDid: string) => `of.penNames.passes.${ownerDid}`;
 const REMEMBERED_KEY = (penDid: string) => `of.penNames.remembered.${penDid}`;
 /** Per tab: closing the tab signs the pen name out. Not the person's session key. */
@@ -66,18 +72,18 @@ function remove(storage: () => Storage, key: string): void {
 const local = () => localStorage;
 const tab = () => sessionStorage;
 
-export function loadPenNames(ownerDid: string): PenNameEntry[] {
-  return read<PenNameEntry[]>(local, LIST_KEY(ownerDid)) ?? [];
+export function loadPenNames(scope: string): PenNameEntry[] {
+  return read<PenNameEntry[]>(local, LIST_KEY(scope)) ?? [];
 }
-export function savePenName(ownerDid: string, entry: PenNameEntry): PenNameEntry[] {
-  const list = loadPenNames(ownerDid).filter((e) => e.did !== entry.did);
+export function savePenName(scope: string, entry: PenNameEntry): PenNameEntry[] {
+  const list = loadPenNames(scope).filter((e) => e.did !== entry.did);
   const next = [...list, entry];
-  write(local, LIST_KEY(ownerDid), next);
+  write(local, LIST_KEY(scope), next);
   return next;
 }
-export function forgetPenName(ownerDid: string, did: string): PenNameEntry[] {
-  const next = loadPenNames(ownerDid).filter((e) => e.did !== did);
-  write(local, LIST_KEY(ownerDid), next);
+export function forgetPenName(scope: string, did: string): PenNameEntry[] {
+  const next = loadPenNames(scope).filter((e) => e.did !== did);
+  write(local, LIST_KEY(scope), next);
   forgetPenPasskey(did);
   const s = loadPenSession();
   if (s?.did === did) forgetPenSession();
@@ -131,46 +137,175 @@ export async function serverFacts(rawUrl: string): Promise<ServerFacts> {
 
 // ------------------------------------------------------------------ passes ----
 
-interface StoredPasses { tokens: CreationToken[] }
-
-/** Passes that can still be spent: this month's and last month's. */
-export function loadPasses(ownerDid: string): CreationToken[] {
-  const epochs = new Set([currentEpoch(), previousEpoch(currentEpoch())]);
-  return (read<StoredPasses>(local, PASSES_KEY(ownerDid))?.tokens ?? []).filter((t) => epochs.has(t.epoch));
+/**
+ * Passes are collected automatically, as a fixed batch: the first time each
+ * month the person is signed in to the dashboard, it collects the full batch
+ * the server hands out, whether or not any were used. Every account does the
+ * same, so collecting says nothing. (Never a top-up of "the number used":
+ * that would tell the server how many pen names a person made, and when.)
+ * There is nothing to delete on the server: passes expire with the monthly
+ * key rotation, and expired ones are dropped here without a word.
+ */
+interface StoredPasses { tokens: Pass[] }
+interface CollectMark {
+  /** The month whose batch is settled for this account in this browser. */
+  epoch: string;
+  /** 'here': collected by this browser; 'elsewhere': the server says another browser or app collected it. */
+  where: 'here' | 'elsewhere';
+  at: string;
+  count?: number;
 }
-function savePasses(ownerDid: string, tokens: CreationToken[]): void {
+interface CollectFailure { epoch: string; at: string; message: string }
+
+const MARK_KEY = (ownerDid: string) => `of.penNames.collected.${ownerDid}`;
+const FAIL_KEY = (ownerDid: string) => `of.penNames.collectFailed.${ownerDid}`;
+/** After a failed attempt, wait this long before the next automatic one (each attempt counts against the server's limits). */
+const RETRY_AFTER_MS = 60 * 60 * 1000;
+
+/** Passes that can still be spent here. Expired ones are dropped from storage as a side effect. */
+export function loadPasses(ownerDid: string): Pass[] {
+  const all = read<StoredPasses>(local, PASSES_KEY(ownerDid))?.tokens ?? [];
+  const live = all.filter((t) => !isExpired(t));
+  if (live.length !== all.length) write(local, PASSES_KEY(ownerDid), { tokens: live });
+  return live;
+}
+function savePasses(ownerDid: string, tokens: Pass[]): void {
   write(local, PASSES_KEY(ownerDid), { tokens });
 }
-export function hasThisMonthsPasses(ownerDid: string): boolean {
-  return loadPasses(ownerDid).some((t) => t.epoch === currentEpoch());
+/** Remove passes from this browser (after they were saved to a file or printed), by their ids. */
+export function removePasses(ownerDid: string, ids: string[]): Pass[] {
+  const drop = new Set(ids);
+  const next = loadPasses(ownerDid).filter((t) => !drop.has(passId(t)));
+  savePasses(ownerDid, next);
+  announcePasses();
+  return next;
 }
 
-/** Collect this month's passes, signed in as the person. The server signs them blind. */
-export async function collectPasses(p: { pdsUrl: string; ownerDid: string; ownerAccessJwt: string; count: number }): Promise<number> {
-  const keys = await fetchTokenKeys(p.pdsUrl); // no credentials
-  let tokens: CreationToken[];
+export interface PassesStatus {
+  passes: Pass[];
+  /** This month's batch: collected here, collected elsewhere, or not yet. */
+  thisMonth: 'here' | 'elsewhere' | 'not-yet';
+  collectedAt: string | null;
+  lastFailure: CollectFailure | null;
+}
+
+export function passesStatus(ownerDid: string): PassesStatus {
+  const mark = read<CollectMark>(local, MARK_KEY(ownerDid));
+  const fail = read<CollectFailure>(local, FAIL_KEY(ownerDid));
+  const epoch = currentEpoch();
+  const settled = mark?.epoch === epoch ? mark : null;
+  const passes = loadPasses(ownerDid);
+  // Passes collected before collection was automatic carry no mark.
+  const collectedBefore = !settled && passes.some((t) => t.epoch === epoch);
+  return {
+    passes,
+    thisMonth: settled ? settled.where : collectedBefore ? 'here' : 'not-yet',
+    collectedAt: settled?.at ?? null,
+    lastFailure: fail?.epoch === epoch ? fail : null,
+  };
+}
+
+/** Screens listening for pass changes (collection runs in the background, from any dashboard page). */
+export const PASSES_CHANGED = 'of-pen-passes-changed';
+function announcePasses(): void {
+  try { window.dispatchEvent(new Event(PASSES_CHANGED)); } catch { /* no window */ }
+}
+
+/** How many passes the server hands out per month, until it says otherwise (PSEUDONYM_TOKENS_PER_EPOCH). */
+export const PASSES_PER_MONTH_DEFAULT = 20;
+
+let collecting: Promise<PassesStatus> | null = null;
+
+/**
+ * Collect this month's full batch if this browser has not settled it yet.
+ * Safe to call on every page: it does nothing once the month is settled,
+ * waits an hour after a failure (unless `force`), and runs once at a time
+ * across tabs. The blinding and unblinding happen here; the server signs
+ * passes it cannot see.
+ */
+export function autoCollectPasses(p: { pdsUrl: string; ownerDid: string; ownerAccessJwt: string; force?: boolean }): Promise<PassesStatus> {
+  collecting ??= withCollectLock(() => collectOnce(p)).finally(() => { collecting = null; });
+  return collecting;
+}
+
+function withCollectLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  return locks ? (locks.request('of-pen-collect', fn) as Promise<T>) : fn();
+}
+
+async function collectOnce(p: { pdsUrl: string; ownerDid: string; ownerAccessJwt: string; force?: boolean }): Promise<PassesStatus> {
+  const epoch = currentEpoch();
+  const before = passesStatus(p.ownerDid);
+  if (before.thisMonth !== 'not-yet') return before;
+  if (!p.force && before.lastFailure && Date.now() - Date.parse(before.lastFailure.at) < RETRY_AFTER_MS) return before;
+  const lastCount = read<CollectMark>(local, MARK_KEY(p.ownerDid))?.count;
+  try {
+    const { tokens, key } = await collectBatch({ ...p, count: lastCount ?? PASSES_PER_MONTH_DEFAULT });
+    savePasses(p.ownerDid, [...loadPasses(p.ownerDid), ...tokens.map((t) => ({ ...t, ...(key ? { key } : {}) }))]);
+    write(local, MARK_KEY(p.ownerDid), { epoch, where: 'here', at: new Date().toISOString(), count: tokens.length } satisfies CollectMark);
+    remove(local, FAIL_KEY(p.ownerDid));
+  } catch (e) {
+    if ((e as MoveError).code === 'AlreadyCollected') {
+      write(local, MARK_KEY(p.ownerDid), { epoch, where: 'elsewhere', at: new Date().toISOString(), ...(lastCount ? { count: lastCount } : {}) } satisfies CollectMark);
+      remove(local, FAIL_KEY(p.ownerDid));
+    } else {
+      write(local, FAIL_KEY(p.ownerDid), { epoch, at: new Date().toISOString(), message: (e as Error).message } satisfies CollectFailure);
+    }
+  }
+  announcePasses();
+  return passesStatus(p.ownerDid);
+}
+
+async function collectBatch(p: { pdsUrl: string; ownerAccessJwt: string; count: number }): Promise<{ tokens: CreationToken[]; key: string }> {
+  // The month keys are fetched without credentials, as everyone sees them.
+  const keys = await fetchTokenKeys(p.pdsUrl).catch(() => { throw new MoveError('Could not reach this server for its pass key. Passes will be collected later.'); });
+  const published = keys.find((k) => k.epoch === currentEpoch());
+  const key = published ? keyFingerprint(published.publicKey) : '';
   try {
     try {
-      tokens = await collectTokens({ pdsUrl: p.pdsUrl, accessJwt: p.ownerAccessJwt, keys, count: p.count });
+      return { tokens: await collectTokens({ pdsUrl: p.pdsUrl, accessJwt: p.ownerAccessJwt, keys, count: p.count }), key };
     } catch (e) {
-      // The server sets how many passes a month (PSEUDONYM_TOKENS_PER_EPOCH) and says so when the count is wrong.
+      // The server sets the batch size and says so when the count is wrong; every account gets the same full batch.
       const want = /must be (\d+) base64url/.exec((e as Error).message);
       if (!want || Number(want[1]) === p.count) throw e;
-      tokens = await collectTokens({ pdsUrl: p.pdsUrl, accessJwt: p.ownerAccessJwt, keys, count: Number(want[1]) });
+      return { tokens: await collectTokens({ pdsUrl: p.pdsUrl, accessJwt: p.ownerAccessJwt, keys, count: Number(want[1]) }), key };
     }
   } catch (e) {
     const msg = (e as Error).message;
-    if (/AlreadyCollected/.test(msg)) throw new MoveError('You already collected this month’s passes, maybe in another browser or app. They are kept there. New passes come next month.', 'AlreadyCollected');
+    if (/AlreadyCollected|already collected/.test(msg)) throw new MoveError('This month’s passes were already collected for your account, in another browser or app. They are kept there; save them to a file there to use them elsewhere. New passes come next month.', 'AlreadyCollected');
     if (/KeyMismatch/.test(msg)) throw new MoveError('The passes did not match this server’s published key, so they were thrown away. A server that marks passes could follow them; do not create a pen name here until this is explained.', 'KeyMismatch');
-    if (/WrongEpoch|No published key/.test(msg)) throw new MoveError('This server has no key for this month yet. Try again later.');
+    if (/WrongEpoch|No published key/.test(msg)) throw new MoveError('This server has no pass key for this month yet. Passes will be collected later.');
+    if (/Only local accounts/.test(msg)) throw new MoveError('Only accounts made on this server can collect passes here.', 'Forbidden');
     throw new MoveError(msg);
   }
-  savePasses(p.ownerDid, [...loadPasses(p.ownerDid), ...tokens]);
-  return loadPasses(p.ownerDid).length;
 }
 
-/** How many passes the server hands out per month (the server decides; the count must match). */
-export const PASSES_PER_MONTH_DEFAULT = 20;
+/**
+ * Check loaded passes against this server's published month keys, fetched
+ * without credentials: a pass signed with a key nobody else sees could mark
+ * whoever uses it. Returns the passes that check out.
+ */
+export async function checkPassesAgainstServer(pdsUrl: string, passes: Pass[]): Promise<{ good: Pass[]; bad: number; retired: number }> {
+  const keys = await fetchTokenKeys(pdsUrl);
+  const imported = new Map<string, CryptoKey>();
+  for (const k of keys) imported.set(k.epoch, await importTokenPublicKey(k.publicKey));
+  const good: Pass[] = [];
+  let bad = 0;
+  let retired = 0;
+  for (const t of passes) {
+    const key = imported.get(t.epoch);
+    if (!key) { retired++; continue; }
+    const ok = await crypto.subtle.verify({ name: 'RSA-PSS', saltLength: 48 }, key,
+      base64UrlDecode(t.signature) as BufferSource, base64UrlDecode(t.prepared) as BufferSource).catch(() => false);
+    if (ok) good.push(t); else bad++;
+  }
+  return { good, bad, retired };
+}
+
+/** The passes as a file to save. */
+export function passFileBlob(p: { server: string; owner: string; passes: Pass[] }): Blob {
+  return new Blob([JSON.stringify(buildPassFile(p), null, 2)], { type: 'application/json' });
+}
 
 // ------------------------------------------------------------------ create ----
 
@@ -187,44 +322,54 @@ export async function handleTaken(pdsUrl: string, handle: string): Promise<boole
   return !!res?.ok;
 }
 
+/** The pass was refused. `did` is already in the public directory; a retry with another pass reuses it. */
+export class PassRefused extends MoveError {
+  constructor(message: string, code: string, readonly did: string) { super(message, code); }
+}
+
 /**
- * Create a pen name from words the person has already written down. Sends
- * no credentials: the server learns only that a valid pass was spent.
+ * Create a pen name from words the person has already written down, with
+ * one pass. Sends no credentials: the server learns only that a valid pass
+ * was spent. `ownerDid` is sealed (hidden) into the pen name's public entry
+ * so it can later be proven to belong to that account; no request names it.
+ * When the pass is refused, throws PassRefused; call again with another pass
+ * and `existingDid` to finish the same pen name.
  */
 export async function createPenName(p: {
-  server: ServerFacts; ownerDid: string; phrase: string; handle: string; onStep: (s: CreateStep) => void;
+  server: ServerFacts; ownerDid: string; phrase: string; handle: string; pass: Pass; scope: string;
+  existingDid?: string; onStep: (s: CreateStep) => void;
 }): Promise<PenNameEntry> {
-  const tokens = loadPasses(p.ownerDid);
-  const token = tokens[0];
-  if (!token) throw new MoveError('No passes left. Collect this month’s passes first.');
+  let did = p.existingDid;
+  if (!did) {
+    p.onStep('keys');
+    const keys = derivePseudonymKeys(p.phrase);
+    const { signingKey } = await call<{ signingKey: string }>(p.server.url, 'com.atproto.server.reserveSigningKey', { body: {} });
+    const signed = signGenesisOp(buildPseudonymGenesisOp({
+      ownerDidKey: keys.ownerDidKey, signingDidKey: signingKey, handle: p.handle,
+      pdsEndpoint: p.server.serviceUrl, ownerDid: p.ownerDid, commitmentSaltHex: keys.commitmentSaltHex,
+    }), keys.ownerPrivateKey);
+    did = didForSignedOp(signed);
 
-  p.onStep('keys');
-  const keys = derivePseudonymKeys(p.phrase);
-  const { signingKey } = await call<{ signingKey: string }>(p.server.url, 'com.atproto.server.reserveSigningKey', { body: {} });
-  const signed = signGenesisOp(buildPseudonymGenesisOp({
-    ownerDidKey: keys.ownerDidKey, signingDidKey: signingKey, handle: p.handle,
-    pdsEndpoint: p.server.serviceUrl, ownerDid: p.ownerDid, commitmentSaltHex: keys.commitmentSaltHex,
-  }), keys.ownerPrivateKey);
-  const did = didForSignedOp(signed);
-
-  p.onStep('directory');
-  const plc = await fetch(`${p.server.plcUrl}/${did}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signed) })
-    .catch(() => { throw new MoveError('Could not reach the public directory. Nothing was created.'); });
-  if (!plc.ok) throw new MoveError(`The public directory refused the new pen name (${plc.status}). Nothing was created.`);
+    p.onStep('directory');
+    const plc = await fetch(`${p.server.plcUrl}/${did}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(signed) })
+      .catch(() => { throw new MoveError('Could not reach the public directory. Nothing was created.'); });
+    if (!plc.ok) throw new MoveError(`The public directory refused the new pen name (${plc.status}). Nothing was created.`);
+  }
 
   p.onStep('account');
   let created: { did: string; handle: string };
+  const token: CreationToken = { epoch: p.pass.epoch, prepared: p.pass.prepared, signature: p.pass.signature };
   try {
     created = await call<{ did: string; handle: string }>(p.server.url, 'net.openfederation.pseudonym.createAccount', { body: { did, token } });
   } catch (e) {
     const code = (e as MoveError).code;
-    if (code === 'TokenSpent' || code === 'InvalidToken') savePasses(p.ownerDid, tokens.slice(1));
+    if (code === 'TokenSpent') throw new PassRefused('This pass was already used.', code, did);
+    if (code === 'InvalidToken') throw new PassRefused('This server did not accept this pass (it may have expired).', code, did);
     throw e;
   }
   if (created.did !== did) throw new MoveError(`The server opened ${created.did}, not ${did}`);
-  savePasses(p.ownerDid, tokens.slice(1));
   const entry: PenNameEntry = { did, handle: created.handle, home: { url: p.server.url, serviceDid: p.server.serviceDid }, createdAt: new Date().toISOString() };
-  savePenName(p.ownerDid, entry);
+  savePenName(p.scope, entry);
   return entry;
 }
 
@@ -413,7 +558,7 @@ export const PEN_MOVE_STEPS: { id: MoveStep; label: string }[] = [
 ];
 
 export async function movePenName(p: {
-  ownerDid: string; entry: PenNameEntry; phrase: string; plcUrl: string; target: PenHome; newHandle: string; onStep: (s: MoveStep) => void;
+  scope: string; entry: PenNameEntry; phrase: string; plcUrl: string; target: PenHome; newHandle: string; onStep: (s: MoveStep) => void;
 }): Promise<PenNameEntry> {
   const session = await moveAccount({
     oldPdsUrl: p.entry.home.url, oldServiceDid: p.entry.home.serviceDid,
@@ -426,7 +571,7 @@ export async function movePenName(p: {
     ...p.entry, handle, home: p.target,
     formerHomes: [...(p.entry.formerHomes ?? []).filter((h) => trim(h.url) !== trim(p.target.url)), p.entry.home],
   };
-  savePenName(p.ownerDid, entry);
+  savePenName(p.scope, entry);
   savePenSession({ did: session.did, handle, home: p.target, accessJwt: session.accessJwt, refreshJwt: session.refreshJwt });
   return entry;
 }
@@ -451,7 +596,7 @@ async function deleteAt(home: PenHome, did: string, phrase: string): Promise<voi
  * against the directory, so this comes first), then tombstone its DID with
  * its words. Copies on former servers are deleted where they still exist.
  */
-export async function endPenName(p: { ownerDid: string; entry: PenNameEntry; phrase: string; plcUrl: string; onStep: (s: EndStep) => void }): Promise<{ leftovers: string[] }> {
+export async function endPenName(p: { scope: string; entry: PenNameEntry; phrase: string; plcUrl: string; onStep: (s: EndStep) => void }): Promise<{ leftovers: string[] }> {
   p.onStep('check');
   await assertPenWords(p.plcUrl, p.entry.did, p.phrase);
   p.onStep('delete');
@@ -466,6 +611,6 @@ export async function endPenName(p: { ownerDid: string; entry: PenNameEntry; phr
   }
   p.onStep('tombstone');
   await tombstone({ plcUrl: p.plcUrl, did: p.entry.did, phrase: p.phrase });
-  forgetPenName(p.ownerDid, p.entry.did);
+  forgetPenName(p.scope, p.entry.did);
   return { leftovers };
 }
