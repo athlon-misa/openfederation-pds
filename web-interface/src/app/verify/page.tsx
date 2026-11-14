@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { verifyLink, type LinkVerdict } from '@/lib/verify/pseudonym-verify';
+import { verifyLink, type LinkVerdict } from '@open-federation/pseudonym';
 import { verifierPlcUrl } from '@/lib/verify/plc';
 
 /** The context the stage demo turns the audience's word into a challenge with. */

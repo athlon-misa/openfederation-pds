@@ -5,8 +5,6 @@
  * directory, and survive the trip through a QR-sized link.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import bs58 from 'bs58';
 import { derivePseudonymKeys, generatePseudonymPhrase, signText, secp256k1DidKey } from '../../packages/openfederation-pseudonym/src/keys.js';
@@ -267,17 +265,5 @@ describe('verifyLink: what the /verify page shows', () => {
     stubPlc();
     const fragment = revealLinkFragment(reveal(nightDesk(), 'person')).replace(/p=[a-z2-7]{24}/, 'p=aaaaaaaaaaaaaaaaaaaaaaaa');
     expect(await verifyLink(fragment, opts)).toMatchObject({ valid: false, error: 'The pseudonym is not in the directory' });
-  });
-});
-
-describe('the dashboard\'s copy', () => {
-  it('is the package file below the "shared" line, unchanged', () => {
-    const below = (file: string) => {
-      const text = readFileSync(join(__dirname, '..', '..', file), 'utf8');
-      const at = text.indexOf('// ---------------------------------------------------------------- shared ----');
-      expect(at).toBeGreaterThan(0);
-      return text.slice(at);
-    };
-    expect(below('web-interface/src/lib/verify/pseudonym-verify.ts')).toBe(below('packages/openfederation-pseudonym/src/verify.ts'));
   });
 });
