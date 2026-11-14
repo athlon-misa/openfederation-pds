@@ -674,15 +674,36 @@ export const PEN_MOVE_STEPS: { id: MoveStep; label: string }[] = [
   { id: 'retire', label: 'Switch off the old copy' },
 ];
 
+/** The new server refused the pass it asked for. Nothing changed; try again with another of its passes. */
+export class MovePassRefused extends MoveError {}
+
+/**
+ * Move a pen name with its words. `pass`: one of the new server's own passes,
+ * for a server that takes pen names moving in only with one
+ * (`migration.pseudonyms: 'token'`); it is spent there.
+ */
 export async function movePenName(p: {
-  scope: string; entry: PenNameEntry; phrase: string; plcUrl: string; target: PenHome; newHandle: string; onStep: (s: MoveStep) => void;
+  scope: string; entry: PenNameEntry; phrase: string; plcUrl: string; target: PenHome; newHandle: string; pass?: Pass;
+  onStep: (s: MoveStep) => void;
 }): Promise<PenNameEntry> {
-  const session = await moveAccount({
-    oldPdsUrl: p.entry.home.url, oldServiceDid: p.entry.home.serviceDid,
-    newPdsUrl: p.target.url, newServiceDid: p.target.serviceDid,
-    plcUrl: p.plcUrl, phrase: p.phrase, did: p.entry.did, newHandle: p.newHandle,
-    onStep: (s) => p.onStep(s),
-  });
+  let session: Awaited<ReturnType<typeof moveAccount>>;
+  try {
+    session = await moveAccount({
+      oldPdsUrl: p.entry.home.url, oldServiceDid: p.entry.home.serviceDid,
+      newPdsUrl: p.target.url, newServiceDid: p.target.serviceDid,
+      plcUrl: p.plcUrl, phrase: p.phrase, did: p.entry.did, newHandle: p.newHandle,
+      // Needs @open-federation/pseudonym 0.4 (0.3.1 has no creationToken and would not send it).
+      creationToken: p.pass ? { epoch: p.pass.epoch, prepared: p.pass.prepared, signature: p.pass.signature } : undefined,
+      onStep: (s) => p.onStep(s),
+    });
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (/createAccount failed .*TokenSpent/.test(msg)) throw new MovePassRefused('That server says this pass was already used');
+    if (/createAccount failed .*InvalidToken/.test(msg)) {
+      throw new MovePassRefused(p.pass ? 'That server did not accept this pass (it may have expired, or be another server’s)' : 'That server asks for one of its own passes');
+    }
+    throw e;
+  }
   const handle = await fullHandle(p.target.url, session.handle);
   const entry: PenNameEntry = {
     ...p.entry, handle, home: p.target,
