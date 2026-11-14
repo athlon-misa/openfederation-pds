@@ -24,7 +24,12 @@ const plural = (n: number) => `${n} ${n === 1 ? 'pass' : 'passes'}`;
  * are then checked against the server's published keys (fetched like anyone
  * would, without credentials). They stay in this page's memory only.
  */
-export function LoadPasses({ server, loaded, onLoaded }: { server: string; loaded: LoadedPasses | null; onLoaded: (l: LoadedPasses) => void }) {
+export function LoadPasses({ server, loaded, onLoaded, id = 'load', title, description }: {
+  server: string; loaded: LoadedPasses | null; onLoaded: (l: LoadedPasses) => void;
+  /** Prefix for the section's and fields' ids, when the page has more than one. */
+  id?: string; title?: string; description?: string;
+}) {
+  const fieldId = (name: string) => (id === 'load' ? name : `${id}-${name}`);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -84,26 +89,26 @@ export function LoadPasses({ server, loaded, onLoaded }: { server: string; loade
   }
 
   return (
-    <Section id="load" title={loaded ? 'Load more passes' : 'Load your passes'} description="Your passes come from your account’s Pen names page, saved to a file or printed. Nothing here signs you in.">
+    <Section id={id} title={title ?? (loaded ? 'Load more passes' : 'Load your passes')} description={description ?? 'Your passes come from your account’s Pen names page, saved to a file or printed. Nothing here signs you in.'}>
       <div className="space-y-2">
-        <Label htmlFor="pass-file">The pass file</Label>
-        <input id="pass-file" type="file" accept="application/json,.json" disabled={busy}
+        <Label htmlFor={fieldId('pass-file')}>The pass file</Label>
+        <input id={fieldId('pass-file')} type="file" accept="application/json,.json" disabled={busy}
           className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
           onChange={(e) => { void fromFile(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="pass-text">Or paste or type a pass</Label>
-        <textarea id="pass-text" rows={4} spellCheck={false} autoComplete="off" value={text} onChange={(e) => setText(e.target.value)}
-          className="w-full rounded-md border bg-background p-2 font-mono text-xs" aria-describedby="pass-text-hint" placeholder="ofpass1~…" />
-        <p id="pass-text-hint" className="text-xs text-muted-foreground">A pass starts with “ofpass1~” and is about 500 characters long; spaces and line breaks do not matter, and its checksum catches a typo. You can paste several.</p>
+        <Label htmlFor={fieldId('pass-text')}>Or paste or type a pass</Label>
+        <textarea id={fieldId('pass-text')} rows={4} spellCheck={false} autoComplete="off" value={text} onChange={(e) => setText(e.target.value)}
+          className="w-full rounded-md border bg-background p-2 font-mono text-xs" aria-describedby={fieldId('pass-text-hint')} placeholder="ofpass1~…" />
+        <p id={fieldId('pass-text-hint')} className="text-xs text-muted-foreground">A pass starts with “ofpass1~” and is about 500 characters long; spaces and line breaks do not matter, and its checksum catches a typo. You can paste several.</p>
         <Button type="button" variant="outline" disabled={busy || !text.trim()} onClick={() => void take(text)}>{busy ? 'Checking…' : 'Load this pass'}</Button>
       </div>
 
       {Reader ? (
         <div className="space-y-2">
-          <Label htmlFor="pass-photo">Or a photo of a printed pass</Label>
-          <input id="pass-photo" type="file" accept="image/*" disabled={busy}
+          <Label htmlFor={fieldId('pass-photo')}>Or a photo of a printed pass</Label>
+          <input id={fieldId('pass-photo')} type="file" accept="image/*" disabled={busy}
             className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
             onChange={(e) => { void fromPhoto(e.target.files?.[0]); e.target.value = ''; }} />
           <p className="text-xs text-muted-foreground">The QR code is read on this device; the photo is not sent anywhere.</p>
