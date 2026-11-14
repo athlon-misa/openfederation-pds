@@ -30,6 +30,7 @@ import { createEmailWebhookRouter } from '../email/bounce-webhooks.js';
 import { confirmEmailToken } from '../email/verification.js';
 import { createXrpcRouter } from './xrpc-router.js';
 import { createWellKnownRouter } from './well-known-routes.js';
+import { createTlsCheckRouter } from './tls-check.js';
 import { SERVER_VERSION } from './server-version.js';
 import { applyMigrations } from '../db/migrate.js';
 import { startRuntimeSettings, stopRuntimeSettings } from '../settings/runtime-settings.js';
@@ -277,6 +278,10 @@ app.use('/xrpc', createXrpcRouter());
 // Protocol discovery. Mounted here; src/oauth/oauth-routes.ts separately
 // mounts /.well-known/oauth-* paths — no collision.
 app.use('/.well-known', createWellKnownRouter());
+
+// On-demand TLS for handle names: the appliance's Caddy asks here before it
+// requests a certificate for <handle>.<handle domain> (#405).
+app.use(createTlsCheckRouter());
 
 // SDK — serve the IIFE bundle (cached in memory after first read)
 let cachedSdkBundle: string | null = null;

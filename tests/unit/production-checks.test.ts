@@ -53,6 +53,16 @@ describe('production start-up checks', () => {
     }
   });
 
+  it('does not warn for a single-label name such as a Compose service (#405)', () => {
+    for (const host of ['postgres', 'db', 'openfederation-postgres']) {
+      expect(run({ database: { ssl: false, host } }).warnings, host).toEqual([]);
+    }
+    // Public names and addresses still warn.
+    for (const host of ['db.example.com', '203.0.113.7', 'postgres.']) {
+      expect(run({ database: { ssl: false, host } }).warnings.join('\n'), host).toContain('DB_SSL');
+    }
+  });
+
   it('checks nothing outside production', () => {
     expect(run({ isProduction: false, oauth: { signingKey: '', redisUrl: '' }, database: { ssl: false } }))
       .toEqual({ fatal: [], warnings: [] });

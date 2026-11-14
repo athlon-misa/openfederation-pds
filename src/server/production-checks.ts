@@ -9,7 +9,8 @@
  *    memory, which is only sound for a single instance. Warning.
  *  - DB_SSL: off means database traffic is clear text. Fine on this machine
  *    or a platform's private network (Railway, Fly and GCP name those
- *    "*.internal"); otherwise a warning.
+ *    "*.internal") or a single-label name such as a Docker Compose service
+ *    ("postgres"); otherwise a warning.
  */
 
 /** Generates an ES256 private key as a single-line JWK for OAUTH_SIGNING_KEY. */
@@ -32,7 +33,10 @@ export interface ProductionProblems {
 
 function isLocalOrPrivateNetworkHost(host: string): boolean {
   const h = host.trim().toLowerCase().replace(/^\[|\]$/g, '');
-  return h === 'localhost' || h === '::1' || h.startsWith('127.') || h.startsWith('/') || h.endsWith('.internal');
+  return h === 'localhost' || h === '::1' || h.startsWith('127.') || h.startsWith('/') || h.endsWith('.internal')
+    // A single-label name (`postgres`) is only resolvable on a private network:
+    // a Docker Compose service, as in deploy/appliance (#405).
+    || /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(h) && !/^\d+$/.test(h);
 }
 
 function shellQuote(arg: string): string {
