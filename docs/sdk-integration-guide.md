@@ -139,8 +139,10 @@ const user = await ofd.register({
   email: 'alice@example.com',
   password: 'SecureP@ss1',  // 10-128 chars, 3 of 4 categories
 });
-// user = { did: "did:plc:...", handle: "alice", email: "alice@example.com", active: true }
+// user = { did: "did:plc:...", handle: "alice.openfederation.net", email: "alice@example.com", active: true }
 ```
+
+`user.handle` is always the full AT Protocol handle: the name plus the server's handle domain, the name in the DID document (#411). Servers before that returned the name only (`"alice"`); the SDK completes it with the domain from the server's `describeServer`, so apps see one form either way. Show the short name with `displayHandle()`, and key anything you store by `user.did`, which never changes, not by the handle.
 
 **Errors:**
 - `ValidationError` (400) — invalid handle/email/password format
@@ -248,7 +250,7 @@ Returns: `Promise<void>`
 
 ### `ofd.displayHandle(handle)`
 
-Strip the PDS domain suffix for display. `"alice.openfederation.net"` becomes `"alice"`. If the handle doesn't end with the PDS suffix, it's returned as-is.
+Strip the PDS domain suffix for display. `"alice.openfederation.net"` becomes `"alice"`. If the handle doesn't end with the PDS suffix, it's returned as-is. Uses the server's own handle domain once the client knows it (it asks only when an older server returns a short handle), `.openfederation.net` otherwise.
 
 Returns: `string`
 
@@ -454,6 +456,16 @@ Standalone version of `ofd.displayHandle()`. Can be imported and used without cr
 import { displayHandle } from '@open-federation/sdk';
 displayHandle('alice.openfederation.net');  // "alice"
 displayHandle('alice.custom.net', '.custom.net');  // "alice"
+```
+
+### `fullHandle(handle, domain?)` (standalone)
+
+The opposite: adds a handle domain to a short name. A handle that already has a domain, a DID, or an external account's `plc-…` placeholder is returned as-is, as is anything when `domain` is not given.
+
+```typescript
+import { fullHandle } from '@open-federation/sdk';
+fullHandle('alice', '.openfederation.net');              // "alice.openfederation.net"
+fullHandle('alice.bsky.social', '.openfederation.net');  // "alice.bsky.social"
 ```
 
 ### `SDK_VERSION`
