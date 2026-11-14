@@ -329,4 +329,33 @@ describe('copyRepo', () => {
     await expect(copyRepo({ did: 'did:plc:someoneelse', toUrl: 'https://new.test', accessJwt: 'jwt', car, fetch: fake }))
       .rejects.toThrow(/is for did:plc:abc/);
   });
+
+  it('uploads blobs from a backup when the old PDS is gone, and reports or refuses the ones it lacks (#382)', async () => {
+    const pds = await FakePds.create();
+    await pds.put(POST, 'p', { text: 'kept' });
+    const car = await pds.car();
+    let missing = ['bafkblob1', 'bafkblob2'];
+    const uploaded: { type: string | null; body: Uint8Array }[] = [];
+    const fake = (async (input: string | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.host === 'old.test') throw new Error('old PDS is gone');
+      if (url.pathname.endsWith('importRepo')) return Response.json({});
+      if (url.pathname.endsWith('listMissingBlobs')) return Response.json({ blobs: missing.map((cid) => ({ cid })) });
+      if (url.pathname.endsWith('uploadBlob')) {
+        uploaded.push({ type: new Headers(init!.headers).get('content-type'), body: init!.body as Uint8Array });
+        missing = missing.filter((c) => c !== 'bafkblob1');
+        return Response.json({ blob: { ref: { $link: 'bafkblob1' } } });
+      }
+      return new Response('', { status: 404 });
+    }) as typeof globalThis.fetch;
+    const backupBlobs = [{ cid: 'bafkblob1', mimeType: 'image/png', bytes: new Uint8Array([9, 9]) }];
+
+    await expect(copyRepo({ did: DID, toUrl: 'https://new.test', accessJwt: 'jwt', car, backupBlobs, fetch: fake }))
+      .rejects.toThrow(/bafkblob2, which is not in the backup/);
+    missing = ['bafkblob1', 'bafkblob2'];
+    uploaded.length = 0;
+    const result = await copyRepo({ did: DID, toUrl: 'https://new.test', accessJwt: 'jwt', car, backupBlobs, allowMissingBlobs: true, fetch: fake });
+    expect(result).toMatchObject({ blobsCopied: 1, missingBlobs: ['bafkblob2'] });
+    expect(uploaded).toEqual([{ type: 'image/png', body: new Uint8Array([9, 9]) }]);
+  });
 });

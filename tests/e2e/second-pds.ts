@@ -49,8 +49,11 @@ async function waitForHealth(url: string, child: ChildProcess, timeoutMs = 120_0
   throw new Error('Second PDS did not start; see tests/e2e/.logs/pds-b.log');
 }
 
-/** Start PDS B on a fresh database; the server applies the schema itself. */
-export async function startSecondPds(): Promise<SecondPds> {
+/**
+ * Start PDS B on a fresh database; the server applies the schema itself.
+ * `env` adds or overrides its environment (e.g. ACCOUNT_APPROVAL).
+ */
+export async function startSecondPds(opts: { env?: Record<string, string> } = {}): Promise<SecondPds> {
   await freshDatabase();
   const url = `http://localhost:${PORT}`;
   const serviceDid = `did:web:localhost%3A${PORT}`;
@@ -84,6 +87,7 @@ export async function startSecondPds(): Promise<SecondPds> {
       MIGRATION_COMMUNITIES: 'open',
       GLOBAL_RATE_LIMIT: '100000',
       CREATE_RATE_LIMIT: '10000',
+      ...opts.env,
     },
   });
   child.stdout?.pipe(log);
