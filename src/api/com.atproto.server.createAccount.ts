@@ -81,9 +81,6 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
     if (ownerKey && !runtimeSettings().identity.pseudonymsEnabled) {
       throw new Refusal(403, 'MigrationNotAllowed', 'This server does not accept pseudonyms');
     }
-    if (policy === 'token' && (!token || typeof token !== 'object')) {
-      throw new Refusal(400, 'InvalidToken', 'This PDS asks for a creation token to accept a pseudonym');
-    }
     if (custodial) {
       if (!email || !password) throw new Refusal(400, 'InvalidRequest', 'email and password are required for a user account');
       if (!isStrongPassword(password)) throw new Refusal(400, 'InvalidPassword', passwordValidationMessage());
@@ -120,7 +117,12 @@ export default async function createAccount(req: AuthRequest, res: Response): Pr
       const existing = await client.query(
         `SELECT 1 FROM users WHERE did = $1 OR ($2::text IS NOT NULL AND pseudonym_owner_key = $2)
          UNION ALL SELECT 1 FROM communities WHERE did = $1`, [did, ownerKey]);
+      // Checked first: a pseudonym moving back to a copy it left here needs
+      // no token (the mover signs in to that copy instead, on AlreadyExists).
       if (existing.rows.length > 0) throw new Refusal(409, 'AlreadyExists', 'This DID already has an account here');
+      if (policy === 'token' && (!token || typeof token !== 'object')) {
+        throw new Refusal(400, 'InvalidToken', 'This PDS asks for a creation token to accept a pseudonym');
+      }
       const taken = await client.query(
         'SELECT 1 FROM users WHERE handle = $1 UNION ALL SELECT 1 FROM communities WHERE handle = $1', [label]);
       if (taken.rows.length > 0) throw new Refusal(400, 'HandleNotAvailable', 'Handle is already taken');

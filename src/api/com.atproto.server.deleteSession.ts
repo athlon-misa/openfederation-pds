@@ -7,11 +7,16 @@ import type { AuthRequest } from '../auth/types.js';
 /**
  * com.atproto.server.deleteSession
  *
- * Logout / revoke the current session's refresh token.
+ * Logout / revoke the current session's refresh token. AT Protocol clients
+ * send the refresh token as the bearer token, with no body; this server's
+ * own clients send it as `refreshJwt` in the body (with the access token as
+ * the bearer). The body wins when both are there, as in refreshSession.
  */
 export default async function deleteSession(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const refreshToken = req.body?.refreshJwt;
+    const header = req.headers.authorization;
+    const headerToken = header?.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+    const refreshToken = (typeof req.body?.refreshJwt === 'string' && req.body.refreshJwt) || headerToken;
 
     if (!refreshToken) {
       res.status(400).json({
