@@ -1,0 +1,25 @@
+# Local test variant of the appliance, on one computer (#405). Not for a server.
+#
+#   cd deploy/appliance
+#   cp .env.local.example .env
+#   docker compose -f compose.yaml -f compose.local.yaml up -d
+#
+# Caddy serves *.localhost names with its own local certificate authority
+# (no public certificate is requested), on ports 39080/39443 so nothing
+# already using 80/443 gets in the way. Browsers will warn about the
+# certificate unless Caddy's root (data/caddy/data/caddy/pki/authorities/
+# local/root.crt) is trusted; curl needs -k. The PDS and dashboard are also
+# published directly on 127.0.0.1 for checks that skip Caddy.
+#
+# To try images built from this checkout instead of the published ones:
+#   docker build -t ghcr.io/athlon-misa/openfederation-pds:local .
+#   docker build -t ghcr.io/athlon-misa/openfederation-dashboard:local web-interface
+# and set OPENFEDERATION_VERSION=local in .env.
+
+services:
+  pds:
+    ports:
+      - "127.0.0.1:39380:8080"
+  dashboard:
+    ports:
+      - "127.0.0.1:39301:3000"

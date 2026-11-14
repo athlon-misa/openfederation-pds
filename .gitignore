@@ -71,3 +71,6 @@ demo/stage/public/app.js.map
 
 # Cybersecurity Readiness Audit: private, never published
 docs/cra-audit/
+
+# Appliance data when run from a checkout (deploy/appliance)
+deploy/appliance/data/
