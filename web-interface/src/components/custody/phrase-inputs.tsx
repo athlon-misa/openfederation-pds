@@ -9,12 +9,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { loadRemembered } from '@/lib/custody/custody';
 
 /** A new phrase: shown once, then three of its words are asked back. */
-export function NewPhrase({ onReady, intro }: {
+export function NewPhrase({ onReady, intro, generate = generateCustodyPhrase, listLabel = 'Your 12 words' }: {
   onReady: (phrase: string) => void;
   /** What the words are for; by default, the identity phrase. */
   intro?: string;
+  /** Makes the words; by default an identity phrase. */
+  generate?: () => string;
+  listLabel?: string;
 }) {
-  const [phrase] = useState(() => generateCustodyPhrase());
+  const [phrase] = useState(() => generate());
   const words = phrase.split(' ');
   const [stage, setStage] = useState<'show' | 'check'>('show');
   // Three different positions, chosen once.
@@ -32,7 +35,7 @@ export function NewPhrase({ onReady, intro }: {
       <div className="space-y-3">
         <p className="text-sm">{intro ?? 'Write these 12 words on paper, in order, and keep the paper somewhere safe and private. Whoever has them controls your identity. This page will not show them again.'}</p>
         <p className="text-sm text-muted-foreground">Do not photograph them or keep them in email, chat or online notes.</p>
-        <ol className="grid grid-cols-2 gap-2 rounded-md border p-3 font-mono text-sm sm:grid-cols-3" aria-label="Your 12 words">
+        <ol className="grid grid-cols-2 gap-2 rounded-md border p-3 font-mono text-sm sm:grid-cols-3" aria-label={listLabel}>
           {words.map((w, i) => <li key={i}><span className="text-muted-foreground">{i + 1}.</span> {w}</li>)}
         </ol>
         <Button type="button" onClick={() => setStage('check')}>I wrote them down</Button>

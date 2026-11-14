@@ -8,9 +8,7 @@
  * Also the short links an audience scans: a reveal or a presence proof in a
  * URL fragment, carrying only what the verifier cannot fetch from PLC.
  *
- * web-interface/src/lib/verify/pseudonym-verify.ts is a copy of everything
- * below the "shared" line until the dashboard can depend on a release with
- * this file; tests/unit/pseudonym-public-verify.test.ts keeps them equal.
+ * The dashboard's /verify page imports it from the published package.
  */
 import * as dagCbor from '@ipld/dag-cbor';
 import { secp256k1 } from '@noble/curves/secp256k1';

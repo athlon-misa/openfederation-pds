@@ -182,6 +182,7 @@ Tracking issues use the `status/shipped`, `status/needs-validation`, `status/par
 - Next.js 15 + shadcn/ui + Zustand + React Query v5 + kbar (port 3001)
 - Ozone-style admin dashboard: sidebar shell, command palette, data tables (`@tanstack/react-table`)
 - Pages: `/admin/{users,communities,invites,audit}`, `/communities`, `/explore`, `/account/{identity,recovery,devices,history,move,pen-names}` (`/settings` redirects to `/account`), `/glossary`, `/(auth)/{login,register,forgot-password}`, `/callback`
+- Pen names (`/account/pen-names`, on `@open-federation/pseudonym`): passes, create, sign in as the pen name (its own session in `sessionStorage`, never mixed with the person's), authorship claims, files and CAR backup, proofs (`/verify` link and QR, file, public) and in-person proofs, move (`moveAccount`) and end (delete + PLC tombstone). Creation screens only while `identity.pseudonymsEnabled`
 
 ## Email — **shipped**
 

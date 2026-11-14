@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { setTokenGetter } from '@/lib/api-client';
+import { forgetPenSession } from '@/lib/pen-names/pen-session-store';
 import { createSession, refreshSession, getSession, resolveExternal, completeExternalLogin, deleteSession } from '@/lib/api/auth';
 
 interface AuthState {
@@ -182,6 +183,8 @@ export const useAuthStore = create<AuthState>()(
           try {
             if (refreshJwt) await deleteSession(refreshJwt);
           } finally {
+            // A pen name signed in in this tab goes with the person who signed it in.
+            forgetPenSession();
             set(loggedOutState);
           }
         },
