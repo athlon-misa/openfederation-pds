@@ -74,6 +74,8 @@ const session = await moveAccount({
 }); // a session at the new home
 ```
 
+A PDS may accept pseudonyms moving in only with one of its own creation tokens (`migration.pseudonyms: 'token'` in its `net.openfederation.server.getPublicConfig`). Pass one as `creationToken` (to `moveAccount` or `openAccountForMove`): a token collected at that PDS, by an account there, with `collectTokens`. It is spent when the account opens, and tells that PDS only that some account's token was used; a refused token fails the `open` step, before anything has changed. PDSes that don't ask for one ignore it.
+
 It opens the account at the new PDS, copies the repository (`sync.getRepo` → `com.atproto.repo.importRepo`) and the blobs its records reference (`copyMissingBlobs`: `repo.listMissingBlobs` → `sync.getBlob` → `repo.uploadBlob`), and only signs the PLC update once the new PDS reports the exact repository the old one exported and every blob. The update uses the new PDS's recommended credentials (endpoint, signing key, handle) and keeps the rotation key and the commitment. Then it activates the account there, logs in, and deactivates the old account. A failure before the PLC update leaves the pseudonym working where it was. Moving to a PDS that still holds a copy from an earlier stay signs in to that copy (deactivated accounts keep a limited session) and refills it, so moving back works the same way.
 
 ## Retiring a pseudonym
@@ -92,7 +94,7 @@ Delete the pseudonym's accounts first (`com.atproto.server.deleteAccount` with a
 
 Revealing is always the owner's choice. Build a bundle with `createRevealBundle` (needs the phrase and the owner's session; the PDS signs the owner half through `signLink`), then pick a mode.
 
-- **Public**: `publishReveal` writes a `net.openfederation.pseudonym.link` record into both the pseudonym's and the owner's repos.
+- **Public**: `publishReveal` writes a `net.openfederation.pseudonym.link` record into both the pseudonym's and the owner's repos, each with its own account's token at its own PDS: `pdsUrl` is the owner's, `pseudonymPdsUrl` the pseudonym's when it lives elsewhere. `revealLinkRecord(bundle)` is that record.
 - **Private file**: save the bundle as JSON and hand it to whoever should check it. They run `ofc pseudonym verify bundle.json --online`.
 - **In person**: the verifier gives you a challenge (`ofc pseudonym presence-challenge`); you answer with `signPresence({ phrase, pseudonymDid, challenge })`; they run `ofc pseudonym verify-presence <did> <challenge> <signature>`. Nothing is published.
 
@@ -124,8 +126,8 @@ const bundle = await createRevealBundle({
 The verifier runs in a browser or a phone as well as in Node, and reads every key from the PLC directory:
 
 - `verifyRevealBundle(bundle, { online: true, plcUrl })`: the same checks as `ofc pseudonym verify --online`, with `ownerAttestation` (`person` or `pds-held-key`).
-- `checkPresence({ plcUrl, pseudonymDid, challenge, signature })`: an in-person proof against the key in the pseudonym's genesis operation. `challengeForWord(word, context)` turns a spoken word into a challenge.
-- Links for a QR code: `revealLinkFragment(bundle)` and `presenceLinkFragment({ pseudonymDid, word, signature })` make a short URL fragment (raw owner signatures only; the genesis operation and the owner's key are left out, since the verifier reads them from PLC). `verifyLink(fragment, { plcUrl, presenceContext })` checks one and names both accounts by handle. The OpenFederation dashboard serves this at `/verify`.
+- `checkPresence({ plcUrl, pseudonymDid, challenge, signature })`: an in-person proof against the key in the pseudonym's genesis operation. `challengeForWord(word, context?)` turns a spoken word into a challenge, in `context`: by default `IN_PERSON_CONTEXT` (`'OpenFederation in-person proof'`), or an application's own; the signer and the verifier must use the same one.
+- Links for a QR code: `revealLinkFragment(bundle)` and `presenceLinkFragment({ pseudonymDid, word, signature, context })` make a short URL fragment (raw owner signatures only; the genesis operation and the owner's key are left out, since the verifier reads them from PLC). A presence link names the context the word was signed in as `c=`; pass the one you signed with. `verifyLink(fragment, { plcUrl })` checks one and names both accounts by handle; a presence link is checked in the context it names, so changing `c=` makes it INVALID. A link without `c=` (made before links named one) is checked in `presenceContext`, by default `STAGE_PRESENCE_CONTEXT` (`'OpenNewsrooms stage challenge'`), the context those links were all made in. The OpenFederation dashboard serves this at `/verify`.
 
 Lower-level helpers (formats, key derivation, token blinding, PLC genesis operations) are exported from the package root.
 

@@ -120,6 +120,14 @@ NEXT_PUBLIC_PDS_URL=https://your-pds.up.railway.app
 
 This tells the web UI where the PDS API lives. Use the PDS service's public URL from Step 3.
 
+Optionally, pin the PDS's service DID (`PDS_SERVICE_DID`, by default `did:web:{PDS_HOSTNAME}`), so the pen-name pages refuse a server at that address that names another DID instead of trusting what it says:
+
+```
+NEXT_PUBLIC_PDS_SERVICE_DID=did:web:pds.yourdomain.com
+```
+
+Like `NEXT_PUBLIC_PDS_URL`, it is read when the dashboard is built.
+
 **Note:** Do NOT set `PORT` — Railway assigns it. The Next.js start script reads `$PORT` automatically.
 
 ---

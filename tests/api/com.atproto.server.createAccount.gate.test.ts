@@ -67,6 +67,18 @@ describe('migration gate (createAccount)', () => {
     expect((await query('SELECT 1 FROM users WHERE did = $1', [other.did])).rows).toHaveLength(0);
   });
 
+  it('token: a pseudonym moving back to the copy it left here is not asked for one', async (ctx) => {
+    if (!plc) ctx.skip('PLC directory not available');
+    runtimeSettings().migration.pseudonyms = 'open';
+    const p = await pseudonymElsewhere();
+    expect((await createAccount({ did: p.did, handle: newHandle() }, proofFor(p))).status).toBe(200);
+    // The policy changed since; the copy is still here, so the mover signs in to it (moveAccount does, on AlreadyExists).
+    runtimeSettings().migration.pseudonyms = 'token';
+    const again = await createAccount({ did: p.did, handle: newHandle() }, proofFor(p));
+    expect(again.status).toBe(409);
+    expect(again.body.error).toBe('AlreadyExists');
+  });
+
   it('open: a token is not needed and is ignored when sent', async (ctx) => {
     if (!plc) ctx.skip('PLC directory not available');
     runtimeSettings().migration.pseudonyms = 'open';

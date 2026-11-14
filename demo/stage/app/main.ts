@@ -629,7 +629,7 @@ async function prove(asStranger: boolean): Promise<void> {
     : asStranger ? 'Different words make a different key. Nobody else can sign as Night Desk.' : 'The signature does not match Night Desk.';
   v.append(s, t);
   $('verdict-note').textContent = `The word “${word.trim()}” was signed ${asStranger ? "with a stranger’s twelve words" : "on Elena’s laptop"} and checked by a separate verifier against Night Desk’s key in the public directory${r.directoryKey ? ` (${short(r.directoryKey)})` : ''}.`;
-  showQr('prove-qr', presenceLinkFragment({ pseudonymDid: nd.did, word, signature }));
+  showQr('prove-qr', presenceLinkFragment({ pseudonymDid: nd.did, word, signature, context: cfg!.presenceContext }));
 }
 $('btn-prove').addEventListener('click', busy($('btn-prove') as HTMLButtonElement, async () => {
   await prove(false); ($('btn-prove') as HTMLButtonElement).disabled = false;

@@ -109,7 +109,7 @@ The "sealed note" on the Reveal screen is the commitment in Night Desk's genesis
 
 Live, the In person and Reveal screens show a QR code for the public verifier on the dashboard, `https://beta.openfederation.net/verify` (`DEMO_VERIFIER_URL`). The proof rides in the URL fragment (`#…`), which browsers never send to a server, so no log sees it:
 
-- in person: `#w=<word>&d=<did without did:plc:>&s=<signature>`;
+- in person: `#w=<word>&d=<did without did:plc:>&s=<signature>&c=<context>`. The demo signs in its own context, `OpenNewsrooms stage challenge`, and names it in `c`; a link without `c` (made before links named one) is read in that same context, so older codes still check out;
 - reveal: `#r=2&p=<pseudonym>&o=<owner>&t=<issued, ms>&k=o|a&ps=<pseudonym signature>&os=<owner signature>&s=<salt>`. The genesis operation and the owner's key are left out: the phone reads both from the directory. About 340 characters, a version 12–13 QR code.
 
 The phone checks it on its own against the PLC directory the dashboard's PDS names (`getPublicConfig.plcDirectoryUrl`, else plc.openfederation.net), with the same code as the demo server, and says VALID or INVALID, who (by handle), and for a reveal whether the person or the server's key signed. Nothing goes through the laptop. "Marko claims Night Desk" and "A stranger tries" make codes too; phones say INVALID.

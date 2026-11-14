@@ -11,14 +11,12 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { verifyLink, type LinkVerdict } from '@open-federation/pseudonym';
 import { verifierPlcUrl } from '@/lib/verify/plc';
-
-/** The context the stage demo turns the audience's word into a challenge with. */
-const PRESENCE_CONTEXT = 'OpenNewsrooms stage challenge';
+import { IN_PERSON_CONTEXT, presenceContextOf } from '@/lib/verify/presence-context';
 
 type State =
   | { phase: 'empty' }
   | { phase: 'checking' }
-  | { phase: 'done'; verdict: LinkVerdict; plcUrl: string }
+  | { phase: 'done'; verdict: LinkVerdict; plcUrl: string; context: string }
   | { phase: 'broken'; message: string };
 
 /** A failed check, in plain words. */
@@ -39,7 +37,7 @@ function Who({ handle, did }: { handle?: string; did: string }) {
   return <span className="font-medium">{handle ?? shortDid(did)}</span>;
 }
 
-function Verdict({ verdict, plcUrl }: { verdict: LinkVerdict; plcUrl: string }) {
+function Verdict({ verdict, plcUrl, context }: { verdict: LinkVerdict; plcUrl: string; context: string }) {
   const ok = verdict.valid;
   return (
     <div className="space-y-4">
@@ -49,15 +47,20 @@ function Verdict({ verdict, plcUrl }: { verdict: LinkVerdict; plcUrl: string }) 
       </div>
 
       {verdict.kind === 'presence' ? (
-        <p className="text-base leading-relaxed">
-          {ok ? (
-            <>The word “{verdict.word}” was signed with the twelve words that control <Who handle={verdict.pseudonymHandle} did={verdict.pseudonymDid} />.
-              Whoever signed it holds them.</>
-          ) : (
-            <>This signature of “{verdict.word}” does not match <Who handle={verdict.pseudonymHandle} did={verdict.pseudonymDid} />.
-              {verdict.error ? ` (${verdict.error})` : ''}</>
+        <div className="space-y-2">
+          <p className="text-base leading-relaxed">
+            {ok ? (
+              <>The word “{verdict.word}” was signed with the twelve words that control <Who handle={verdict.pseudonymHandle} did={verdict.pseudonymDid} />.
+                Whoever signed it holds them.</>
+            ) : (
+              <>This signature of “{verdict.word}” does not match <Who handle={verdict.pseudonymHandle} did={verdict.pseudonymDid} />.
+                {verdict.error ? ` (${verdict.error})` : ''}</>
+            )}
+          </p>
+          {context !== IN_PERSON_CONTEXT && (
+            <p className="text-sm text-muted-foreground">Signed for: “{context}”.</p>
           )}
-        </p>
+        </div>
       ) : (
         <div className="space-y-3 text-base leading-relaxed">
           {ok ? (
@@ -100,8 +103,10 @@ export default function VerifyPage() {
     if (!fragment) { setState({ phase: 'empty' }); return; }
     setState({ phase: 'checking' });
     try {
+      // An in-person proof's word is checked in the context its link names (c=); a link without one, in the stage demo's.
+      const context = presenceContextOf(fragment);
       const plcUrl = await verifierPlcUrl(window.location.search);
-      setState({ phase: 'done', verdict: await verifyLink(fragment, { plcUrl, presenceContext: PRESENCE_CONTEXT }), plcUrl });
+      setState({ phase: 'done', verdict: await verifyLink(fragment, { plcUrl, presenceContext: context }), plcUrl, context });
     } catch (err) {
       setState({ phase: 'broken', message: err instanceof Error ? err.message : String(err) });
     }
@@ -133,7 +138,7 @@ export default function VerifyPage() {
         {state.phase === 'broken' && (
           <p className="text-sm text-destructive">This link is not a proof this page can read ({state.message}).</p>
         )}
-        {state.phase === 'done' && <Verdict verdict={state.verdict} plcUrl={state.plcUrl} />}
+        {state.phase === 'done' && <Verdict verdict={state.verdict} plcUrl={state.plcUrl} context={state.context} />}
       </CardContent>
     </Card>
   );
