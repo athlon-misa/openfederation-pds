@@ -4,6 +4,7 @@ import { filterGrantedFields } from '../attestation/lifecycle.js';
 import { getCommunityAccess } from '../community/visibility.js';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { resolveDidToPds, fetchRemoteRecord } from '../federation/remote-verify.js';
 
 const ATTESTATION_COLLECTION = 'net.openfederation.community.attestation';
@@ -26,7 +27,7 @@ export default async function verifyAttestation(req: AuthRequest, res: Response)
       'SELECT handle FROM communities WHERE did = $1',
       [communityDid]
     );
-    const communityHandle = communityResult.rows[0]?.handle;
+    const communityHandle = fullHandle(communityResult.rows[0]?.handle);
 
     // For a community hosted here: a private community, or a private
     // attestation, is verifiable only by those mayVerifyAttestation names

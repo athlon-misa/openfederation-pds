@@ -3,6 +3,7 @@ import { verifySignature } from '@atproto/crypto';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { issueSession } from '../auth/session-issue.js';
+import { fullHandle } from '../auth/utils.js';
 import { buildLoginMessage, base64UrlDecode } from '../../packages/openfederation-pseudonym/src/formats.js';
 
 const UNAUTHORIZED = { error: 'Unauthorized', message: 'Invalid credentials' };
@@ -34,7 +35,7 @@ export default async function createPseudonymSession(req: Request, res: Response
     if (!deactivated && user.status !== 'approved') { res.status(403).json({ error: 'AccountNotActive', message: 'This account is not active.' }); return; }
 
     const { accessJwt, refreshJwt } = await issueSession({ ...user, email: null }, { pseudonym: true });
-    res.status(200).json({ did: user.did, handle: user.handle, accessJwt, refreshJwt, active: !deactivated, ...(deactivated ? { status: 'deactivated' } : {}) });
+    res.status(200).json({ did: user.did, handle: fullHandle(user.handle), accessJwt, refreshJwt, active: !deactivated, ...(deactivated ? { status: 'deactivated' } : {}) });
   } catch (error) {
     console.error('Error in pseudonym.createSession');
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to create session' });

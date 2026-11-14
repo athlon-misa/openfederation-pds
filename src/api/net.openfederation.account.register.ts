@@ -13,6 +13,7 @@ import {
   initializeUserRepoAsync,
 } from '../auth/account-creation.js';
 import crypto from 'crypto';
+import { fullHandle } from '../auth/utils.js';
 
 interface RegisterInput {
   handle: string;
@@ -127,7 +128,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
     res.status(201).json({
       id: result.userId,
-      handle,
+      handle: fullHandle(handle),
       did: result.identity.did,
       email,
       status: 'pending',

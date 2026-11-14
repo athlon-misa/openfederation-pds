@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { query } from '../db/client.js';
-import { normalizeEmail, normalizeHandle } from '../auth/utils.js';
+import { localHandle, normalizeEmail } from '../auth/utils.js';
 import { auditLog } from '../db/audit.js';
 import { sendEmail } from '../email/email-service.js';
 import { config } from '../config.js';
@@ -39,7 +39,7 @@ export default async function initiateRecovery(req: Request, res: Response): Pro
       return;
     }
 
-    const normalizedHandle = normalizeHandle(handle);
+    const normalizedHandle = localHandle(handle);
     const normalizedEmail = normalizeEmail(email);
 
     // Look up user by handle AND email (must both match)

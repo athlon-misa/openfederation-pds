@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 export default async function listInvites(req: AuthRequest, res: Response): Promise<void> {
   if (!requireRole(req, res, ['admin', 'moderator', 'auditor'])) {
@@ -78,7 +79,7 @@ export default async function listInvites(req: AuthRequest, res: Response): Prom
         usesCount: i.uses_count,
         expiresAt: i.expires_at,
         createdAt: i.created_at,
-        createdByHandle: i.creator_handle || 'unknown',
+        createdByHandle: fullHandle(i.creator_handle) || 'unknown',
         status: computedStatus,
       };
     });

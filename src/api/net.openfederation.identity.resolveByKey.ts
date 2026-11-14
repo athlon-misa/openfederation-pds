@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { EXTERNAL_KEY_COLLECTION } from '../identity/external-keys.js';
 
 export default async function resolveByKey(req: AuthRequest, res: Response): Promise<void> {
@@ -57,7 +58,7 @@ export default async function resolveByKey(req: AuthRequest, res: Response): Pro
     const row = result.rows[0];
     res.status(200).json({
       did: row.community_did,
-      handle: row.handle,
+      handle: fullHandle(row.handle),
       rkey: row.rkey,
       type: row.record?.type,
       purpose: row.record?.purpose,

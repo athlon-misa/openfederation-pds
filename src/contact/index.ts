@@ -1,4 +1,5 @@
 import { query, withAdvisoryLock } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { assertServerMaySign, isDeviceSigningOn } from '../repo/device-signing-state.js';
@@ -87,7 +88,7 @@ export async function sendContactRequest(
     'SELECT handle FROM users WHERE did = $1',
     [subject],
   );
-  const toHandle = recipientRow.rows[0]?.handle ?? subject;
+  const toHandle = fullHandle(recipientRow.rows[0]?.handle) ?? subject;
 
   await query(
     `INSERT INTO contact_requests (from_did, to_did, rkey, note, created_at)
@@ -99,7 +100,7 @@ export async function sendContactRequest(
   // Notify the recipient (#70)
   await createNotification(subject, 'contact-request', {
     fromDid: callerDid,
-    fromHandle: auth.handle ?? callerDid,
+    fromHandle: fullHandle(auth.handle) ?? callerDid,
     rkey,
     ...(note ? { note } : {}),
   }).catch(() => { /* non-critical */ });
@@ -290,7 +291,7 @@ export async function listContacts(
     const display = displayMap.get(row.contact_did) ?? {};
     return {
       did: row.contact_did,
-      handle: row.handle ?? row.contact_did,
+      handle: fullHandle(row.handle) ?? row.contact_did,
       ...(display.displayName ? { displayName: display.displayName } : {}),
       ...(display.avatarUrl ? { avatarUrl: display.avatarUrl } : {}),
       acceptedAt: new Date(row.accepted_at).toISOString(),
@@ -352,7 +353,7 @@ export async function listIncomingRequests(
     return {
       rkey: row.rkey,
       fromDid: row.from_did,
-      fromHandle: row.handle ?? row.from_did,
+      fromHandle: fullHandle(row.handle) ?? row.from_did,
       ...(display.displayName ? { fromDisplayName: display.displayName } : {}),
       ...(display.avatarUrl ? { fromAvatarUrl: display.avatarUrl } : {}),
       createdAt: new Date(row.created_at).toISOString(),
@@ -414,7 +415,7 @@ export async function listOutgoingRequests(
     return {
       rkey: row.rkey,
       toDid: row.to_did,
-      toHandle: row.handle ?? row.to_did,
+      toHandle: fullHandle(row.handle) ?? row.to_did,
       ...(display.displayName ? { toDisplayName: display.displayName } : {}),
       ...(display.avatarUrl ? { toAvatarUrl: display.avatarUrl } : {}),
       createdAt: new Date(row.created_at).toISOString(),
@@ -577,7 +578,7 @@ export async function listBlocks(
   return {
     blocks: rows.map(r => ({
       did: r.blocked_did,
-      handle: r.handle ?? r.blocked_did,
+      handle: fullHandle(r.handle) ?? r.blocked_did,
       createdAt: new Date(r.created_at).toISOString(),
     })),
     ...(nextCursor ? { cursor: nextCursor } : {}),
@@ -628,7 +629,7 @@ export async function listMutualContacts(
   }
 
   return {
-    contacts: rows.map(r => ({ did: r.contact_did, handle: r.handle ?? r.contact_did })),
+    contacts: rows.map(r => ({ did: r.contact_did, handle: fullHandle(r.handle) ?? r.contact_did })),
     ...(nextCursor ? { cursor: nextCursor } : {}),
   };
 }
@@ -698,7 +699,7 @@ export async function listFriendOfFriends(
   return {
     suggestions: rows.map(r => ({
       did: r.did,
-      handle: r.handle ?? r.did,
+      handle: fullHandle(r.handle) ?? r.did,
       mutualCount: parseInt(r.mutual_count, 10),
     })),
     ...(nextCursor ? { cursor: nextCursor } : {}),

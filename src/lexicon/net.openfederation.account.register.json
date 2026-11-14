@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.register",
-  "revision": 4,
+  "revision": 5,
   "description": "Register a new account. Requires an invite code if the server has invite-only registration enabled.",
   "defs": {
     "main": {
@@ -14,7 +14,7 @@
           "properties": {
             "handle": {
               "type": "string",
-              "description": "Requested handle (3-30 chars, lowercase alphanumeric + hyphens)."
+              "description": "Requested handle: the name (3-30 chars, lowercase alphanumeric + hyphens), optionally followed by this server's handle domain. The response gives the full handle."
             },
             "email": {
               "type": "string",

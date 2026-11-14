@@ -18,6 +18,7 @@
  * the viewer may read, and the communities where they may see join requests.
  */
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { MEMBER_COLLECTION } from '../auth/permissions.js';
 import { PROPOSAL_COLLECTION } from '../governance/decision-rules.js';
 import { CALENDAR_EVENT } from '../forum/forum-index.js';
@@ -186,15 +187,16 @@ async function queryLocalActivity(
               'at://' || mu.community_did || '/' || $6 || '/' || mu.record_rkey AS id,
               'at://' || mu.community_did || '/' || $6 || '/' || mu.record_rkey AS uri,
               ri.cid, mu.created_at AS at,
-              jsonb_strip_nulls(jsonb_build_object('handle', mu.handle, 'role', mu.role)) AS summary
+              jsonb_strip_nulls(jsonb_build_object('handle', mu.handle, 'localHandle', mu_u.handle, 'role', mu.role)) AS summary
          FROM members_unique mu
+         LEFT JOIN users mu_u ON mu_u.did = mu.member_did
          LEFT JOIN records_index ri
            ON ri.community_did = mu.community_did AND ri.collection = $6 AND ri.rkey = mu.record_rkey
         WHERE mu.community_did = ANY($1::text[])
        UNION ALL
        SELECT 'joinRequest.created', jr.community_did, jr.user_did,
               'joinRequest:' || jr.community_did || ':' || jr.id, NULL, NULL, jr.created_at,
-              jsonb_strip_nulls(jsonb_build_object('handle', u.handle))
+              jsonb_strip_nulls(jsonb_build_object('localHandle', u.handle))
          FROM join_requests jr
          LEFT JOIN users u ON u.id = jr.user_id
         WHERE jr.community_did = ANY($2::text[]) AND jr.status = 'pending'
@@ -253,7 +255,13 @@ function rowToEntry(row: ActivityRow): ActivityEntry {
   if (row.actor) entry.actor = row.actor;
   if (row.uri) entry.uri = row.uri;
   if (row.cid) entry.cid = row.cid;
-  if (row.summary && Object.keys(row.summary).length > 0) entry.summary = row.summary;
+  if (row.summary && Object.keys(row.summary).length > 0) {
+    // An account here is named by its full handle (#411); anyone else by the
+    // handle its member record carries.
+    const { localHandle, ...summary } = row.summary as ActivitySummary & { localHandle?: string };
+    if (localHandle) summary.handle = fullHandle(localHandle);
+    entry.summary = summary;
+  }
   return entry;
 }
 

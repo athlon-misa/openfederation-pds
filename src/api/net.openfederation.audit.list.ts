@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireRole } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 export default async function listAudit(req: AuthRequest, res: Response): Promise<void> {
   if (!requireRole(req, res, ['admin', 'auditor'])) {
@@ -82,7 +83,7 @@ export default async function listAudit(req: AuthRequest, res: Response): Promis
       id: String(e.id),
       action: e.action,
       actorId: e.actor_id,
-      actorHandle: e.actor_handle,
+      actorHandle: fullHandle(e.actor_handle),
       targetId: e.target_id,
       meta: e.meta,
       createdAt: new Date(e.created_at).toISOString(),

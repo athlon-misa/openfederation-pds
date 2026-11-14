@@ -2,6 +2,7 @@ import { requireRepoReadable } from '../auth/guards.js';
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 
 /**
  * GET net.openfederation.identity.listWalletsPublic
@@ -44,7 +45,7 @@ export default async function listWalletsPublic(req: AuthRequest, res: Response)
       'SELECT handle FROM users WHERE did = $1',
       [did]
     );
-    const handle = handleRes.rows[0]?.handle ?? null;
+    const handle = fullHandle(handleRes.rows[0]?.handle);
 
     const wallets = result.rows.map((r) => ({
       chain: r.chain,

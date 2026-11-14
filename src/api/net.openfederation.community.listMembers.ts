@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { canViewPrivateCommunity, getCommunityAccess } from '../community/visibility.js';
 
 export default async function listMembers(req: AuthRequest, res: Response): Promise<void> {
@@ -41,6 +42,7 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
       query<{
         member_did: string;
         handle: string;
+        local_handle: string | null;
         display_name: string | null;
         avatar_url: string | null;
         role: string | null;
@@ -51,11 +53,12 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
         created_at: string;
         record_rkey: string;
       }>(
-        `SELECT member_did, handle, display_name, avatar_url, role, role_rkey,
-                kind, tags, attributes, created_at, record_rkey
-         FROM members_unique
-         WHERE community_did = $1
-         ORDER BY created_at ASC
+        `SELECT mu.member_did, mu.handle, u.handle AS local_handle, mu.display_name, mu.avatar_url,
+                mu.role, mu.role_rkey, mu.kind, mu.tags, mu.attributes, mu.created_at, mu.record_rkey
+         FROM members_unique mu
+         LEFT JOIN users u ON u.did = mu.member_did
+         WHERE mu.community_did = $1
+         ORDER BY mu.created_at ASC
          LIMIT $2 OFFSET $3`,
         [did, limit, offset],
       ),
@@ -86,7 +89,9 @@ export default async function listMembers(req: AuthRequest, res: Response): Prom
     const members = membersResult.rows.map((row) => {
       const out: Record<string, unknown> = {
         did: row.member_did,
-        handle: row.handle,
+        // A member with an account here gets its full handle (#411); anyone
+        // else keeps the handle the member record carries.
+        handle: row.local_handle ? fullHandle(row.local_handle) : row.handle,
         displayName: row.display_name ?? row.handle,
         avatarUrl: row.avatar_url ?? null,
         role: row.role ?? (row.role_rkey ? 'custom' : 'member'),

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { getCallerMembership } from '../community/visibility.js';
 
 /**
@@ -99,7 +100,7 @@ export default async function getCommunity(req: AuthRequest, res: Response): Pro
 
     res.status(200).json({
       did: community.did,
-      handle: community.handle,
+      handle: fullHandle(community.handle),
       didMethod: community.did_method,
       displayName: profile?.displayName || community.handle,
       description: profile?.description || '',

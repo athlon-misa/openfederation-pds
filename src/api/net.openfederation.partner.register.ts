@@ -16,6 +16,7 @@ import {
 import { auditLog } from '../db/audit.js';
 import type { UserStatus } from '../auth/types.js';
 import crypto from 'crypto';
+import { fullHandle } from '../auth/utils.js';
 import { redeemPartnerTicket, PartnerTicketError } from '../auth/partner-ticket.js';
 import { issueEmailVerification } from '../email/verification.js';
 
@@ -142,7 +143,7 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
       }).catch(() => {});
       res.status(201).json({
         id: result.userId,
-        handle,
+        handle: fullHandle(handle),
         did: result.identity.did,
         email,
         status: 'pending',
@@ -180,7 +181,7 @@ export default async function partnerRegister(req: AuthRequest, res: Response): 
 
     res.status(201).json({
       id: result.userId,
-      handle,
+      handle: fullHandle(handle),
       did: result.identity.did,
       email,
       status: 'approved',

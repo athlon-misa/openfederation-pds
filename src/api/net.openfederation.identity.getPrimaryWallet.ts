@@ -2,6 +2,7 @@ import { requireRepoReadable } from '../auth/guards.js';
 import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { isWalletChain } from '../wallet/index.js';
 import { signServiceAuthJwt } from '../auth/service-auth.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
@@ -69,7 +70,7 @@ export default async function getPrimaryWallet(req: AuthRequest, res: Response):
       'SELECT handle FROM users WHERE did = $1',
       [did]
     );
-    const handle = handleRes.rows[0]?.handle ?? null;
+    const handle = fullHandle(handleRes.rows[0]?.handle);
 
     let proof: string | null = null;
     if (includeProof) {

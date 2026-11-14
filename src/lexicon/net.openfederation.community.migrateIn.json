@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.migrateIn",
-  "revision": 3,
+  "revision": 4,
   "description": "A community arrives from another PDS (#267, ADR-002).",
   "defs": {
     "main": {
@@ -22,7 +22,7 @@
             },
             "handle": {
               "type": "string",
-              "description": "The community's handle here (label only, without the PDS suffix)."
+              "description": "The community's handle here: the label, or the full handle with this server's handle domain. The response gives the full handle."
             },
             "inviteCode": {
               "type": "string",

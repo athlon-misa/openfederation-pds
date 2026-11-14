@@ -2,6 +2,7 @@ import { Response } from 'express';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth, requireCommunityVisible } from '../auth/guards.js';
 import { query } from '../db/client.js';
+import { fullHandle } from '../auth/utils.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { auditLog } from '../db/audit.js';
 
@@ -101,7 +102,7 @@ export default async function exportCommunity(req: AuthRequest, res: Response): 
       exportedBy: req.auth!.did,
       community: {
         did: community.did,
-        handle: community.handle,
+        handle: fullHandle(community.handle),
         didMethod: community.did_method,
         status: community.status,
       },

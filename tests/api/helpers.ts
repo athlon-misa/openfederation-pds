@@ -155,7 +155,7 @@ export async function isPLCAvailable(): Promise<boolean> {
 export async function createTestUser(
   handle: string,
   opts: { role?: string } = {}
-): Promise<{ accessJwt: string; refreshJwt: string; did: string; handle: string }> {
+): Promise<{ accessJwt: string; refreshJwt: string; did: string; handle: string; fullHandle: string }> {
   const adminToken = await getAdminToken();
 
   // 1. Create invite code
@@ -207,7 +207,10 @@ export async function createTestUser(
     accessJwt: loginRes.body.accessJwt,
     refreshJwt: loginRes.body.refreshJwt,
     did: loginRes.body.did,
-    handle: loginRes.body.handle,
+    // The name as stored here; responses give `fullHandle`, the name plus
+    // this server's handle domain (#411).
+    handle,
+    fullHandle: loginRes.body.handle,
   };
 }
 
