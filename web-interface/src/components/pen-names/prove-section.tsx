@@ -14,6 +14,7 @@ import {
 } from '@/lib/pen-names/pen-names';
 import { PEN_PROOF, PEN_PUBLIC_PROOF_ACK } from '@/lib/copy/glossary';
 import { fileSafe, PenWords, ShareLink } from './pen-parts';
+import { OwnProofSection } from './own-proof-section';
 
 /** Who signs the person's half, said before the proof is made. */
 function ownerHalf(mode: CustodyMode | null): { text: string; possible: boolean } {
@@ -32,8 +33,9 @@ export interface ProofOwner { did: string; accessJwt: string; pdsUrl: string; mo
 /**
  * Prove the pen name is the person's: a proof both sign, as a /verify link
  * and QR code (or a file, or public); and an in-person proof of a spoken word.
- * Without `owner` (the signed-out pages) only the in-person proof is offered:
- * the other one needs the person's own account.
+ * Without `owner` (the signed-out pages) the proof that names the account is
+ * offered only to owners who sign their half with their own 12 words
+ * (OwnProofSection); a custodial owner's server signs it, from the account page.
  */
 export function ProveSection({ session, owner, plcUrl, penPhrase, onPenPhrase }: {
   session: PenSession;
@@ -120,16 +122,7 @@ export function ProveSection({ session, owner, plcUrl, penPhrase, onPenPhrase }:
         </div>
       )}
 
-      {!owner && (
-        <section aria-labelledby="proof-title" className="space-y-3">
-          <h3 id="proof-title" className="text-base font-semibold">A proof that names your account</h3>
-          <Note>
-            This proof is signed by your own account as well, so it is made on your account&apos;s Pen names page, signed in to both.
-            Making it there tells this server that the two belong together, even before you show the proof to anyone, so do it only once you have decided to reveal.
-            The in-person proof below names no account and can be made here.
-          </Note>
-        </section>
-      )}
+      {!owner && <OwnProofSection session={session} plcUrl={plcUrl} penPhrase={penPhrase} />}
 
       {owner && <section aria-labelledby="proof-title" className="space-y-3">
         <h3 id="proof-title" className="text-base font-semibold">A proof to show</h3>
