@@ -7,6 +7,7 @@ import { isPLCAvailable, createTestUser, uniqueHandle, testServer, issuePrivateA
 import { xrpcAuthPost, xrpcGet, xrpcAuthGet } from '../api/helpers.js';
 import { startSecondPds, type SecondPds } from './second-pds.js';
 import { config } from '../../src/config.js';
+import { runtimeSettings } from '../../src/settings/runtime-settings.js';
 import { moveCommunity, type CommunityMoveStep } from './community-move.js';
 
 let plc = false;
@@ -96,5 +97,38 @@ describe('community migration', () => {
     const write = await xrpcAuthPost('net.openfederation.community.update', owner.accessJwt, { did, description: 'stale' });
     expect(write.status).toBe(403);
     expect(write.body.error).toBe('CommunityMoved');
+  });
+  it('moves a community back right after a move, with no write in between (#422)', async (ctx) => {
+    if (!plc || !pdsB) ctx.skip('PLC directory not available');
+    const owner = await createTestUser(uniqueHandle('cb-owner'));
+    const created = await xrpcAuthPost('net.openfederation.community.create', owner.accessJwt, {
+      handle: uniqueHandle('cb-comm'), didMethod: 'plc', visibility: 'public', joinPolicy: 'open',
+    });
+    expect(created.status).toBe(201);
+    const did = created.body.did as string;
+    const primary = created.body.primaryRotationKey as string;
+    const label = created.body.handle.replace(config.handleSuffix, '') as string;
+    const latest = async (base: string) => json(await fetch(`${base}/xrpc/com.atproto.sync.getLatestCommit?did=${did}`)) as Promise<{ cid: string; rev: string }>;
+    const before = await latest(pdsA);
+
+    await moveCommunity({
+      oldPdsUrl: pdsA, newPdsUrl: pdsB!.url, newServiceDid: pdsB!.serviceDid, plcUrl: config.plc.directoryUrl,
+      did, ownerDid: owner.did, ownerOldAccessJwt: owner.accessJwt, primaryRotationKeyBase64: primary, newHandle: label,
+    });
+    const atB = await latest(pdsB!.url);
+    expect(atB.rev > before.rev).toBe(true);
+
+    // A asks for an invite before it looks for the copy left behind; open it for this move.
+    const policy = runtimeSettings().migration.communities;
+    runtimeSettings().migration.communities = 'open';
+    const back = await moveCommunity({
+      oldPdsUrl: pdsB!.url, newPdsUrl: pdsA, newServiceDid: config.pds.serviceDid, plcUrl: config.plc.directoryUrl,
+      did, ownerDid: owner.did, ownerOldAccessJwt: owner.accessJwt, ownerPdsUrl: pdsA, primaryRotationKeyBase64: primary, newHandle: label,
+    }).finally(() => { runtimeSettings().migration.communities = policy; });
+    expect(back.status).toBe('active');
+    expect((await json(await fetch(`${config.plc.directoryUrl}/${did}/data`))).services.atproto_pds.endpoint).toBe(config.pds.serviceUrl);
+    expect((await latest(pdsA)).rev > atB.rev).toBe(true);
+    const updated = await xrpcAuthPost('net.openfederation.community.update', owner.accessJwt, { did, description: 'Home again' });
+    expect(updated.status).toBe(200);
   });
 });

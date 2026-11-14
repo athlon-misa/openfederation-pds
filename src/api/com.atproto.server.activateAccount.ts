@@ -8,6 +8,7 @@ import { config } from '../config.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { currentPlcState, accountPointsHere } from '../identity/account-migration.js';
 import { isDeviceSigningOn } from '../repo/device-signing-state.js';
+import { resignHeadForThisPds } from '../repo/resign-head.js';
 
 /**
  * com.atproto.server.activateAccount
@@ -85,6 +86,10 @@ export default async function activateAccount(req: AuthRequest, res: Response): 
         });
         return;
       }
+      // After a move the head is still signed by the old home's key; sign it
+      // with ours so the repo verifies against the DID right away (#422).
+      // Skipped with device signing on (#240).
+      await resignHeadForThisPds(userDid);
     }
 
     // Pseudonyms keep no status timestamps (they could line up with the owner's activity).
