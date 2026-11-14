@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Version numbers.** The PDS is in development and not yet 1.0. Releases made before November 2026 were numbered 1.0.0–1.5.0; they are renumbered here as 0.1.0–0.6.0 (one lower major, same order), and their GitHub releases, tags and security advisories were renamed to match. 1.0.0 will mark the first release recommended for production use.
+
 ## [Unreleased]
 
 ### Added
@@ -95,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The actor's linked-application attachments (`PropertyValue`) used terms its `@context` did not define, so JSON-LD software such as Fedify dropped them. The actor now declares the schema.org terms Mastodon uses.
   - The actor's `url` and the WebFinger profile-page link pointed at `/communities/{did}` on the PDS, which serves no such page. They now point at the web UI (`WEB_UI_URL`) and are left out when it is not set.
 
-## [1.5.0] - 2026-11-12
+## [0.6.0] - 2026-11-12
 
 ### Added
 
@@ -145,7 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/nodeinfo/2.1` listed `atprotocol` in `protocols`, which the NodeInfo 2.1 schema does not allow; it now lists `activitypub` there, declares AT Protocol under `metadata.protocols`, and is served with the schema's profile content type.
 - `community.verifyMembership` answered `role: "member"` for owners and moderators: it read a `role` field that member records stopped carrying with RBAC. It now resolves the member's role record.
 
-## [1.4.0] - 2026-11-11
+## [0.5.0] - 2026-11-11
 
 ### Security
 
@@ -256,7 +258,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `net.openfederation.community.transfer` (revision 2) declares the `password` it has always required, plus the `Unauthorized` error for a wrong one. Before, the runtime refused the field and no request could succeed (#260).
 - Requirements note: `@cloudflare/blindrsa-ts` (used by the pseudonym package) declares `engines.node >= 24`, while this repo's root declares `>=22 <25`.
 
-## [1.3.0] - 2026-08-07
+## [0.4.0] - 2026-08-07
 
 Everything below shipped since the 1.2.0 heading. **Versioning note:** the
 1.x line carries no semver stability guarantee — this project is
@@ -863,7 +865,7 @@ independence from a PDS that holds its users' signing keys; and voter
 at the time) is not checked online or offline. Both are stated in
 `src/governance/verify-decision.ts` and `cli/README.md`.
 
-## [1.2.0] - 2026-06-25
+## [0.3.0] - 2026-06-25
 
 ### Added
 - **Community Forum** (`net.openfederation.forum.*`): native threaded discussions as ATProto records — threads and posts stored in author repos, aggregated into `forum_threads`/`forum_posts` index tables; moderation via hide/delete; 8 XRPC endpoints
@@ -871,7 +873,7 @@ at the time) is not checked online or offline. Both are stated in
 - **Forum index backfill** (`scripts/backfill-forum-index.ts`): `backfillForumIndex()` reconstructs all index tables from `records_index` without touching the underlying repos — runnable standalone via `npx tsx scripts/backfill-forum-index.ts`
 - No ActivityPub content federation — identity layer only; forum and calendar content stays on-PDS
 
-## [1.1.0] - 2026-04-29
+## [0.2.0] - 2026-04-29
 
 ### Added
 - **Contact graph** (`net.openfederation.contact.*`): bidirectional contact relationships with explicit consent — sendRequest, respondToRequest (accept/reject), removeContact, list, listIncomingRequests, listOutgoingRequests (closes #67)
@@ -888,7 +890,7 @@ at the time) is not checked online or offline. Both are stated in
 - `listMembers` lexicon bumped to revision 3 (adds required `displayName`, optional `avatarUrl`)
 - `listAttestations` lexicon bumped to revision 2 (adds required `subjectDisplayName`, optional `subjectAvatarUrl`)
 
-## [1.0.0] - 2026-03-28
+## [0.1.0] - 2026-03-28
 
 ### Added
 
@@ -910,6 +912,3 @@ at the time) is not checked online or offline. Both are stated in
 - **Security**: AES-256-GCM key encryption at rest, rate limiting, audit logging
 - **Federation**: `sync.getRepo` CAR stream, well-known endpoints (did.json, webfinger)
 - **Profiles**: Standard `app.bsky.actor.profile` + custom collection aggregation
-
-[1.1.0]: https://github.com/athlon-misa/openfederation-pds/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/athlon-misa/openfederation-pds/releases/tag/v1.0.0
