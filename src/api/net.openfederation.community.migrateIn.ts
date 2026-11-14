@@ -35,7 +35,10 @@ export default async function migrateIn(req: AuthRequest, res: Response): Promis
     if (!state) throw new CommunityMoveError(400, 'UnresolvableDid', 'DID is not in the PLC directory');
     const policy = runtimeSettings().migration.communities;
     if (policy === 'closed') throw new CommunityMoveError(403, 'MigrationNotAllowed', 'This PDS does not accept communities moving in');
-    if (policy === 'invite' && !inviteCode) throw new CommunityMoveError(400, 'InvalidInviteCode', 'An invite code is required to move a community here');
+    // A copy this PDS already holds (it lived here and moved away, or a move
+    // in is under way) needs no invite to come back (#431), as for pen names.
+    const existing = (await query<{ status: string; owner_did: string | null }>('SELECT status, owner_did FROM communities WHERE did = $1', [did])).rows[0];
+    if (policy === 'invite' && !existing && !inviteCode) throw new CommunityMoveError(400, 'InvalidInviteCode', 'An invite code is required to move a community here');
 
     const header = req.headers.authorization;
     const jwt = header?.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
@@ -60,7 +63,6 @@ export default async function migrateIn(req: AuthRequest, res: Response): Promis
     const fromPds = homeOf(state);
     if (!fromPds) throw new CommunityMoveError(400, 'IncompatibleDidDoc', 'The DID already points to this PDS');
 
-    const existing = (await query<{ status: string; owner_did: string | null }>('SELECT status, owner_did FROM communities WHERE did = $1', [did])).rows[0];
     if (existing && existing.status !== 'importing' && existing.status !== 'moved') {
       throw new CommunityMoveError(409, 'AlreadyExists', 'This community already lives here');
     }
