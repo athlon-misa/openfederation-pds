@@ -9,21 +9,26 @@ import { Acknowledge, ChoiceExplainer, Note, StatusMessage, WhatIsThis } from '@
 import { StepList } from '@/components/move/move-parts';
 import { describeTarget, type TargetInfo } from '@/lib/move/xrpc';
 import {
-  assertPenWords, downloadBackup, endPenName, movePenName, END_STEPS, PEN_MOVE_STEPS,
+  assertPenWords, downloadBackup, endPenName, movePenName, MovePassRefused, END_STEPS, PEN_MOVE_STEPS,
   type EndStep, type PenNameEntry, type PenSession,
 } from '@/lib/pen-names/pen-names';
+import type { LoadedPasses } from '@/lib/pen-names/pass-file';
+import { LoadPasses } from './load-passes';
 import { PEN_END, PEN_MOVE, PEN_MOVE_ACK, penEndAck } from '@/lib/copy/glossary';
 import { fileSafe, PenWords, saveFile } from './pen-parts';
 
 const host = (url: string) => url.replace(/^https?:\/\//, '');
 
 /** What the new server says about pen names moving in. */
-function penPolicy(target: TargetInfo | null): { text: string; blocked: boolean } {
+function penPolicy(target: TargetInfo | null, movingBack = false): { text: string; blocked: boolean } {
+  if (target?.migration?.pseudonyms === 'token' && movingBack) {
+    return { text: 'That server accepts pen names moving in only with one of its own passes, but it still holds the switched-off copy this pen name left there, so none is needed.', blocked: false };
+  }
   if (!target) return { text: '', blocked: false };
   if (!target.migration) return { text: 'That server does not say whether it accepts pen names moving in (it may not be an OpenFederation server). It may refuse; nothing changes if it does.', blocked: false };
   switch (target.migration.pseudonyms) {
     case 'open': return { text: 'That server accepts pen names moving in.', blocked: false };
-    case 'token': return { text: 'That server accepts pen names moving in only with one of its own passes. This dashboard cannot hand it one yet; use an app that can, or ask the people who run it.', blocked: true };
+    case 'token': return { text: 'That server accepts pen names moving in only with one of its own passes. Load one below; it is spent there, and tells that server only that some account’s pass was used.', blocked: false };
     case 'closed': return { text: 'That server does not accept pen names moving in.', blocked: true };
     default: return { text: 'That server did not say whether it accepts pen names moving in.', blocked: false };
   }
@@ -48,12 +53,19 @@ export function MovePenName({ scope, entry, session, plcUrl, penPhrase, onPenPhr
   const [step, setStep] = useState<MoveStep | null>(null);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [passes, setPasses] = useState<LoadedPasses | null>(null);
   const reached = useRef<Set<MoveStep>>(new Set());
-  const policy = penPolicy(target);
+  // Moving back to a server it left keeps the switched-off copy there, which needs no pass (#412).
+  const movingBack = !!target && (entry.formerHomes ?? []).some((h) => h.url.replace(/\/+$/, '') === target.url.replace(/\/+$/, ''));
+  // ...unless that copy is gone (cleaned up): then the server asks for a pass after all.
+  const [askedForPass, setAskedForPass] = useState(false);
+  const policy = penPolicy(target, movingBack && !askedForPass);
+  const needsPass = target?.migration?.pseudonyms === 'token' && (!movingBack || askedForPass);
+  const pass = passes?.passes[0];
   const label = session.handle.split('.')[0];
 
   async function check() {
-    setChecking(true); setResult(null); setTarget(null);
+    setChecking(true); setResult(null); setTarget(null); setPasses(null); setAskedForPass(false);
     try {
       const t = await describeTarget(url);
       if (t.url.replace(/\/+$/, '') === entry.home.url.replace(/\/+$/, '')) throw new Error(`${session.handle} already lives there.`);
@@ -73,12 +85,24 @@ export function MovePenName({ scope, entry, session, plcUrl, penPhrase, onPenPhr
     try {
       const moved = await movePenName({
         scope, entry, phrase: penPhrase, plcUrl, target: { url: target.url, serviceDid: target.serviceDid }, newHandle: handle.trim(),
+        ...(needsPass && pass ? { pass } : {}),
         onStep: (s) => { reached.current.add(s); setStep(s); },
       });
       setStep(null);
+      // The pass was spent there.
+      if (needsPass && passes) setPasses(passes.passes.length > 1 ? { ...passes, passes: passes.passes.slice(1) } : null);
       setResult({ ok: true, text: `Done. ${moved.handle} now lives at ${host(target.url)}, and you are signed in as it there. The copy at ${host(entry.home.url)} is switched off.` });
       onMoved(moved);
     } catch (e) {
+      if (e instanceof MovePassRefused) {
+        // That pass is no good there: drop it, so the next loaded one is tried.
+        setAskedForPass(true);
+        const left = passes && pass ? passes.passes.slice(1) : passes?.passes ?? [];
+        setPasses(passes && left.length ? { ...passes, passes: left } : null);
+        setStep(null);
+        setResult({ ok: false, text: `${e.message}. Nothing changed: ${session.handle} still lives at ${host(entry.home.url)}. ${left.length ? 'Start again to try the next loaded pass.' : 'Load another of that server’s passes and start again.'}` });
+        return;
+      }
       const changed = reached.current.has('activate') || reached.current.has('retire');
       setResult({
         ok: false,
@@ -89,7 +113,7 @@ export function MovePenName({ scope, entry, session, plcUrl, penPhrase, onPenPhr
     } finally { setRunning(false); }
   }
 
-  const canStart = !!target && !policy.blocked && !!handle.trim() && ack && !!penPhrase && !running;
+  const canStart = !!target && !policy.blocked && (!needsPass || !!pass) && !!handle.trim() && ack && !!penPhrase && !running;
 
   return (
     <div className="space-y-4">
@@ -114,6 +138,16 @@ export function MovePenName({ scope, entry, session, plcUrl, penPhrase, onPenPhr
               {target.handleDomains.length ? `Must end with ${target.handleDomains.join(' or ')}. ` : ''}Its identity stays the same; only the handle changes.
             </p>
           </div>
+          {needsPass && (
+            <div className="space-y-2">
+              <LoadPasses
+                id="move-pass" server={target.url} loaded={passes} onLoaded={(l) => { setPasses(l); setResult(null); }}
+                title={pass ? `${passes!.passes.length === 1 ? 'A pass' : `${passes!.passes.length} passes`} for ${host(target.url)} loaded` : `A pass for ${host(target.url)}`}
+                description={`One of ${host(target.url)}’s own passes: from a pass file saved for that server, or a pass’s text. Collect them with an account there, on its Pen names page. A pass from any other server does not work there.`}
+              />
+              {pass && <p className="text-sm text-muted-foreground" role="status">One pass will be spent when the move starts. If {host(target.url)} refuses it, nothing changes and the next one can be tried.</p>}
+            </div>
+          )}
           {!penPhrase && (
             <div className="space-y-2 rounded-md border p-4">
               <h3 className="text-sm font-semibold">{session.handle}&apos;s 12 words</h3>
