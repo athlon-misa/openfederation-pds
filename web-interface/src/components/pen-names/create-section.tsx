@@ -4,13 +4,14 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Acknowledge, Note, Section, StatusMessage, WhatIsThis } from '@/components/account/explain';
+import { Acknowledge, Section, StatusMessage, WhatIsThis } from '@/components/account/explain';
 import { NewPhrase } from '@/components/custody/phrase-inputs';
 import { StepList } from '@/components/move/move-parts';
 import {
-  CREATE_STEPS, createPenName, generatePseudonymPhrase, handleTaken,
+  CREATE_STEPS, createPenName, generatePseudonymPhrase, handleTaken, PassRefused,
   type CreateStep, type PenNameEntry, type ServerFacts,
 } from '@/lib/pen-names/pen-names';
+import type { Pass } from '@/lib/pen-names/pass-file';
 import { PEN_CREATE_ACK, PEN_LIMIT } from '@/lib/copy/glossary';
 import { PenPasskeyOffer } from './pen-parts';
 
@@ -31,16 +32,25 @@ function Steps({ current }: { current: number }) {
   );
 }
 
+/** Any of the loaded passes: no order the server could learn anything from. */
+function anyPass(passes: Pass[]): Pass {
+  return passes[crypto.getRandomValues(new Uint32Array(1))[0] % passes.length];
+}
+
 /**
  * Create a pen name: name, the honest limit and the no-recovery
- * confirmation, 12 words shown once and checked, then creation without
- * any credentials.
+ * confirmation, 12 words shown once and checked, then creation with one of
+ * the loaded passes and no credentials at all. `ownerDid` is the account the
+ * passes came with; it is sealed into the pen name, never sent.
  */
-export function CreateSection({ server, ownerDid, passesLeft, onCreated, onUse }: {
+export function CreateSection({ server, ownerDid, passes, scope, onPassUsed, onCreated, onUse }: {
   server: ServerFacts;
   ownerDid: string;
-  passesLeft: number;
-  onCreated: () => void;
+  passes: Pass[];
+  scope: string;
+  /** The pass was spent (or refused as spent): drop it from what is loaded. */
+  onPassUsed: (pass: Pass) => void;
+  onCreated: (entry: PenNameEntry) => void;
   onUse: (entry: PenNameEntry, phrase: string) => void | Promise<void>;
 }) {
   const domain = server.handleDomains[0] ?? '';
@@ -52,6 +62,8 @@ export function CreateSection({ server, ownerDid, passesLeft, onCreated, onUse }
   const [step, setStep] = useState<CreateStep | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  /** A pass was refused after the pen name was put in the directory: retry with another, or stop. */
+  const [refused, setRefused] = useState<{ did: string; text: string } | null>(null);
   const [created, setCreated] = useState<PenNameEntry | null>(null);
   const [passkeyDone, setPasskeyDone] = useState<{ ok: boolean; text: string } | null | undefined>(undefined);
 
@@ -61,7 +73,7 @@ export function CreateSection({ server, ownerDid, passesLeft, onCreated, onUse }
 
   function reset() {
     setOpen(false); setStage('understand'); setLabel(''); setAck(false); setPhrase(null);
-    setStep(null); setProblem(null); setCreated(null); setPasskeyDone(undefined);
+    setStep(null); setProblem(null); setRefused(null); setCreated(null); setPasskeyDone(undefined);
   }
 
   async function toWords() {
@@ -72,25 +84,30 @@ export function CreateSection({ server, ownerDid, passesLeft, onCreated, onUse }
     } finally { setBusy(false); }
   }
 
-  async function create() {
-    if (!phrase) return;
-    setBusy(true); setProblem(null);
+  async function create(existingDid?: string) {
+    if (!phrase || !passes.length) return;
+    setBusy(true); setProblem(null); setRefused(null);
+    const pass = anyPass(passes);
     try {
-      const entry = await createPenName({ server, ownerDid, phrase, handle, onStep: setStep });
+      const entry = await createPenName({ server, ownerDid, phrase, handle, pass, scope, existingDid, onStep: setStep });
+      onPassUsed(pass);
       setCreated(entry);
       setStage('done');
+      onCreated(entry);
     } catch (e) {
-      setProblem((e as Error).message);
-    } finally { setBusy(false); onCreated(); }
+      if (e instanceof PassRefused) {
+        onPassUsed(pass);
+        setRefused({ did: e.did, text: e.message });
+      } else {
+        setProblem((e as Error).message);
+      }
+    } finally { setBusy(false); }
   }
 
   return (
     <Section id="create" title="Create a pen name" description={<>A new identity with its own 12 words, made in this browser. <WhatIsThis term="pen-name-words" label="What are a pen name’s 12 words?" className="mt-1" /></>}>
       {!open && (
-        <>
-          {passesLeft === 0 && <Note>You need a pass to create a pen name. Collect this month&apos;s passes above first.</Note>}
-          <Button type="button" variant="outline" disabled={passesLeft === 0} onClick={() => setOpen(true)}>Create a pen name…</Button>
-        </>
+        <Button type="button" disabled={passes.length === 0} onClick={() => setOpen(true)}>Create a pen name…</Button>
       )}
 
       {open && (
@@ -101,7 +118,7 @@ export function CreateSection({ server, ownerDid, passesLeft, onCreated, onUse }
             <>
               <div className="space-y-2">
                 <Label htmlFor="pen-label">Its name</Label>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   <Input id="pen-label" className="max-w-56" autoComplete="off" spellCheck={false} value={label}
                     onChange={(e) => { setLabel(e.target.value); setProblem(null); }} aria-describedby="pen-label-hint" />
                   <span className="text-sm text-muted-foreground">{domain}</span>
@@ -140,13 +157,40 @@ export function CreateSection({ server, ownerDid, passesLeft, onCreated, onUse }
 
           {stage === 'create' && (
             <>
-              <p className="text-sm">Ready to create <span className="font-medium">{handle}</span>. This uses one pass ({passesLeft} left). The request carries nothing about you: no session, no name.</p>
-              {(busy || step) && <StepList steps={CREATE_STEPS} current={step} failed={!!problem} done={false} />}
+              <p className="text-sm">
+                Ready to create <span className="font-medium">{handle}</span>. This uses one of the {passes.length} {passes.length === 1 ? 'pass' : 'passes'} you loaded.
+                The request carries nothing about you: no session, no name.
+              </p>
+              {(busy || step) && <StepList steps={CREATE_STEPS} current={step} failed={!!problem || !!refused} done={false} />}
               {problem && <StatusMessage ok={false} text={problem} />}
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={create} disabled={busy}>{busy ? 'Creating…' : `Create ${handle}`}</Button>
-                <Button type="button" variant="ghost" onClick={reset} disabled={busy}>Cancel</Button>
-              </div>
+              {refused ? (
+                <div className="space-y-3 rounded-md border border-amber-600/40 p-3 text-sm" role="alert">
+                  <p className="font-medium">{refused.text} The pen name is not created yet.</p>
+                  {passes.length > 0 ? (
+                    <>
+                      <p>
+                        You can finish it with another pass ({passes.length} left). If you do, the server sees a used pass and then a fresh one,
+                        from the same place, one right after the other: it can guess that whoever made the pen name the used pass was spent on also made this one.
+                        It still cannot tell who you are.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" onClick={() => void create(refused.did)} disabled={busy}>{busy ? 'Creating…' : 'Finish it with another pass'}</Button>
+                        <Button type="button" variant="ghost" onClick={reset} disabled={busy}>Stop here</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p>There are no other passes loaded. Load more and try again, or stop here: nothing is linked to you either way.</p>
+                      <Button type="button" variant="ghost" onClick={reset}>Stop here</Button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => void create()} disabled={busy || !passes.length}>{busy ? 'Creating…' : `Create ${handle}`}</Button>
+                  <Button type="button" variant="ghost" onClick={reset} disabled={busy}>Cancel</Button>
+                </div>
+              )}
             </>
           )}
 

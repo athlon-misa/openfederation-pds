@@ -2,27 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LogOut, VenetianMask } from 'lucide-react';
+import { Check, Copy, ExternalLink } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AccountGate, type AccountContext } from '@/components/account/account-gate';
 import { ChoiceExplainer, Note, Section, StatusMessage, WhatIsThis } from '@/components/account/explain';
 import { PassesSection } from '@/components/pen-names/passes-section';
-import { CreateSection } from '@/components/pen-names/create-section';
 import { UseSection } from '@/components/pen-names/use-section';
-import { PenFiles, PublishClaim } from '@/components/pen-names/publish-files';
-import { ProveSection } from '@/components/pen-names/prove-section';
-import { EndPenName, MovePenName } from '@/components/pen-names/move-end';
-import { PenPasskeyOffer } from '@/components/pen-names/pen-parts';
+import { PenSessionPanel } from '@/components/pen-names/pen-session-panel';
 import { identityPolicy } from '@/lib/custody/custody';
 import {
-  forgetPenName, loadPasses, loadPenNames, loadPenPasskey, loadPenSession, serverFacts, signInPenName, signOutPenName,
+  forgetPenName, loadPenNames, loadPenSession, serverFacts, signOutPenName,
   type PenNameEntry, type PenSession, type ServerFacts,
 } from '@/lib/pen-names/pen-names';
-import { PEN_NAMES } from '@/lib/copy/glossary';
+import { PEN_CHECKLIST, PEN_LIMIT, PEN_NAMES } from '@/lib/copy/glossary';
 import { THIS_PDS } from '@/hooks/use-identity';
 
 export default function PenNamesPage() {
@@ -54,150 +48,126 @@ export default function PenNamesPage() {
   );
 }
 
+/** An address to open elsewhere (Tor Browser, another browser): shown, copyable, and a plain link. */
+function Address({ path, label }: { path: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <p className="text-sm font-medium">{label}</p>
+      <p className="break-all rounded-md bg-muted/50 p-2 font-mono text-xs">{url}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={async () => {
+          try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* select the text instead */ }
+        }}>{copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}{copied ? 'Copied' : 'Copy the address'}</Button>
+        {/* A full page load: the signed-out pages never get this tab's session. */}
+        <Button type="button" size="sm" variant="ghost" asChild>
+          <a href={path} target="_blank" rel="noopener noreferrer"><ExternalLink className="size-4" aria-hidden />Open it here anyway</a>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function PenNameScreens({ ctx, creationAllowed }: { ctx: AccountContext; creationAllowed: boolean }) {
   const { did: ownerDid, accessToken, mode } = ctx;
   const server = useQuery({ queryKey: ['pen-server', THIS_PDS], queryFn: () => serverFacts(THIS_PDS) });
-  const [list, setList] = useState<PenNameEntry[]>([]);
-  const [session, setSession] = useState<PenSession | null>(null);
-  /** The signed-in pen name's 12 words: in this page's memory only, never stored. */
-  const [penPhrase, setPenPhrase] = useState<string | null>(null);
-  const [passesLeft, setPassesLeft] = useState(0);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-
-  const reload = useCallback(() => {
-    setList(loadPenNames(ownerDid));
-    setSession(loadPenSession());
-    setPassesLeft(loadPasses(ownerDid).length);
-  }, [ownerDid]);
-
-  // Browser storage exists only after mount.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { reload(); }, [reload]);
 
   if (server.isLoading) return <Skeleton className="h-40 rounded-xl" />;
   if (server.error || !server.data) {
     return <StatusMessage ok={false} text={`Could not read this server's settings: ${(server.error as Error | null)?.message ?? 'no answer'}`} />;
   }
   const facts: ServerFacts = server.data;
-  const entry = session ? (list.find((e) => e.did === session.did) ?? { did: session.did, handle: session.handle, home: session.home }) : null;
 
   return (
     <>
       {creationAllowed && facts.pseudonymsEnabled && (
-        <>
-          <PassesSection pdsUrl={THIS_PDS} ownerDid={ownerDid} ownerAccessJwt={accessToken} left={passesLeft} onChange={reload} />
-          <CreateSection
-            server={facts}
-            ownerDid={ownerDid}
-            passesLeft={passesLeft}
-            onCreated={reload}
-            onUse={async (created, phrase) => {
-              setMessage(null);
-              try {
-                await signInPenName(created.home, phrase);
-                setPenPhrase(phrase);
-                reload();
-                document.getElementById('pen-session')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              } catch (e) { reload(); setMessage({ ok: false, text: (e as Error).message }); }
-            }}
-          />
-        </>
+        <PassesSection pdsUrl={THIS_PDS} ownerDid={ownerDid} ownerAccessJwt={accessToken} />
       )}
 
-      <UseSection
-        ownerDid={ownerDid}
-        list={list}
-        thisServer={{ url: facts.url, serviceDid: facts.serviceDid }}
-        session={session}
-        onSignedIn={(s, phrase) => { setMessage(null); setPenPhrase(phrase); reload(); setSession(s); }}
-        onForget={(did) => {
-          if (session?.did === did) setPenPhrase(null);
-          setList(forgetPenName(ownerDid, did));
-          setSession(loadPenSession());
-        }}
-      />
+      <Section id="apart" title="Create and use a pen name, apart from your account"
+        description="Pen names are made and used on pages that need no sign-in, so nothing ties them to your account's session.">
+        <ol className="list-decimal space-y-2 pl-5 text-sm">
+          {PEN_CHECKLIST.map((step) => <li key={step}>{step}</li>)}
+        </ol>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Address path="/pen-names/new" label="Create a pen name (no sign-in)" />
+          <Address path="/pen-names" label="Use a pen name (no sign-in)" />
+        </div>
+        <div className="space-y-2 rounded-md border border-amber-600/40 p-3 text-sm">
+          <h3 className="font-semibold">What this protects, and what it doesn&apos;t</h3>
+          <p>{PEN_LIMIT.server}</p>
+          <p>{PEN_LIMIT.timing}</p>
+        </div>
+      </Section>
 
-      {message && <StatusMessage ok={message.ok} text={message.text} />}
-
-      {session && entry && (
-        <SignedInPanel
-          ctx={ctx}
-          facts={facts}
-          session={session}
-          entry={entry}
-          penPhrase={penPhrase}
-          onPenPhrase={setPenPhrase}
-          onSignOut={async () => { await signOutPenName(); setPenPhrase(null); setSession(null); }}
-          onMoved={() => reload()}
-          onEnded={(text) => { setPenPhrase(null); reload(); setMessage({ ok: true, text }); }}
-          mode={mode}
-          ownerAccessJwt={accessToken}
-        />
-      )}
+      <ProveFromAccount ownerDid={ownerDid} accessToken={accessToken} mode={mode} facts={facts} />
     </>
   );
 }
 
-function SignedInPanel({ ctx, facts, session, entry, penPhrase, onPenPhrase, onSignOut, onMoved, onEnded, mode, ownerAccessJwt }: {
-  ctx: AccountContext;
-  facts: ServerFacts;
-  session: PenSession;
-  entry: PenNameEntry;
-  penPhrase: string | null;
-  onPenPhrase: (p: string) => void;
-  onSignOut: () => Promise<void>;
-  onMoved: (e: PenNameEntry) => void;
-  onEnded: (text: string) => void;
-  mode: AccountContext['mode'];
-  ownerAccessJwt: string;
-}) {
-  const [passkey, setPasskey] = useState<{ ok: boolean; text: string } | null | undefined>(undefined);
-  const hasPasskey = !!loadPenPasskey(session.did);
+/**
+ * The one thing done as a pen name from inside the account: the proof that
+ * names the account, which needs both. Doing it here connects them on
+ * purpose, so it stays folded away until the person asks for it.
+ */
+function ProveFromAccount({ ownerDid, accessToken, mode, facts }: { ownerDid: string; accessToken: string; mode: AccountContext['mode']; facts: ServerFacts }) {
+  const [list, setList] = useState<PenNameEntry[]>([]);
+  const [session, setSession] = useState<PenSession | null>(null);
+  const [penPhrase, setPenPhrase] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const reload = useCallback(() => {
+    setList(loadPenNames(ownerDid));
+    setSession(loadPenSession());
+  }, [ownerDid]);
+  // Browser storage exists only after mount.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { reload(); }, [reload]);
+
+  const entry = session ? (list.find((e) => e.did === session.did) ?? { did: session.did, handle: session.handle, home: session.home }) : null;
+
   return (
-    <section id="pen-session" aria-labelledby="pen-session-title" className="space-y-4 rounded-xl border-2 border-dashed border-violet-600/50 bg-card p-4 shadow-sm sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h2 id="pen-session-title" className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight">
-            <VenetianMask className="size-5" aria-hidden />
-            Signed in as {session.handle}
-            <Badge variant="outline">Pen name</Badge>
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            In this tab only, at {session.home.url.replace(/^https?:\/\//, '')}. Everything in this box acts as the pen name, with its own session; your own account stays signed in separately and is never sent along.
-          </p>
+    <Section id="prove" title="Prove a pen name is yours" description={<WhatIsThis term="pen-proof" />}>
+      <details className="rounded-md border p-4" open={session ? true : undefined}>
+        <summary className="cursor-pointer text-sm font-medium">I have decided to reveal that a pen name is mine</summary>
+        <div className="mt-3 space-y-4">
+          <Note>
+            A proof that names your account is signed by the pen name and by your account, so it is made here, signed in to both in this tab.
+            Signing in as a pen name here tells this server that the two belong together, even before you show the proof to anyone.
+            For anything else, use the pen name on the signed-out page instead.
+          </Note>
+          <UseSection
+            scope={ownerDid}
+            list={list}
+            thisServer={{ url: facts.url, serviceDid: facts.serviceDid }}
+            session={session}
+            onSignedIn={(s, phrase) => { setMessage(null); setPenPhrase(phrase); reload(); setSession(s); }}
+            onForget={(did) => {
+              if (session?.did === did) setPenPhrase(null);
+              setList(forgetPenName(ownerDid, did));
+              setSession(loadPenSession());
+            }}
+          />
+          {message && <StatusMessage ok={message.ok} text={message.text} />}
+          {session && entry && (
+            <PenSessionPanel
+              scope={ownerDid}
+              facts={facts}
+              session={session}
+              entry={entry}
+              penPhrase={penPhrase}
+              onPenPhrase={setPenPhrase}
+              onSignOut={async () => { await signOutPenName(); setPenPhrase(null); setSession(null); }}
+              onMoved={() => reload()}
+              onEnded={(text) => { setPenPhrase(null); reload(); setMessage({ ok: true, text }); }}
+              owner={{ did: ownerDid, accessJwt: accessToken, pdsUrl: THIS_PDS, mode }}
+              tabs={['prove']}
+              note="The pen name has its own session; your account's sign-in is never sent with its requests, nor its with yours."
+            />
+          )}
         </div>
-        <Button type="button" variant="outline" className="shrink-0" onClick={() => void onSignOut()}><LogOut className="size-4" aria-hidden />Sign out of the pen name</Button>
-      </div>
-
-      {penPhrase && !hasPasskey && passkey === undefined && (
-        <details className="rounded-md border p-3">
-          <summary className="cursor-pointer text-sm font-medium">Unlock it with a passkey next time</summary>
-          <div className="mt-3"><PenPasskeyOffer penDid={session.did} phrase={penPhrase} onDone={setPasskey} /></div>
-        </details>
-      )}
-      {passkey && <StatusMessage ok={passkey.ok} text={passkey.text} />}
-
-      <Tabs defaultValue="publish">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start">
-          <TabsTrigger value="publish">Publish</TabsTrigger>
-          <TabsTrigger value="files">Files &amp; backup</TabsTrigger>
-          <TabsTrigger value="prove">Prove it&apos;s yours</TabsTrigger>
-          <TabsTrigger value="move">Move</TabsTrigger>
-          <TabsTrigger value="end">End</TabsTrigger>
-        </TabsList>
-        <TabsContent value="publish" className="pt-4"><PublishClaim session={session} /></TabsContent>
-        <TabsContent value="files" className="pt-4"><PenFiles session={session} /></TabsContent>
-        <TabsContent value="prove" className="pt-4">
-          <ProveSection session={session} ownerDid={ctx.did} ownerAccessJwt={ownerAccessJwt} ownerPdsUrl={THIS_PDS} mode={mode}
-            plcUrl={facts.plcUrl} penPhrase={penPhrase} onPenPhrase={onPenPhrase} />
-        </TabsContent>
-        <TabsContent value="move" className="pt-4">
-          <MovePenName ownerDid={ctx.did} entry={entry} session={session} plcUrl={facts.plcUrl} penPhrase={penPhrase} onPenPhrase={onPenPhrase} onMoved={onMoved} />
-        </TabsContent>
-        <TabsContent value="end" className="pt-4">
-          <EndPenName ownerDid={ctx.did} entry={entry} session={session} plcUrl={facts.plcUrl} onEnded={onEnded} />
-        </TabsContent>
-      </Tabs>
-    </section>
+      </details>
+    </Section>
   );
 }

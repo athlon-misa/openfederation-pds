@@ -30,8 +30,9 @@ function penPolicy(target: TargetInfo | null): { text: string; blocked: boolean 
 }
 
 /** Move the pen name to another server with its 12 words. */
-export function MovePenName({ ownerDid, entry, session, plcUrl, penPhrase, onPenPhrase, onMoved }: {
-  ownerDid: string;
+export function MovePenName({ scope, entry, session, plcUrl, penPhrase, onPenPhrase, onMoved }: {
+  /** Which list of pen names this browser keeps it in. */
+  scope: string;
   entry: PenNameEntry;
   session: PenSession;
   plcUrl: string;
@@ -71,7 +72,7 @@ export function MovePenName({ ownerDid, entry, session, plcUrl, penPhrase, onPen
     setRunning(true); setResult(null); reached.current.clear();
     try {
       const moved = await movePenName({
-        ownerDid, entry, phrase: penPhrase, plcUrl, target: { url: target.url, serviceDid: target.serviceDid }, newHandle: handle.trim(),
+        scope, entry, phrase: penPhrase, plcUrl, target: { url: target.url, serviceDid: target.serviceDid }, newHandle: handle.trim(),
         onStep: (s) => { reached.current.add(s); setStep(s); },
       });
       setStep(null);
@@ -133,8 +134,9 @@ export function MovePenName({ ownerDid, entry, session, plcUrl, penPhrase, onPen
 }
 
 /** End the pen name for good: its words, a backup offer, two confirmations. */
-export function EndPenName({ ownerDid, entry, session, plcUrl, onEnded }: {
-  ownerDid: string;
+export function EndPenName({ scope, entry, session, plcUrl, onEnded }: {
+  /** Which list of pen names this browser keeps it in. */
+  scope: string;
   entry: PenNameEntry;
   session: PenSession;
   plcUrl: string;
@@ -157,7 +159,7 @@ export function EndPenName({ ownerDid, entry, session, plcUrl, onEnded }: {
     if (!phrase) return;
     setRunning(true); setProblem(null);
     try {
-      const { leftovers } = await endPenName({ ownerDid, entry, phrase, plcUrl, onStep: setStep });
+      const { leftovers } = await endPenName({ scope, entry, phrase, plcUrl, onStep: setStep });
       onEnded(leftovers.length
         ? `${session.handle} has ended: it is retired in the public directory and its account here is deleted. A switched-off copy may remain at ${leftovers.map(host).join(', ')}; nobody can sign in to it.`
         : `${session.handle} has ended: its account and files are deleted and it is retired in the public directory.`);

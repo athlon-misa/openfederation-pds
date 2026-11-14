@@ -19,8 +19,9 @@ const host = (url: string) => url.replace(/^https?:\/\//, '');
  * The pen names this browser knows, and signing in as one: with its 12 words
  * or this device's passkey for it, into a session of its own.
  */
-export function UseSection({ ownerDid, list, thisServer, session, onSignedIn, onForget }: {
-  ownerDid: string;
+export function UseSection({ scope, list, thisServer, session, onSignedIn, onForget }: {
+  /** Which list of pen names this browser keeps (the account page, or the signed-out pages). */
+  scope: string;
   list: PenNameEntry[];
   thisServer: PenHome;
   session: PenSession | null;
@@ -43,7 +44,7 @@ export function UseSection({ ownerDid, list, thisServer, session, onSignedIn, on
         throw new Error('These words belong to a different pen name.');
       }
       const known = list.find((e) => e.did === s.did);
-      savePenName(ownerDid, { ...(known ?? {}), did: s.did, handle: s.handle, home });
+      savePenName(scope, { ...(known ?? {}), did: s.did, handle: s.handle, home });
       setSigningIn(null); setOther(false);
       onSignedIn(s, phrase);
     } catch (e) {
