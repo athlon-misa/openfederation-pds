@@ -25,11 +25,13 @@ import { call, MoveError } from '@/lib/move/xrpc';
 import { PEN_SESSION_KEY, forgetPenSession } from './pen-session-store';
 import { buildPassFile, isExpired, keyFingerprint, passId, type Pass } from './pass-file';
 import { checkOwnerKey, isPlcDid, ownerCandidates, OWNER_KEY_PROBLEM, SEALED_TO_KEY, sealNames, sealedOwner } from './own-proof';
+import { assertPinnedServiceDid } from './service-pin';
+import { IN_PERSON_CONTEXT, withPresenceContext } from '@/lib/verify/presence-context';
 
 export { generatePseudonymPhrase };
 
-/** The words a presence proof is signed over; /verify uses the same context. */
-export const PRESENCE_CONTEXT = 'OpenNewsrooms stage challenge';
+/** The context a word is signed in for an in-person proof; its link names it (`c=`) for /verify. */
+export const PRESENCE_CONTEXT = IN_PERSON_CONTEXT;
 
 /** A server a pen name can live on: its address and the DID it signs logins for. */
 export interface PenHome { url: string; serviceDid: string }
@@ -130,6 +132,7 @@ export async function serverFacts(rawUrl: string): Promise<ServerFacts> {
   const config = await call<{ serviceUrl?: string; plcDirectoryUrl?: string; identity?: { pseudonymsEnabled?: boolean } }>(
     url, 'net.openfederation.server.getPublicConfig');
   if (!config.plcDirectoryUrl) throw new MoveError('This server does not say which public directory it uses');
+  assertPinnedServiceDid(url, described.did);
   return {
     url, serviceDid: described.did, serviceUrl: config.serviceUrl ?? url,
     handleDomains: described.availableUserDomains ?? [], plcUrl: trim(config.plcDirectoryUrl),
@@ -393,6 +396,8 @@ async function fullHandle(home: string, handle: string): Promise<string> {
 
 /** Sign in as a pen name with its words. The login is signed for `home.serviceDid` only. */
 export async function signInPenName(home: PenHome, phrase: string): Promise<PenSession> {
+  // A home saved before the DID was pinned (or with another one) signs nothing for this address.
+  assertPinnedServiceDid(home.url, home.serviceDid);
   try {
     const s = await loginWithPhrase({ pdsUrl: home.url, phrase, expectedServiceDid: home.serviceDid });
     const handle = await fullHandle(home.url, s.handle);
@@ -430,7 +435,8 @@ export async function penCall<T>(nsid: string, opts: { body?: unknown; query?: R
 export async function signOutPenName(): Promise<void> {
   const s = loadPenSession();
   forgetPenSession();
-  if (s) await call(s.home.url, 'com.atproto.server.deleteSession', { jwt: s.refreshJwt, body: {} }).catch(() => undefined);
+  // The refresh token as the bearer (AT Protocol) and in the body: servers before #412 read only the body.
+  if (s) await call(s.home.url, 'com.atproto.server.deleteSession', { jwt: s.refreshJwt, body: { refreshJwt: s.refreshJwt } }).catch(() => undefined);
 }
 
 /** Lock the pen name's words on this device with a passkey. The name shown in password managers is neutral. */
@@ -610,12 +616,40 @@ export function proofLink(origin: string, bundle: RevealBundleV2): string {
   return `${origin}/verify#${revealLinkFragment(bundle)}`;
 }
 
-/** Put the proof in both accounts' files, for anyone to read. Each account's token goes only to its own repository. */
+/**
+ * The record publishReveal writes, for a pen name on another server than the
+ * account (@open-federation/pseudonym 0.3.1 writes both halves at one server;
+ * from 0.4, `publishReveal({ pseudonymPdsUrl })` and `revealLinkRecord` do this).
+ */
+export function proofRecord(b: RevealBundleV2, createdAt: string = new Date().toISOString()): Record<string, unknown> {
+  return {
+    $type: 'net.openfederation.pseudonym.link',
+    statement: b.statement, pseudonymSig: b.pseudonym.sig,
+    ownerSig: b.owner.signature.format === 'raw' ? b.owner.signature.sig : b.owner.signature.signature,
+    ownerSigningKey: b.owner.signingKey, commitmentSalt: b.commitmentSalt,
+    genesisOp: b.pseudonym.genesisOp, createdAt,
+    ownerKeyRef: b.owner.keyRef, ownerSignature: b.owner.signature,
+  };
+}
+
+/**
+ * Put the proof in both accounts' files, for anyone to read: the same record
+ * in each, written at each account's own server with its own token only. The
+ * pen name may live on another server than the account.
+ */
 export async function publishProof(p: { ownerPdsUrl: string; bundle: RevealBundleV2; ownerAccessJwt: string }): Promise<void> {
   const s = loadPenSession();
   if (!s) throw new MoveError('Sign in as the pen name first.');
-  if (trim(s.home.url) !== trim(p.ownerPdsUrl)) throw new MoveError('The pen name lives on another server; publish from an app that signs in to both.');
-  await publishReveal({ pdsUrl: p.ownerPdsUrl, bundle: p.bundle, pseudonymAccessJwt: s.accessJwt, ownerAccessJwt: p.ownerAccessJwt });
+  if (s.did !== p.bundle.pseudonym.did) throw new MoveError('You are signed in as another pen name in this tab.');
+  if (trim(s.home.url) === trim(p.ownerPdsUrl)) {
+    await publishReveal({ pdsUrl: p.ownerPdsUrl, bundle: p.bundle, pseudonymAccessJwt: s.accessJwt, ownerAccessJwt: p.ownerAccessJwt });
+    return;
+  }
+  const record = proofRecord(p.bundle);
+  const collection = 'net.openfederation.pseudonym.link';
+  await penCall('com.atproto.repo.createRecord', { body: { repo: s.did, collection, record } });
+  await call(p.ownerPdsUrl, 'com.atproto.repo.createRecord', { jwt: p.ownerAccessJwt, body: { repo: p.bundle.owner.did, collection, record } })
+    .catch((e: Error) => { throw new MoveError(`The proof is in ${s.handle}'s files, but your server did not add it to yours (${e.message}). Publish again to add it there.`); });
 }
 
 /** An in-person proof: the pen name's words sign a word someone says. */
@@ -623,7 +657,8 @@ export async function inPersonProof(p: { origin: string; plcUrl: string; penPhra
   const challenge = challengeForWord(p.word, PRESENCE_CONTEXT);
   const { signature } = signPresence({ phrase: p.penPhrase, pseudonymDid: p.penDid, challenge });
   const checked = await checkPresence({ plcUrl: p.plcUrl, pseudonymDid: p.penDid, challenge, signature });
-  return { link: `${p.origin}/verify#${presenceLinkFragment({ pseudonymDid: p.penDid, word: p.word, signature })}`, valid: checked.valid };
+  const fragment = withPresenceContext(presenceLinkFragment({ pseudonymDid: p.penDid, word: p.word, signature }), PRESENCE_CONTEXT);
+  return { link: `${p.origin}/verify#${fragment}`, valid: checked.valid };
 }
 
 // -------------------------------------------------------------------- move ----
