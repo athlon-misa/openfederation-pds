@@ -24,7 +24,7 @@ const PAGE_SIZE = 50;
 
 export default function AdminCommunitiesPage() {
   const [page, setPage] = useState(0);
-  const { data, isLoading } = useAdminCommunitiesQuery(PAGE_SIZE, page * PAGE_SIZE);
+  const { data, isLoading, isFetching, error, refetch } = useAdminCommunitiesQuery(PAGE_SIZE, page * PAGE_SIZE);
 
   const suspendMutation = useSuspendCommunityMutation();
   const unsuspendMutation = useUnsuspendCommunityMutation();
@@ -130,6 +130,12 @@ export default function AdminCommunitiesPage() {
         pageSize={PAGE_SIZE}
         onPageChange={setPage}
         isLoading={isLoading}
+        isFetching={isFetching}
+        error={error}
+        hasData={data !== undefined}
+        onRetry={() => { void refetch(); }}
+        emptyTitle="No communities yet"
+        emptyDescription="Communities created on this server will appear here for you to manage."
       />
 
       {actionTarget && (

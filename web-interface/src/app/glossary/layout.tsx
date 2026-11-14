@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { GlossaryShell } from '@/components/shell/glossary-shell';
 
 export const metadata: Metadata = {
   title: 'Glossary · OpenFederation',
@@ -6,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function GlossaryLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-background">{children}</div>;
+  return <GlossaryShell>{children}</GlossaryShell>;
 }

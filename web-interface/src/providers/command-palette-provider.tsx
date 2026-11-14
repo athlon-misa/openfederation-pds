@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import {
   KBarProvider,
   KBarPortal,
@@ -14,12 +15,23 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { ACCOUNT_SECTIONS, GLOSSARY_LINK } from '@/components/account/account-nav';
 
+function subscribeViewport(onChange: () => void) {
+  window.addEventListener('resize', onChange);
+  return () => window.removeEventListener('resize', onChange);
+}
+const viewportHeight = () => window.innerHeight;
+const serverHeight = () => 800;
+
 function RenderResults() {
+  const height = useSyncExternalStore(subscribeViewport, viewportHeight, serverHeight);
+  // The virtualized KBarResults owns scrolling; no second scrolling wrapper.
+  const maxHeight = Math.max(64, Math.min(400, Math.floor(height * 0.8) - 100));
   const { results } = useMatches();
 
   return (
     <KBarResults
       items={results}
+      maxHeight={maxHeight}
       onRender={({ item, active }) =>
         typeof item === 'string' ? (
           <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -32,10 +44,10 @@ function RenderResults() {
             }`}
           >
             {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
-            <div className="flex flex-col">
-              <span>{item.name}</span>
+            <div className="min-w-0 flex-1">
+              <span className="block break-words">{item.name}</span>
               {item.subtitle && (
-                <span className="text-xs text-muted-foreground">{item.subtitle}</span>
+                <span className="block break-words text-xs text-muted-foreground">{item.subtitle}</span>
               )}
             </div>
           </div>
@@ -124,12 +136,10 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
   return (
     <KBarProvider actions={actions}>
       <KBarPortal>
-        <KBarPositioner className="fixed inset-0 z-50 bg-black/50">
-          <KBarAnimator className="w-full max-w-lg overflow-hidden rounded-lg border bg-background shadow-lg">
-            <KBarSearch className="w-full border-b bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground" />
-            <div className="max-h-80 overflow-y-auto">
-              <RenderResults />
-            </div>
+        <KBarPositioner className="fixed inset-0 z-50 overflow-hidden bg-black/50">
+          <KBarAnimator className="w-full max-w-xl overflow-hidden rounded-lg border bg-background shadow-lg">
+            <KBarSearch aria-label="Search pages and actions" placeholder="Search pages and actions…" className="w-full border-b bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground" />
+            <RenderResults />
           </KBarAnimator>
         </KBarPositioner>
       </KBarPortal>

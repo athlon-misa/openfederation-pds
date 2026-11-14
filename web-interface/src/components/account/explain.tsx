@@ -27,11 +27,11 @@ export function ChoiceExplainer({ text, className, extra }: {
 }) {
   const rows = [...PARTS.map((p) => ({ label: p.label, text: text[p.key] })), ...(extra ?? [])];
   return (
-    <dl className={cn('space-y-3 text-sm', className)}>
+    <dl className={cn('choice-explainer space-y-3 text-sm', className)}>
       {rows.map((row) => (
-        <div key={row.label} className="sm:grid sm:grid-cols-[11rem_1fr] sm:gap-4">
+        <div key={row.label} className="choice-row">
           <dt className="font-medium">{row.label}</dt>
-          <dd className="mt-0.5 text-muted-foreground sm:mt-0">{row.text}</dd>
+          <dd className="mt-0.5 text-muted-foreground">{row.text}</dd>
         </div>
       ))}
     </dl>
@@ -47,7 +47,7 @@ export function Acknowledge({ id, text, checked, onChange, disabled }: {
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-md border border-amber-600/40 bg-amber-500/5 p-3 text-sm">
+    <div className="flex items-start gap-3 rounded-md border status-warning p-3 text-sm">
       <input
         id={id}
         type="checkbox"
@@ -83,7 +83,7 @@ export function WhatIsThis({ term, label, className }: { term: string; label?: s
 export function StatusMessage({ ok, text, className }: { ok: boolean; text: string; className?: string }) {
   const Icon = ok ? CheckCircle2 : AlertTriangle;
   return (
-    <p role="status" className={cn('flex items-start gap-2 rounded-md border p-3 text-sm', ok ? 'border-green-700/30 text-green-800 dark:text-green-400' : 'border-destructive/40 text-destructive', className)}>
+    <p role="status" className={cn('flex items-start gap-2 rounded-md border p-3 text-sm', ok ? 'status-success' : 'border-destructive/40 text-destructive', className)}>
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
       <span><span className="sr-only">{ok ? 'Done: ' : 'Problem: '}</span>{text}</span>
     </p>

@@ -32,7 +32,7 @@ export default function AdminPartnerKeysPage() {
   const [rateLimitPerHour, setRateLimitPerHour] = useState('100');
   const [revokeTarget, setRevokeTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const { data, isLoading } = usePartnerKeysQuery();
+  const { data, isLoading, isFetching, error, refetch } = usePartnerKeysQuery();
   const createMutation = useCreatePartnerKeyMutation();
   const revokeMutation = useRevokePartnerKeyMutation();
 
@@ -218,6 +218,12 @@ export default function AdminPartnerKeysPage() {
         data={data?.keys ?? []}
         total={data?.keys?.length ?? 0}
         isLoading={isLoading}
+        isFetching={isFetching}
+        error={error}
+        hasData={data !== undefined}
+        onRetry={() => { void refetch(); }}
+        emptyTitle="No partner keys yet"
+        emptyDescription="Partner keys let trusted applications register accounts on your server. Keys you create will appear here."
       />
 
       <ConfirmDialog

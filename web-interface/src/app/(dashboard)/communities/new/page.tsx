@@ -85,16 +85,16 @@ export default function NewCommunityPage() {
 
   return (
     <>
-      <div className="max-w-lg mx-auto">
+      <div className="w-full">
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Create Community</CardTitle>
             <CardDescription>Set up a new OpenFederation community</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <CardContent className="grid gap-5 md:grid-cols-2">
               {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="md:col-span-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                   {error}
                 </div>
               )}
@@ -111,7 +111,7 @@ export default function NewCommunityPage() {
 
               <div className="space-y-2">
                 <Label>DID Method</Label>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="radio"
@@ -161,7 +161,7 @@ export default function NewCommunityPage() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"

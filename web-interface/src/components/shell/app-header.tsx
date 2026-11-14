@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useKBar } from 'kbar';
+import { AppearanceMenu } from '@/components/appearance-menu';
 import { Search } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
@@ -21,6 +22,7 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
 
   const labelMap: Record<string, string> = {
     communities: 'Communities',
+    glossary: 'Glossary',
     explore: 'Explore',
     admin: 'Admin',
     users: 'Users',
@@ -66,7 +68,7 @@ export function AppHeader() {
   const crumbs = getBreadcrumbs(pathname ?? '/');
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+    <header className="app-header flex h-14 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mr-2 !h-4" />
       <Breadcrumb className="min-w-0 overflow-hidden">
@@ -88,11 +90,13 @@ export function AppHeader() {
           ))}
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="ml-auto">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <AppearanceMenu />
         <Button
           variant="outline"
           size="sm"
           className="gap-2 text-muted-foreground"
+          aria-label="Search pages and actions"
           onClick={query.toggle}
         >
           <Search className="size-4" />
