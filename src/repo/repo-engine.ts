@@ -28,6 +28,7 @@ import type { PoolClient } from 'pg';
 import { PgBlockstore, RepoConcurrentWriteError } from './pg-blockstore.js';
 import { query } from '../db/client.js';
 import { assertServerMaySign } from './device-signing-state.js';
+import { deviceActionContext, DeviceSignatureNeeded } from './device-action-context.js';
 import { HttpError } from '../xrpc/errors.js';
 
 import { MEMBER_COLLECTION, projectMemberRow } from '../community/projections.js';
@@ -159,6 +160,10 @@ export class RepoEngine {
       // (#240): the commit would not verify against the DID, and making it at
       // all would be the server speaking for the person.
       await assertServerMaySign(this.did);
+      // A method being prepared for a device stops at the write the device
+      // signs; nothing after that point may change anything (device-actions.ts).
+      const ctx = deviceActionContext();
+      if (ctx?.mode === 'prepare' && ctx.needed) throw new DeviceSignatureNeeded();
       for (let attempt = 1; ; attempt++) {
         const repo = await Repo.load(this.storage);
         const { writeOps, indexOps, result } = await plan();

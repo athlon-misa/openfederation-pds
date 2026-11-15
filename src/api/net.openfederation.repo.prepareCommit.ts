@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import { randomBytes } from 'crypto';
 import type { AuthRequest } from '../auth/types.js';
 import { requireAuth } from '../auth/guards.js';
 import { enforcePseudonymProbation } from '../auth/pseudonym-probation.js';
@@ -8,7 +7,7 @@ import { RepoEngine, type BatchOp } from '../repo/repo-engine.js';
 import { authorizeCollectionMutation } from '../repo/collection-policy.js';
 import { FORUM_THREAD, FORUM_POST, CALENDAR_EVENT, CALENDAR_RSVP } from '../forum/forum-index.js';
 import { HttpError, renderXrpcError } from '../xrpc/errors.js';
-import { PENDING_COMMIT_TTL_SECONDS, MAX_PENDING_COMMITS, MAX_WRITES_PER_COMMIT } from '../repo/device-commits.js';
+import { MAX_WRITES_PER_COMMIT, assertPendingRoom, storePendingCommit, preparedCommitJson } from '../repo/device-commits.js';
 
 const NSID = 'net.openfederation.repo.prepareCommit';
 const DEDICATED = new Set([FORUM_THREAD, FORUM_POST, CALENDAR_EVENT, CALENDAR_RSVP]);
@@ -72,7 +71,7 @@ export default async function prepareCommit(req: AuthRequest, res: Response): Pr
         throw new HttpError(400, 'InvalidRequest', 'rkey is missing or not a valid record key');
       }
       if (DEDICATED.has(collection)) {
-        throw new HttpError(400, 'UseDedicatedEndpoint', `Records in "${collection}" are written through their net.openfederation.forum.* / calendar.* endpoint`);
+        throw new HttpError(400, 'UseDedicatedEndpoint', `Records in "${collection}" are written through their net.openfederation.forum.* / calendar.* endpoint (on the device: net.openfederation.repo.prepareAction)`);
       }
       // The same collection rules as the generic writes: votes, objections,
       // decisions and checked key claims are not hand-written.
@@ -90,38 +89,10 @@ export default async function prepareCommit(req: AuthRequest, res: Response): Pr
 
     if (!(await enforcePseudonymProbation(req, res))) return;
 
-    // Expired prepares go first, so they never count against the limit.
-    await query('DELETE FROM pending_device_commits WHERE expires_at < NOW()');
-    const pending = await query<{ n: string }>('SELECT COUNT(*) AS n FROM pending_device_commits WHERE did = $1', [did]);
-    if (parseInt(pending.rows[0].n, 10) >= MAX_PENDING_COMMITS) {
-      throw new HttpError(429, 'TooManyPendingCommits', `At most ${MAX_PENDING_COMMITS} prepared commits may wait at once; submit or let them expire`);
-    }
-
+    await assertPendingRoom(did);
     const prepared = await new RepoEngine(did).prepareDeviceCommit(ops);
-    const handle = randomBytes(16).toString('hex');
-    const expires = await query<{ expires_at: Date }>(
-      `INSERT INTO pending_device_commits
-         (id, did, prev_root, since, rev, unsigned_commit, new_blocks, removed_cids, index_ops, results, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW() + make_interval(secs => $11))
-       RETURNING expires_at`,
-      [
-        handle, did, prepared.prevRoot, prepared.since, prepared.rev, Buffer.from(prepared.unsigned),
-        JSON.stringify(prepared.newBlocks.map(([cid, bytes]) => [cid, Buffer.from(bytes).toString('base64')])),
-        prepared.removedCids, JSON.stringify(prepared.indexOps), JSON.stringify(prepared.results),
-        PENDING_COMMIT_TTL_SECONDS,
-      ],
-    );
-
-    res.status(200).json({
-      handle,
-      did,
-      rev: prepared.rev,
-      prevRoot: prepared.prevRoot,
-      unsignedCommit: Buffer.from(prepared.unsigned).toString('base64'),
-      newBlocks: prepared.newBlocks.map(([cid, bytes]) => ({ cid, bytes: Buffer.from(bytes).toString('base64') })),
-      writes: prepared.results,
-      expiresAt: expires.rows[0].expires_at.toISOString(),
-    });
+    const { handle, expiresAt } = await storePendingCommit({ did, kind: 'commit', unsigned: prepared.unsigned, prepared });
+    res.status(200).json(preparedCommitJson(did, handle, expiresAt, prepared));
   } catch (error) {
     renderXrpcError(NSID, res, error);
   }

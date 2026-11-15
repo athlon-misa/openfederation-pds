@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.repo.submitCommit",
-  "revision": 1,
-  "description": "Device signing (#240): apply a commit prepared by net.openfederation.repo.prepareCommit with the device's signature over exactly its unsignedCommit bytes. The signature is checked against the DID's current atproto key, read from PLC on every call. The commit applies only while the repository's root is still the one it was built on. A handle can be submitted once, by the account that prepared it.",
+  "revision": 2,
+  "description": "Device signing (#240): apply a commit prepared by net.openfederation.repo.prepareCommit with the device's signature over exactly its unsignedCommit bytes. The signature is checked against the DID's current atproto key, read from PLC on every call. The commit applies only while the repository's root is still the one it was built on. A handle can be submitted once, by the account that prepared it. A handle from net.openfederation.repo.prepareAction (phase 2) finishes that method instead: it runs again with the same input and the device's commit (or author signature) in place, and its answer is returned in result; the method's own errors are returned as they are.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -18,11 +18,11 @@
           "properties": {
             "handle": {
               "type": "string",
-              "description": "From prepareCommit."
+              "description": "From prepareCommit or prepareAction."
             },
             "sig": {
               "type": "string",
-              "description": "Base64 compact (64-byte, low-S) ECDSA signature over unsignedCommit."
+              "description": "Base64 compact (64-byte, low-S) ECDSA signature over unsignedCommit (prepareCommit, or prepareAction kind commit) or over the bytes of authorSig.cid (prepareAction kind authorSig)."
             }
           }
         }
@@ -32,8 +32,7 @@
         "schema": {
           "type": "object",
           "required": [
-            "commit",
-            "writes"
+            "signed"
           ],
           "properties": {
             "commit": {
@@ -42,10 +41,18 @@
             },
             "writes": {
               "type": "array",
-              "description": "Per write: { collection, rkey, uri, cid (create and update) }.",
+              "description": "Per write: { collection, rkey, uri, cid (create and update) }. Absent for an author signature.",
               "items": {
                 "type": "unknown"
               }
+            },
+            "signed": {
+              "type": "boolean",
+              "description": "Whether the device's signature was used. False when a prepareAction method finished without the write it was prepared for."
+            },
+            "result": {
+              "type": "unknown",
+              "description": "prepareAction handles: the method's answer, as the method itself returns it."
             }
           }
         }
@@ -74,6 +81,10 @@
         {
           "name": "UpstreamFailure",
           "description": "The PLC directory could not be read."
+        },
+        {
+          "name": "ActionChanged",
+          "description": "The method now wants to write something other than what the device signed; prepare it again."
         }
       ]
     },
