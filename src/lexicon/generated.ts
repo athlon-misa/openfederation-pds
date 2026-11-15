@@ -3623,7 +3623,7 @@ export const lexiconContracts = {
   'net.openfederation.repo.prepareCommit': { revision: 1, errors: ["DeviceSigningOff", "ProbationLimit", "RecordNotFound", "TooManyPendingCommits", "UseDedicatedEndpoint"] as const },
   'net.openfederation.repo.submitCommit': { revision: 1, errors: ["CommitExpired", "DeviceSigningOff", "InvalidSignature", "RepoHeadMoved", "UnknownCommit", "UpstreamFailure"] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
-  'net.openfederation.server.getPublicConfig': { revision: 6, errors: [] as const },
+  'net.openfederation.server.getPublicConfig': { revision: 7, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },
   'net.openfederation.vault.exportRecoveryKey': { revision: 4, errors: ["SelfCustodyAccount", "ShareNotFound", "VerificationFailed", "VerificationRequired"] as const },
   'net.openfederation.vault.getCustodialSecret': { revision: 4, errors: ["NotFound", "WalletAddressRequired"] as const },

@@ -40,6 +40,8 @@ import { createWalletConsentRouter } from './wallet-consent-page.js';
 import { productionConfigProblems } from './production-checks.js';
 import { requireRepoReadable } from '../auth/guards.js';
 import type { AuthRequest } from '../auth/types.js';
+import { demoResetGate, demoStartupProblems, startDemoResetScheduler, stopDemoResetScheduler } from '../demo/demo-mode.js';
+import { isDemoModeEnv } from '../demo/demo-settings.js';
 
 export type { XRPCHandler } from './handler-registry.js';
 
@@ -130,6 +132,11 @@ app.use(async (req, res, next) => {
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   next();
 });
+
+// A demo server's nightly reset (DEMO_MODE, docs/DEMO-SERVERS.md): while it
+// runs, every request but /health gets 503 DemoResetting (after CORS, so
+// a browser can read it).
+app.use(demoResetGate);
 
 // The global rate limiter runs before anything that costs something per
 // request. Authentication can mean a database read, a partner-key lookup or a
@@ -386,6 +393,16 @@ export async function startServer(): Promise<Server> {
   // invalid or partial set even when the database is currently unavailable.
   validateBootstrapAdminConfig();
 
+  // Demo mode wipes everything on a schedule; it starts only where every
+  // guard passes (a demo PLC directory, a demo hostname, local blobs).
+  const demoProblems = demoStartupProblems();
+  if (demoProblems.length > 0) {
+    console.error('FATAL: DEMO_MODE is set, but this server must not be reset as a demo server:');
+    for (const problem of demoProblems) console.error(`  - ${problem}`);
+    console.error('See docs/DEMO-SERVERS.md. Unset DEMO_MODE on any server that is not a demo.');
+    process.exit(1);
+  }
+
   // Security check: refuse to start with insecure JWT secret in production
   if (config.auth.jwtSecretIsInsecure) {
     if (config.env.isProduction) {
@@ -411,7 +428,8 @@ export async function startServer(): Promise<Server> {
   // hard dependency of everything else. It is verified, shouted about, and
   // surfaced in /health instead.
   if (!config.email.enabled) {
-    if (config.env.isProduction && process.env.ALLOW_NO_EMAIL !== 'true') {
+    // A demo server sends no mail unless it is given SMTP: nothing it holds lasts the night.
+    if (config.env.isProduction && process.env.ALLOW_NO_EMAIL !== 'true' && !isDemoModeEnv(process.env)) {
       console.error('FATAL: No SMTP configuration (SMTP_HOST) in production. Password reset and');
       console.error('account recovery would silently deliver nothing. Configure SMTP_HOST etc.,');
       console.error('or set ALLOW_NO_EMAIL=true to state explicitly that this instance sends no mail.');
@@ -527,6 +545,7 @@ export async function startServer(): Promise<Server> {
       startExportScheduler();
       startMigrationCleanup();
       startTakedownSweep();
+      startDemoResetScheduler();
       resolve(server);
     });
   });
@@ -538,6 +557,7 @@ export async function releaseServerResources(): Promise<void> {
   stopMigrationCleanup();
   stopTakedownSweep();
   stopRuntimeSettings();
+  stopDemoResetScheduler();
   if (sessionCleanupTimer) {
     clearInterval(sessionCleanupTimer);
     sessionCleanupTimer = null;
