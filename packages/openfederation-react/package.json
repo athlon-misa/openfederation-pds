@@ -1,6 +1,6 @@
 {
   "name": "@open-federation/react",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "React bindings for @open-federation/sdk — provider, hooks, and a drop-in Sign In With OpenFederation button.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -27,7 +27,7 @@
     "prepublishOnly": "node -e \"const fs=require('fs');const missing=['dist/index.js'].filter(f=>!fs.existsSync(f));if(missing.length){console.error('Not built, refusing to publish: '+missing.join(', '));process.exit(1)}\""
   },
   "dependencies": {
-    "@open-federation/sdk": "^0.8.0"
+    "@open-federation/sdk": "^0.9.0"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
