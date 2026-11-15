@@ -31,6 +31,14 @@ const ERROR_MESSAGES: Record<string, string> = {
   InviteUsed: 'The invite code has already been used.',
 };
 
+/** What a community invite code did at sign-up (#403). */
+const COMMUNITY_JOIN: Record<string, string> = {
+  joined: 'You have also joined the community you were invited to.',
+  pending: 'Your request to join the community you were invited to is waiting for its organisers.',
+  waitingForApproval: 'You will join the community you were invited to once your account is approved.',
+  refused: 'The community you were invited to is not taking new members right now.',
+};
+
 export default function RegisterPage() {
   const [handle, setHandle] = useState('');
   const [email, setEmail] = useState('');
@@ -42,6 +50,8 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // A community invite code (#403): how joining its community went.
+  const [communityJoin, setCommunityJoin] = useState<string | null>(null);
   // The server may approve new accounts automatically: then there is nothing to wait for.
   const [approved, setApproved] = useState(false);
   // Custody modes this server offers (ADR-003). Only shown when there is a choice.
@@ -100,6 +110,7 @@ export default function RegisterPage() {
 
     if (result.ok) {
       setApproved(result.data.status === 'approved');
+      setCommunityJoin((result.data as { community?: { status?: string } }).community?.status ?? null);
       setSuccess(true);
     } else {
       setError(ERROR_MESSAGES[result.error] || result.message);
@@ -114,6 +125,7 @@ export default function RegisterPage() {
     try {
       const done = await registerWithOwnKeys({ pdsUrl: THIS_PDS, mode: mode as 'assisted' | 'self', phrase: chosen, handle, email, password, inviteCode: inviteCode || undefined });
       setApproved(done.status === 'approved');
+      setCommunityJoin((done as { community?: { status?: string } }).community?.status ?? null);
       setSuccess(true);
     } catch (e) {
       const err = e as Error & { code?: string };
@@ -150,6 +162,9 @@ export default function RegisterPage() {
               ? 'Your account has been created and approved. You can sign in now.'
               : 'Your account has been created and is pending admin approval. You will be able to sign in once an administrator approves your account.'}
           </p>
+          {communityJoin && COMMUNITY_JOIN[communityJoin] && (
+            <p className="mt-3 text-sm text-muted-foreground">{COMMUNITY_JOIN[communityJoin]}</p>
+          )}
         </CardContent>
         <CardFooter>
           <Link href="/login" className="w-full">
