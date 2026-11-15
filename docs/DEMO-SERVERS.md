@@ -18,6 +18,8 @@ One Railway project, separate from production:
 
 Why the demo needs its own PLC directory: every identity a demo PDS creates is registered in the directory it uses, and Self accounts and pen names hold their own rotation keys there. If the demo used the production directory, those identities would stay there after the demo PDSes forgot them, and nobody could clear them. A demo directory is wiped with the PDSes.
 
+The maintainers' own demo project is described as code in `deploy/demo/.railway/railway.ts` (Railway project `openfederation-demo`): run `railway config plan` from `deploy/demo/` with that project linked. Variables are unmanaged there (secrets are set on Railway), and custom domains are added with `railway domain`, because Railway's configuration cannot register them.
+
 Create the three databases once, from Railway's Postgres console (or `psql` with the service's connection string):
 
 ```sql
