@@ -98,16 +98,23 @@ export async function leavePds(p: {
   return { previous, operation };
 }
 
+/** A blob saved from a PDS (downloadBackup), to upload at the new home. */
+export interface BackupBlob { cid: string; mimeType: string; bytes: Uint8Array }
+
 /**
  * Copy a repository and its blobs into a new PDS (com.atproto.repo.importRepo,
  * listMissingBlobs, uploadBlob), with a session for the account there.
  * The repository comes from `car` (a copy saved earlier, e.g. a RepoWatcher
- * result) or from `fromUrl`'s public com.atproto.sync.getRepo. Blobs come
- * from `fromUrl`'s com.atproto.sync.getBlob. Returns the commit imported,
- * to compare with the new PDS's checkAccountStatus.
+ * or downloadBackup result) or from `fromUrl`'s public com.atproto.sync.getRepo.
+ * Blobs come from `backupBlobs` (downloadBackup), else from `fromUrl`'s
+ * com.atproto.sync.getBlob. A blob found in neither fails the copy, unless
+ * `allowMissingBlobs`: then it is listed in `missingBlobs`. Returns the
+ * commit imported, to compare with the new PDS's checkAccountStatus.
  *
- * The new PDS decides what it accepts: some only accept a repository signed
- * by the DID's current `atproto` key, so import before leavePds changes it.
+ * The new PDS decides what it accepts. An OpenFederation PDS accepts a
+ * repository signed by the DID's current `atproto` key, or, for a `self`
+ * account that opened there with its rotation key and moved with leavePds,
+ * by the key the DID named just before (ADR-004).
  */
 export async function copyRepo(p: {
   did: string;
@@ -115,8 +122,10 @@ export async function copyRepo(p: {
   accessJwt: string;
   fromUrl?: string;
   car?: Uint8Array;
+  backupBlobs?: BackupBlob[];
+  allowMissingBlobs?: boolean;
   fetch?: typeof globalThis.fetch;
-}): Promise<{ commit: CommitRef; blobsCopied: number }> {
+}): Promise<{ commit: CommitRef; blobsCopied: number; missingBlobs?: string[] }> {
   const doFetch = p.fetch ?? ((...args: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...args));
   const to = p.toUrl.replace(/\/+$/, '');
   const from = p.fromUrl?.replace(/\/+$/, '');
@@ -142,27 +151,42 @@ export async function copyRepo(p: {
   });
   if (!imported.ok) throw await fail('The new PDS refused the repository', imported);
 
+  const saved = new Map((p.backupBlobs ?? []).map((b) => [b.cid, b]));
+  const missingBlobs: string[] = [];
   let blobsCopied = 0;
-  for (;;) {
-    // Each upload removes a blob from the missing list, so always read the first page.
-    const page = await doFetch(`${to}/xrpc/com.atproto.repo.listMissingBlobs?limit=100`, { headers: auth });
+  let cursor: string | undefined;
+  do {
+    // Pages are keyed by CID, so uploads on this page don't shift the next one.
+    const page = await doFetch(`${to}/xrpc/com.atproto.repo.listMissingBlobs?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, { headers: auth });
     if (!page.ok) throw await fail('listMissingBlobs failed', page);
-    const { blobs } = await page.json() as { blobs: { cid: string }[] };
-    if (blobs.length === 0) break;
-    if (!from) throw new Error(`The new PDS is missing ${blobs.length} blob(s); pass fromUrl to copy them`);
-    for (const { cid } of blobs) {
-      const blob = await doFetch(`${from}/xrpc/com.atproto.sync.getBlob?did=${did}&cid=${encodeURIComponent(cid)}`);
-      if (!blob.ok) throw new Error(`The source did not serve blob ${cid} (${blob.status})`);
+    const listed = await page.json() as { blobs: { cid: string }[]; cursor?: string };
+    for (const { cid } of listed.blobs) {
+      let body: Uint8Array;
+      let type: string;
+      const kept = saved.get(cid);
+      if (kept) {
+        body = kept.bytes;
+        type = kept.mimeType;
+      } else {
+        const blob = from ? await doFetch(`${from}/xrpc/com.atproto.sync.getBlob?did=${did}&cid=${encodeURIComponent(cid)}`) : null;
+        if (!blob?.ok) {
+          if (p.allowMissingBlobs) { missingBlobs.push(cid); continue; }
+          throw new Error(blob
+            ? `The source did not serve blob ${cid} (${blob.status})`
+            : `The new PDS is missing blob ${cid}, which is not in the backup; pass fromUrl to copy it, or allowMissingBlobs`);
+        }
+        body = new Uint8Array(await blob.arrayBuffer());
+        type = blob.headers.get('content-type') ?? 'application/octet-stream';
+      }
       const up = await doFetch(`${to}/xrpc/com.atproto.repo.uploadBlob`, {
-        method: 'POST',
-        headers: { 'Content-Type': blob.headers.get('content-type') ?? 'application/octet-stream', ...auth },
-        body: new Uint8Array(await blob.arrayBuffer()),
+        method: 'POST', headers: { 'Content-Type': type, ...auth }, body: body as BodyInit,
       });
       if (!up.ok) throw await fail(`The new PDS refused blob ${cid}`, up);
       const json = await up.json() as { blob?: { ref?: { $link?: string } } };
       if (json.blob?.ref?.$link !== cid) throw new Error(`Blob ${cid} arrived as ${json.blob?.ref?.$link}`);
       blobsCopied++;
     }
-  }
-  return { commit: { rev: commit.rev, cid: commit.cid }, blobsCopied };
+    cursor = listed.blobs.length > 0 ? listed.cursor : undefined;
+  } while (cursor);
+  return { commit: { rev: commit.rev, cid: commit.cid }, blobsCopied, ...(missingBlobs.length > 0 ? { missingBlobs } : {}) };
 }

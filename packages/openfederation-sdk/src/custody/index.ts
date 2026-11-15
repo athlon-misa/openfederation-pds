@@ -12,6 +12,7 @@ export { didKeyFor, parseDidKey, base64UrlEncode, base64UrlDecode, type KeyCurve
 export * from './owner-record.js';
 export * from './repo-watch.js';
 export * from './leave.js';
+export * from './move-in.js';
 export * from './recovery.js';
 export * from './device-signing.js';
 export {

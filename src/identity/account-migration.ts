@@ -2,9 +2,11 @@
  * Account migration: what this PDS needs to know about a DID arriving from
  * another PDS. The DID's current PLC state is the last operation in its log.
  */
-import { getPlcLog } from './plc-client.js';
+import { verifySignature } from '@atproto/crypto';
+import { encodeDagCbor, getPlcLog } from './plc-client.js';
 import { getDidResolver } from './did-resolver.js';
 import { commitmentsIn } from '../../packages/openfederation-pseudonym/src/formats.js';
+import { cidForPlcOp } from '../../packages/openfederation-pseudonym/src/plc.js';
 
 export interface PlcState {
   rotationKeys: string[];
@@ -85,4 +87,49 @@ export async function atprotoKeyHistory(did: string): Promise<string[]> {
 export async function atprotoKeyFor(did: string): Promise<string | null> {
   if (did.startsWith('did:plc:')) return (await currentPlcState(did))?.verificationMethods.atproto ?? null;
   return getDidResolver().resolveAtprotoKey(did);
+}
+
+/**
+ * ADR-004, decision 2: the `atproto` key a `self` account's repository may be
+ * signed with, besides the current one, when the person moved the DID here
+ * with their own key and the old PDS can't help. It is the key of the
+ * operation immediately before the one that points the DID here, and only
+ * when, in the DID's active PLC log (read uncached):
+ *   - the last operation names this server and the one before does not, so
+ *     the move here is the latest change;
+ *   - the last operation's `prev` is the one before it;
+ *   - the one before publishes `openfederation_owner` (an ADR-003 account);
+ *   - the move is signed by that state's first rotation key (the person's,
+ *     never a PDS's backup key, which ADR-003 lists below it), checked here,
+ *     and keeps that key first.
+ * Null otherwise: nothing older, no other signer.
+ */
+export async function atprotoKeyBeforeOwnMove(did: string, serviceUrl: string): Promise<string | null> {
+  if (!did.startsWith('did:plc:')) return null;
+  const log = await getPlcLog(did);
+  if (!log || log.length < 2) return null;
+  const moved = log[log.length - 1];
+  const before = log[log.length - 2];
+  if (moved.type !== 'plc_operation' || before.type !== 'plc_operation') return null;
+  const endpointOf = (op: Record<string, unknown>) =>
+    (op.services as PlcState['services'] | undefined)?.atproto_pds?.endpoint;
+  if (endpointOf(moved) !== serviceUrl || endpointOf(before) === serviceUrl) return null;
+
+  const methods = (before.verificationMethods ?? {}) as Record<string, unknown>;
+  if (typeof methods.openfederation_owner !== 'string' || typeof methods.atproto !== 'string') return null;
+  const beforeKeys = before.rotationKeys;
+  const movedKeys = moved.rotationKeys;
+  if (!Array.isArray(beforeKeys) || typeof beforeKeys[0] !== 'string') return null;
+  if (!Array.isArray(movedKeys) || movedKeys[0] !== beforeKeys[0]) return null;
+  if (moved.prev !== cidForPlcOp(before)) return null;
+
+  const { sig, ...unsigned } = moved;
+  if (typeof sig !== 'string') return null;
+  let signedByPerson = false;
+  try {
+    signedByPerson = await verifySignature(beforeKeys[0], encodeDagCbor(unsigned), Buffer.from(sig, 'base64url'));
+  } catch {
+    signedByPerson = false;
+  }
+  return signedByPerson ? methods.atproto : null;
 }

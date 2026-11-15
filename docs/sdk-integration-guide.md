@@ -1988,10 +1988,12 @@ the old PDS's backup key can no longer change the DID (`keepOtherRotationKeys: t
 It refuses before sending anything if the key is not one of the DID's rotation keys, and checks
 PLC shows the result.
 
-The repository: `copyRepo({ did, toUrl, accessJwt, fromUrl, car? })` imports it into the new PDS
-(`com.atproto.repo.importRepo`, then every blob it lists as missing) with a session for the
-account there. It takes the public `getRepo` of `fromUrl`, or a CAR you saved earlier (every
-`RepoWatcher` check that downloads returns one). Which order works depends on the new PDS:
+The repository: `copyRepo({ did, toUrl, accessJwt, fromUrl?, car?, backupBlobs? })` imports it
+into the new PDS (`com.atproto.repo.importRepo`, then every blob it lists as missing) with a
+session for the account there. It takes the public `getRepo` of `fromUrl`, or a CAR you saved
+earlier (every `RepoWatcher` check that downloads returns one, and so does `downloadBackup`).
+Blobs come from `backupBlobs`, else from `fromUrl`; `allowMissingBlobs: true` lists the ones
+found nowhere in `missingBlobs` instead of failing. Which order works depends on the new PDS:
 
 - The usual order is the dashboard's Move flow: open the account at the new PDS, copy the
   repository, then change the DID. Use it when there is time. A PDS that only accepts a
@@ -1999,13 +2001,68 @@ account there. It takes the public `getRepo` of `fromUrl`, or a CAR you saved ea
 - In an emergency, `leavePds` first: it cuts the old operator off at once, and the repository
   can follow.
 
-Into another OpenFederation PDS today, a `self` account can't complete a move on its own:
-`com.atproto.server.createAccount` accepts proof by rotation key only from pseudonyms (user
-accounts need service auth from the old PDS), `com.atproto.identity.signPlcOperation` on the
-old PDS refuses `self` accounts (it holds no key), and `importRepo` accepts only a repository
-signed by the DID's current `atproto` key. `leavePds` still cuts off the old operator; the
-account then needs a new home that accepts it. Pseudonyms move without help already
-(`moveAccount` in `@open-federation/pseudonym`).
+### Moving into another OpenFederation PDS with the phrase alone
+
+A `self` or `assisted` account moves into another OpenFederation PDS without any help from the
+old one, which may refuse every call or be gone ([ADR-004](adr/ADR-004-self-custody-move-in.md)).
+It arrives there as `self`; switch to `assisted` afterwards if you want the new PDS as a safety
+net.
+
+**First, download a backup while the old PDS still answers**, and keep doing so regularly. The
+blobs (avatars, images) exist nowhere else; once the old PDS is gone, a blob that isn't in your
+backup is lost.
+
+```ts
+import { deriveCustodyKeys, downloadBackup, moveIn } from '@open-federation/sdk/custody';
+
+const backup = await downloadBackup({ pdsUrl: oldPdsUrl, did }); // { car, commit, blobs } — keep it safe
+
+const keys = deriveCustodyKeys(phrase);
+const session = await moveIn({
+  plcUrl, did, rotationPrivateKey: keys.rotationPrivateKey,
+  newPdsUrl, newServiceDid,          // the new PDS and its service DID (did:web:…)
+  handle: `alice${newHandleSuffix}`, // the handle there
+  email, password,                   // the new login there (login stays password-based)
+  inviteCode,                        // where getPublicConfig says migration.accounts is 'invite'
+  backup,
+  onStep: (s) => show(s),            // 'open' | 'import' | 'check' | 'point' | 'activate'
+});
+```
+
+`moveIn` opens the account with a proof signed by the DID's **first** rotation key (your
+phrase key: in `assisted` the old PDS's key is below it and is refused, so is a recovery key),
+imports the backup's repository and blobs, checks the new PDS holds that exact commit and every
+blob, points the DID there with `leavePds` and activates the account. Until the DID changes,
+any refusal leaves everything as it was. It refuses to finish while a blob is missing, unless
+you pass `allowMissingBlobs: true` (the result lists them in `missingBlobs`).
+
+**If you already ran `leavePds`** (the emergency order), `moveIn` notices and skips that step.
+Two conditions: you reserved the signing key at the new PDS first and named it in `leavePds`
+(`reserveSigningKeyAt({ pdsUrl: newPdsUrl, did })`, then `leavePds({ …, atprotoDidKey })`; the
+new PDS refuses with `SigningKeyNotReserved` otherwise), and you make no other PLC update until
+the import is done. Pass the endpoint you gave `leavePds` as `pdsEndpoint` if it differs from
+`newPdsUrl`.
+
+```ts
+import { reserveSigningKeyAt, leavePds } from '@open-federation/sdk/custody';
+
+const atprotoDidKey = await reserveSigningKeyAt({ pdsUrl: newPdsUrl, did });
+await leavePds({ plcUrl, did, rotationPrivateKey: keys.rotationPrivateKey, pdsEndpoint: newPdsUrl, atprotoDidKey });
+// … later, with the backup:
+await moveIn({ plcUrl, did, rotationPrivateKey: keys.rotationPrivateKey, newPdsUrl, newServiceDid, handle, email, password, backup });
+```
+
+Why the new PDS accepts a repository the old PDS signed after `leavePds` changed the key: it
+accepts the key the DID named **immediately before** the move here, and only when your own key
+signed that move and it is still the latest PLC operation; nothing older, and never once the
+account is active (ADR-004, decision 2).
+
+The pieces, for your own flow: `openAccountWithRotationKey` (createAccount with the proof),
+`signRotationKeyJwt` (the proof itself: iss = DID, aud = the new PDS's service DID, at most 300
+seconds), `reserveSigningKeyAt`, `downloadBackup`, `copyRepo`. The new PDS allows this under
+`MIGRATION_ACCOUNTS=open` and `invite` (with an invite code), and refuses it under `closed` or
+when `self` is not in its `IDENTITY_CUSTODY_ALLOWED`. Pseudonyms move with `moveAccount` in
+`@open-federation/pseudonym`.
 
 ### Evidence of a forged record
 

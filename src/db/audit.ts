@@ -39,6 +39,7 @@ export type AuditAction =
   | 'account.deactivate'
   | 'account.activate'
   | 'account.migrateIn'
+  | 'account.moveIn'
   | 'community.migrateIn'
   | 'community.activate'
   | 'community.moved'

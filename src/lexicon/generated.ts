@@ -159,7 +159,7 @@ export type ComAtprotoServerCreateAccountOutput = {
   "didDoc"?: unknown;
   "rotationDeviceShare"?: string;
 };
-export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "CustodyModeNotAllowed" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteUsed" | "MigrationNotAllowed" | "TokenSpent" | "UnresolvableDid" | "UnsupportedDomain";
+export type ComAtprotoServerCreateAccountError = "AlreadyExists" | "CustodyModeNotAllowed" | "HandleNotAvailable" | "IncompatibleDidDoc" | "InvalidHandle" | "InvalidInviteCode" | "InvalidPassword" | "InvalidRequest" | "InvalidToken" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteUsed" | "MigrationNotAllowed" | "SigningKeyNotReserved" | "TokenSpent" | "UnresolvableDid" | "UnsupportedDomain";
 
 export type ComAtprotoServerCreateSessionInput = unknown;
 export type ComAtprotoServerCreateSessionOutput = unknown;
@@ -3381,7 +3381,7 @@ export const lexiconContracts = {
   'com.atproto.repo.deleteRecord': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "GovernanceDenied", "UseDedicatedEndpoint"] as const },
   'com.atproto.repo.describeRepo': { revision: 2, errors: ["RepoNotFound", "RepoTakendown"] as const },
   'com.atproto.repo.getRecord': { revision: 2, errors: ["RecordNotFound", "RepoTakendown"] as const },
-  'com.atproto.repo.importRepo': { revision: 2, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidSignature", "PayloadTooLarge", "RepoRollback", "UnresolvableDid"] as const },
+  'com.atproto.repo.importRepo': { revision: 3, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidSignature", "PayloadTooLarge", "RepoRollback", "UnresolvableDid"] as const },
   'com.atproto.repo.listMissingBlobs': { revision: 1, errors: [] as const },
   'com.atproto.repo.listRecords': { revision: 3, errors: ["RepoNotFound", "RepoTakendown"] as const },
   'com.atproto.repo.putRecord': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "GovernanceDenied", "ProbationLimit", "UseDedicatedEndpoint"] as const },
@@ -3389,7 +3389,7 @@ export const lexiconContracts = {
   'com.atproto.server.activateAccount': { revision: 3, errors: ["IncompatibleDidDoc", "InvalidStatus", "NotFound", "UpstreamFailure"] as const },
   'com.atproto.server.checkAccountStatus': { revision: 1, errors: [] as const },
   'com.atproto.server.confirmEmail': { revision: 2, errors: ["ExpiredToken", "InvalidEmail", "InvalidToken", "NoEmail"] as const },
-  'com.atproto.server.createAccount': { revision: 4, errors: ["AlreadyExists", "CustodyModeNotAllowed", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
+  'com.atproto.server.createAccount': { revision: 5, errors: ["AlreadyExists", "CustodyModeNotAllowed", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidHandle", "InvalidInviteCode", "InvalidPassword", "InvalidRequest", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "SigningKeyNotReserved", "TokenSpent", "UnresolvableDid", "UnsupportedDomain"] as const },
   'com.atproto.server.createSession': { revision: 2, errors: ["AccountLocked", "EmailNotVerified", "ExternalAccount"] as const },
   'com.atproto.server.deactivateAccount': { revision: 1, errors: ["AlreadyDeactivated", "InvalidStatus", "NotFound"] as const },
   'com.atproto.server.deleteAccount': { revision: 1, errors: ["AccountDeactivated", "AccountLocked", "AccountModerated", "AuthRequired", "ExpiredToken", "InvalidPassword", "InvalidRequest", "InvalidToken", "UpstreamFailure"] as const },

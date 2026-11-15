@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "com.atproto.repo.importRepo",
-  "revision": 2,
+  "revision": 3,
   "description": "AT Protocol importRepo: an account moving to this PDS loads its own repository.",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Import a repo in the form of a CAR file. On this PDS only an account that is moving here and not yet activated may call it; the CAR must be signed by the DID's current atproto key and is fully verified before anything is stored. Replaces the account's repository.",
+      "description": "Import a repo in the form of a CAR file. On this PDS only an account that is moving here and not yet activated may call it; the CAR must be signed by the DID's current atproto key and is fully verified before anything is stored. Replaces the account's repository. Exception (ADR-004): a self account that opened here with its rotation key may also import a CAR signed by the atproto key its DID named immediately before the PLC operation that points it here, when that operation was signed by the account's own first rotation key and is the latest one.",
       "input": {
         "encoding": "application/vnd.ipld.car"
       },
@@ -25,7 +25,7 @@
         },
         {
           "name": "InvalidSignature",
-          "description": "The commit is not signed by the DID's current atproto key."
+          "description": "The commit is not signed by the DID's current atproto key (nor, for a self account moving in with its rotation key, by the key the DID named just before its move here)."
         },
         {
           "name": "InvalidRepo",
