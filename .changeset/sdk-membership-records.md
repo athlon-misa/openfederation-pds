@@ -1,5 +1,0 @@
----
-"@open-federation/sdk": minor
----
-
-`joinCommunity({ did, pdsUrl?, kind?, tags?, attributes?, homeWriter? })` and `leaveCommunity({ did, pdsUrl?, homeWriter? })` keep the membership record in the user's own repo (#385): `net.openfederation.community.membership`, rkey = the community's DID (exported as `MEMBERSHIP_COLLECTION`). On the home server the server writes and deletes it itself. For a community on another PDS (`pdsUrl` from `discoverCommunities`) the SDK joins or leaves there with a service-auth token from home, then writes the record at home after a successful join (public communities only; none for a pending request) and deletes it after leaving. A home write that fails does not undo the join or leave: `homeRecord.error` / `error` say so. Accounts using device signing pass a `homeWriter` built on `devicePutRecord` / `deviceDeleteRecord` from `@open-federation/sdk/custody`. Types `HomeRepoWriter`, `JoinCommunityOptions`, `JoinCommunityResult`, `LeaveCommunityOptions` and `LeaveCommunityResult` are exported.

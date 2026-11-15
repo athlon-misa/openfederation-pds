@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+### Minor Changes
+
+- a6574cf: `joinCommunity({ did, pdsUrl?, kind?, tags?, attributes?, homeWriter? })` and `leaveCommunity({ did, pdsUrl?, homeWriter? })` keep the membership record in the user's own repo (#385): `net.openfederation.community.membership`, rkey = the community's DID (exported as `MEMBERSHIP_COLLECTION`). On the home server the server writes and deletes it itself. For a community on another PDS (`pdsUrl` from `discoverCommunities`) the SDK joins or leaves there with a service-auth token from home, then writes the record at home after a successful join (public communities only; none for a pending request) and deletes it after leaving. A home write that fails does not undo the join or leave: `homeRecord.error` / `error` say so. Accounts using device signing pass a `homeWriter` built on `devicePutRecord` / `deviceDeleteRecord` from `@open-federation/sdk/custody`. Types `HomeRepoWriter`, `JoinCommunityOptions`, `JoinCommunityResult`, `LeaveCommunityOptions` and `LeaveCommunityResult` are exported.
+- 4bc4d39: Moving a `self` or `assisted` account into another OpenFederation PDS with the phrase alone, without the old PDS (#382, ADR-004), in `@open-federation/sdk/custody`: `moveIn` (open the account with the top rotation key, import the backup's repository and blobs, check, `leavePds` if the DID doesn't point there yet, activate, sign in), `downloadBackup` (repository and every blob, to save before `leavePds`), `openAccountWithRotationKey`, `signRotationKeyJwt` and `reserveSigningKeyAt`. `copyRepo` takes `backupBlobs` and `allowMissingBlobs` (missing ones are returned in `missingBlobs`) and pages `listMissingBlobs` by cursor.
+
+### Patch Changes
+
+- 8fd62e6: `SDK_VERSION` (and the `version` in the `openfederation:ready` event) is the package's real version, taken from `package.json` at build time. It said `0.1.0` in every release so far.
+
 ## 0.7.1
 
 ### Patch Changes
