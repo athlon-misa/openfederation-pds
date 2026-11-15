@@ -1,0 +1,89 @@
+[
+  {
+    "type": "message",
+    "ts": "1767690000.000100",
+    "text": "Pattern photo",
+    "user": "U0AAAA0004",
+    "subtype": "file_share",
+    "files": [
+      {
+        "id": "F0FILE0001",
+        "name": "cover.png",
+        "mimetype": "image/png",
+        "filetype": "png",
+        "size": 67,
+        "url_private": "https://files.slack.com/files-pri/T0HARBOUR1-F0FILE0001/cover.png?t=xoxe-SECRET"
+      },
+      {
+        "id": "F0FILE0002",
+        "name": "pattern.pdf",
+        "mimetype": "application/pdf",
+        "filetype": "pdf",
+        "size": 31,
+        "url_private": "https://files.slack.com/files-pri/T0HARBOUR1-F0FILE0002/pattern.pdf?t=xoxe-SECRET"
+      },
+      {
+        "id": "F0FILE0003",
+        "name": "video.mov",
+        "mimetype": "video/quicktime",
+        "filetype": "mov",
+        "size": 9000000,
+        "url_private": "https://files.slack.com/files-pri/T0HARBOUR1-F0FILE0003/video.mov?t=xoxe-SECRET"
+      },
+      {
+        "id": "F0FILE0004",
+        "mode": "tombstone"
+      }
+    ]
+  },
+  {
+    "type": "message",
+    "ts": "1767690060.000200",
+    "text": "This message was deleted.",
+    "user": "USLACKBOT",
+    "subtype": "tombstone",
+    "thread_ts": "1767690060.000200",
+    "reply_count": 1,
+    "hidden": true
+  },
+  {
+    "type": "message",
+    "ts": "1767690120.000300",
+    "text": "I saw it before it went",
+    "user": "U0AAAA0002",
+    "thread_ts": "1767690060.000200"
+  },
+  {
+    "type": "message",
+    "ts": "1767603780.000400",
+    "text": "On it &amp; see <#C0PATTERN1|patterns> &lt;3",
+    "user": "U0AAAA0001",
+    "thread_ts": "1767603720.000300",
+    "parent_user_id": "U0AAAA0002",
+    "edited": {
+      "user": "U0AAAA0001",
+      "ts": "1767603800.000000"
+    }
+  },
+  {
+    "type": "message",
+    "ts": "1767690180.000400",
+    "text": "",
+    "user": "U0AAAA0001"
+  },
+  {
+    "type": "message",
+    "ts": "1767690240.000500",
+    "text": "waves",
+    "user": "U0AAAA0003",
+    "subtype": "me_message"
+  },
+  {
+    "type": "message",
+    "ts": "1767690300.000600",
+    "text": "set the channel topic: Say hello",
+    "user": "U0AAAA0001",
+    "subtype": "channel_topic",
+    "topic": "Say hello"
+  }
+]

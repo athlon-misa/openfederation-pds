@@ -98,7 +98,7 @@ describe('mapping an export to threads and posts', () => {
       ['Dune discussion', ['discord', '#general'], 3],
     ]);
     expect(plan.report).toMatchObject({
-      channels: 2, discordThreads: 1, threads: 3, posts: 10, replies: 3, edited: 1, attachments: 1, authors: 3,
+      channels: 2, sourceThreads: 1, threads: 3, posts: 10, replies: 3, edited: 1, attachments: 1, authors: 3,
       skipped: { botMessages: 1, systemMessages: 2, emptyMessages: 0, privateThreads: 1, emptyChannels: 0 },
     });
     const general = plan.threads[0];
@@ -231,7 +231,7 @@ describe('the PDS side: checking a batch', () => {
 
   it('refuses malformed batches', () => {
     const bad: Array<[unknown, RegExp]> = [
-      [{ ...base, platform: 'slack', posts: [post] }, /platform/],
+      [{ ...base, platform: 'telegram', posts: [post] }, /platform/],
       [{ ...base }, /empty/],
       [{ ...base, posts: [{ ...post, messageId: 'x' }] }, /messageId/],
       [{ ...base, posts: [{ ...post, createdAt: '5 Jan' }] }, /createdAt/],

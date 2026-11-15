@@ -36,7 +36,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 
 | Method | NSID | Auth | Description |
 |:---|:---|:---|:---|
-| POST | `net.openfederation.account.register` | No | Register (invite required when `INVITE_REQUIRED`). `status` is `pending` until an admin approves, or `approved` at once under `ACCOUNT_APPROVAL=automatic` |
+| POST | `net.openfederation.account.register` | No | Register (invite required when `INVITE_REQUIRED`). `status` is `pending` until an admin approves, or `approved` at once under `ACCOUNT_APPROVAL=automatic`. With a community invite code (used even when no code is required) the response has `community: { did, status }`, `status` being `joined`, `pending` (a join request), `waitingForApproval` (joins when the account is approved) or `refused` (the community takes no members now); `registerSelfCustody` and OAuth sign-up do the same |
 | GET  | `net.openfederation.account.listPending` | Admin/Mod | List pending registrations |
 | POST | `net.openfederation.account.approve` | Admin/Mod | Approve a pending user |
 | POST | `net.openfederation.account.reject` | Admin/Mod | Reject a pending user |
@@ -47,8 +47,10 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `net.openfederation.account.getProfile` | No | Get user profile (standard + custom collections) |
 | POST | `net.openfederation.account.changePassword` | Yes | `{ currentPassword, newPassword }`; same lockout as login. Ends every session and OAuth grant and voids pending reset links; log in again. Audited |
 | POST | `net.openfederation.account.resolveExternal` | No | "Sign in with ATProto" for accounts on other PDSes: `{ handle, codeChallenge? }` → `{ redirectUrl }` to the account's home authorization server. `ServiceUnavailable` (503) when external OAuth is off |
-| POST | `net.openfederation.invite.create` | Admin/Mod | Create an invite code; optional `maxUses`, `expiresAt`, `boundTo`, `note`, and `count` (1–100 codes with the same settings, returned as `codes`) |
-| GET  | `net.openfederation.invite.list` | Admin/Mod | List invite codes with status filter |
+| POST | `net.openfederation.invite.create` | Admin/Mod; with `community`, its owner or a PDS admin | Create an invite code; optional `maxUses`, `expiresAt`, `boundTo`, `note`, `count` (1–100 codes with the same settings, returned as `codes`) and `community` (a community invite code, below) |
+| GET  | `net.openfederation.invite.list` | Admin/Mod | List invite codes with status filter; a community invite code shows its `community` |
+
+**Community invite codes** (#403). `invite.create` with `community: <did>` makes codes that also join that community. Only the community's owner (no PDS role needed) or a PDS admin may make them; a PDS moderator who does not own the community gets `NotFound`, as does anyone for a community they cannot see; a suspended, moved, arriving or taken-down community is refused. Used at sign-up, the code is claimed even when the PDS requires no code, and the account then joins the way `community.join` would: at once under an `open` join policy, as a pending join request under `approval`, and only once the account is approved (immediately under `ACCOUNT_APPROVAL=automatic`, else when an admin approves it). A community that stopped taking members since gets nothing; sign-up still succeeds. Audited: `invite.create` with the community as target and in `meta`; the join as `community.join` with `meta: { via: 'invite', result }`. When a community is deleted its unused codes expire. A community code is still a sign-up code: under `INVITE_REQUIRED` its holder can make an account here.
 
 ## Device signing (#240)
 
@@ -294,10 +296,11 @@ Moderation (`hidePost`/`hideThread`) requires the dedicated `community.forum.mod
 | POST | `net.openfederation.forum.createPost` | Member | Reply to a thread (or a specific post); stores record in author's repo |
 | GET  | `net.openfederation.forum.getThread` | No* | Get thread metadata plus replies (moderators also see hidden ones), paginated |
 | GET  | `net.openfederation.forum.listThreads` | No* | List threads for a community (moderators also see hidden ones), ordered by recent activity |
-| POST | `net.openfederation.forum.deletePost` | Author only | Delete the caller's own post record and decrement thread post count |
+| POST | `net.openfederation.forum.deletePost` | Author; with `community`, its owner or a PDS admin | Delete the caller's own post record and decrement thread post count. With `community`: delete a post imported into it (`forum.importBatch`); its key is remembered so a re-import leaves it out |
 | POST | `net.openfederation.forum.hidePost` | Mod (`community.forum.moderate`) | Soft-hide an individual post via index flag; underlying record is preserved |
 | POST | `net.openfederation.forum.hideThread` | Mod (`community.forum.moderate`) | Soft-hide a thread via index flag; underlying record is preserved |
-| POST | `net.openfederation.forum.importBatch` | Owner or PDS admin | Import up to 100 threads and 100 posts from another platform (`platform: "discord"`) into the community's own repo, signed by the community; see below |
+| POST | `net.openfederation.forum.importBatch` | Owner or PDS admin | Import up to 100 threads and 100 posts from another platform (`platform: "discord"` or `"slack"`) into the community's own repo, signed by the community; see below |
+| POST | `net.openfederation.forum.importBlob` | Owner or PDS admin | `?community=<did>`, body the file: one attachment of an imported message, stored as a blob of the community's repo for `importBatch` to link; see below |
 | POST | `net.openfederation.calendar.createEvent` | Member | Create a calendar event; stores record in the community's repo |
 | GET  | `net.openfederation.calendar.listEvents` | No* | List calendar events for a community |
 | POST | `net.openfederation.calendar.rsvp` | Member | Submit or update an RSVP for a calendar event |
@@ -305,15 +308,17 @@ Moderation (`hidePost`/`hideThread`) requires the dedicated `community.forum.mod
 
 \* Gated by community visibility — see note above.
 
-### Importing history from another platform (`forum.importBatch`, #86)
+### Importing history from another platform (`forum.importBatch`, #86, #403)
 
-Written for `ofc community import discord` (see `cli/README.md`), which reads the export and sends batches; any client may call it.
+Written for `ofc community import discord|slack` (see `cli/README.md`), which reads the export and sends batches; any client may call it.
 
-- **Input:** `{ community, platform: "discord", threads?: [{ channelId, title, tags?, createdAt }], posts?: [{ channelId, messageId, replyToMessageId?, text, createdAt, editedAt?, author?, attachmentCount? }] }`. Ids are Discord snowflakes (decimal strings, < 2^63). At most 100 threads and 100 posts; posts oldest first. A post's thread (`channelId`) must be in the batch or already imported; `replyToMessageId` must be a post earlier in the batch or already imported in the same channel. Unknown fields, bad ids or times, over-long strings (title 300, text 10 000, tag 64, author 100 UTF-8 bytes) and a post with neither text nor attachments are refused (`InvalidRequest`, `ThreadNotFound`, `ParentNotFound`); a refused batch writes nothing.
-- **Output:** `{ threads: { created, existing }, posts: { created, existing } }`.
-- **What is written:** `net.openfederation.forum.thread` / `.post` records in the **community's** repository, in one signed commit per batch. They carry no `author` (nothing is written in a Discord user's name) and an `importedFrom` object: `{ platform, channelId }` on a thread; `{ platform, channelId, messageId, author?, editedAt?, attachmentCount? }` on a post. `createdAt` is the original time; the commit carries the import time. Visibility follows the community: a private community's imported history is readable by its members only.
-- **Record keys** are the Discord id's 63 bits written as a TID (the lexicons declare `key: tid`), so the same message always lands at the same address. A record already there is left alone and counted as `existing` (and re-indexed), which makes a re-run or a resumed run safe.
-- **Rate limit:** `IMPORT_RATE_LIMIT` per IP per minute (default 30). Audited as `forum.import` with counts only.
+- **Input:** `{ community, platform: "discord" | "slack", threads?: [{ channelId, title, tags?, createdAt }], posts?: [{ channelId, messageId, replyToMessageId?, text, createdAt, editedAt?, author?, attachmentCount?, embeds? }] }`. Discord ids are snowflakes (decimal strings, < 2^63). Slack channel ids are `C…` or `G…` (never `D…`, direct messages), message ids are the message's `ts` (`1700000000.123456`, unique within its channel; from 2013 on). At most 100 threads and 100 posts; posts oldest first. A post's thread (`channelId`) must be in the batch or already imported; `replyToMessageId` must be a post earlier in the batch or already imported in the same channel (a Slack thread reply names its thread's first message). `embeds`: at most 4 blob refs that `forum.importBlob` returned for this community, no more than `attachmentCount`. Unknown fields, bad ids or times, over-long strings (title 300, text 10 000, tag 64, author 100 UTF-8 bytes), a blob not uploaded for the community, and a post with neither text nor attachments are refused (`InvalidRequest`, `ThreadNotFound`, `ParentNotFound`); a refused batch writes nothing.
+- **Output:** `{ threads: { created, existing, deleted }, posts: { created, existing, deleted } }`.
+- **What is written:** `net.openfederation.forum.thread` / `.post` records in the **community's** repository, in one signed commit per batch. They carry no `author` (nothing is written in a source user's name) and an `importedFrom` object: `{ platform, channelId }` on a thread; `{ platform, channelId, messageId, author?, editedAt?, attachmentCount? }` on a post; linked images are the post's `embeds`. `createdAt` is the original time; the commit carries the import time. Visibility follows the community: a private community's imported history, attachments included, is readable by its members only.
+- **Record keys** are derived from the source ids (the lexicons declare `key: tid`), so the same message always lands at the same address. Discord: the snowflake's 63 bits written as a TID. Slack: the same shape, milliseconds since 2013-01-01, then the microseconds, then 12 bits of a hash of the channel id; a channel's key is 40 bits of a hash of its id. A record already there is left alone and counted as `existing` (and re-indexed), which makes a re-run or a resumed run safe; one at that key that is not an import of the same source message is refused.
+- **Deleted stays deleted:** an imported post deleted with `forum.deletePost` (`{ rkey, community }`, owner or PDS admin) leaves a tombstone, its key in `forum_import_tombstones`, nothing of its content. A later batch skips it and counts it as `deleted`, with or without the importer's checkpoint; a post replying to it is imported without the `parent` link.
+- **Attachments (`forum.importBlob`):** POST `?community=<did>` with the file as the body. Owner or PDS admin; the community must be active. `Content-Type` must be one of the server's blob types (`image/jpeg`, `image/png`, `image/webp`, `image/gif`) **and** match the file's first bytes (a renamed executable, an SVG, a PDF are refused: `InvalidMimeType`); at most the server's blob limit, capped at 1,000,000 bytes (`BlobTooLarge`, 413). Stored for the community's DID (served by `com.atproto.sync.getBlob` with the community's DID) and returned as `{ blob }`. The importer only ever sends local files; it never fetches Discord or Slack links.
+- **Rate limit:** `IMPORT_RATE_LIMIT` per IP per minute (default 30), counted separately for batches and for attachment uploads. Audited as `forum.import` with counts only (no titles, text or names); uploads are not audited one by one.
 
 ## OpenFederation Activity Timelines
 

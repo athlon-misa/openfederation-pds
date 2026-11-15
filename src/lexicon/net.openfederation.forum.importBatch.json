@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.importBatch",
-  "revision": 1,
-  "description": "Import a batch of forum threads and posts from another platform into a community (#86). Owner or PDS admin only. Records are written by the community, in its own repository and signed with its key, with record keys derived from the source ids: a batch sent again creates nothing new.",
+  "revision": 2,
+  "description": "Import a batch of forum threads and posts from another platform into a community (#86, #403). Owner or PDS admin only. Records are written by the community, in its own repository and signed with its key, with record keys derived from the source ids: a batch sent again creates nothing new, and an imported post deleted since is not written again.",
   "defs": {
     "main": {
       "type": "procedure",
@@ -22,9 +22,10 @@
             "platform": {
               "type": "string",
               "knownValues": [
-                "discord"
+                "discord",
+                "slack"
               ],
-              "description": "The platform the content comes from. Only `discord` is supported."
+              "description": "The platform the content comes from: `discord` (ids are snowflakes) or `slack` (channel ids such as `C0123ABCD`, message ids are message timestamps such as `1700000000.123456`)."
             },
             "threads": {
               "type": "array",
@@ -117,7 +118,7 @@
         "channelId": {
           "type": "string",
           "maxLength": 32,
-          "description": "Source id of the channel or thread (a Discord snowflake). Determines the record key."
+          "description": "Source id of the channel or thread (a Discord snowflake, or a Slack channel id). Determines the record key."
         },
         "title": {
           "type": "string",
@@ -157,12 +158,12 @@
         "messageId": {
           "type": "string",
           "maxLength": 32,
-          "description": "Source id of the message. Determines the record key."
+          "description": "Source id of the message (a Discord snowflake, or a Slack message timestamp; unique within its channel). Determines the record key."
         },
         "replyToMessageId": {
           "type": "string",
           "maxLength": 32,
-          "description": "Source id of the message this one answered, in the same channel."
+          "description": "Source id of the message this one answered, in the same channel (a Slack thread reply: its thread's first message). If that post was imported and then deleted, the reply is kept without the link."
         },
         "text": {
           "type": "string",
@@ -181,12 +182,24 @@
         "author": {
           "type": "string",
           "maxLength": 100,
-          "description": "How the original author is shown (by default a per-import label such as \"Discord member 3\")."
+          "description": "How the original author is shown (by default a per-import label such as \"Discord member 3\" or \"Slack member 3\")."
         },
         "attachmentCount": {
           "type": "integer",
           "minimum": 0,
           "maximum": 100
+        },
+        "embeds": {
+          "type": "array",
+          "maxLength": 4,
+          "items": {
+            "type": "blob",
+            "accept": [
+              "image/*"
+            ],
+            "maxSize": 1000000
+          },
+          "description": "Attachments, as the blobs net.openfederation.forum.importBlob returned for this community. No more than attachmentCount."
         }
       }
     },
@@ -204,6 +217,10 @@
         "existing": {
           "type": "integer",
           "description": "Records that were already there (an earlier run) and were left as they are."
+        },
+        "deleted": {
+          "type": "integer",
+          "description": "Records not written because they were deleted after an earlier import (#403)."
         }
       }
     }

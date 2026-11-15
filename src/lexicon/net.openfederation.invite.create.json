@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.invite.create",
-  "revision": 2,
-  "description": "Create invite codes. Requires admin or moderator role. With `count`, creates that many independent codes with the same settings (one per person to invite).",
+  "revision": 3,
+  "description": "Create invite codes. Requires admin or moderator role; with `community`, the community's owner or a PDS admin. With `count`, creates that many independent codes with the same settings (one per person to invite).",
   "defs": {
     "main": {
       "type": "procedure",
@@ -38,6 +38,11 @@
               "maximum": 100,
               "default": 1,
               "description": "How many codes to create, each with these settings. Defaults to 1."
+            },
+            "community": {
+              "type": "string",
+              "format": "did",
+              "description": "Make community invite codes (#403): used at sign-up, the account also joins this community, as if it had asked to join: at once under an open join policy, as a join request under approval; once the account is approved. Only the community's owner or a PDS admin."
             }
           }
         }
@@ -74,6 +79,11 @@
                 "type": "string"
               },
               "description": "Every code created, in order; `code` is the first. Present when `count` was given."
+            },
+            "community": {
+              "type": "string",
+              "format": "did",
+              "description": "The community the codes join, when one was given."
             }
           },
           "required": [
@@ -86,6 +96,26 @@
         {
           "name": "InvalidRequest",
           "description": "Invalid input parameters (e.g. negative maxUses)."
+        },
+        {
+          "name": "NotFound",
+          "description": "With `community`: no such community, or not one the caller owns."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended and takes no new members."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet."
         }
       ]
     }

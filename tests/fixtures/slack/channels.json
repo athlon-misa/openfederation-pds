@@ -1,0 +1,39 @@
+[
+  {
+    "id": "C0GENERAL1",
+    "name": "general",
+    "created": 1767600000,
+    "creator": "U0AAAA0001",
+    "is_archived": false,
+    "is_general": true,
+    "members": [
+      "U0AAAA0001",
+      "U0AAAA0002",
+      "U0AAAA0003",
+      "U0AAAA0004"
+    ],
+    "topic": {
+      "value": "Say hello"
+    },
+    "purpose": {
+      "value": "Everything"
+    }
+  },
+  {
+    "id": "C0PATTERN1",
+    "name": "patterns",
+    "created": 1767700000,
+    "creator": "U0AAAA0001",
+    "is_archived": false,
+    "is_general": false,
+    "members": [
+      "U0AAAA0001"
+    ],
+    "topic": {
+      "value": ""
+    },
+    "purpose": {
+      "value": ""
+    }
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "U0AAAA0001",
+    "team_id": "T0HARBOUR1",
+    "name": "ottilie",
+    "deleted": false,
+    "real_name": "Ottilie Bramblewood",
+    "profile": {
+      "display_name": "Ottilie",
+      "real_name": "Ottilie Bramblewood"
+    },
+    "is_bot": false
+  },
+  {
+    "id": "U0AAAA0002",
+    "team_id": "T0HARBOUR1",
+    "name": "kasimir.fenn",
+    "deleted": false,
+    "real_name": "Kasimir Fenn",
+    "profile": {
+      "display_name": "",
+      "real_name": "Kasimir Fenn"
+    },
+    "is_bot": false
+  },
+  {
+    "id": "U0AAAA0003",
+    "team_id": "T0HARBOUR1",
+    "name": "juno",
+    "deleted": false,
+    "real_name": "Juno Marlowe",
+    "profile": {
+      "display_name": "Juno M",
+      "real_name": "Juno Marlowe"
+    },
+    "is_bot": false
+  },
+  {
+    "id": "U0AAAA0004",
+    "team_id": "T0HARBOUR1",
+    "name": "will.hartley",
+    "deleted": false,
+    "real_name": "Will Hartley",
+    "profile": {
+      "display_name": "Will Hartley",
+      "real_name": "Will Hartley"
+    },
+    "is_bot": false
+  },
+  {
+    "id": "U0BOT00001",
+    "team_id": "T0HARBOUR1",
+    "name": "yarnbot",
+    "deleted": false,
+    "real_name": "Yarn Bot",
+    "profile": {
+      "display_name": "",
+      "real_name": "Yarn Bot"
+    },
+    "is_bot": true
+  },
+  {
+    "id": "USLACKBOT",
+    "team_id": "T0HARBOUR1",
+    "name": "slackbot",
+    "deleted": false,
+    "real_name": "Slackbot",
+    "profile": {
+      "display_name": "Slackbot",
+      "real_name": "Slackbot"
+    },
+    "is_bot": false
+  }
+]

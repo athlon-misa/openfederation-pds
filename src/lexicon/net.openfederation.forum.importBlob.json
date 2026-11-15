@@ -1,0 +1,82 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.forum.importBlob",
+  "revision": 1,
+  "description": "Upload one attachment of an imported message as a blob of the community's repository (#403), for net.openfederation.forum.importBatch to link as a post's `embeds`. Owner or PDS admin only. The body is the file; Content-Type must be one of the server's blob image types and match the file's bytes.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "community"
+        ],
+        "properties": {
+          "community": {
+            "type": "string",
+            "format": "did"
+          }
+        }
+      },
+      "input": {
+        "encoding": "*/*"
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "blob"
+          ],
+          "properties": {
+            "blob": {
+              "type": "blob",
+              "accept": [
+                "image/*"
+              ],
+              "maxSize": 1000000
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidMimeType",
+          "description": "Content-Type is not one of the server's blob image types, or the bytes are not that type."
+        },
+        {
+          "name": "BlobTooLarge",
+          "description": "Larger than the server's blob limit (at most 1,000,000 bytes)."
+        },
+        {
+          "name": "NotMember",
+          "description": "Caller is not a member of this community."
+        },
+        {
+          "name": "Forbidden",
+          "description": "Caller is not the community's owner or a PDS admin."
+        },
+        {
+          "name": "CommunityMoved",
+          "description": "The community has moved to another PDS; this copy is read-only (#267)."
+        },
+        {
+          "name": "CommunityImporting",
+          "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "CommunitySuspended",
+          "description": "The community has been suspended by the PDS administrator and accepts no writes."
+        },
+        {
+          "name": "CommunityTakenDown",
+          "description": "The community has been taken down."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found, or private and not visible to the caller."
+        }
+      ]
+    }
+  }
+}

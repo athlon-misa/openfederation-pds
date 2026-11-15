@@ -10,6 +10,11 @@ import type { PoolClient } from 'pg';
 export async function deleteCommunityData(client: PoolClient, did: string): Promise<string[]> {
   await client.query('DELETE FROM join_requests WHERE community_did = $1', [did]);
   await client.query('DELETE FROM members_unique WHERE community_did = $1', [did]);
+  // Community invite codes (#403) stop working with the community; the rows stay for invite.list.
+  await client.query(
+    `UPDATE invites SET expires_at = LEAST(COALESCE(expires_at, NOW()), NOW()) WHERE community_did = $1`, [did]);
+  await client.query('DELETE FROM invite_community_joins WHERE community_did = $1', [did]);
+  await client.query('DELETE FROM forum_import_tombstones WHERE community_did = $1', [did]);
   await client.query('DELETE FROM records_index WHERE community_did = $1', [did]);
   await client.query('DELETE FROM repo_blocks WHERE community_did = $1', [did]);
   await client.query('DELETE FROM repo_roots WHERE did = $1', [did]);

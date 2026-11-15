@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.registerSelfCustody",
-  "revision": 3,
+  "revision": 4,
   "description": "Register an assisted or self custody account (ADR-003). The client put the DID's genesis operation in PLC: rotation keys [the user's key] (self) or [the user's key, the key from account.reserveCustodyKey] (assisted), signed by the user's key; verificationMethods.atproto from com.atproto.server.reserveSigningKey and openfederation_owner = the user's owner key; this server's endpoint; at://<handle><suffix>. Same rules as account.register (invite, email, password, approval).",
   "defs": {
     "main": {
@@ -41,7 +41,8 @@
               "type": "string"
             },
             "inviteCode": {
-              "type": "string"
+              "type": "string",
+              "description": "Invite code (required if server has invite-only registration). A community invite code is used even when it is not required, and also joins its community."
             }
           }
         }
@@ -85,6 +86,10 @@
                 "assisted",
                 "self"
               ]
+            },
+            "community": {
+              "type": "ref",
+              "ref": "#communityJoin"
             }
           }
         }
@@ -135,6 +140,30 @@
           "description": "Invite bound to another email."
         }
       ]
+    },
+    "communityJoin": {
+      "type": "object",
+      "description": "The community a community invite code joins (#403), and how far that got.",
+      "required": [
+        "did",
+        "status"
+      ],
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did"
+        },
+        "status": {
+          "type": "string",
+          "knownValues": [
+            "joined",
+            "pending",
+            "waitingForApproval",
+            "refused"
+          ],
+          "description": "'joined'; 'pending' (a join request for the community to approve); 'waitingForApproval' (joins when an admin approves the account); 'refused' (the community takes no members now)."
+        }
+      }
     }
   }
 }

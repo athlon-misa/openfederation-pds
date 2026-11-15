@@ -51,6 +51,7 @@ import { config } from '../config.js';
 import { runtimeSettings } from '../settings/runtime-settings.js';
 import crypto from 'crypto';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
+import { inviteCommunity, rememberInviteCommunity, applyInviteCommunityJoins } from '../community/invite-join.js';
 
 // ---------- AccountStore ----------
 
@@ -72,6 +73,10 @@ export class PgAccountStore implements AccountStore {
       throw new Error('This server does not allow custodial accounts');
     }
 
+    // A community invite code (#403) is claimed even where sign-up needs no code.
+    const communityInvite = data.inviteCode ? await inviteCommunity(null, data.inviteCode) : null;
+    const claimCode = !!data.inviteCode && (settings.inviteRequired || communityInvite !== null);
+
     const userId = crypto.randomUUID();
     const identity = await withTransaction(async (client) => {
       await ensureHandleEmailAvailable(client, handle, email);
@@ -81,7 +86,7 @@ export class PgAccountStore implements AccountStore {
         hashPassword(password),
       ]);
 
-      if (settings.inviteRequired && data.inviteCode) {
+      if (claimCode) {
         const invite = await client.query<{ max_uses: number; uses_count: number; expires_at: string | null; bound_to: string | null }>(
           'SELECT max_uses, uses_count, expires_at, bound_to FROM invites WHERE code = $1 FOR UPDATE',
           [data.inviteCode],
@@ -104,11 +109,12 @@ export class PgAccountStore implements AccountStore {
         status,
       });
 
-      if (settings.inviteRequired && data.inviteCode) {
+      if (claimCode) {
         await client.query(
           'UPDATE invites SET uses_count = uses_count + 1, used_by = $1, used_at = CURRENT_TIMESTAMP WHERE code = $2',
           [userId, data.inviteCode]
         );
+        if (communityInvite) await rememberInviteCommunity(client, data.inviteCode!, userId);
       }
 
       return createdIdentity;
@@ -119,6 +125,7 @@ export class PgAccountStore implements AccountStore {
     // repo initialization entirely — now aligned with the other two flows.
     await initializeUserRepoAsync(identity.did, handle, identity.signingKeyBase64);
     if (status === 'approved') await auditAutomaticApproval(userId, handle);
+    if (communityInvite) await applyInviteCommunityJoins(userId);
 
     return {
       sub: identity.did,

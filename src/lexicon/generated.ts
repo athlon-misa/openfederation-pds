@@ -454,6 +454,10 @@ export type NetOpenfederationAccountRegisterOutput = {
   "did": string;
   "email": string;
   "status": string;
+  "community"?: {
+  "did": string;
+  "status": string;
+};
 };
 export type NetOpenfederationAccountRegisterError = "AccountExists" | "CustodyModeNotAllowed" | "IdentityCreationFailed" | "InvalidRequest" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteRequired" | "InviteUsed";
 
@@ -472,6 +476,10 @@ export type NetOpenfederationAccountRegisterSelfCustodyOutput = {
   "email"?: string;
   "status": string;
   "custodyMode": string;
+  "community"?: {
+  "did": string;
+  "status": string;
+};
 };
 export type NetOpenfederationAccountRegisterSelfCustodyError = "AccountExists" | "CustodyModeNotAllowed" | "InvalidGenesis" | "InvalidRequest" | "InviteBound" | "InviteExpired" | "InviteInvalid" | "InviteRequired" | "InviteUsed" | "PdsKeyNotReserved" | "SigningKeyNotReserved";
 
@@ -1822,11 +1830,12 @@ export type NetOpenfederationForumCreateThreadError = "CommunityImporting" | "Co
 
 export type NetOpenfederationForumDeletePostInput = {
   "rkey": string;
+  "community"?: string;
 };
 export type NetOpenfederationForumDeletePostOutput = {
   "success"?: boolean;
 };
-export type NetOpenfederationForumDeletePostError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "NotFound";
+export type NetOpenfederationForumDeletePostError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "Forbidden" | "NotFound" | "NotMember";
 
 export type NetOpenfederationForumGetThreadInput = {
   "uri": string;
@@ -1876,19 +1885,28 @@ export type NetOpenfederationForumImportBatchInput = {
   "editedAt"?: string;
   "author"?: string;
   "attachmentCount"?: number;
+  "embeds"?: Array<unknown>;
 }>;
 };
 export type NetOpenfederationForumImportBatchOutput = {
   "threads": {
   "created": number;
   "existing": number;
+  "deleted"?: number;
 };
   "posts": {
   "created": number;
   "existing": number;
+  "deleted"?: number;
 };
 };
 export type NetOpenfederationForumImportBatchError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "Forbidden" | "NotFound" | "NotMember" | "ParentNotFound" | "ThreadNotFound";
+
+export type NetOpenfederationForumImportBlobInput = undefined;
+export type NetOpenfederationForumImportBlobOutput = {
+  "blob": unknown;
+};
+export type NetOpenfederationForumImportBlobError = "BlobTooLarge" | "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "Forbidden" | "InvalidMimeType" | "NotFound" | "NotMember";
 
 export type NetOpenfederationForumListThreadsInput = {
   "community": string;
@@ -2207,6 +2225,7 @@ export type NetOpenfederationInviteCreateInput = {
   "boundTo"?: string;
   "note"?: string;
   "count"?: number;
+  "community"?: string;
 };
 export type NetOpenfederationInviteCreateOutput = {
   "code": string;
@@ -2215,8 +2234,9 @@ export type NetOpenfederationInviteCreateOutput = {
   "boundTo"?: string;
   "note"?: string;
   "codes"?: Array<string>;
+  "community"?: string;
 };
-export type NetOpenfederationInviteCreateError = "InvalidRequest";
+export type NetOpenfederationInviteCreateError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationInviteListInput = {
   "limit"?: number;
@@ -2232,6 +2252,7 @@ export type NetOpenfederationInviteListOutput = {
   "createdAt": string;
   "createdByHandle": string;
   "status": string;
+  "community"?: string;
 }>;
   "total": number;
   "limit": number;
@@ -2913,6 +2934,7 @@ export interface LexiconInputMap {
   'net.openfederation.forum.hidePost': NetOpenfederationForumHidePostInput;
   'net.openfederation.forum.hideThread': NetOpenfederationForumHideThreadInput;
   'net.openfederation.forum.importBatch': NetOpenfederationForumImportBatchInput;
+  'net.openfederation.forum.importBlob': NetOpenfederationForumImportBlobInput;
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsInput;
   'net.openfederation.forum.post': NetOpenfederationForumPostInput;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadInput;
@@ -3142,6 +3164,7 @@ export interface LexiconOutputMap {
   'net.openfederation.forum.hidePost': NetOpenfederationForumHidePostOutput;
   'net.openfederation.forum.hideThread': NetOpenfederationForumHideThreadOutput;
   'net.openfederation.forum.importBatch': NetOpenfederationForumImportBatchOutput;
+  'net.openfederation.forum.importBlob': NetOpenfederationForumImportBlobOutput;
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsOutput;
   'net.openfederation.forum.post': NetOpenfederationForumPostOutput;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadOutput;
@@ -3371,6 +3394,7 @@ export interface LexiconErrorMap {
   'net.openfederation.forum.hidePost': NetOpenfederationForumHidePostError;
   'net.openfederation.forum.hideThread': NetOpenfederationForumHideThreadError;
   'net.openfederation.forum.importBatch': NetOpenfederationForumImportBatchError;
+  'net.openfederation.forum.importBlob': NetOpenfederationForumImportBlobError;
   'net.openfederation.forum.listThreads': NetOpenfederationForumListThreadsError;
   'net.openfederation.forum.post': NetOpenfederationForumPostError;
   'net.openfederation.forum.thread': NetOpenfederationForumThreadError;
@@ -3497,8 +3521,8 @@ export const lexiconContracts = {
   'net.openfederation.account.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.listPending': { revision: 1, errors: [] as const },
   'net.openfederation.account.listSessions': { revision: 3, errors: ["NotFound"] as const },
-  'net.openfederation.account.register': { revision: 6, errors: ["AccountExists", "CustodyModeNotAllowed", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
-  'net.openfederation.account.registerSelfCustody': { revision: 3, errors: ["AccountExists", "CustodyModeNotAllowed", "InvalidGenesis", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed", "PdsKeyNotReserved", "SigningKeyNotReserved"] as const },
+  'net.openfederation.account.register': { revision: 7, errors: ["AccountExists", "CustodyModeNotAllowed", "IdentityCreationFailed", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed"] as const },
+  'net.openfederation.account.registerSelfCustody': { revision: 4, errors: ["AccountExists", "CustodyModeNotAllowed", "InvalidGenesis", "InvalidRequest", "InviteBound", "InviteExpired", "InviteInvalid", "InviteRequired", "InviteUsed", "PdsKeyNotReserved", "SigningKeyNotReserved"] as const },
   'net.openfederation.account.reject': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.account.requestPasswordReset': { revision: 1, errors: [] as const },
   'net.openfederation.account.reserveCustodyKey': { revision: 1, errors: ["CustodyModeNotAllowed"] as const },
@@ -3597,14 +3621,15 @@ export const lexiconContracts = {
   'net.openfederation.federation.listPeers': { revision: 2, errors: [] as const },
   'net.openfederation.forum.createPost': { revision: 7, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ProbationLimit", "ThreadNotFound"] as const },
   'net.openfederation.forum.createThread': { revision: 6, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ProbationLimit"] as const },
-  'net.openfederation.forum.deletePost': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "NotFound"] as const },
+  'net.openfederation.forum.deletePost': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.getThread': { revision: 4, errors: ["CommunityTakenDown", "NotFound"] as const },
   'net.openfederation.forum.hidePost': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.hideThread': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
-  'net.openfederation.forum.importBatch': { revision: 1, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ParentNotFound", "ThreadNotFound"] as const },
+  'net.openfederation.forum.importBatch': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMember", "ParentNotFound", "ThreadNotFound"] as const },
+  'net.openfederation.forum.importBlob': { revision: 1, errors: ["BlobTooLarge", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidMimeType", "NotFound", "NotMember"] as const },
   'net.openfederation.forum.listThreads': { revision: 4, errors: ["CommunityTakenDown", "NotFound"] as const },
-  'net.openfederation.forum.post': { revision: 3, errors: [] as const },
-  'net.openfederation.forum.thread': { revision: 3, errors: [] as const },
+  'net.openfederation.forum.post': { revision: 4, errors: [] as const },
+  'net.openfederation.forum.thread': { revision: 4, errors: [] as const },
   'net.openfederation.governance.decision': { revision: 2, errors: [] as const },
   'net.openfederation.governance.objection': { revision: 2, errors: [] as const },
   'net.openfederation.governance.vote': { revision: 3, errors: [] as const },
@@ -3628,8 +3653,8 @@ export const lexiconContracts = {
   'net.openfederation.identity.signInChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.unlinkWallet': { revision: 2, errors: ["CustodialWallet", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.identity.verifyRecord': { revision: 1, errors: ["InvalidRequest", "RecordNotFound"] as const },
-  'net.openfederation.invite.create': { revision: 2, errors: ["InvalidRequest"] as const },
-  'net.openfederation.invite.list': { revision: 1, errors: ["InvalidRequest"] as const },
+  'net.openfederation.invite.create': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.invite.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.notification.list': { revision: 1, errors: [] as const },
   'net.openfederation.notification.markRead': { revision: 1, errors: [] as const },
   'net.openfederation.notification.unreadCount': { revision: 1, errors: [] as const },

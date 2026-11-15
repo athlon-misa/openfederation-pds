@@ -62,10 +62,13 @@ CREATE TABLE IF NOT EXISTS invites (
     max_uses INTEGER NOT NULL DEFAULT 1,
     uses_count INTEGER NOT NULL DEFAULT 0,
     bound_to VARCHAR(255),
-    note TEXT
+    note TEXT,
+    -- migrate-064 (#403): a community invite code also joins this community.
+    community_did TEXT
 );
 
 CREATE INDEX idx_invites_expires_at ON invites(expires_at);
+CREATE INDEX IF NOT EXISTS idx_invites_community ON invites(community_did) WHERE community_did IS NOT NULL;
 
 -- Sessions table: refresh token storage
 CREATE TABLE IF NOT EXISTS sessions (
@@ -886,4 +889,24 @@ CREATE TABLE IF NOT EXISTS server_settings (
     value TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_by TEXT
+);
+
+-- Community invite joins waiting for the account's approval (migrate-064, #403).
+CREATE TABLE IF NOT EXISTS invite_community_joins (
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    community_did TEXT NOT NULL,
+    invite_code VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, community_did)
+);
+
+-- Deleted imported records (migrate-064, #403): forum.importBatch skips these
+-- record keys, so re-running an import does not bring them back.
+CREATE TABLE IF NOT EXISTS forum_import_tombstones (
+    community_did TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    rkey TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (community_did, collection, rkey)
 );

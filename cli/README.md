@@ -109,26 +109,35 @@ Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc c
 | `community unsuspend <did>` | PDS Admin | Unsuspend community |
 | `community takedown <did> [--reason TEXT]` | PDS Admin | Standard takedown: owner gets a 30-day export link, then the data is deleted (`docs/FAIR-USE.md`) |
 | `community import discord --community <did> --export <dir> [--apply] [--keep-names] [--members <csv>] [--invites]` | Owner/PDS Admin | Import a Discord server's channels, threads and messages (dry run unless `--apply`); see below |
+| `community import slack --community <did> --export <zip-or-dir> [--apply] [--keep-names] [--invites]` | Owner/PDS Admin | Import a Slack workspace export's channels and messages (dry run unless `--apply`); see below |
 
-#### Importing from Discord
+#### Importing from Discord or Slack
 
 ```bash
-# 1. Export the server with DiscordChatExporter (JSON format, one file per channel/thread) into ./export
-# 2. See what would be created. Writes nothing, needs no login.
+# Discord: export the server with DiscordChatExporter (JSON format, one file per
+# channel/thread; add --media to keep attachments) into ./export
+# Slack: a workspace admin exports the workspace (Settings → Import/Export data)
+# and downloads the .zip
+
+# 1. See what would be created. Writes nothing, needs no login.
 ofc community import discord --community did:plc:abc --export ./export
-# 3. Write it.
-ofc community import discord --community did:plc:abc --export ./export --apply
-# Optional: one invite code per member, written to discord-invites.csv (needs a PDS admin/moderator)
-ofc community import discord --community did:plc:abc --export ./export --apply \
-  --members members.csv --invites
+ofc community import slack   --community did:plc:abc --export "Harbour Knitting Circle Slack export.zip"
+# 2. Write it.
+ofc community import slack --community did:plc:abc --export export.zip --apply
+# Optional: one invite code per member that also joins the community, written to slack-invites.csv
+ofc community import slack --community did:plc:abc --export export.zip --apply --invites
 ```
 
-- **Mapping.** Each channel becomes a forum thread `#name`, each Discord thread a forum thread named after it; messages become posts in order, keeping their original time, and a reply keeps its link to the message it answered in the same channel. Posts are written by the community (its repository, its key); nobody's account is used.
-- **Privacy defaults.** Authors appear as "Discord member 1", "Discord member 2"… (the same person keeps the same number within an import and across resumed runs). Discord user ids and names are not sent; mentions in the text are rewritten too, but a name typed as plain text is not detected. Bots' messages (`--include-bots`) and private threads (`--include-private-threads`) are skipped unless asked for; system messages always; direct-message exports are refused. Attachments are counted, not uploaded or linked.
-- **`--keep-names`** copies Discord display names into the records. The CLI warns: in a public community those names become public in an AT Protocol repository, which anyone can copy, and cannot be recalled.
-- **Resuming.** Run the same command again: record keys come from the Discord ids, so nothing is created twice. The checkpoint (`--checkpoint`, default `ofc-discord-import-<community>.json` in the current directory) skips what is already confirmed and keeps the "Discord member N" numbering. It links those labels, and invite codes, to Discord accounts: it is written owner-only; keep it private and delete it when you are done.
-- **Invites** (`--invites`). One single-use invite code per member of `--members` (CSV: Discord user id, display name; header optional), or per imported author when no list is given. The CSV (`--invites-out`, owner-only) has each person's Discord name, label, code and a sign-up link (`--register-url`, default the PDS's advertised web interface + `/register`). The PDS stores nothing about who a code is for unless you pass `--invite-note`. After signing up, people join the community the normal way.
-- Batches go to `net.openfederation.forum.importBatch` (`docs/API.md`); a rate limit (`IMPORT_RATE_LIMIT`, default 30 batches/min) is waited out automatically.
+- **Mapping.** Discord: each channel becomes a forum thread `#name`, each Discord thread a forum thread named after it, and a reply keeps its link to the message it answered in the same channel. Slack: each channel becomes a forum thread `#name` (tag `slack`); a thread's replies (`thread_ts`) become replies to its first message, "also send to channel" replies included. Messages become posts in order, keeping their original time and, when edited, `editedAt` (the last text is kept). Posts are written by the community (its repository, its key); nobody's account is used.
+- **Privacy defaults.** Authors appear as "Discord member 1" / "Slack member 1"… (the same person keeps the same number within an import and across resumed runs). User ids and names are not sent. Mentions are rewritten (`<@id>`, `<@U123>`, the rendered `@name`); `<#C123|name>` becomes `#name` for a channel being imported and `#channel` otherwise; Slack links become `label (url)`.
+- **Names typed as plain text** ("thanks Alice") are replaced too, by default: the display names, usernames and first words of display names of the people in the export's own user list, as whole words in any case. Names shorter than three characters, made of digits, or in a short list of common words that are also names ("Will", "May", "Rose", "Grace"…) are left alone; a name two people share becomes "someone". The dry run lists every replacement (on your machine only), so check it; it cannot catch nicknames, misspellings or people outside the export. `--no-plain-names` turns it off.
+- **What is skipped, and counted in the dry run.** Bots' messages unless `--include-bots`. System messages always: joins and leaves, topic, purpose and name changes, pins, archiving, calls and huddles, reminders, "started a thread", and every other Slack `subtype` but plain messages, `/me` messages, file shares and thread broadcasts. Messages deleted on Slack (the "This message was deleted." placeholder); replies to them are kept, without the link. Empty messages, and a Slack message that appears in two day files. Private threads (Discord, `--include-private-threads`) and private channels (Slack, `--include-private-channels`, when the export has them) unless asked for. Direct and group messages never: Discord DM exports are refused, Slack's `dms.json` / `mpims.json` are not read.
+- **Attachments.** Uploaded only from local files inside the export: the folder DiscordChatExporter writes with `--media`, or for Slack `<channel>/attachments/<file id>-<name>` (as slackdump writes them) or `__uploads/<file id>/<name>`, in the folder or the zip. Links to Discord's CDN or Slack's `url_private` are **never fetched** (they expire, and carry tokens). Only images the PDS takes (JPEG, PNG, GIF, WebP), judged by the file's bytes and not its name, up to `--max-attachment-bytes` (default and maximum 1,000,000, the forum post limit) and four per post; executables, documents, video, SVG and the rest are left out. The dry run counts each reason; `--no-attachments` uploads none. A post always says how many attachments the message had.
+- **`--keep-names`** copies display names into the records. The CLI warns: in a public community those names become public in an AT Protocol repository, which anyone can copy, and cannot be recalled.
+- **Resuming.** Run the same command again: record keys come from the source ids, so nothing is created twice. The checkpoint (`--checkpoint`, default `ofc-<platform>-import-<community>.json` in the current directory) skips what is already confirmed and keeps the numbering. It links those labels, and invite codes, to the source accounts: it is written owner-only; keep it private and delete it when you are done.
+- **Deleted posts stay deleted.** When the owner deletes an imported post (`net.openfederation.forum.deletePost` with `community`), the PDS remembers its key, and a later run, even with no checkpoint at all, leaves it out (reported as "deleted since").
+- **Invites** (`--invites`). One single-use **community invite code** per member of `--members` (Discord: CSV of user id, display name; header optional), or per imported author when no list is given. Used at sign-up, a code also joins the community, the normal way: at once when it is open, as a join request when it approves members, and only once the account is approved. The community's owner may make these codes; `--invites-signup-only` makes plain sign-up codes instead (needs a PDS admin or moderator). The CSV (`--invites-out`, owner-only) has each person's name, label, code and a sign-up link (`--register-url`, default the PDS's advertised web interface + `/register`). The PDS stores nothing about who a code is for unless you pass `--invite-note`.
+- Batches go to `net.openfederation.forum.importBatch`, files to `net.openfederation.forum.importBlob` (`docs/API.md`); rate limits (`IMPORT_RATE_LIMIT`, default 30/min for each) are waited out automatically.
 
 ### `ofc record` — Repository Records
 

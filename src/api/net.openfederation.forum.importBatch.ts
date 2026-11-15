@@ -5,11 +5,11 @@ import { auditLog } from '../db/audit.js';
 import { ImportBatchError, importForumBatch, parseImportBatch } from '../forum/import.js';
 
 /**
- * net.openfederation.forum.importBatch (#86)
+ * net.openfederation.forum.importBatch (#86, #403)
  *
  * Writes a batch of threads and posts brought over from another platform
  * into the community's own repository. The importer (`ofc community import
- * discord`) does the reading and mapping on the organiser's machine; see
+ * discord|slack`) does the reading and mapping on the organiser's machine; see
  * `src/forum/import.ts` for what is written and why.
  *
  * Owner (or PDS admin) only: the records are signed with the community's key,
@@ -54,6 +54,8 @@ export default async function importBatch(req: AuthRequest, res: Response): Prom
       postsCreated: result.posts.created,
       threadsExisting: result.threads.existing,
       postsExisting: result.posts.existing,
+      threadsDeleted: result.threads.deleted,
+      postsDeleted: result.posts.deleted,
     });
 
     res.status(200).json(result);

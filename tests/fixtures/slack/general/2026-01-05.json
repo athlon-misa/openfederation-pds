@@ -1,0 +1,62 @@
+[
+  {
+    "type": "message",
+    "ts": "1767603600.000100",
+    "text": "Welcome to the circle! <@U0AAAA0002> has the wool list.",
+    "user": "U0AAAA0001"
+  },
+  {
+    "type": "message",
+    "ts": "1767603660.000200",
+    "text": "<@U0AAAA0003> has joined the channel",
+    "user": "U0AAAA0003",
+    "subtype": "channel_join"
+  },
+  {
+    "type": "message",
+    "ts": "1767603720.000300",
+    "text": "Thanks Ottilie! Juno, bring needles. Will you come too, Will Hartley?",
+    "user": "U0AAAA0002",
+    "thread_ts": "1767603720.000300",
+    "reply_count": 2,
+    "reply_users": [
+      "U0AAAA0001",
+      "U0AAAA0003"
+    ]
+  },
+  {
+    "type": "message",
+    "ts": "1767603780.000400",
+    "text": "On it &amp; see <#C0PATTERN1|patterns> &lt;3",
+    "user": "U0AAAA0001",
+    "thread_ts": "1767603720.000300",
+    "parent_user_id": "U0AAAA0002",
+    "edited": {
+      "user": "U0AAAA0001",
+      "ts": "1767603800.000000"
+    }
+  },
+  {
+    "type": "message",
+    "ts": "1767603840.000500",
+    "text": "Me too <https://example.org/needles|needle guide>",
+    "user": "U0AAAA0003",
+    "subtype": "thread_broadcast",
+    "thread_ts": "1767603720.000300"
+  },
+  {
+    "type": "message",
+    "ts": "1767603900.000600",
+    "text": "Daily reminder: bring your project",
+    "subtype": "bot_message",
+    "bot_id": "B0BOT00001",
+    "username": "yarnbot"
+  },
+  {
+    "type": "message",
+    "ts": "1767603960.000700",
+    "text": "beep",
+    "user": "U0BOT00001",
+    "bot_id": "B0BOT00001"
+  }
+]

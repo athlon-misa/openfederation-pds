@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.post",
-  "revision": 3,
+  "revision": 4,
   "description": "A forum post or reply. Lives in the author's user repo; references its thread via strongRef.",
   "defs": {
     "main": {
@@ -82,25 +82,26 @@
         "platform": {
           "type": "string",
           "knownValues": [
-            "discord"
+            "discord",
+            "slack"
           ],
           "maxLength": 32
         },
         "channelId": {
           "type": "string",
           "maxLength": 32,
-          "description": "The source platform's id of the channel or thread the message was in."
+          "description": "The source platform's id of the channel or thread the message was in (a Discord snowflake, or a Slack channel id such as `C0123ABCD`)."
         },
         "messageId": {
           "type": "string",
           "maxLength": 32,
-          "description": "The source platform's id of the message."
+          "description": "The source platform's id of the message (a Discord snowflake, or a Slack message timestamp such as `1700000000.123456`)."
         },
         "author": {
           "type": "string",
           "maxLength": 100,
           "maxGraphemes": 100,
-          "description": "How the original author is shown. By default a label local to one import (\"Discord member 3\"); the original display name only when the importer chose to copy names. Never an identity: the record is the community's."
+          "description": "How the original author is shown. By default a label local to one import (\"Discord member 3\", \"Slack member 3\"); the original display name only when the importer chose to copy names. Never an identity: the record is the community's."
         },
         "editedAt": {
           "type": "string",
@@ -110,7 +111,7 @@
         "attachmentCount": {
           "type": "integer",
           "minimum": 0,
-          "description": "How many attachments the message had. Attachments are not imported."
+          "description": "How many attachments the message had. Images the importer had as local files are in `embeds` (at most 4); the rest are not imported."
         }
       }
     },

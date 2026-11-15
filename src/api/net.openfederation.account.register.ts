@@ -16,6 +16,7 @@ import {
 } from '../auth/account-creation.js';
 import crypto from 'crypto';
 import { fullHandle } from '../auth/utils.js';
+import { inviteCommunity, rememberInviteCommunity, applyInviteCommunityJoins } from '../community/invite-join.js';
 
 interface RegisterInput {
   handle: string;
@@ -51,6 +52,11 @@ export default async function registerAccount(req: Request, res: Response): Prom
   }
 
   try {
+    // A community invite code (#403) is claimed even where sign-up needs no
+    // code: it is how the account joins the community.
+    const communityInvite = input.inviteCode ? await inviteCommunity(null, input.inviteCode) : null;
+    const claimCode = settings.inviteRequired || communityInvite !== null;
+
     // Identity creation talks to the PLC directory and password hashing is
     // CPU-bound. Neither may run while the invite row is locked, otherwise a
     // slow external call can block every contender for that invite.
@@ -60,7 +66,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
     // below repeats them for real; this only stops every refused request
     // from leaving a registered DID behind.
     await ensureHandleEmailAvailable({ query }, handle, email);
-    if (settings.inviteRequired) {
+    if (claimCode) {
       try {
         await assertInviteUsable({ query }, input.inviteCode!, input.email);
       } catch (err) {
@@ -104,13 +110,14 @@ export default async function registerAccount(req: Request, res: Response): Prom
         status,
       });
 
-      if (settings.inviteRequired) {
+      if (claimCode) {
         try {
           await claimInvite(client, input.inviteCode!, input.email, userId);
         } catch (err) {
           if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
           throw err;
         }
+        if (communityInvite) await rememberInviteCommunity(client, input.inviteCode!, userId);
       }
 
       return { userId, identity };
@@ -118,6 +125,8 @@ export default async function registerAccount(req: Request, res: Response): Prom
 
     await initializeUserRepoAsync(result.identity.did, handle, result.identity.signingKeyBase64);
     if (status === 'approved') await auditAutomaticApproval(result.userId, handle);
+    // Joins now when the account is approved already; otherwise when it is.
+    const [communityJoin] = communityInvite ? await applyInviteCommunityJoins(result.userId) : [];
 
     // Verification email, off the response path: registration succeeded
     // whether or not the link could be sent, and the resend endpoint exists
@@ -136,6 +145,7 @@ export default async function registerAccount(req: Request, res: Response): Prom
       did: result.identity.did,
       email,
       status,
+      ...(communityJoin ? { community: communityJoin } : {}),
     });
   } catch (err) {
     if (err instanceof RegistrationValidationError) {

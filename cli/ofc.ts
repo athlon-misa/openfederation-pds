@@ -1073,101 +1073,135 @@ community
     }
   }));
 
-// ── ofc community import discord (#86) ─────────────────────────────
+// ── ofc community import discord|slack (#86, #403) ─────────────────
 
 const communityImport = community.command('import').description('Bring a community\'s history in from another platform');
 
-const importDiscord = communityImport
-  .command('discord')
-  .description('Import channels, threads and messages from DiscordChatExporter JSON files (dry run unless --apply)')
-  .requiredOption('--community <did>', 'Target community DID (you must own it, or be a PDS admin)')
-  .requiredOption('--export <dir>', 'Directory of DiscordChatExporter JSON files (one per channel or thread)')
-  .option('--members <csv>', 'Member list for --invites: CSV of Discord user id, display name')
-  .option('--apply', 'Write to the PDS (without it, nothing is written)', false)
-  .option('--keep-names', 'Copy Discord display names into the records (they become public with a public community)', false)
-  .option('--invites', 'Create one single-use invite code per member and write a local CSV', false)
-  .option('--invite-note <text>', 'Note stored with each invite code on the PDS (default: none)')
-  .option('--invites-out <file>', 'Where to write the invite CSV', 'discord-invites.csv')
-  .option('--register-url <url>', 'Sign-up page the invite links point to (default: <server>/register)')
-  .option('--checkpoint <file>', 'Checkpoint file (default: ofc-discord-import-<community>.json)')
-  .option('--include-bots', 'Also import messages written by bots', false)
-  .option('--include-private-threads', 'Also import private threads', false)
-  .action(run(async () => {
-    const opts = importDiscord.opts();
-    const { readExportDir, readMembersCsv, mapExport } = await import('./discord-export.js');
-    const {
-      loadCheckpoint, newCheckpoint, assertCheckpointMatches, saveCheckpoint, planBatches,
-      runImport, inviteesFor, createInvites, invitesCsv, writePrivateFile,
-    } = await import('./discord-import.js');
+type PlatformName = 'discord' | 'slack';
 
-    const communityDid: string = opts.community;
-    if (!communityDid.startsWith('did:')) throw new Error('--community must be a DID');
-    const keepNames = opts.keepNames === true;
-    const checkpointPath: string = opts.checkpoint
-      || `ofc-discord-import-${communityDid.replace(/[^A-Za-z0-9]+/g, '_')}.json`;
+/** Options both importers take. */
+function importOptions(cmd: Command, platform: PlatformName): Command {
+  const source = platform === 'slack' ? 'Slack' : 'Discord';
+  return cmd
+    .requiredOption('--community <did>', 'Target community DID (you must own it, or be a PDS admin)')
+    .option('--apply', 'Write to the PDS (without it, nothing is written)', false)
+    .option('--keep-names', `Copy ${source} display names into the records (they become public with a public community)`, false)
+    .option('--no-plain-names', 'Do not replace names typed as plain text in messages (they are replaced by default)')
+    .option('--no-attachments', 'Do not upload attachments, only count them')
+    .option('--max-attachment-bytes <n>', 'Largest attachment to upload, in bytes (at most the PDS limit, 1000000)', '1000000')
+    .option('--invites', 'Create one single-use invite code per member, which also joins the community, and write a local CSV', false)
+    .option('--invites-signup-only', 'With --invites: plain sign-up codes that do not join the community (needs a PDS admin or moderator)', false)
+    .option('--invite-note <text>', 'Note stored with each invite code on the PDS (default: none)')
+    .option('--invites-out <file>', 'Where to write the invite CSV', `${platform}-invites.csv`)
+    .option('--register-url <url>', 'Sign-up page the invite links point to (default: <server>/register)')
+    .option('--checkpoint <file>', `Checkpoint file (default: ofc-${platform}-import-<community>.json)`)
+    .option('--include-bots', 'Also import messages written by bots', false);
+}
 
-    const channels = readExportDir(opts.export);
-    const members = opts.members ? readMembersCsv(opts.members) : null;
-    const existing = loadCheckpoint(checkpointPath);
-    if (existing) assertCheckpointMatches(existing, communityDid, channels[0].guildId, keepNames);
+interface LoadedImport {
+  plan: import('./discord-export.js').ImportPlan;
+  sourceId: string;
+  members: import('./discord-export.js').ExportMember[] | null;
+  close(): void;
+}
 
-    const plan = mapExport(channels, {
-      keepNames,
-      includeBots: opts.includeBots === true,
-      includePrivateThreads: opts.includePrivateThreads === true,
-      pseudonyms: existing?.pseudonyms,
-    });
+async function runPlatformImport(
+  platform: PlatformName,
+  opts: Record<string, any>,
+  load: (ctx: { keepNames: boolean; pseudonyms?: Record<string, string> }) => LoadedImport,
+): Promise<void> {
+  const {
+    loadCheckpoint, newCheckpoint, assertCheckpointMatches, saveCheckpoint, planBatches,
+    runImport, inviteesFor, createInvites, invitesCsv, writePrivateFile,
+  } = await import('./discord-import.js');
+  const source = platform === 'slack' ? 'Slack' : 'Discord';
+
+  const communityDid: string = opts.community;
+  if (!communityDid.startsWith('did:')) throw new Error('--community must be a DID');
+  const keepNames = opts.keepNames === true;
+  const maxAttachmentBytes = Number(opts.maxAttachmentBytes);
+  if (!Number.isInteger(maxAttachmentBytes) || maxAttachmentBytes < 1 || maxAttachmentBytes > 1_000_000) {
+    throw new Error('--max-attachment-bytes must be a whole number from 1 to 1000000');
+  }
+  const checkpointPath: string = opts.checkpoint
+    || `ofc-${platform}-import-${communityDid.replace(/[^A-Za-z0-9]+/g, '_')}.json`;
+  const existing = loadCheckpoint(checkpointPath);
+  const loaded = load({ keepNames, pseudonyms: existing?.pseudonyms });
+  try {
+    const { plan, sourceId, members } = loaded;
+    if (existing) assertCheckpointMatches(existing, communityDid, sourceId, keepNames, platform);
     const r = plan.report;
     const pending = planBatches(plan, communityDid, existing);
     const invitees = opts.invites ? inviteesFor(plan, members) : [];
     const newInvites = invitees.filter((m) => !existing?.invites[m.id]).length;
+    const inviteCommunity = opts.invites && !opts.invitesSignupOnly ? communityDid : undefined;
+    const a = r.attachmentFiles;
+    const label = platform === 'slack' ? 'Slack member N' : 'Discord member N';
 
     if (keepNames) {
-      warn('--keep-names: Discord display names will be written into the community\'s AT Protocol repository. '
+      warn(`--keep-names: ${source} display names will be written into the community's AT Protocol repository. `
         + 'For a public community that repository is public and can be copied by anyone; names cannot be recalled once published.');
     }
 
     if (!opts.apply) {
       if (isJsonMode()) {
         json({
-          dryRun: true, community: communityDid, report: r, batches: pending.length, invites: newInvites,
+          dryRun: true, platform, community: communityDid, report: r, batches: pending.length, invites: newInvites,
+          namesReplaced: plan.namesReplaced,
           threads: plan.threads.map((t) => ({ title: t.title, tags: t.tags, posts: t.posts.length, source: t.source.kind })),
         });
         return;
       }
-      info(`Dry run: nothing is written. Discord server "${r.guild.name}" → community ${communityDid}`);
+      info(`Dry run: nothing is written. ${source} ${platform === 'slack' ? 'workspace' : 'server'} "${r.guild.name}" → community ${communityDid}`);
       table(['Forum thread', 'From', 'Posts'], plan.threads.map((t) => [t.title, t.source.kind, String(t.posts.length)]));
       keyValue([
-        ['Threads', `${r.threads} (${r.channels} channels, ${r.discordThreads} Discord threads)`],
+        ['Threads', platform === 'slack'
+          ? `${r.threads} (${r.channels} channels; ${r.sourceThreads} Slack threads kept as replies)`
+          : `${r.threads} (${r.channels} channels, ${r.sourceThreads} Discord threads)`],
         ['Posts', `${r.posts} (${r.replies} replies kept, ${r.edited} edited, ${r.truncated} shortened)`],
-        ['Attachments', `${r.attachments} counted, not imported`],
-        ['Authors', `${r.authors} ${keepNames ? '(display names kept)' : '(shown as "Discord member N")'}`],
+        ['Attachments', `${r.attachments}: ${a.linked} images to upload; not imported: ${a.remoteOnly} only online (never downloaded), `
+          + `${a.missing} missing, ${a.unsupported} not an image type the PDS takes, ${a.tooLarge} too large, `
+          + `${a.overLimit} over 4 per post, ${a.deleted} deleted${a.notUploaded ? `, ${a.notUploaded} left out (--no-attachments)` : ''}`],
+        ['Authors', `${r.authors} ${keepNames ? '(display names kept)' : `(shown as "${label}")`}`],
+        ['Names in text', keepNames ? 'kept' : opts.plainNames === false ? 'not looked for (--no-plain-names)' : `${r.namesReplaced} replaced`],
         ['Skipped', `${r.skipped.botMessages} bot, ${r.skipped.systemMessages} system, ${r.skipped.emptyMessages} empty messages; `
-          + `${r.skipped.privateThreads} private threads; ${r.skipped.emptyChannels} empty channels`],
+          + (platform === 'slack'
+            ? `${r.skipped.deletedMessages ?? 0} deleted, ${r.skipped.duplicateMessages ?? 0} duplicates; `
+              + `${r.skipped.privateChannels ?? 0} private channels; ${r.skipped.directMessages ?? 0} direct/group conversations (never imported); `
+            : `${r.skipped.privateThreads} private threads; `)
+          + `${r.skipped.emptyChannels} empty channels`],
         ['Batches to send', String(pending.length) + (existing ? ' (after the checkpoint)' : '')],
-        ...(opts.invites ? [['Invites to create', String(newInvites)] as [string, string]] : []),
+        ...(opts.invites ? [['Invites to create', `${newInvites}${inviteCommunity ? ' (they also join the community)' : ''}`] as [string, string]] : []),
       ]);
-      if (!keepNames) hint('Names typed as plain text inside messages are not detected; mentions are rewritten.');
+      if (plan.namesReplaced.length > 0) {
+        info('Names typed as plain text that would be replaced (this list stays on your machine):');
+        table(['Written', 'Becomes', 'Times'], plan.namesReplaced.map((n) => [n.name, n.as, String(n.count)]));
+      }
       hint('Run again with --apply to write.');
       return;
     }
 
     const c = client();
-    const cp = existing ?? newCheckpoint(communityDid, channels[0].guildId, keepNames);
+    const cp = existing ?? newCheckpoint(communityDid, sourceId, keepNames, platform);
     const transport = {
       importBatch: (body: Record<string, any>) => c.authPost('net.openfederation.forum.importBatch', body),
-      createInvites: async (count: number, note?: string) => {
-        const res = await c.authPost('net.openfederation.invite.create', { count, maxUses: 1, ...(note ? { note } : {}) });
+      uploadBlob: async (communityId: string, data: Buffer, mimeType: string) =>
+        (await c.authPostBytes('net.openfederation.forum.importBlob', { community: communityId }, data, mimeType)).blob,
+      createInvites: async (count: number, note?: string, inviteTo?: string) => {
+        const res = await c.authPost('net.openfederation.invite.create', {
+          count, maxUses: 1, ...(note ? { note } : {}), ...(inviteTo ? { community: inviteTo } : {}),
+        });
         return res.codes as string[];
       },
     };
     const runOpts = {
       checkpointPath,
+      maxAttachmentBytes,
       onBatch: (done: number, total: number) => { if (!isJsonMode()) info(`batch ${done}/${total}`); },
       onWait: (s: number) => { if (!isJsonMode()) info(`rate limited; waiting ${s}s`); },
     };
     saveCheckpoint(checkpointPath, cp);
-    if (!isJsonMode()) hint(`Checkpoint: ${checkpointPath} (links labels to Discord accounts; keep it private, delete it when done)`);
+    if (!isJsonMode()) hint(`Checkpoint: ${checkpointPath} (links labels to ${source} accounts; keep it private, delete it when done)`);
 
     const totals = await runImport(plan, cp, transport, runOpts);
 
@@ -1175,12 +1209,14 @@ const importDiscord = communityImport
     if (opts.invites) {
       let rows;
       try {
-        rows = await createInvites(invitees, plan, cp, transport, { ...runOpts, note: opts.inviteNote });
+        rows = await createInvites(invitees, plan, cp, transport, { ...runOpts, note: opts.inviteNote, community: inviteCommunity });
       } catch (err) {
         const status = (err as { status?: number }).status;
-        if (status === 403) {
-          throw new Error('Creating invite codes needs a PDS admin or moderator account. The import itself is done; '
-            + 'ask the PDS operator, or leave out --invites if this PDS allows sign-up without one.');
+        if (status === 403 || status === 404) {
+          throw new Error(inviteCommunity
+            ? 'Creating community invite codes needs the community\'s owner or a PDS admin. The import itself is done.'
+            : 'Creating sign-up invite codes needs a PDS admin or moderator account. The import itself is done; '
+              + 'leave out --invites-signup-only to make community codes as the owner.');
         }
         throw err;
       }
@@ -1192,20 +1228,77 @@ const importDiscord = communityImport
         registerUrl = `${(web || program.opts().server).replace(/\/+$/, '')}/register`;
         if (!web) warn(`The PDS does not advertise its web interface (WEB_UI_URL); invite links use ${registerUrl}. Pass --register-url to change it.`);
       }
-      writePrivateFile(opts.invitesOut, invitesCsv(rows, registerUrl));
+      writePrivateFile(opts.invitesOut, invitesCsv(rows, registerUrl, platform));
       invitesWritten = rows.length;
     }
 
     if (isJsonMode()) {
-      json({ dryRun: false, community: communityDid, ...totals, invites: invitesWritten, checkpoint: checkpointPath });
+      json({ dryRun: false, platform, community: communityDid, ...totals, invites: invitesWritten, checkpoint: checkpointPath });
     } else {
       success('Import finished');
       keyValue([
         ['Threads', `${totals.threads.created} created, ${totals.threads.existing} already there`],
-        ['Posts', `${totals.posts.created} created, ${totals.posts.existing} already there`],
+        ['Posts', `${totals.posts.created} created, ${totals.posts.existing} already there, ${totals.posts.deleted} deleted since (left out)`],
+        ['Attachments', `${totals.attachments.uploaded} uploaded, ${totals.attachments.skipped} refused or changed since the dry run`],
         ...(opts.invites ? [['Invites', `${invitesWritten} in ${opts.invitesOut} (private file: hand each link to its person)`] as [string, string]] : []),
       ]);
     }
+  } finally {
+    loaded.close();
+  }
+}
+
+const importDiscord = importOptions(communityImport
+  .command('discord')
+  .description('Import channels, threads and messages from DiscordChatExporter JSON files (dry run unless --apply)')
+  .requiredOption('--export <dir>', 'Directory of DiscordChatExporter JSON files (one per channel or thread; with --media, its files too)')
+  .option('--members <csv>', 'Member list for --invites: CSV of Discord user id, display name')
+  .option('--include-private-threads', 'Also import private threads', false), 'discord')
+  .action(run(async () => {
+    const opts = importDiscord.opts();
+    const { readExportDir, readMembersCsv, mapExport } = await import('./discord-export.js');
+    await runPlatformImport('discord', opts, ({ keepNames, pseudonyms }) => {
+      const channels = readExportDir(opts.export);
+      return {
+        plan: mapExport(channels, {
+          keepNames,
+          includeBots: opts.includeBots === true,
+          includePrivateThreads: opts.includePrivateThreads === true,
+          pseudonyms,
+          plainNames: opts.plainNames !== false,
+          exportDir: opts.export,
+          attachments: { enabled: opts.attachments !== false, maxBytes: Number(opts.maxAttachmentBytes) },
+        }),
+        sourceId: channels[0].guildId,
+        members: opts.members ? readMembersCsv(opts.members) : null,
+        close: () => {},
+      };
+    });
+  }));
+
+const importSlack = importOptions(communityImport
+  .command('slack')
+  .description('Import channels and messages from a Slack workspace export, a .zip or its folder (dry run unless --apply)')
+  .requiredOption('--export <path>', 'The Slack export: the .zip Slack gives, or the folder it unpacks to')
+  .option('--include-private-channels', 'Also import private channels, when the export has them', false), 'slack')
+  .action(run(async () => {
+    const opts = importSlack.opts();
+    const { readSlackExport, mapSlackExport } = await import('./slack-export.js');
+    await runPlatformImport('slack', opts, ({ keepNames, pseudonyms }) => {
+      const exp = readSlackExport(opts.export, { includePrivateChannels: opts.includePrivateChannels === true });
+      return {
+        plan: mapSlackExport(exp, {
+          keepNames,
+          includeBots: opts.includeBots === true,
+          pseudonyms,
+          plainNames: opts.plainNames !== false,
+          attachments: { enabled: opts.attachments !== false, maxBytes: Number(opts.maxAttachmentBytes) },
+        }),
+        sourceId: exp.teamId,
+        members: null,
+        close: () => exp.tree.close(),
+      };
+    });
   }));
 
 // ── ofc partner ────────────────────────────────────────────────────

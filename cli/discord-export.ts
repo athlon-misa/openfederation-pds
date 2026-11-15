@@ -21,13 +21,23 @@
  *    order of first appearance, unless names are explicitly kept. Discord user
  *    ids never go into what is sent to the PDS. Mentions inside the text are
  *    rewritten the same way.
- *  - attachments are counted, never uploaded or linked (Discord CDN links
- *    expire and carry signed tokens).
+ *  - names typed as plain text are replaced too, unless asked not to
+ *    (`import-names.ts`, #403).
+ *  - attachments are uploaded only from a local copy: the folder
+ *    DiscordChatExporter writes with `--media`, inside the export folder.
+ *    Discord CDN links are never fetched (they expire and carry signed
+ *    tokens); those attachments are counted (`import-files.ts`, #403).
  *
- * Pure apart from `readExportDir` / `readMembersCsv`, which only read files.
+ * Pure apart from `readExportDir` / `readMembersCsv` and the attachment
+ * checks, which only read local files.
  */
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  chooseAttachments, emptyAttachmentCounts, folderTree, isRemoteUrl,
+  type AttachmentCandidate, type AttachmentCounts, type AttachmentOptions, type ExportTree, type PlannedAttachment,
+} from './import-files.js';
+import { buildNameMatcher, replacePlainNames, replacementList, type NameReplacements } from './import-names.js';
 
 export const LIMITS = {
   /** Largest export file read. DiscordChatExporter splits nothing by default, so busy channels are big. */
@@ -63,6 +73,7 @@ export class DiscordExportError extends Error {
 
 export interface ExportAuthor { id: string; name: string; nickname: string | null; isBot: boolean }
 export interface ExportMention { id: string; name: string; nickname: string | null }
+export interface ExportAttachment { fileName: string; url: string; size: number | null }
 export interface ExportMessage {
   id: string;
   type: string;
@@ -71,6 +82,7 @@ export interface ExportMessage {
   content: string;
   author: ExportAuthor;
   attachmentCount: number;
+  attachments: ExportAttachment[];
   replyTo: string | null;
   mentions: ExportMention[];
 }
@@ -183,6 +195,16 @@ export function parseExportJson(text: string, file: string): ExportChannel {
         nickname: str(file, `${mp}.nickname`, u.nickname, LIMITS.maxNameChars, { optional: true }),
       };
     });
+    const parsedAttachments = attachments.map((a: unknown, j: number): ExportAttachment => {
+      const ap = `${p}.attachments[${j}]`;
+      if (!isObject(a)) return { fileName: '', url: '', size: null };
+      const size = a.fileSizeBytes;
+      return {
+        fileName: str(file, `${ap}.fileName`, a.fileName ?? '', LIMITS.maxNameChars * 2)!,
+        url: str(file, `${ap}.url`, a.url ?? '', 4096)!,
+        size: typeof size === 'number' && Number.isSafeInteger(size) && size >= 0 ? size : null,
+      };
+    });
     return {
       id: snowflake(file, `${p}.id`, m.id),
       type: str(file, `${p}.type`, m.type, 64)!,
@@ -196,6 +218,7 @@ export function parseExportJson(text: string, file: string): ExportChannel {
         isBot: author.isBot === true,
       },
       attachmentCount: attachments.length,
+      attachments: parsedAttachments,
       replyTo,
       mentions,
     };
@@ -327,6 +350,11 @@ export interface MapOptions {
   includePrivateThreads?: boolean;
   /** Labels already given in an earlier run of this import (Discord user id → label). */
   pseudonyms?: Record<string, string>;
+  /** Also replace names typed as plain text (default true; ignored with keepNames). */
+  plainNames?: boolean;
+  /** The export folder, where `--media` attachments are looked for. Without it, none are uploaded. */
+  exportDir?: string;
+  attachments?: AttachmentOptions;
 }
 
 export interface PlannedPost {
@@ -338,6 +366,8 @@ export interface PlannedPost {
   editedAt?: string;
   author: string;
   attachmentCount?: number;
+  /** Local files to upload and link. Never sent as such: replaced by blob refs. */
+  attachments?: PlannedAttachment[];
 }
 
 export interface PlannedThread {
@@ -351,14 +381,21 @@ export interface PlannedThread {
 }
 
 export interface ImportReport {
+  platform: ImportPlatformName;
+  /** The Discord server, or the Slack workspace. */
   guild: { id: string; name: string };
   channels: number;
-  discordThreads: number;
+  /** Discord threads (each a forum thread), or Slack threads (replies in their channel's forum thread). */
+  sourceThreads: number;
   threads: number;
   posts: number;
   replies: number;
   edited: number;
   attachments: number;
+  /** What happens to the attachments: linked from local files, or why not. */
+  attachmentFiles: AttachmentCounts;
+  /** Names typed as plain text that were replaced. */
+  namesReplaced: number;
   truncated: number;
   authors: number;
   skipped: {
@@ -367,10 +404,20 @@ export interface ImportReport {
     emptyMessages: number;
     privateThreads: number;
     emptyChannels: number;
+    /** Slack: private channels not asked for, direct and group messages (never). */
+    privateChannels?: number;
+    directMessages?: number;
+    /** Slack: messages deleted on the platform that still show as a placeholder. */
+    deletedMessages?: number;
+    /** Slack: the same message in two day files. */
+    duplicateMessages?: number;
   };
 }
 
+export type ImportPlatformName = 'discord' | 'slack';
+
 export interface ImportPlan {
+  platform: ImportPlatformName;
   threads: PlannedThread[];
   /** Discord user id → label shown on posts. Local only: never sent to the PDS. */
   pseudonyms: Record<string, string>;
@@ -378,6 +425,8 @@ export interface ImportPlan {
   names: Record<string, string>;
   /** Discord users whose messages were imported, in order of first appearance. */
   authorIds: string[];
+  /** Names typed as plain text that were replaced, and with what. Local only. */
+  namesReplaced: Array<{ name: string; as: string; count: number }>;
   report: ImportReport;
 }
 
@@ -430,11 +479,41 @@ export function mapExport(channels: ExportChannel[], options: MapOptions = {}): 
   };
 
   const report: ImportReport = {
+    platform: 'discord',
     guild: { id: channels[0]?.guildId ?? '', name: channels[0]?.guildName ?? '' },
-    channels: 0, discordThreads: 0, threads: 0, posts: 0, replies: 0, edited: 0, attachments: 0, truncated: 0, authors: 0,
+    channels: 0, sourceThreads: 0, threads: 0, posts: 0, replies: 0, edited: 0, attachments: 0,
+    attachmentFiles: emptyAttachmentCounts(), namesReplaced: 0, truncated: 0, authors: 0,
     skipped: { botMessages: 0, systemMessages: 0, emptyMessages: 0, privateThreads: 0, emptyChannels: 0 },
   };
   const threads: PlannedThread[] = [];
+
+  // Everyone the export names, for names typed as plain text.
+  const plainNames = !options.keepNames && options.plainNames !== false;
+  const people = new Map<string, { id: string; name: string; nickname: string | null }>();
+  for (const ch of channels) {
+    for (const m of ch.messages) {
+      people.set(m.author.id, m.author);
+      for (const u of m.mentions) if (!people.has(u.id)) people.set(u.id, u);
+    }
+  }
+  const matcher = buildNameMatcher(plainNames
+    ? [...people.values()].map((u) => ({ id: u.id, names: [u.nickname, u.name] }))
+    : []);
+  const replaced: NameReplacements = new Map();
+  const labelById = (id: string) => label(people.get(id) ?? { id, name: id, nickname: null });
+  const withoutNames = (text: string) => (plainNames ? replacePlainNames(text, matcher, labelById, replaced) : text);
+
+  const tree: ExportTree | null = options.exportDir ? folderTree(options.exportDir) : null;
+  const localAttachment = (a: ExportAttachment): AttachmentCandidate => {
+    if (!a.url || isRemoteUrl(a.url)) return { fileName: a.fileName, file: null, size: a.size, remoteOnly: !!a.url };
+    if (!tree) return { fileName: a.fileName, file: null, size: a.size };
+    let decoded = a.url;
+    try { decoded = decodeURIComponent(a.url); } catch { /* keep as written */ }
+    for (const candidate of [a.url, decoded].map((u) => u.replace(/\\/g, '/'))) {
+      if (tree.isFile(candidate)) return { fileName: a.fileName, file: tree.ref(candidate), size: tree.size(candidate) };
+    }
+    return { fileName: a.fileName, file: null, size: a.size };
+  };
 
   for (const ch of checkExportSet(channels)) {
     if (ch.type === 'GuildPrivateThread' && !options.includePrivateThreads) {
@@ -475,6 +554,7 @@ export function mapExport(channels: ExportChannel[], options: MapOptions = {}): 
         spellings.sort((a, b) => b[0].length - a[0].length);
         for (const [from, to] of spellings) text = text.replace(new RegExp(escapeRegExp(from), 'g'), to);
       }
+      text = withoutNames(text);
 
       const cut = truncateBytes(text, RECORD_LIMITS.textBytes, '\n\n[…shortened on import]');
       if (cut.cut) report.truncated++;
@@ -490,7 +570,12 @@ export function mapExport(channels: ExportChannel[], options: MapOptions = {}): 
         report.replies++;
       }
       if (m.editedAt) { post.editedAt = m.editedAt; report.edited++; }
-      if (m.attachmentCount > 0) { post.attachmentCount = m.attachmentCount; report.attachments += m.attachmentCount; }
+      if (m.attachmentCount > 0) {
+        post.attachmentCount = m.attachmentCount;
+        report.attachments += m.attachmentCount;
+        const files = chooseAttachments(m.attachments.map(localAttachment), report.attachmentFiles, options.attachments);
+        if (files.length > 0) post.attachments = files;
+      }
       return post;
     });
     // A reply must come after what it answers; with equal timestamps keep that order.
@@ -502,9 +587,10 @@ export function mapExport(channels: ExportChannel[], options: MapOptions = {}): 
     const tags = ['discord'];
     let title: string;
     if (ch.isThread) {
-      title = ch.name;
+      // A thread's name is written by someone, like a message.
+      title = withoutNames(ch.name);
       if (ch.category) tags.push(`#${ch.category}`);
-      report.discordThreads++;
+      report.sourceThreads++;
     } else {
       title = `#${ch.name}`;
       if (ch.category) tags.push(ch.category);
@@ -522,6 +608,11 @@ export function mapExport(channels: ExportChannel[], options: MapOptions = {}): 
     report.posts += posts.length;
   }
   report.authors = authorIds.length;
+  const namesReplaced = replacementList(replaced);
+  report.namesReplaced = namesReplaced.reduce((n, r) => n + r.count, 0);
 
-  return { threads, pseudonyms: options.keepNames ? (options.pseudonyms ?? {}) : pseudonyms, names, authorIds, report };
+  return {
+    platform: 'discord', threads, pseudonyms: options.keepNames ? (options.pseudonyms ?? {}) : pseudonyms,
+    names, authorIds, namesReplaced, report,
+  };
 }

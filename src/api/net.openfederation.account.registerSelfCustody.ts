@@ -6,6 +6,7 @@ import { runtimeSettings } from '../settings/runtime-settings.js';
 import { query, withTransaction } from '../db/client.js';
 import { hashPassword } from '../auth/password.js';
 import { claimInvite, assertInviteUsable, InviteError } from '../auth/invites.js';
+import { inviteCommunity, rememberInviteCommunity, applyInviteCommunityJoins } from '../community/invite-join.js';
 import { issueEmailVerification } from '../email/verification.js';
 import { getPlcLog } from '../identity/plc-client.js';
 import { checkCustodyGenesis } from '../identity/custody-genesis.js';
@@ -45,9 +46,13 @@ export default async function registerSelfCustody(req: Request, res: Response): 
     }
     if (settings.inviteRequired && !inviteCode) throw new RegistrationValidationError(403, 'InviteRequired', 'An invite code is required to register');
 
+    // A community invite code (#403) is claimed even where sign-up needs no code.
+    const communityInvite = inviteCode ? await inviteCommunity(null, inviteCode) : null;
+    const claimCode = settings.inviteRequired || communityInvite !== null;
+
     // Checks that refuse the request anyway run before the slow work.
     await ensureHandleEmailAvailable({ query }, handle, email);
-    if (settings.inviteRequired) {
+    if (claimCode) {
       try { await assertInviteUsable({ query }, inviteCode!, email); } catch (err) {
         if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
         throw err;
@@ -78,11 +83,12 @@ export default async function registerSelfCustody(req: Request, res: Response): 
       }
 
       await insertUserWithRole(client, { userId, handle, email, passwordHash, did, status, custodyMode: mode });
-      if (settings.inviteRequired) {
+      if (claimCode) {
         try { await claimInvite(client, inviteCode!, email, userId); } catch (err) {
           if (err instanceof InviteError) throw new RegistrationValidationError(err.status, err.code, err.message);
           throw err;
         }
+        if (communityInvite) await rememberInviteCommunity(client, inviteCode!, userId);
       }
       return signingKey;
     });
@@ -93,11 +99,15 @@ export default async function registerSelfCustody(req: Request, res: Response): 
     await initializeUserRepoAsync(did, handle, signingKeyBytes.toString('base64'));
     signingKeyBytes.fill(0);
     if (status === 'approved') await auditAutomaticApproval(userId, handle);
+    const [communityJoin] = communityInvite ? await applyInviteCommunityJoins(userId) : [];
 
     if (settings.emailVerificationPolicy !== 'off') {
       void issueEmailVerification({ id: userId, handle, email }).catch((err) => console.error('[email] verification send failed:', err));
     }
-    res.status(201).json({ id: userId, handle: fullHandle(handle), did, email, status, custodyMode: mode });
+    res.status(201).json({
+      id: userId, handle: fullHandle(handle), did, email, status, custodyMode: mode,
+      ...(communityJoin ? { community: communityJoin } : {}),
+    });
   } catch (err) {
     if (err instanceof RegistrationValidationError) {
       res.status(err.status).json({ error: err.code, message: err.message });
