@@ -1,5 +1,15 @@
 # @open-federation/lexicon
 
+## 0.7.0
+
+### Minor Changes
+
+- a6574cf: Membership records in the member's own repo (#385): new record `net.openfederation.community.membership` (`{ community, createdAt }`, rkey = the community's DID, revision 1). `community.join` returns `homeRecord` (revision 5), `community.leave` returns `homeRecord` (revision 3), and `community.update` returns `membershipRecords` when the community is private after the update (revision 5).
+
+### Patch Changes
+
+- 4bc4d39: Self-custody accounts moving in (#382): `com.atproto.server.createAccount` (revision 5) describes the rotation-key proof for `assisted` / `self` accounts and adds the `SigningKeyNotReserved` error; `com.atproto.repo.importRepo` (revision 3) describes the key accepted from before the move.
+
 ## 0.6.1
 
 ### Patch Changes
