@@ -21,6 +21,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { assertMayWriteFor, isDeviceSigningOn } from '../repo/device-signing-state.js';
 import { writeRepoAs, signAsAuthor } from '../repo/device-actions.js';
 import { atprotoKeyHistory } from '../identity/account-migration.js';
+import { currentAtprotoKey } from '../identity/device-signing.js';
 import { authorSignatureValid, recordAuthor } from '../governance/author-signature.js';
 export type { AuthorSignature } from '../governance/author-signature.js';
 import { FORUM_THREAD, FORUM_POST, CALENDAR_RSVP } from './forum-index.js';
@@ -30,17 +31,29 @@ import { removeHomeMembershipsForCommunity, type HomeMembershipRemoval } from '.
 const SETTINGS_COLLECTION = 'net.openfederation.community.settings';
 
 /**
- * Check a record's author signature against every key the author's DID has
- * held as its atproto signing key, so records written before a key rotation
- * still verify. False for a record with no signature, a changed record, one
- * attributed to someone whose key did not sign it, or one whose author's DID
- * has been deleted.
+ * Check a record's author signature against the author's DID's **current**
+ * atproto signing key (#240 phase 2). False for a record with no signature, a
+ * changed record, one attributed to someone whose key did not sign it, one
+ * whose author's DID has been deleted, and one signed with a key the DID no
+ * longer names.
+ *
+ * Only the current key counts because a key the DID has rotated away from
+ * proves nothing about who signed: under device signing the server's own
+ * repo key is in every such DID's history, so accepting old keys would let
+ * the server sign "member" records the member never wrote. A record signed
+ * before a rotation stops verifying here; its author can sign it again.
+ * (Moving a community's repository between servers, `repo/import.ts`, still
+ * keeps records signed with any key the author has had: dropping them there
+ * would lose content, and the importing server only stores them.)
  */
 export async function verifyAuthorSignature(record: Record<string, unknown>): Promise<boolean> {
   const author = recordAuthor(record);
   if (!author) return false;
   try {
-    return await authorSignatureValid(record, await atprotoKeyHistory(author));
+    const keys = author.startsWith('did:plc:')
+      ? [await currentAtprotoKey(author)].filter((k): k is string => typeof k === 'string')
+      : await atprotoKeyHistory(author); // only the current key is known for other methods
+    return await authorSignatureValid(record, keys);
   } catch {
     return false;
   }
