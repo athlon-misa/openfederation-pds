@@ -328,6 +328,26 @@ export type NetOpenfederationAccountExportInput = {
 export type NetOpenfederationAccountExportOutput = JsonObject;
 export type NetOpenfederationAccountExportError = "ExportTooLarge" | "Forbidden" | "NotFound" | "TakenDown";
 
+export type NetOpenfederationAccountGetDeviceSigningInput = undefined;
+export type NetOpenfederationAccountGetDeviceSigningOutput = {
+  "allowed": boolean;
+  "custodyMode"?: string;
+  "eligible": boolean;
+  "deviceSigning": boolean;
+  "since"?: string;
+  "recordedKey"?: string;
+  "atprotoKey"?: string;
+  "plcReadable": boolean;
+  "serverKey"?: string;
+  "state": string;
+  "features": Array<{
+  "id": string;
+  "title": string;
+  "available": boolean;
+}>;
+};
+export type NetOpenfederationAccountGetDeviceSigningError = "InvalidRequest";
+
 export type NetOpenfederationAccountGetProfileInput = {
   "did": string;
 };
@@ -2755,6 +2775,7 @@ export interface LexiconInputMap {
   'net.openfederation.account.disableDeviceSigning': NetOpenfederationAccountDisableDeviceSigningInput;
   'net.openfederation.account.enableDeviceSigning': NetOpenfederationAccountEnableDeviceSigningInput;
   'net.openfederation.account.export': NetOpenfederationAccountExportInput;
+  'net.openfederation.account.getDeviceSigning': NetOpenfederationAccountGetDeviceSigningInput;
   'net.openfederation.account.getProfile': NetOpenfederationAccountGetProfileInput;
   'net.openfederation.account.getSecurityLevel': NetOpenfederationAccountGetSecurityLevelInput;
   'net.openfederation.account.initiateRecovery': NetOpenfederationAccountInitiateRecoveryInput;
@@ -2982,6 +3003,7 @@ export interface LexiconOutputMap {
   'net.openfederation.account.disableDeviceSigning': NetOpenfederationAccountDisableDeviceSigningOutput;
   'net.openfederation.account.enableDeviceSigning': NetOpenfederationAccountEnableDeviceSigningOutput;
   'net.openfederation.account.export': NetOpenfederationAccountExportOutput;
+  'net.openfederation.account.getDeviceSigning': NetOpenfederationAccountGetDeviceSigningOutput;
   'net.openfederation.account.getProfile': NetOpenfederationAccountGetProfileOutput;
   'net.openfederation.account.getSecurityLevel': NetOpenfederationAccountGetSecurityLevelOutput;
   'net.openfederation.account.initiateRecovery': NetOpenfederationAccountInitiateRecoveryOutput;
@@ -3209,6 +3231,7 @@ export interface LexiconErrorMap {
   'net.openfederation.account.disableDeviceSigning': NetOpenfederationAccountDisableDeviceSigningError;
   'net.openfederation.account.enableDeviceSigning': NetOpenfederationAccountEnableDeviceSigningError;
   'net.openfederation.account.export': NetOpenfederationAccountExportError;
+  'net.openfederation.account.getDeviceSigning': NetOpenfederationAccountGetDeviceSigningError;
   'net.openfederation.account.getProfile': NetOpenfederationAccountGetProfileError;
   'net.openfederation.account.getSecurityLevel': NetOpenfederationAccountGetSecurityLevelError;
   'net.openfederation.account.initiateRecovery': NetOpenfederationAccountInitiateRecoveryError;
@@ -3438,6 +3461,7 @@ export const lexiconContracts = {
   'net.openfederation.account.disableDeviceSigning': { revision: 1, errors: ["AtprotoKeyNotServer", "UpstreamFailure"] as const },
   'net.openfederation.account.enableDeviceSigning': { revision: 1, errors: ["AtprotoKeyNotDevice", "CustodyModeNotSupported", "DeviceSigningNotAllowed", "UpstreamFailure"] as const },
   'net.openfederation.account.export': { revision: 5, errors: ["ExportTooLarge", "Forbidden", "NotFound", "TakenDown"] as const },
+  'net.openfederation.account.getDeviceSigning': { revision: 1, errors: ["InvalidRequest"] as const },
   'net.openfederation.account.getProfile': { revision: 2, errors: ["InvalidRequest", "ProfileNotFound", "RepoNotFound", "RepoTakendown"] as const },
   'net.openfederation.account.getSecurityLevel': { revision: 6, errors: ["NotFound"] as const },
   'net.openfederation.account.initiateRecovery': { revision: 1, errors: [] as const },

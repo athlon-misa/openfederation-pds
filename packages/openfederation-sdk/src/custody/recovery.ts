@@ -94,6 +94,9 @@ export function buildRemoveRecoveryKeyOp(p: { previous: SignedPlcOperation; mode
  * as `openfederation_owner`; then the recovery key (or `newRecoveryDidKey`);
  * then the other keys as before (in `assisted`, the PDS's backup key). The
  * lost phrase key goes. Sign it with the recovery key.
+ *
+ * `newAtprotoDidKey` also names a new repo signing key, for device signing
+ * (#240) when the device was lost with the phrase.
  */
 export function buildRecoveryOp(p: {
   previous: SignedPlcOperation;
@@ -101,10 +104,12 @@ export function buildRecoveryOp(p: {
   newRotationDidKey: string;
   newOwnerDidKey: string;
   newRecoveryDidKey?: string;
+  newAtprotoDidKey?: string;
 }): PlcOperation {
   checkDidKey(p.newRotationDidKey, 'newRotationDidKey');
   checkDidKey(p.newOwnerDidKey, 'newOwnerDidKey');
   if (p.newRecoveryDidKey) checkDidKey(p.newRecoveryDidKey, 'newRecoveryDidKey');
+  if (p.newAtprotoDidKey) checkDidKey(p.newAtprotoDidKey, 'newAtprotoDidKey');
   const keys = p.previous.rotationKeys;
   const at = keys.indexOf(p.recoveryDidKey);
   if (at < 1) throw new Error(at === 0 ? 'The recovery key is already the first rotation key' : 'This key is not a rotation key of the DID');
@@ -112,7 +117,11 @@ export function buildRecoveryOp(p: {
   const rest = keys.slice(1).filter((k) => k !== p.recoveryDidKey);
   const rotationKeys = [p.newRotationDidKey, recovery, ...rest];
   if (new Set(rotationKeys).size !== rotationKeys.length) throw new Error('The new keys must differ from the rotation keys the DID keeps');
-  return nextOp(p.previous, rotationKeys, { ...p.previous.verificationMethods, openfederation_owner: p.newOwnerDidKey });
+  return nextOp(p.previous, rotationKeys, {
+    ...p.previous.verificationMethods,
+    openfederation_owner: p.newOwnerDidKey,
+    ...(p.newAtprotoDidKey ? { atproto: p.newAtprotoDidKey } : {}),
+  });
 }
 
 type Fetch = typeof globalThis.fetch;
@@ -157,7 +166,8 @@ async function submitAndCheck(p: PlcIo, operation: SignedPlcOperation): Promise<
   if (!dataRes.ok) throw new Error(`PLC read-back failed (${dataRes.status})`);
   const data = await dataRes.json() as { rotationKeys?: string[]; verificationMethods?: Record<string, string> };
   if (JSON.stringify(data.rotationKeys) !== JSON.stringify(operation.rotationKeys)
-    || data.verificationMethods?.openfederation_owner !== operation.verificationMethods.openfederation_owner) {
+    || data.verificationMethods?.openfederation_owner !== operation.verificationMethods.openfederation_owner
+    || data.verificationMethods?.atproto !== operation.verificationMethods.atproto) {
     throw new Error('PLC does not show the update');
   }
 }
@@ -206,11 +216,17 @@ export async function recoverWithRecoveryKey(p: PlcIo & {
   newOwnerDidKey: string;
   /** Replace the recovery key too (for example when it may have been seen). */
   newRecoveryDidKey?: string;
+  /**
+   * Device signing (#240): the new device's repo key, when the device was
+   * lost with the phrase. Tell the PDS afterwards (enableDeviceSigning).
+   */
+  newDeviceDidKey?: string;
 }): Promise<RecoveryResult> {
   const previous = await currentOp(p);
   const recoveryDidKey = signerDidKey(p.recoveryPrivateKey);
   const operation = signPlcOperation(buildRecoveryOp({
     previous, recoveryDidKey, newRotationDidKey: p.newRotationDidKey, newOwnerDidKey: p.newOwnerDidKey, newRecoveryDidKey: p.newRecoveryDidKey,
+    newAtprotoDidKey: p.newDeviceDidKey,
   }), p.recoveryPrivateKey);
   // Taken before PLC stamps the operation, so the deadline is never later than PLC's.
   const submittedAt = Date.now();

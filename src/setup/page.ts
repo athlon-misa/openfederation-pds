@@ -247,7 +247,7 @@ ${progress()}
     </fieldset>
     <div class="field">
       <p><strong>Device signing</strong></p>
-      <p class="hint">Lets people whose key is shared or kept by themselves sign their posts on their own device, so this server can no longer post in their name. While it is on for an account, that account can only post from its device. It starts on for a newsroom or privacy-first server and off for a community server; change it later in the dashboard under Admin, Server settings.</p>
+      <p class="hint">Lets people whose key is shared or kept by themselves sign their posts on their own device, so this server can no longer post in their name. While it is on for an account, that account can only post from its device. It starts on for a newsroom or privacy-first server and off for a community server; change it later in the dashboard under Admin, Server settings. Where it is on, each person turns it on for themselves in the dashboard, under Your account, Identity &amp; keys.</p>
     </div>
     <fieldset class="field">
       <legend><strong>How the dashboard looks</strong></legend>

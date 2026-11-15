@@ -66,7 +66,7 @@ export const CUSTODY: Record<CustodyMode, ChoiceText & { short: string; restore:
 
 /** True in every mode, said wherever the modes are compared. */
 export const POSTING_KEY_NOTE =
-  'In every mode this server keeps the key it signs your posts with; that is how the network works today. So whoever runs it could still post in your name. Assisted and Self stop it from taking or moving your identity. Device signing, where this server offers it, closes this gap.';
+  'Unless you turn on device signing, this server keeps the key it signs your posts with; that is how the network usually works. So whoever runs it could still post in your name. Assisted and Self stop it from taking or moving your identity; device signing, where this server offers it, stops it from posting as you.';
 
 /** What changes with each switch, on top of the target mode's own text. */
 export function switchNote(from: CustodyMode, to: CustodyMode): string {
@@ -156,21 +156,51 @@ export const PASSKEY: ChoiceText = {
 };
 
 /**
- * Device signing (#240): phase 1 is built in the server and the SDK
- * (`@open-federation/sdk/custody`), offered where the admin allows it
- * (`DEVICE_SIGNING_ALLOWED`). This dashboard has no controls for it yet and
- * says so ("Not in this dashboard yet"); apps built on the SDK can turn it on.
+ * Device signing (#240, ADR-003 decision 14), in Your account → Identity &
+ * keys, offered where the admin allows it (`DEVICE_SIGNING_ALLOWED`). Which
+ * features work while it is on is not written here: the server reports it
+ * (getDeviceSigning `features`) and the screen lists that.
  */
-export const DEVICE_SIGNING: ChoiceText & { status: 'coming'; availability: string } = {
-  status: 'coming',
+export const DEVICE_SIGNING: ChoiceText & {
+  availability: string;
+  protects: string;
+  givesUp: string;
+  lostDevice: string;
+  /** Losing the device and the 12 words together, per mode. */
+  lostAll: Record<'assisted' | 'self', string>;
+  /** Who can switch it off, per mode. */
+  whoCanUndo: Record<'assisted' | 'self', string>;
+  custodial: string;
+  notOffered: string;
+} = {
   title: 'Device signing',
   summary: 'Your device holds the key that signs your posts, so this server cannot post as you.',
-  means: 'Your device holds the key that signs your posts, instead of this server. The server can then no longer post in your name.',
-  responsible: 'Keeping the device that holds the key with you and online when you want to post.',
-  wrong: 'While your device is offline, you cannot post.',
-  undo: 'Only you can turn it off, with your 12 words.',
-  availability: 'Only for Self accounts, and for Assisted with one caveat: in Assisted this server could switch it back off with its backup key, but you would be emailed and could cancel that within 72 hours.',
+  means: 'This browser makes the key that signs your posts and keeps it on this device, locked with a passkey. Your 12 words put that key in your public identity. From then on the network accepts only posts signed by your device, and refuses anything this server signs in your name.',
+  protects: 'Whoever runs this server, or breaks into it, can no longer post, change or delete anything as you: the network would refuse it. What you already posted stays valid.',
+  givesUp: 'Nothing can be written to your account while this device is offline, locked or lost. Features where this server writes for you stop working while it is on, until they can be signed on your device; Identity & keys lists which, as this server reports them.',
+  responsible: 'Keeping this device and its passkey, and your 12 words. The device signs your posts; your 12 words (or your backup phrase, if you set up recovery) are how you put a new device in charge.',
+  wrong: 'If you lose this device or clear this browser\'s data, the key is gone and you cannot post until you set up a new device. That loses no posts and not your identity. Writing from another device needs that device to hold the key.',
+  lostDevice: 'Open this page on the new device and choose "This device takes over". Your 12 words (or your backup phrase) name a new key made there; the lost device\'s key stops working at once.',
+  lostAll: {
+    self: 'If you lose this device and your 12 words and have no recovery set up, nobody can put a new device in charge, including this server: you could never post from this account again.',
+    assisted: 'If you lose this device and your 12 words, this server\'s operator can give you new 12 words after checking who you are; with them you put a new device in charge.',
+  },
+  undo: 'Turn it off at any time with your 12 words: this server signs your posts again.',
+  whoCanUndo: {
+    self: 'Only your 12 words (or your backup phrase) can turn it off. This server holds no key that can, so it can at most refuse your posts, never write them.',
+    assisted: 'This server\'s backup key could also switch it off. That would be public, you would be emailed, and for 72 hours your 12 words can cancel it; this page shows it if it happens.',
+  },
+  availability: 'For Self and Assisted accounts, where this server offers it.',
+  custodial: 'Not for Custodial accounts: there this server controls your identity, so it could switch the key back at any moment and the protection would mean nothing. Switch to Assisted or Self first, if this server offers them.',
+  notOffered: 'This server does not offer device signing. Its administrators can turn it on in Server settings.',
 };
+
+/** The specific things the person confirms before each step. */
+export const DEVICE_SIGNING_ACK = {
+  on: 'I understand that nothing can be posted from my account while this device is offline or lost, and that I need my 12 words (or my backup phrase) to put a new device in charge.',
+  off: 'I understand that this server will sign my posts again, so whoever runs it could post in my name.',
+  replace: 'I understand that the key on my other device stops working as soon as this device takes over.',
+} as const;
 
 export const MOVING: ChoiceText = {
   title: 'Move to another server',
@@ -329,7 +359,7 @@ export const GLOSSARY_SECTIONS: { title: string; terms: GlossaryTerm[] }[] = [
       { id: 'self', term: CUSTODY.self.title, text: CUSTODY.self.summary },
       { id: 'twelve-words', term: 'Your 12 words', technical: 'identity phrase, recovery phrase in some apps', text: 'Twelve ordinary words, made on your device, that hold the keys to your identity in Assisted and Self. Whoever has them controls your identity. This server never sees them.' },
       { id: 'posting-key', term: 'The key that signs your posts', technical: 'repo signing key', text: POSTING_KEY_NOTE },
-      { id: 'device-signing', term: DEVICE_SIGNING.title, coming: 'Not in this dashboard yet (#240)', text: `${DEVICE_SIGNING.means} ${DEVICE_SIGNING.wrong} ${DEVICE_SIGNING.availability} ${DEVICE_SIGNING.undo}` },
+      { id: 'device-signing', term: DEVICE_SIGNING.title, technical: 'repo signing key on the device', text: `${DEVICE_SIGNING.means} ${DEVICE_SIGNING.givesUp} ${DEVICE_SIGNING.availability} ${DEVICE_SIGNING.undo} In Assisted, ${DEVICE_SIGNING.whoCanUndo.assisted.charAt(0).toLowerCase()}${DEVICE_SIGNING.whoCanUndo.assisted.slice(1)}` },
     ],
   },
   {

@@ -109,6 +109,18 @@ export function custodyChangedEmail(handle: string, from: string, to: string): s
     <p>If you did not do this, change your password and contact this server's operator straight away.</p>`);
 }
 
+/** Device signing (#240) went off because the DID names this server's repo key again. */
+export function deviceSigningSwitchedOffEmail(o: { handle: string; assisted: boolean }): string {
+  const cancel = o.assisted
+    ? '<p><strong>If this was not you</strong>, this server\'s backup key may have been used. Open <em>Identity changes</em> in your account and cancel the change with your 12-word phrase: you have 72 hours from the change. Then turn device signing back on.</p>'
+    : '<p><strong>If this was not you</strong>, someone used your 12-word phrase: only it can make this change. Move your identity to safety with your phrase now, if you still have it.</p>';
+  return wrap('Device signing is off', `
+    <p>Hi <strong>${escapeHtml(o.handle)}</strong>,</p>
+    <p>Your identity names this server's key for signing your posts again, so device signing is now off: this server signs your posts again.</p>
+    <p><strong>If you turned it off, nothing to do.</strong></p>
+    ${cancel}`);
+}
+
 export function serverSignedUpdateEmail(o: { handle: string; operationCid: string; why: string; cancelUntil: Date }): string {
   return wrap('Your identity was changed by this server', `
     <p>Hi <strong>${escapeHtml(o.handle)}</strong>,</p>

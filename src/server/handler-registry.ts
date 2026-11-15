@@ -28,6 +28,7 @@ import registerSelfCustody from '../api/net.openfederation.account.registerSelfC
 import reserveCustodyKey from '../api/net.openfederation.account.reserveCustodyKey.js';
 import enableDeviceSigning from '../api/net.openfederation.account.enableDeviceSigning.js';
 import disableDeviceSigning from '../api/net.openfederation.account.disableDeviceSigning.js';
+import getDeviceSigning from '../api/net.openfederation.account.getDeviceSigning.js';
 import prepareCommit from '../api/net.openfederation.repo.prepareCommit.js';
 import submitCommit from '../api/net.openfederation.repo.submitCommit.js';
 import registerAccount from '../api/net.openfederation.account.register.js';
@@ -261,6 +262,7 @@ const handlers = Object.freeze({
   // are ordinary writes and take only the global limit, like createRecord.
   'net.openfederation.account.enableDeviceSigning': { handler: enableDeviceSigning, limiter: authLimiter },
   'net.openfederation.account.disableDeviceSigning': { handler: disableDeviceSigning, limiter: authLimiter },
+  'net.openfederation.account.getDeviceSigning': { handler: getDeviceSigning },
   'net.openfederation.repo.prepareCommit': { handler: prepareCommit },
   'net.openfederation.repo.submitCommit': { handler: submitCommit },
   'net.openfederation.account.approve': { handler: approveAccount },

@@ -80,7 +80,7 @@ Choose a name, your email and a strong password. This is the account you use to 
 - **When someone signs up**: an admin approves each new account (recommended), or **Approve new accounts automatically**, so anyone who can sign up gets in straight away.
 - **Allow pseudonyms**: anonymous accounts that are not linked to anyone, not even on your server.
 - **Who looks after people's keys**: which ways you allow, and which one is offered first.
-- **Device signing**: people whose key is shared or kept by themselves can sign their posts on their own device, so the server can no longer post in their name. It starts on for a newsroom server and off for a community server; you change it later under Admin, Server settings.
+- **Device signing**: people whose key is shared or kept by themselves can sign their posts on their own device, so the server can no longer post in their name. It starts on for a newsroom server and off for a community server; you change it later under Admin, Server settings. Where it is on, each person turns it on for themselves, with their 12 words, in Your account, Identity & keys; Custodial accounts can't.
 - **How the dashboard looks**: the look people see first (OpenFederation, PDS Basic or Open Newsrooms). Each person can still pick another for themselves.
 
 ### Step 6: Review and finish

@@ -2168,3 +2168,53 @@ await disableDeviceSigning({ plcUrl, did, rotationPrivateKey, client: ofd });
 - **`assisted`:** the server's backup rotation key can switch the `atproto` key back. That is a
   public PLC update, emailed, which the phrase cancels within 72 hours (`plcOperationSigner` shows
   it was signed by the lower key; `buildCancelOp`). For `self` the server cannot do it at all.
+
+#### Keeping the key, losing the device, rotating the key
+
+```ts
+import {
+  rememberDeviceKeyWithPasskey, unlockDeviceKeyWithPasskey, rotateDeviceRepoKey, setDeviceRepoKey,
+  deriveRecoveryKey, recoverWithRecoveryKey, findDeviceSigningSwitchBack, cancelDeviceSigningSwitchBack,
+  getDeviceSigningStatus,
+} from '@open-federation/sdk/custody';
+
+// Keep the key on the device under a passkey (WebAuthn PRF, as the remembered phrase).
+// credentialId reuses the passkey that already unlocks the phrase: one prompt instead of two.
+const stored = await rememberDeviceKeyWithPasskey({ privateKey: device.privateKey, rpName: 'My app', userName: handle, credentialId: rememberedPhrase.credentialId });
+localStorage.setItem('device-key', JSON.stringify(stored));   // stored.didKey is in the clear
+const { privateKey } = await unlockDeviceKeyWithPasskey(stored);
+
+// A lost device, or a new one taking over: a key made here, named by the phrase...
+await setDeviceRepoKey({ plcUrl, did, rotationPrivateKey, deviceDidKey: newDevice.didKey, client: ofd });
+// ...or by the recovery key (#238) when the phrase is not at hand; the phrase can cancel it until cancelUntil.
+const { cancelUntil } = await setDeviceRepoKey({ plcUrl, did, recoveryPrivateKey: deriveRecoveryKey(recoveryPhrase).recoveryPrivateKey, deviceDidKey: newDevice.didKey, client: ofd });
+// Phrase and device lost together: the recovery brings in a new phrase and a new device key at once.
+await recoverWithRecoveryKey({ plcUrl, did, recoveryPrivateKey, newRotationDidKey, newOwnerDidKey, newDeviceDidKey: newDevice.didKey });
+
+// Rotate: a new key made here, the old one retired.
+const { key } = await rotateDeviceRepoKey({ plcUrl, did, rotationPrivateKey, client: ofd });
+
+// assisted: a switch back by the server's backup key, read from PLC (not from the PDS)...
+const sb = await findDeviceSigningSwitchBack({ plcUrl, did });   // { from, to, signedBy, signerRank, cancelUntil, cancellable } | null
+// ...cancelled with the phrase within 72 hours; device signing turns back on.
+if (sb?.cancellable) await cancelDeviceSigningSwitchBack({ plcUrl, did, rotationPrivateKey, client: ofd });
+
+// What the PDS says: allowed, eligible, on, the key PLC names now, state, and which features work while on.
+const status = await getDeviceSigningStatus(ofd);
+```
+
+- **Where the key lives** is the application's choice. Without PRF support,
+  `rememberDeviceKeyWithPasskey` throws `PasskeyPrfUnsupported`; don't fall back to a weaker
+  secret. Losing the key loses no records and not the identity: the phrase or the recovery key
+  names a new one.
+- **Don't bless what the server wrote.** Pass `trustedHeadKeys` (this device's did:key and any
+  earlier device keys) to `deviceApplyWrites` after the first device write: the device then
+  refuses (`DeviceCommitRejected`, `reason: 'UntrustedHead'`) to sign on top of a head it did not
+  sign. That happens after an `assisted` switch back during which the server's key was in charge
+  and the server wrote; review the repository (`RepoWatcher`) before signing on top of it.
+- **The PDS notices too.** When `submitCommit` finds PLC naming the server's key again it turns
+  device signing off and emails the person. `getDeviceSigning`'s `state` is `resumable` when PLC
+  names the device's key while the flag is off (after a cancellation): `enableDeviceSigning`
+  turns it on again.
+- **Features while it is on** come from the server (`status.features`, `{ id, title, available }`);
+  show those instead of a list of your own.

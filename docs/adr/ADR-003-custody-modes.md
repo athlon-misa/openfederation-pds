@@ -306,7 +306,7 @@ which key, and in what order.
       72 hours, and the PDS does not email about it (it never sees it), so the app should watch
       the DID's PLC log. Pseudonyms stay without recovery.
 
-14. **Device signing (#240), decided 2026-11-13, phase 1 built.** A per-account choice,
+14. **Device signing (#240), decided 2026-11-13, phases 1, 3 and 4 built.** A per-account choice,
     offered where the installation allows it (`DEVICE_SIGNING_ALLOWED`, on under the
     `privacy` profile, published as `identity.deviceSigningAllowed`).
 
@@ -359,13 +359,31 @@ which key, and in what order.
     - **What the person gives up:** nothing can be written to their repository while their
       device is offline, and features that write on their behalf are unavailable until they
       move to device signing.
-    - **Losing the device** loses nothing permanent: the phrase (or a recovery key, decision
-      13, through a recovery) signs a PLC update naming a new device key (`setDeviceRepoKey`)
-      or the server's key again (`disableDeviceSigning`). Records are not lost: the next
-      commit, signed with the new key, covers the whole tree again (until then a check of
-      the full repository against the new key fails, as after any AT Protocol key rotation).
-    - **Where the device key is kept** is the application's choice. The passkey helpers of
-      decision 12 store only valid phrases, so they do not hold a raw key yet.
+    - **Losing the device** loses nothing permanent: the phrase signs a PLC update naming a
+      new device key (`setDeviceRepoKey`, `rotateDeviceRepoKey`) or the server's key again
+      (`disableDeviceSigning`). The recovery key (decision 13) can sign the same update
+      directly, as a key below the phrase: the phrase can cancel it for 72 hours. With the
+      phrase lost too, `recoverWithRecoveryKey` names the new phrase and the new device key in
+      one update (`newDeviceDidKey`); in `assisted` the server's recovery (decision 10) gives a
+      new phrase, which then names the new device. Records are not lost: the next commit,
+      signed with the new key, covers the whole tree again (until then a check of the full
+      repository against the new key fails, as after any AT Protocol key rotation). Phase 4,
+      built.
+    - **Where the device key is kept** is the application's choice.
+      `rememberDeviceKeyWithPasskey` keeps it under a passkey with the PRF sealing of decision
+      12 (its own labels, and the did:key bound in); the dashboard keeps it that way in the
+      browser and does not turn device signing on without PRF support.
+    - **A switch back in `assisted`, and back on.** `findDeviceSigningSwitchBack` reads PLC's
+      audit log (not the PDS) for the latest change of the `atproto` key signed by a lower
+      key; `cancelDeviceSigningSwitchBack` cancels it with the phrase and calls
+      `enableDeviceSigning`. When `submitCommit` sees PLC naming the server's key it turns the
+      flag off and emails the person; `account.getDeviceSigning` then reports `switchedBack`,
+      and `resumable` once PLC names the device's key again. Commits the server made while its
+      key was in charge stay in the tree: `trustedHeadKeys` makes the device refuse to sign on
+      top of a head it did not sign until the person has looked.
+    - **Dashboard (phase 3, built):** Your account → Identity & keys, with the four answers,
+      what it protects, what is given up, losing the device, and the features that work while
+      it is on, as the server lists them (`src/repo/device-signing-features.ts`).
 
 ## Out of scope
 

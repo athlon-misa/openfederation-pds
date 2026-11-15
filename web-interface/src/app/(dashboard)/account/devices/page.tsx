@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { rememberPhraseWithPasskey } from '@open-federation/sdk/custody';
 import { PageHeader } from '@/components/page-header';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountGate, type AccountContext } from '@/components/account/account-gate';
@@ -13,6 +13,7 @@ import { Acknowledge, ChoiceExplainer, Note, Section, StatusMessage, WhatIsThis 
 import { ExistingPhrase } from '@/components/custody/phrase-inputs';
 import { listSessions, revokeSession } from '@/lib/api/account';
 import { assertPhraseBelongs, forgetRemembered, loadRemembered, saveRemembered } from '@/lib/custody/custody';
+import { deviceSigningStatus, loadDeviceKey } from '@/lib/custody/device-signing';
 import { THIS_PDS } from '@/hooks/use-identity';
 import { DEVICE_SIGNING, PASSKEY } from '@/lib/copy/glossary';
 import { useAuthStore } from '@/store/auth-store';
@@ -23,11 +24,31 @@ export default function DevicesPage() {
     <div className="space-y-6">
       <PageHeader title="Devices & passkeys" description="Where you are signed in, and whether this device unlocks your 12 words with a passkey." />
       <SignedInDevices />
-      {status === 'approved' && <AccountGate>{(ctx) => <ThisDevice ctx={ctx} />}</AccountGate>}
-      <Section title={DEVICE_SIGNING.title} description={<><Badge variant="outline">Not in this dashboard yet</Badge> {DEVICE_SIGNING.summary}</>}>
-        <ChoiceExplainer text={DEVICE_SIGNING} extra={[{ label: 'Who can use it', text: DEVICE_SIGNING.availability }]} />
-      </Section>
+      {status === 'approved' && <AccountGate>{(ctx) => <><ThisDevice ctx={ctx} /><DeviceSigningHere ctx={ctx} /></>}</AccountGate>}
     </div>
+  );
+}
+
+/** Whether this device holds the key that signs the account's posts (#240); the setting itself is on Identity & keys. */
+function DeviceSigningHere({ ctx }: { ctx: AccountContext }) {
+  const status = useQuery({
+    queryKey: ['device-signing', ctx.did],
+    enabled: ctx.mode !== 'custodial',
+    queryFn: () => deviceSigningStatus(THIS_PDS, ctx.accessToken),
+  });
+  const stored = loadDeviceKey(ctx.did);
+  const s = status.data;
+  let text: string;
+  if (ctx.mode === 'custodial') text = DEVICE_SIGNING.custodial;
+  else if (!s) text = DEVICE_SIGNING.summary;
+  else if (!s.deviceSigning) text = s.allowed ? 'Off: this server signs your posts.' : DEVICE_SIGNING.notOffered;
+  else if (stored && stored.didKey === s.atprotoKey) text = 'On, and this device holds the key: posts are signed here, locked with this device\'s passkey.';
+  else text = 'On, but this device does not hold the key: posts can only be signed on the device that does. If you lost it, this device can take over.';
+  return (
+    <Section title={DEVICE_SIGNING.title} description={<>{DEVICE_SIGNING.summary} <WhatIsThis term="device-signing" className="mt-1" /></>}>
+      {status.isLoading ? <Skeleton className="h-10 rounded-md" /> : <p className="text-sm">{text}</p>}
+      <p className="text-sm"><Link href="/account/identity#device-signing" className="underline underline-offset-4 hover:no-underline">Device signing settings</Link></p>
+    </Section>
   );
 }
 
