@@ -97,10 +97,12 @@ export default async function updateCommunity(req: AuthRequest, res: Response): 
     }
 
     // A community that has just become private takes what its members already
-    // wrote out of their public repositories.
-    if (visibility !== undefined) await placeMemberContentForVisibility(did);
+    // wrote, and their membership records (#385), out of their public
+    // repositories. Records on other PDSes cannot be removed from here: the
+    // answer counts them so the owner can be told.
+    const membershipRecords = visibility !== undefined ? await placeMemberContentForVisibility(did) : null;
 
-    res.status(200).json({ success: true });
+    res.status(200).json(membershipRecords ? { success: true, membershipRecords } : { success: true });
   } catch (error) {
     console.error('Error updating community:', error);
     res.status(500).json({ error: 'InternalServerError', message: 'Failed to update community' });

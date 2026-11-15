@@ -1107,6 +1107,13 @@ export type NetOpenfederationCommunityJoinInput = {
 };
 export type NetOpenfederationCommunityJoinOutput = {
   "status": string;
+  "homeRecord"?: {
+  "uri": string;
+  "collection": string;
+  "rkey": string;
+  "record": unknown;
+  "written": boolean;
+};
 };
 export type NetOpenfederationCommunityJoinError = "AlreadyMember" | "AlreadyRequested" | "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "InvalidRequest" | "NotFound" | "PayloadTooLarge";
 
@@ -1115,6 +1122,11 @@ export type NetOpenfederationCommunityLeaveInput = {
 };
 export type NetOpenfederationCommunityLeaveOutput = {
   "success": boolean;
+  "homeRecord"?: {
+  "collection": string;
+  "rkey": string;
+  "deleted": boolean;
+};
 };
 export type NetOpenfederationCommunityLeaveError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "Forbidden" | "InvalidRequest" | "NotFound" | "NotMember";
 
@@ -1301,6 +1313,10 @@ export type NetOpenfederationCommunityMarkMovedOutput = {
 };
 export type NetOpenfederationCommunityMarkMovedError = "CommunitySuspended" | "CommunityTakenDown" | "Forbidden" | "NotFound" | "NotMoved";
 
+export type NetOpenfederationCommunityMembershipInput = undefined;
+export type NetOpenfederationCommunityMembershipOutput = undefined;
+export type NetOpenfederationCommunityMembershipError = never;
+
 export type NetOpenfederationCommunityMigrateInInput = {
   "did": string;
   "handle": string;
@@ -1457,6 +1473,11 @@ export type NetOpenfederationCommunityUpdateInput = {
 };
 export type NetOpenfederationCommunityUpdateOutput = {
   "success": boolean;
+  "membershipRecords"?: {
+  "removed": number;
+  "keptOnDevice": number;
+  "elsewhere": number;
+};
 };
 export type NetOpenfederationCommunityUpdateError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "Forbidden" | "GovernanceDenied" | "InvalidRequest" | "NotFound";
 
@@ -2799,6 +2820,7 @@ export interface LexiconInputMap {
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsInput;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesInput;
   'net.openfederation.community.markMoved': NetOpenfederationCommunityMarkMovedInput;
+  'net.openfederation.community.membership': NetOpenfederationCommunityMembershipInput;
   'net.openfederation.community.migrateIn': NetOpenfederationCommunityMigrateInInput;
   'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesInput;
   'net.openfederation.community.objectToProposal': NetOpenfederationCommunityObjectToProposalInput;
@@ -3025,6 +3047,7 @@ export interface LexiconOutputMap {
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsOutput;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesOutput;
   'net.openfederation.community.markMoved': NetOpenfederationCommunityMarkMovedOutput;
+  'net.openfederation.community.membership': NetOpenfederationCommunityMembershipOutput;
   'net.openfederation.community.migrateIn': NetOpenfederationCommunityMigrateInOutput;
   'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesOutput;
   'net.openfederation.community.objectToProposal': NetOpenfederationCommunityObjectToProposalOutput;
@@ -3251,6 +3274,7 @@ export interface LexiconErrorMap {
   'net.openfederation.community.listProposals': NetOpenfederationCommunityListProposalsError;
   'net.openfederation.community.listRoles': NetOpenfederationCommunityListRolesError;
   'net.openfederation.community.markMoved': NetOpenfederationCommunityMarkMovedError;
+  'net.openfederation.community.membership': NetOpenfederationCommunityMembershipError;
   'net.openfederation.community.migrateIn': NetOpenfederationCommunityMigrateInError;
   'net.openfederation.community.myCapabilities': NetOpenfederationCommunityMyCapabilitiesError;
   'net.openfederation.community.objectToProposal': NetOpenfederationCommunityObjectToProposalError;
@@ -3467,8 +3491,8 @@ export const lexiconContracts = {
   'net.openfederation.community.getMovedKeys': { revision: 1, errors: ["IncompatibleDidDoc", "NotFound", "NotMoved", "UnresolvableDid"] as const },
   'net.openfederation.community.getProposal': { revision: 7, errors: ["CommunityTakenDown", "NotFound", "ProposalNotFound"] as const },
   'net.openfederation.community.issueAttestation': { revision: 7, errors: ["AttestationTypeNotAllowed", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "PayloadTooLarge"] as const },
-  'net.openfederation.community.join': { revision: 4, errors: ["AlreadyMember", "AlreadyRequested", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "NotFound", "PayloadTooLarge"] as const },
-  'net.openfederation.community.leave': { revision: 2, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
+  'net.openfederation.community.join': { revision: 5, errors: ["AlreadyMember", "AlreadyRequested", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "NotFound", "PayloadTooLarge"] as const },
+  'net.openfederation.community.leave': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.linkApplication': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Conflict", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.listAll': { revision: 1, errors: [] as const },
   'net.openfederation.community.listApplications': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
@@ -3479,6 +3503,7 @@ export const lexiconContracts = {
   'net.openfederation.community.listProposals': { revision: 5, errors: ["CommunityTakenDown", "NotFound"] as const },
   'net.openfederation.community.listRoles': { revision: 4, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.markMoved': { revision: 2, errors: ["CommunitySuspended", "CommunityTakenDown", "Forbidden", "NotFound", "NotMoved"] as const },
+  'net.openfederation.community.membership': { revision: 1, errors: [] as const },
   'net.openfederation.community.migrateIn': { revision: 4, errors: ["AlreadyExists", "AuthRequired", "DidMismatch", "Forbidden", "HandleNotAvailable", "IncompatibleDidDoc", "InvalidCar", "InvalidHandle", "InvalidInviteCode", "InvalidRepo", "InvalidSignature", "InvalidToken", "InviteBound", "InviteExpired", "InviteInvalid", "InviteUsed", "MigrationNotAllowed", "PayloadTooLarge", "UnresolvableDid", "UpstreamFailure"] as const },
   'net.openfederation.community.myCapabilities': { revision: 1, errors: ["InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.objectToProposal': { revision: 5, errors: ["AlreadyObjected", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "ObjectionNotRecordable", "ObjectionWindowClosed", "ProposalNotFound", "ProposalNotPending"] as const },
@@ -3491,7 +3516,7 @@ export const lexiconContracts = {
   'net.openfederation.community.takedown': { revision: 2, errors: ["AlreadyTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.unlinkApplication': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.unsuspend': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotSuspended"] as const },
-  'net.openfederation.community.update': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.community.update': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.updateMember': { revision: 3, errors: ["CannotChangeOwner", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "PayloadTooLarge", "RoleNotFound"] as const },
   'net.openfederation.community.updateRole': { revision: 7, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "GovernanceDenied", "InvalidRequest", "NotFound", "NotMember", "OwnerLockout", "RoleNameTaken", "RoleNotFound"] as const },
   'net.openfederation.community.verifyAttestation': { revision: 3, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },

@@ -1,6 +1,7 @@
 import type { AuthContext } from '../../auth/types.js';
 import { query } from '../../db/client.js';
 import { throwXrpc } from '../../xrpc/errors.js';
+import { deleteHomeMembership, type HomeRecordDelete } from './home-record.js';
 import { requireString, getCommunityOwner, ensureCommunityVisible, ensureCommunityWritable, getMemberRkey, deleteMemberRecord } from './utils.js';
 
 const LEAVE_NSID = 'net.openfederation.community.leave';
@@ -12,7 +13,7 @@ export interface LeaveCommunityInput {
 export async function leaveCommunityLifecycle(
   caller: AuthContext,
   input: LeaveCommunityInput,
-): Promise<{ success: true }> {
+): Promise<{ success: true; homeRecord: HomeRecordDelete }> {
   const communityDid = requireString(input.did, LEAVE_NSID, 'Missing required field: did');
   await ensureCommunityVisible(communityDid, caller, LEAVE_NSID);
   await ensureCommunityWritable(communityDid, LEAVE_NSID);
@@ -33,5 +34,7 @@ export async function leaveCommunityLifecycle(
     [communityDid, caller.userId],
   );
 
-  return { success: true };
+  // The member's own record of the membership (#385), when this PDS holds their repo.
+  const homeRecord = await deleteHomeMembership(caller.did, communityDid);
+  return { success: true, homeRecord };
 }

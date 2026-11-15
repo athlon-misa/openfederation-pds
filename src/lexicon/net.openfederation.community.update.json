@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.update",
-  "revision": 4,
+  "revision": 5,
   "description": "Update community settings. Requires auth (owner only).",
   "defs": {
     "main": {
@@ -54,6 +54,11 @@
             "success": {
               "type": "boolean",
               "description": "Whether the update was successful."
+            },
+            "membershipRecords": {
+              "type": "ref",
+              "ref": "#membershipRecords",
+              "description": "Present when the community is private after the update: what happened to the net.openfederation.community.membership records naming it in members' repos (#385)."
             }
           },
           "required": [
@@ -95,6 +100,29 @@
           "description": "The community has been taken down."
         }
       ]
+    },
+    "membershipRecords": {
+      "type": "object",
+      "description": "Membership records in members' public repos, after the community turned private.",
+      "required": [
+        "removed",
+        "keptOnDevice",
+        "elsewhere"
+      ],
+      "properties": {
+        "removed": {
+          "type": "integer",
+          "description": "Records removed from members' repos on this PDS."
+        },
+        "keptOnDevice": {
+          "type": "integer",
+          "description": "Records left in place because the member signs their repo on their device (#240); only their device can remove them."
+        },
+        "elsewhere": {
+          "type": "integer",
+          "description": "Members whose repo is on another PDS. A membership record there cannot be removed from here, and stays public until they delete it."
+        }
+      }
     }
   }
 }

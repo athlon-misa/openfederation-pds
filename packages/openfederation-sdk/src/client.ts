@@ -14,6 +14,7 @@ import type {
   SiwofChallengeResponse, SiwofAssertResponse, SignInWithOpenFederationOptions,
   UpgradeTierOptions, UpgradeTierResult,
   DiscoverCommunitiesOptions, DiscoverCommunitiesResult, UserTimelineOptions, UserTimeline,
+  HomeRepoWriter, JoinCommunityOptions, JoinCommunityResult, LeaveCommunityOptions, LeaveCommunityResult,
 } from './types.js';
 import { TokenManager } from './auth.js';
 import { createStorage } from './storage.js';
@@ -27,6 +28,9 @@ import { normalizeEvmTxForWire } from './wallet/tx-normalize.js';
 import { upgradeToTier as upgradeToTierFlow } from './wallet/upgrade.js';
 import { coordinatedRefresh } from './refresh.js';
 import { newLoginVerifier, takeLoginVerifier } from './login-binding.js';
+
+/** A membership in the member's own repo (#385); the record key is the community's DID. */
+export const MEMBERSHIP_COLLECTION = 'net.openfederation.community.membership';
 
 /** How long to wait before retrying a refresh that failed for a transient reason. */
 const REFRESH_RETRY_MS = 30_000;
@@ -502,6 +506,118 @@ export class OpenFederationClient implements AuthProvider {
       method: 'GET',
       params,
     }) as Promise<UserTimeline>;
+  }
+
+  // ── Community membership (#385) ─────────────────────
+
+  /**
+   * Join a community, here or on another PDS, and keep the membership record
+   * in the user's own repo (`net.openfederation.community.membership`, rkey =
+   * the community's DID) that lets the home server find it.
+   *
+   * On the home server, the server writes that record itself. On another PDS
+   * the join is made there with a service-auth token from home, then the
+   * record is written at home. Nothing is written for a pending request or a
+   * private community. A home write that fails does not undo the join; it is
+   * reported in `homeRecord.error`.
+   */
+  async joinCommunity(opts: JoinCommunityOptions): Promise<JoinCommunityResult> {
+    const body: Record<string, unknown> = { did: opts.did };
+    if (opts.kind !== undefined) body.kind = opts.kind;
+    if (opts.tags !== undefined) body.tags = opts.tags;
+    if (opts.attributes !== undefined) body.attributes = opts.attributes;
+
+    const res = await this.communityCall('net.openfederation.community.join', opts.pdsUrl, body) as {
+      status: 'joined' | 'pending';
+      homeRecord?: { uri: string; collection: string; rkey: string; record: Record<string, unknown>; written: boolean };
+    };
+    const home = res.homeRecord;
+    if (res.status !== 'joined' || !home) return { status: res.status, homeRecord: null };
+    if (home.written) return { status: res.status, homeRecord: { uri: home.uri, written: true } };
+    try {
+      await this.homeWriter(opts.homeWriter).put(MEMBERSHIP_COLLECTION, home.rkey, home.record);
+      return { status: res.status, homeRecord: { uri: home.uri, written: true } };
+    } catch (err) {
+      return { status: res.status, homeRecord: { uri: home.uri, written: false, error: (err as Error).message } };
+    }
+  }
+
+  /**
+   * Leave a community, here or on another PDS, and delete the membership
+   * record from the user's own repo (the home server does that itself for a
+   * community it hosts).
+   */
+  async leaveCommunity(opts: LeaveCommunityOptions): Promise<LeaveCommunityResult> {
+    const res = await this.communityCall('net.openfederation.community.leave', opts.pdsUrl, { did: opts.did }) as {
+      success: boolean;
+      homeRecord?: { deleted: boolean };
+    };
+    if (res.homeRecord?.deleted) return { success: res.success, homeRecordDeleted: true };
+    try {
+      if (!(await this.hasHomeRecord(opts.did))) return { success: res.success, homeRecordDeleted: false };
+      await this.homeWriter(opts.homeWriter).delete(MEMBERSHIP_COLLECTION, opts.did);
+      return { success: res.success, homeRecordDeleted: true };
+    } catch (err) {
+      return { success: res.success, homeRecordDeleted: false, error: (err as Error).message };
+    }
+  }
+
+  private isHomeServer(pdsUrl: string | undefined): boolean {
+    if (!pdsUrl) return true;
+    try {
+      return new URL(pdsUrl).origin === new URL(this.serverUrl).origin;
+    } catch {
+      return false;
+    }
+  }
+
+  /** A community call: on the home server with the session, elsewhere with a service-auth token from home. */
+  private async communityCall(nsid: string, pdsUrl: string | undefined, body: Record<string, unknown>): Promise<unknown> {
+    if (this.isHomeServer(pdsUrl)) return this.fetch(nsid, { method: 'POST', body });
+
+    const describe = await globalThis.fetch(xrpcUrl(pdsUrl!, 'com.atproto.server.describeServer'));
+    const described = await describe.json().catch(() => ({})) as { did?: unknown };
+    if (!describe.ok || typeof described.did !== 'string') {
+      throw errorFromResponse(describe.ok ? 502 : describe.status, { message: 'The community\'s server did not say who it is' });
+    }
+    const { token } = await this.fetch('com.atproto.server.getServiceAuth', {
+      method: 'GET',
+      params: { aud: described.did, lxm: nsid },
+    }) as { token: string };
+
+    const res = await globalThis.fetch(xrpcUrl(pdsUrl!, nsid), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw errorFromResponse(res.status, await res.json().catch(() => ({})));
+    return res.json();
+  }
+
+  private homeWriter(custom: HomeRepoWriter | undefined): HomeRepoWriter {
+    if (custom) return custom;
+    const repo = () => {
+      const did = this.tokens.getUser()?.did;
+      if (!did) throw new AuthenticationError('Not authenticated');
+      return did;
+    };
+    return {
+      put: async (collection, rkey, record) => {
+        await this.fetch('com.atproto.repo.putRecord', { method: 'POST', body: { repo: repo(), collection, rkey, record } });
+      },
+      delete: async (collection, rkey) => {
+        await this.fetch('com.atproto.repo.deleteRecord', { method: 'POST', body: { repo: repo(), collection, rkey } });
+      },
+    };
+  }
+
+  private async hasHomeRecord(communityDid: string): Promise<boolean> {
+    const did = this.tokens.getUser()?.did;
+    if (!did) throw new AuthenticationError('Not authenticated');
+    const res = await globalThis.fetch(xrpcUrl(this.serverUrl, 'com.atproto.repo.getRecord', {
+      repo: did, collection: MEMBERSHIP_COLLECTION, rkey: communityDid,
+    }));
+    return res.ok;
   }
 
   // ── Vault & Recovery ────────────────────────────────

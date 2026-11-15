@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.community.membership",
+  "revision": 1,
+  "description": "A membership record in the member's own repo: the member's side of belonging to a community, as a follow is in AT Protocol (#385). The community's own net.openfederation.community.member record stays the authority; a membership record the community does not confirm is a bookmark, not a membership. Written for public communities only, since a member's repo is public.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "The member's record of one community membership. The record key is the community's DID, so there is one per community.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": [
+          "community",
+          "createdAt"
+        ],
+        "properties": {
+          "community": {
+            "type": "string",
+            "format": "did",
+            "description": "The DID of the community."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the member joined."
+          }
+        }
+      }
+    }
+  }
+}

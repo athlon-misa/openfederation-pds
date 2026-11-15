@@ -8,6 +8,7 @@ import {
   getJoinPolicy,
   createMemberRecord,
 } from './utils.js';
+import { writeHomeMembership, type HomeRecordWrite } from './home-record.js';
 
 const JOIN_NSID = 'net.openfederation.community.join';
 const MAX_KIND_LENGTH = 64;
@@ -24,6 +25,13 @@ export interface JoinCommunityInput {
 
 export type JoinCommunityResult = {
   status: 'joined' | 'pending';
+  /**
+   * The membership record for the member's own repo (#385), when the
+   * community is public and the join took effect. `written: false` means the
+   * member's home PDS or device writes it (a caller from another PDS, or
+   * device signing).
+   */
+  homeRecord?: HomeRecordWrite;
 };
 
 function validateJoinInput(input: JoinCommunityInput): {
@@ -83,7 +91,8 @@ export async function joinCommunityLifecycle(
   const joinPolicy = await getJoinPolicy(did);
   if (joinPolicy === 'open') {
     await createMemberRecord(did, caller, { kind, tags, attributes });
-    return { status: 'joined' };
+    const homeRecord = await writeHomeMembership(caller.did, did);
+    return homeRecord ? { status: 'joined', homeRecord } : { status: 'joined' };
   }
 
   const existingRequest = await query<{ status: string }>(

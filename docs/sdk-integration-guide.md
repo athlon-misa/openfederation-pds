@@ -363,6 +363,22 @@ if (unreachable.length || unreachablePeers.length) {
 - `ValidationError` (400) — a cursor the server did not hand out
 - `ForbiddenError` (403) — the account is not hosted on this PDS
 
+### `ofd.joinCommunity(options)` / `ofd.leaveCommunity(options)`
+
+Join or leave a community on this PDS or another one, keeping the membership record in the user's own repo (`net.openfederation.community.membership`, rkey = the community's DID, exported as `MEMBERSHIP_COLLECTION`) that lets the home server's timeline find the community wherever it lives (#385).
+
+```typescript
+// A community from discoverCommunities(): pass its pdsUrl.
+const { status, homeRecord } = await ofd.joinCommunity({ did: c.did, pdsUrl: c.pdsUrl });
+// status: 'joined' | 'pending'; homeRecord: { uri, written, error? } | null
+
+await ofd.leaveCommunity({ did: c.did, pdsUrl: c.pdsUrl }); // { success, homeRecordDeleted, error? }
+```
+
+On the home server (no `pdsUrl`, or the home server's own) the server writes and deletes the record itself. On another PDS the SDK asks the home server for a service-auth token (`getServiceAuth`, `aud` = that server's DID from its `describeServer`), joins or leaves there with it, then writes the record at home after a successful join, or deletes it after leaving. `homeRecord` is `null` for a pending request and for a private community (a repo is public, so private memberships get no home record). A home write that fails does not undo the join: `homeRecord.written` is `false` with `error`.
+
+Accounts using device signing pass `homeWriter: { put, delete }` built on `devicePutRecord` / `deviceDeleteRecord` from `@open-federation/sdk/custody`, since the server cannot sign their repo.
+
 ### `ofd.loginWithATProto(handle | options)`
 
 Redirect the browser to the PDS OAuth flow for existing ATProto users. Use this alongside `register()` if you want to support both new and existing users.

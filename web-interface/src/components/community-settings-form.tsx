@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { updateCommunity } from '@/lib/api/communities';
+import { PRIVATE_SWITCH_WARNING, membershipRecordsNotice } from '@/lib/membership-records';
 import type { CommunityDetail } from '@/lib/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,8 @@ export function CommunitySettingsForm({ community, onUpdated }: Props) {
 
     if (result.ok) {
       toast.success('Settings updated');
+      const notice = membershipRecordsNotice(result.data.membershipRecords);
+      if (notice) toast.warning(notice, { duration: 15_000 });
       onUpdated?.();
     } else {
       toast.error(result.message);
@@ -84,6 +87,11 @@ export function CommunitySettingsForm({ community, onUpdated }: Props) {
         <p className="text-xs text-muted-foreground">
           Private communities are hidden from the explore page.
         </p>
+        {community.visibility !== 'private' && visibility === 'private' && (
+          <p role="note" className="text-xs text-amber-700 dark:text-amber-400">
+            {PRIVATE_SWITCH_WARNING}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">

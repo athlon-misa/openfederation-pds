@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.leave",
-  "revision": 2,
+  "revision": 3,
   "description": "Leave a community. Requires auth. Owners cannot leave their own community.",
   "defs": {
     "main": {
@@ -30,6 +30,11 @@
             "success": {
               "type": "boolean",
               "description": "Whether the user successfully left the community."
+            },
+            "homeRecord": {
+              "type": "ref",
+              "ref": "#homeRecord",
+              "description": "The member's net.openfederation.community.membership record for this community (#385)."
             }
           },
           "required": [
@@ -71,6 +76,30 @@
           "description": "The community is still arriving here and is not active yet (#267)."
         }
       ]
+    },
+    "homeRecord": {
+      "type": "object",
+      "description": "What happened to the membership record in the member's own repo.",
+      "required": [
+        "collection",
+        "rkey",
+        "deleted"
+      ],
+      "properties": {
+        "collection": {
+          "type": "string",
+          "format": "nsid",
+          "description": "Always net.openfederation.community.membership."
+        },
+        "rkey": {
+          "type": "string",
+          "description": "The community's DID."
+        },
+        "deleted": {
+          "type": "boolean",
+          "description": "True when this PDS removed it from the member's repo (or there was none to remove). False when the member's home PDS or device must delete it, if it holds one: a caller from another PDS, or an account using device signing (#240)."
+        }
+      }
     }
   }
 }

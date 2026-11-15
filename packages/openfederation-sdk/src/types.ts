@@ -549,3 +549,59 @@ export interface UserTimeline {
   /** Peer PDS URLs that could not be asked which communities the user belongs to there. */
   unreachablePeers: string[];
 }
+
+// ── Community membership (#385) ─────────────────────────────────
+
+/**
+ * Writes into the signed-in user's own repo. The default uses
+ * com.atproto.repo.putRecord / deleteRecord on the home server. An account
+ * using device signing (#240) passes one built on `devicePutRecord` /
+ * `deviceDeleteRecord` from `@open-federation/sdk/custody`, since the server
+ * cannot sign for it.
+ */
+export interface HomeRepoWriter {
+  put(collection: string, rkey: string, record: Record<string, unknown>): Promise<void>;
+  delete(collection: string, rkey: string): Promise<void>;
+}
+
+export interface JoinCommunityOptions {
+  /** The community's DID. */
+  did: string;
+  /**
+   * The PDS the community lives on (`pdsUrl` from discoverCommunities). Omit,
+   * or pass the home server, for a community hosted there.
+   */
+  pdsUrl?: string;
+  kind?: string;
+  tags?: string[];
+  attributes?: Record<string, unknown>;
+  homeWriter?: HomeRepoWriter;
+}
+
+export interface JoinCommunityResult {
+  /** 'joined', or 'pending' when the community approves members. */
+  status: 'joined' | 'pending';
+  /**
+   * The membership record in the user's own repo (#385). Null when there is
+   * none to write: a pending request, or a private community (a repo is
+   * public, so private memberships get no home record). `written: false`
+   * with `error`: the join stands, the home write failed.
+   */
+  homeRecord: { uri: string; written: boolean; error?: string } | null;
+}
+
+export interface LeaveCommunityOptions {
+  /** The community's DID. */
+  did: string;
+  /** As for joinCommunity. */
+  pdsUrl?: string;
+  homeWriter?: HomeRepoWriter;
+}
+
+export interface LeaveCommunityResult {
+  success: boolean;
+  /** Whether the user's own repo no longer holds a membership record for the community. */
+  homeRecordDeleted: boolean;
+  /** Set when the leave stands but the home record could not be deleted. */
+  error?: string;
+}

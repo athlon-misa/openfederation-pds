@@ -1,4 +1,4 @@
-export { OpenFederationClient } from './client.js';
+export { OpenFederationClient, MEMBERSHIP_COLLECTION } from './client.js';
 export { verifyPdsToken } from './verify.js';
 export { displayHandle, fullHandle, parseTokenExpiry } from './utils.js';
 export {
@@ -78,6 +78,12 @@ export type {
   UserTimeline,
   ActivityEntry,
   ActivitySummary,
+  // Community membership (#385)
+  HomeRepoWriter,
+  JoinCommunityOptions,
+  JoinCommunityResult,
+  LeaveCommunityOptions,
+  LeaveCommunityResult,
 } from './types.js';
 export {
   verifySignInAssertion,

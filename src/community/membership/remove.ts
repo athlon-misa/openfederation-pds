@@ -9,6 +9,7 @@ import {
   deleteMemberRecord,
   getUserIdByDid,
 } from './utils.js';
+import { deleteHomeMembership } from './home-record.js';
 
 const REMOVE_NSID = 'net.openfederation.community.removeMember';
 
@@ -43,6 +44,9 @@ export async function removeMemberLifecycle(
   }
 
   await deleteMemberRecord(communityDid, memberRkey);
+  // A removed member's home record would be a one-sided claim; take it out
+  // of their repo when it is here (#385).
+  await deleteHomeMembership(memberDid, communityDid);
 
   const removedUserId = await getUserIdByDid(memberDid);
   if (removedUserId) {
