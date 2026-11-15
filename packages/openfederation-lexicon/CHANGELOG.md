@@ -1,5 +1,15 @@
 # @open-federation/lexicon
 
+## 0.8.0
+
+### Minor Changes
+
+- 2c933ca: Device signing (#240): new query `net.openfederation.account.getDeviceSigning` (revision 1): the installation policy, the account's custody mode and eligibility, whether device signing is on, the DID's `atproto` key as PLC names it now, this server's key, `state` (`off` / `on` / `resumable` / `switchedBack`) and the features that work while it is on.
+
+### Patch Changes
+
+- ed05fa2: Demo servers: `net.openfederation.server.getPublicConfig` (revision 7) describes `demo` — `{ enabled }`, and on a demo server (`DEMO_MODE`) `resetSchedule` (cron, UTC) and `nextResetAt`, when everything on it is next deleted.
+
 ## 0.7.0
 
 ### Minor Changes
