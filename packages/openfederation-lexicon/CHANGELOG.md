@@ -1,5 +1,12 @@
 # @open-federation/lexicon
 
+## 0.9.0
+
+### Minor Changes
+
+- c145705: Device signing, phase 2 (#240): new procedure `net.openfederation.repo.prepareAction` (revision 1) prepares the write a method makes for the person (profile, contacts, forum, RSVPs, votes, objections) for the device to sign. `net.openfederation.repo.submitCommit` (revision 2) also finishes those: `commit` and `writes` become optional, `signed` and `result` are added, and the `ActionChanged` error. `net.openfederation.identity.signInAssert` (revision 3) takes `signOnDevice` and may return `unsignedDidToken` instead of `didToken`.
+- 5c08a66: Import follow-ups (#403): new procedure `net.openfederation.forum.importBlob` (revision 1) stores an attachment of an imported message as a blob of the community's repository. `net.openfederation.forum.importBatch` (revision 2) takes `platform: "slack"`, `embeds` on posts and returns a `deleted` count. `net.openfederation.forum.post` and `forum.thread` (revision 4): `importedFrom.platform` knows `slack`. `net.openfederation.forum.deletePost` (revision 3) takes `community` to delete an imported post. `net.openfederation.invite.create` (revision 3) takes and returns `community` (community invite codes); `net.openfederation.invite.list` (revision 2) shows it. `net.openfederation.account.register` (revision 7) and `account.registerSelfCustody` (revision 4) return `community: { did, status }` when a community invite code was used.
+
 ## 0.8.0
 
 ### Minor Changes
