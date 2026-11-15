@@ -3,6 +3,7 @@ import { query } from '../db/client.js';
 import { config } from '../config.js';
 import { runtimeSettings } from '../settings/runtime-settings.js';
 import { SERVER_VERSION } from '../server/server-version.js';
+import { demoPublicInfo } from '../demo/demo-mode.js';
 
 /**
  * net.openfederation.server.getPublicConfig
@@ -39,6 +40,8 @@ export default async function getPublicConfig(_req: Request, res: Response): Pro
       appearance: { defaultPreset: runtimeSettings().appearance.defaultPreset },
       // The PLC directory this PDS registers and resolves DIDs with.
       plcDirectoryUrl: config.plc.directoryUrl,
+      // A demo server (DEMO_MODE) deletes everything on a schedule: say when.
+      demo: demoPublicInfo(),
       stats: {
         activeCommunities: parseInt(activeCommunitiesResult.rows[0].count, 10),
         totalUsers: parseInt(totalUsersResult.rows[0].count, 10),

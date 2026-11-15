@@ -53,6 +53,8 @@ jobs:
     if: github.event_name == 'pull_request'
     name: Build ${{ matrix.image }} (no push)
     runs-on: ubuntu-latest
+    # A multi-arch dashboard build has been seen running 40+ minutes.
+    timeout-minutes: 45
     permissions:
       contents: read
     strategy:
@@ -90,6 +92,8 @@ jobs:
       github.event_name == 'workflow_dispatch'
     name: Publish ${{ matrix.image }}
     runs-on: ubuntu-latest
+    # A multi-arch dashboard build has been seen running 40+ minutes.
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write   # push to ghcr.io with GITHUB_TOKEN

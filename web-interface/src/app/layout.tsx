@@ -8,6 +8,7 @@ import { RUNTIME_CONFIG_PATH } from "@/lib/runtime-config";
 import { StoreHydration } from "@/components/store-hydration";
 import { QueryProvider } from "@/providers/query-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { DemoBanner } from "@/components/demo-banner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +47,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <AppearanceProvider>
+          <DemoBanner />
           <StoreHydration>
             <QueryProvider>
               {children}

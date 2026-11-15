@@ -9,7 +9,9 @@
  *      dashboard shows the setting as fixed;
  *   2. an admin's change, stored in the `server_settings` table;
  *   3. the setup wizard's choice, from its settings file (config.setupFileSettings);
- *   4. the profile's default (OPENFEDERATION_PROFILE), then the built-in default.
+ *   4. on a demo server (DEMO_MODE=true), the demo defaults
+ *      (src/demo/demo-settings.ts);
+ *   5. the profile's default (OPENFEDERATION_PROFILE), then the built-in default.
  *
  * Everything else stays in src/config.ts, read once at start-up.
  *
@@ -35,6 +37,7 @@ import {
   RUNTIME_SETTING_ENV_VARS, ACCOUNT_APPROVAL_POLICIES, APPEARANCE_PRESETS,
   type RuntimeSettingEnvVar, type AccountApprovalPolicy, type AppearancePreset,
 } from './keys.js';
+import { DEMO_SETTING_DEFAULTS, isDemoModeEnv } from '../demo/demo-settings.js';
 
 /**
  * What an unverified email blocks (#83). The operator's decision, because an
@@ -200,12 +203,17 @@ export function resolveRuntimeSettings(env: Env, admin: Layer, setup: Layer): Re
   const fromEnv = environmentLayer(env);
   const merged: Env = {};
   const sources = {} as Record<SettingId, SettingSource>;
+  const demo: Layer = isDemoModeEnv(env) ? DEMO_SETTING_DEFAULTS : {};
   for (const id of SETTING_ID_LIST) {
     const key = SETTING_IDS[id];
     if (fromEnv[key] !== undefined) { merged[key] = fromEnv[key]; sources[id] = 'environment'; }
     else if (isSet(admin[key])) { merged[key] = admin[key]; sources[id] = 'admin'; }
     else if (isSet(setup[key])) { merged[key] = setup[key]; sources[id] = 'setup'; }
-    else sources[id] = 'default';
+    else {
+      // A demo server's defaults sit with the profile's: still a default.
+      if (demo[key] !== undefined) merged[key] = demo[key];
+      sources[id] = 'default';
+    }
   }
 
   const identity = resolveIdentityPolicy({ ...merged, OPENFEDERATION_PROFILE: env.OPENFEDERATION_PROFILE });
