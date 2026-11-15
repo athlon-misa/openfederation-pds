@@ -778,7 +778,7 @@ See [`packages/openfederation-sdk/CHANGELOG.md`](../packages/openfederation-sdk/
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Create Account — Grvty Games</title>
+  <title>Create Account — Example Games</title>
 </head>
 <body>
   <h1>Create Your Game Account</h1>
@@ -871,8 +871,8 @@ See [PDS Roles](#pds-roles) below for the full role system.
 1. Log in to the admin dashboard at `https://web.openfederation.net`
 2. Navigate to **Admin > Partner Keys** in the sidebar
 3. Click **Create Key** and fill in:
-   - **Key Name** — a label for your reference (e.g., "FlappySoccer Production")
-   - **Partner Name** — the partner's domain or identifier (e.g., "games.grvty.tech")
+   - **Key Name** — a label for your reference (e.g., "Example Games Production")
+   - **Partner Name** — the partner's domain or identifier (e.g., "games.example.com")
    - **Allowed Origins** — comma-separated origins for CORS validation (at least one)
    - **Rate Limit** — max registrations per hour for this key (default: 100)
 4. Copy the raw key from the dialog — it won't be shown again
@@ -892,9 +892,9 @@ ofc -s https://pds.openfederation.net auth login -u admin
 
 # Create a partner key
 ofc partner create-key \
-  -n "FlappySoccer Production" \
-  -p "games.grvty.tech" \
-  -o "https://games.grvty.tech" \
+  -n "Example Games Production" \
+  -p "games.example.com" \
+  -o "https://games.example.com" \
   -r 200
 
 # List all partner keys
@@ -917,9 +917,9 @@ curl -X POST https://pds.openfederation.net/xrpc/net.openfederation.partner.crea
   -H "Authorization: Bearer <admin_access_jwt>" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Grvty Production",
-    "partnerName": "grvty.tech",
-    "allowedOrigins": ["https://grvty.tech", "https://www.grvty.tech"],
+    "name": "Example Games Production",
+    "partnerName": "example.com",
+    "allowedOrigins": ["https://example.com", "https://www.example.com"],
     "ticketPublicKey": "did:key:zQ3sh...",
     "rateLimitPerHour": 200
   }'
@@ -931,10 +931,10 @@ Response (raw key shown ONCE — save it immediately):
   "id": "uuid",
   "key": "ofp_abc123...",
   "keyPrefix": "ofp_abc1",
-  "name": "Grvty Production",
-  "partnerName": "grvty.tech",
+  "name": "Example Games Production",
+  "partnerName": "example.com",
   "permissions": ["register"],
-  "allowedOrigins": ["https://grvty.tech", "https://www.grvty.tech"],
+  "allowedOrigins": ["https://example.com", "https://www.example.com"],
   "rateLimitPerHour": 200,
   "status": "active",
   "verificationState": "pending",
@@ -963,8 +963,8 @@ curl -X POST https://pds.openfederation.net/xrpc/net.openfederation.partner.revo
 
 | Field | Required | Default | Description |
 |-------|:--------:|:-------:|-------------|
-| `name` | Yes | — | Label for identifying the key (e.g., "FlappySoccer Production") |
-| `partnerName` | Yes | — | Partner domain or identifier (e.g., "games.grvty.tech") |
+| `name` | Yes | — | Label for identifying the key (e.g., "Example Games Production") |
+| `partnerName` | Yes | — | Partner domain or identifier (e.g., "games.example.com") |
 | `allowedOrigins` | Yes | — | Origins (http or https URLs) allowed to use the key; the verification file is checked on each |
 | `ticketPublicKey` | No | — | A `did:key` (secp256k1 or P-256) your backend signs [registration tickets](#registration-tickets) with. With it, sign-ups need a ticket and are approved at once; without it, they wait for email verification |
 | `rateLimitPerHour` | No | 100 | Max registrations per hour (1–10,000) |

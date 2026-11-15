@@ -45,7 +45,7 @@
         },
         "collection": {
           "type": "string",
-          "description": "Optional custom collection NSID (e.g., app.grvty.actor.profile). Defaults to app.bsky.actor.profile."
+          "description": "Optional custom collection NSID (e.g., com.example.actor.profile). Defaults to app.bsky.actor.profile."
         },
         "record": {
           "type": "unknown",

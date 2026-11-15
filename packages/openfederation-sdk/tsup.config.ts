@@ -27,7 +27,7 @@ export default defineConfig([{
   external: ['ethers', 'node:dns/promises'],
 }, {
   // @open-federation/sdk/custody (ADR-003): ESM and CJS only, never in the
-  // /sdk/v1.js IIFE, so Grvty and FlappySoccer bundles don't change.
+  // /sdk/v1.js IIFE, so existing IIFE consumers' bundles don't change.
   entry: { custody: 'src/custody/index.ts' },
   format: ['esm', 'cjs'],
   define,

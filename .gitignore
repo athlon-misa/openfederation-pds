@@ -40,15 +40,15 @@ gotosocial/
 # Local roadmap / future feature planning
 roadmap/
 
-# Claude Code local config
+# Claude Code local config (CLAUDE.md itself is committed)
 .claude/
-CLAUDE.md
+CLAUDE.local.md
 
 # Internal planning docs and articles (kept locally)
 docs/superpowers/
 articles/
 
-# Multi-repo manifest (Grvty-specific project topology)
+# Multi-repo manifest (maintainer's local project topology)
 .multi-repo-manifest.json
 
 # Generated docs site (built by scripts/build-lexicon-docs.ts)
@@ -74,3 +74,6 @@ docs/cra-audit/
 
 # Appliance data when run from a checkout (deploy/appliance)
 deploy/appliance/data/
+
+# Stage-talk video script, kept locally
+demo/VIDEO-SCRIPT.md

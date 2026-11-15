@@ -1215,8 +1215,8 @@ const partner = program.command('partner').description('Partner key management (
 partner
   .command('create-key')
   .description('Create a new partner API key (admin)')
-  .requiredOption('-n, --name <name>', 'Key name (e.g. "FlappySoccer Production")')
-  .requiredOption('-p, --partner-name <name>', 'Partner name (e.g. "games.grvty.tech")')
+  .requiredOption('-n, --name <name>', 'Key name (e.g. "Example Games Production")')
+  .requiredOption('-p, --partner-name <name>', 'Partner name (e.g. "games.example.com")')
   .option('-o, --allowed-origins <origins>', 'Comma-separated allowed origins')
   .option('-r, --rate-limit <n>', 'Rate limit per hour', '100')
   .action(run(async () => {

@@ -71,7 +71,7 @@ describe('User Profiles', () => {
     it('should write a custom profile collection', async () => {
       if (!plcAvailable) return;
       const res = await xrpcAuthPost('net.openfederation.account.updateProfile', user.accessJwt, {
-        collection: 'app.grvty.actor.profile',
+        collection: 'com.example.actor.profile',
         record: {
           displayName: 'Carlos Martinez',
           bio: 'Goalkeeper for Hackney Youth FC',
@@ -87,8 +87,8 @@ describe('User Profiles', () => {
       const res = await xrpcGet('net.openfederation.account.getProfile', { did: user.did });
       expect(res.status).toBe(200);
       expect(res.body.customProfiles).toBeTruthy();
-      expect(res.body.customProfiles['app.grvty.actor.profile']).toBeTruthy();
-      expect(res.body.customProfiles['app.grvty.actor.profile'].role).toBe('athlete');
+      expect(res.body.customProfiles['com.example.actor.profile']).toBeTruthy();
+      expect(res.body.customProfiles['com.example.actor.profile'].role).toBe('athlete');
     });
 
     it('should reject invalid collection NSID', async () => {

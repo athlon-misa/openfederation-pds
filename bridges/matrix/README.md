@@ -24,7 +24,7 @@ Users link Matrix IDs via their PDS profile. Set custom profile collection `app.
 Bridge auto-provisions Matrix accounts from PDS handles using the admin API. Configure `handleTemplate` (e.g., `{handle}:club.hackney.org`).
 
 ### Partner-hosted (`mode: "partner-hosted"`)
-Like self-hosted, but operated by a partner (e.g., Grvty) for multiple communities. Shared homeserver or dedicated per-community.
+Like self-hosted, but operated by a partner for multiple communities. Shared homeserver or dedicated per-community.
 
 ## Role Power Levels
 
