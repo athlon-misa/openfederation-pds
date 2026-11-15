@@ -5,6 +5,7 @@ import { query } from '../db/client.js';
 import { fullHandle } from '../auth/utils.js';
 import { isWalletChain } from '../wallet/index.js';
 import { signServiceAuthJwt } from '../auth/service-auth.js';
+import { isDeviceSigningOn } from '../repo/device-signing-state.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { resolveChainIdCaip2, toCaip10 } from '../identity/siwof.js';
 
@@ -73,7 +74,11 @@ export default async function getPrimaryWallet(req: AuthRequest, res: Response):
     const handle = fullHandle(handleRes.rows[0]?.handle);
 
     let proof: string | null = null;
-    if (includeProof) {
+    // The proof is a JWT signed with the DID's atproto key. Under device
+    // signing (#240) that key is on the person's device: a proof this server
+    // signed would not verify, and making one would be the server speaking
+    // for them. The binding is returned without it.
+    if (includeProof && !(await isDeviceSigningOn(did))) {
       try {
         const keypair = await getKeypairForDid(did);
         const exp = Math.floor(Date.now() / 1000) + PROOF_TTL_SEC;

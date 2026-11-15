@@ -2146,9 +2146,11 @@ export type NetOpenfederationIdentitySignInAssertInput = {
   "walletAddress": string;
   "message": string;
   "walletSignature": string;
+  "signOnDevice"?: boolean;
 };
 export type NetOpenfederationIdentitySignInAssertOutput = {
-  "didToken": string;
+  "didToken"?: string;
+  "unsignedDidToken"?: string;
   "did": string;
   "audience": string;
   "walletProof": {
@@ -3622,7 +3624,7 @@ export const lexiconContracts = {
   'net.openfederation.identity.resolveWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.setExternalKey': { revision: 2, errors: ["InvalidProof", "InvalidPublicKey", "InvalidRequest", "KeyAlreadyClaimed"] as const },
   'net.openfederation.identity.setPrimaryWallet': { revision: 2, errors: ["Forbidden", "InvalidRequest", "UnsupportedChain", "WalletInactive", "WalletNotFound"] as const },
-  'net.openfederation.identity.signInAssert': { revision: 2, errors: ["ChallengeExpired", "ChallengeNotFound", "InvalidRequest", "InvalidSignature", "NoSigningKey", "UnsupportedChain"] as const },
+  'net.openfederation.identity.signInAssert': { revision: 3, errors: ["ChallengeExpired", "ChallengeNotFound", "InvalidRequest", "InvalidSignature", "NoSigningKey", "UnsupportedChain"] as const },
   'net.openfederation.identity.signInChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.unlinkWallet': { revision: 2, errors: ["CustodialWallet", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.identity.verifyRecord': { revision: 1, errors: ["InvalidRequest", "RecordNotFound"] as const },

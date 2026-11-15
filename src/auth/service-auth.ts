@@ -211,24 +211,26 @@ export async function verifyServiceAuthJwt(
   return payload;
 }
 
-/**
- * Sign a service-auth JWT for outbound use.
- * Used by com.atproto.server.getServiceAuth and the SIWOF didToken flow.
- *
- * extraClaims are merged into the payload alongside the standard
- * iss/aud/exp/iat/jti/lxm. Any claim key passed here is additive — existing
- * standard claims win if there's a conflict (can't override iss, aud, etc.).
- */
-export async function signServiceAuthJwt(opts: {
-  keypair: Keypair;
+/** The claims of an outbound service-auth JWT, as `signServiceAuthJwt` takes them. */
+export interface ServiceAuthJwtInput {
   iss: string;
   aud: string;
   exp: number;
   iat?: number;
   lxm?: string;
   extraClaims?: Record<string, unknown>;
-}): Promise<string> {
-  const alg = opts.keypair.jwtAlg; // 'ES256K' or 'ES256'
+}
+
+/**
+ * The JWT's `header.payload`, the bytes its signature covers. Split out so a
+ * token can be signed elsewhere: under device signing (#240) the DID's
+ * atproto key is on the person's device, which signs these bytes itself.
+ *
+ * extraClaims are merged into the payload alongside the standard
+ * iss/aud/exp/iat/jti/lxm. Any claim key passed here is additive — existing
+ * standard claims win if there's a conflict (can't override iss, aud, etc.).
+ */
+export function serviceAuthSigningInput(alg: string, opts: ServiceAuthJwtInput): string {
   const header = { typ: 'JWT', alg };
   const standard: ServiceAuthClaims = {
     iss: opts.iss,
@@ -239,12 +241,17 @@ export async function signServiceAuthJwt(opts: {
     ...(opts.lxm ? { lxm: opts.lxm } : {}),
   };
   const payload = { ...(opts.extraClaims ?? {}), ...standard };
-  const headerB64 = base64UrlEncodeString(JSON.stringify(header));
-  const payloadB64 = base64UrlEncodeString(JSON.stringify(payload));
-  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
-  const sig = await opts.keypair.sign(signingInput);
-  const sigB64 = base64UrlEncodeBytes(sig);
-  return `${headerB64}.${payloadB64}.${sigB64}`;
+  return `${base64UrlEncodeString(JSON.stringify(header))}.${base64UrlEncodeString(JSON.stringify(payload))}`;
+}
+
+/**
+ * Sign a service-auth JWT for outbound use.
+ * Used by com.atproto.server.getServiceAuth and the SIWOF didToken flow.
+ */
+export async function signServiceAuthJwt(opts: ServiceAuthJwtInput & { keypair: Keypair }): Promise<string> {
+  const unsigned = serviceAuthSigningInput(opts.keypair.jwtAlg, opts); // 'ES256K' or 'ES256'
+  const sig = await opts.keypair.sign(new TextEncoder().encode(unsigned));
+  return `${unsigned}.${base64UrlEncodeBytes(sig)}`;
 }
 
 // ── Replay protection ────────────────────────────────────────────────────────
