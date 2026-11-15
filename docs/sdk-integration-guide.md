@@ -2120,8 +2120,8 @@ Where the server allows it (`getPublicConfig` → `identity.deviceSigningAllowed
 [ADR-003](adr/ADR-003-custody-modes.md) decision 14). The DID's `atproto` key then names the
 device's key, so relays and apps reject any commit the server signs: the operator can refuse the
 person's writes, but not forge them. The cost: nothing can be written while the device is
-offline, and server features that write for the person (profile, contacts, votes, forum, RSVPs)
-answer `DeviceSigningRequired` until they move to device signing.
+offline. Server features that write for the person (profile, contacts, votes, forum, RSVPs)
+answer `DeviceSigningRequired` when called directly; the device signs them instead (below).
 
 ```ts
 import {
@@ -2218,3 +2218,63 @@ const status = await getDeviceSigningStatus(ofd);
   turns it on again.
 - **Features while it is on** come from the server (`status.features`, `{ id, title, available }`);
   show those instead of a list of your own.
+#### Features and tokens, signed on the device
+
+The features that do more than write a record run on the PDS as usual, with the device signing
+the one write each makes for the person (#240 phase 2): the PDS runs the method up to that write
+(`net.openfederation.repo.prepareAction`), the device checks and signs it, and `submitCommit` runs
+the method again with the signature in place and returns its answer.
+
+```ts
+import {
+  deviceUpdateProfile, deviceCreateThread, deviceCreatePost, deviceDeletePost, deviceRsvp,
+  deviceVote, deviceObject, deviceSendContactRequest, deviceRespondToContactRequest,
+  deviceRemoveContact, deviceWithdrawContactRequest, deviceBlockContact, deviceUnblockContact,
+  deviceAction, createServiceAuthToken, deviceSignInAssert,
+} from '@open-federation/sdk/custody';
+
+const d = { client: ofd, did, deviceKey: device.privateKey, verifyAgainst: pdsUrl };
+
+await deviceUpdateProfile({ ...d, displayName: 'Elena', description: 'Night desk' });
+const thread = await deviceCreateThread({ ...d, community, title: 'Tonight' });
+await deviceCreatePost({ ...d, community, root: { uri: thread.result.uri, cid: thread.result.cid }, text: 'First' });
+await deviceRsvp({ ...d, community, event: { uri, cid }, status: 'going' });
+await deviceVote({ ...d, communityDid, proposalRkey, vote: 'for' });
+await deviceObject({ ...d, communityDid, proposalRkey, reason: 'Not like this' });
+await deviceSendContactRequest({ ...d, subject: theirDid });
+await deviceRespondToContactRequest({ ...d, rkey, action: 'accept', from: theirDid });
+
+// Any of the methods prepareAction takes, with your own check of what will be signed:
+await deviceAction({ ...d, method: 'net.openfederation.contact.block', input: { subject }, expect: (request) => { /* throw to refuse */ } });
+```
+
+- **What the device checks.** Each helper refuses (`DeviceCommitRejected`) unless the server plans
+  exactly the record(s) asked for: the post's text, the vote's proposal and direction, the
+  contact's subject. For a commit it also checks the new tree, as `deviceApplyWrites` does. In a
+  **private community** the record is kept in the community's repo, not in the person's public
+  one; the device signs it as its author (`authorSig`, over the record's CID, which it recomputes),
+  and `kind` is `authorSig` instead of `commit`. `verifyAgainst` is then not used.
+- **Answers.** `{ result, signed, commit?, writes? }`: `result` is what the method returns when the
+  server signs. `signed: false` means the method needed no signature (rejecting a contact
+  request; deleting a post kept in a community's repo).
+- **The checks run twice.** The PDS checks the method on prepare and again on submit; if something
+  changed in between (the proposal closed, the vote was already cast) nothing is written and the
+  method's own error comes back. `RepoHeadMoved` and `ActionChanged` are retried (`attempts`).
+- **Contacts with someone else on device signing.** Accepting their request writes your side; they
+  are asked to confirm, which shows as an incoming request from you that their device accepts.
+- **Votes cast by a delegate** are not counted for a delegator with device signing: only the
+  person's own device can sign their vote.
+- **Service-auth tokens** (for another PDS or service): `com.atproto.server.getServiceAuth`
+  refuses, because the token is checked against the DID's atproto key. Mint it on the device:
+  `createServiceAuthToken({ did, deviceKey, aud, lxm, exp? })` (ES256K, 60 seconds by default).
+  The same works for the service auth an account move asks for (`aud` = the new PDS's service
+  DID, `lxm: 'com.atproto.server.createAccount'`).
+- **Sign in with OpenFederation:** `deviceSignInAssert({ client, did, deviceKey, chain,
+  walletAddress, message, walletSignature })` instead of calling `signInAssert`. The PDS checks the
+  wallet signature and the challenge and returns the didToken unsigned; the device checks its
+  issuer, audience, nonce, account, chain and expiry against the message and signs it. dApps
+  verify it as any didToken, against the DID's current atproto key.
+- **Not available while device signing is on:** external-key claims
+  (`identity.setExternalKey` / `deleteExternalKey`), the proof in `identity.getPrimaryWallet` (the
+  binding is returned without it), and activity from communities on other servers in the
+  timeline (asking them would take a token signed as the person).

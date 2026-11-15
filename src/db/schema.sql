@@ -865,7 +865,12 @@ CREATE TABLE IF NOT EXISTS pending_device_commits (
     index_ops JSONB NOT NULL,
     results JSONB NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- migrate-063 (#240 phase 2): prepared for a method (prepareAction), and
+    -- what the device signs: a commit, or a record's CID as its author.
+    kind TEXT NOT NULL DEFAULT 'commit',
+    action JSONB,
+    author_record JSONB
 );
 CREATE INDEX IF NOT EXISTS idx_pending_device_commits_did ON pending_device_commits(did);
 CREATE INDEX IF NOT EXISTS idx_pending_device_commits_expires ON pending_device_commits(expires_at);

@@ -1,7 +1,9 @@
 /**
- * A member's signature on community content stays valid after they rotate
- * their signing key: it is checked against every atproto key the DID has had,
- * not only the current one.
+ * A member's signature on community content is checked against the atproto
+ * key the DID names now (#240 phase 2). A key the DID has rotated away from no
+ * longer counts: under device signing the server's own repo key is in every
+ * such DID's history, and accepting it would let the server sign "member"
+ * records the member never wrote.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { Secp256k1Keypair } from '@atproto/crypto';
@@ -33,12 +35,28 @@ async function signedRecord(keypair: Secp256k1Keypair, author = DID): Promise<Re
 describe('author signatures across key rotation', () => {
   afterEach(() => setPlcClientForTests(null));
 
-  it('still verifies a record signed with a key the DID has since rotated away from', async () => {
+  it('does not verify a record signed with a key the DID has since rotated away from', async () => {
     const oldKey = await Secp256k1Keypair.create();
     const newKey = await Secp256k1Keypair.create();
     const record = await signedRecord(oldKey);
     useLog([op(oldKey.did()), op(newKey.did())]);
-    expect(await verifyAuthorSignature(record)).toBe(true);
+    expect(await verifyAuthorSignature(record)).toBe(false);
+  });
+
+  it('verifies a record signed with the DID\'s current key, after a rotation', async () => {
+    const oldKey = await Secp256k1Keypair.create();
+    const newKey = await Secp256k1Keypair.create();
+    useLog([op(oldKey.did()), op(newKey.did())]);
+    expect(await verifyAuthorSignature(await signedRecord(newKey))).toBe(true);
+  });
+
+  it('does not verify a record whose authorSig names the current key but was signed by an old one', async () => {
+    const oldKey = await Secp256k1Keypair.create();
+    const newKey = await Secp256k1Keypair.create();
+    const signed = await signedRecord(oldKey);
+    useLog([op(oldKey.did()), op(newKey.did())]);
+    const relabelled = { ...signed, authorSig: { ...(signed.authorSig as { sig: string }), key: newKey.did() } };
+    expect(await verifyAuthorSignature(relabelled)).toBe(false);
   });
 
   it('does not verify a record signed with a key the DID never had', async () => {

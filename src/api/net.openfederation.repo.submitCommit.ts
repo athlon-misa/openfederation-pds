@@ -9,6 +9,9 @@ import { RepoConcurrentWriteError } from '../repo/pg-blockstore.js';
 import { takePendingCommit, dropPendingCommits } from '../repo/device-commits.js';
 import { currentAtprotoKey, serverAtprotoKey } from '../identity/device-signing.js';
 import { noticeDeviceSigningSwitchedOff } from '../identity/assisted-notice.js';
+import { runFinish, forwardResponse } from '../repo/device-actions.js';
+import type { FinishContext } from '../repo/device-action-context.js';
+import { fanOutDisplayFields } from '../community/display-projection.js';
 import { HttpError, renderXrpcError } from '../xrpc/errors.js';
 
 const NSID = 'net.openfederation.repo.submitCommit';
@@ -29,6 +32,13 @@ const NSID = 'net.openfederation.repo.submitCommit';
  *     the client prepares again.
  *  5. Blocks, root and records_index change in one transaction, as for every
  *     server-signed write.
+ *
+ * A handle from net.openfederation.repo.prepareAction (#240 phase 2) is
+ * finished differently after step 3: the method it was prepared for runs
+ * again with the same input, and at the write the device signed it gets the
+ * device's commit (or, for a record kept in a private community, the record
+ * with the device's `authorSig`) instead of a server-signed one. Its answer is
+ * returned in `result`; its errors are returned as they are.
  */
 export default async function submitCommit(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -79,6 +89,40 @@ export default async function submitCommit(req: AuthRequest, res: Response): Pro
     }
     if (!valid) throw new HttpError(400, 'InvalidSignature', 'The signature does not verify against the DID\'s current atproto key');
 
+    if (prepared.action) {
+      const ctx: FinishContext = {
+        mode: 'finish',
+        did,
+        kind: prepared.kind,
+        sig: sigBytes,
+        key,
+        used: false,
+        ...(prepared.kind === 'commit'
+          ? { prepared, plannedOps: prepared.action.ops ?? [] }
+          : { planned: prepared.authorRecord ?? undefined }),
+      };
+      if (prepared.kind === 'commit' && (await new RepoEngine(did).getRoot())?.toString() !== prepared.prevRoot) {
+        throw new HttpError(409, 'RepoHeadMoved', 'The repository changed since this action was prepared; prepare it again');
+      }
+      const answer = await runFinish(req, ctx, prepared.action.method, prepared.action.input);
+      // Applying the device's signature failed (the repo moved, the method now
+      // wants another write): that, not the method's own rendering of it.
+      if (ctx.error) {
+        renderXrpcError(NSID, res, ctx.error);
+        return;
+      }
+      if (answer.statusCode >= 400) {
+        forwardResponse(res, answer);
+        return;
+      }
+      res.status(200).json({
+        ...(ctx.commit ? { commit: ctx.commit, writes: prepared.results } : {}),
+        signed: ctx.used,
+        result: answer.body ?? {},
+      });
+      return;
+    }
+
     const engine = new RepoEngine(did);
     const root = await engine.getRoot();
     if (root?.toString() !== prepared.prevRoot) {
@@ -94,7 +138,13 @@ export default async function submitCommit(req: AuthRequest, res: Response): Pro
       throw err;
     }
 
-    res.status(200).json({ commit, writes: prepared.results });
+    // A profile written through the generic path is shown in communities as
+    // one written through updateProfile is.
+    if (prepared.results.some((w) => w.rkey === 'self' && w.collection.endsWith('.actor.profile'))) {
+      await fanOutDisplayFields(did, req.auth.handle).catch((err) => console.error('submitCommit: profile fan-out failed:', err));
+    }
+
+    res.status(200).json({ commit, writes: prepared.results, signed: true });
   } catch (error) {
     renderXrpcError(NSID, res, error);
   }

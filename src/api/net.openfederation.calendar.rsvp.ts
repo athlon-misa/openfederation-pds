@@ -5,7 +5,7 @@ import { indexRsvp, CALENDAR_RSVP, CALENDAR_EVENT } from '../forum/forum-index.j
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
 import { writeMemberContent, deleteMemberContent, isPrivateCommunity } from '../forum/member-content.js';
-import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
+import { respondIfDeviceSigning, isDeviceSigningOn } from '../repo/device-signing-state.js';
 
 const STATUSES = ['going', 'interested', 'notgoing'];
 
@@ -44,7 +44,8 @@ export default async function rsvp(req: AuthRequest, res: Response): Promise<voi
 
     const attendeeDid = req.auth!.did;
     // An RSVP is in the attendee's repo, or (private community) signed with
-    // their repo key: neither is the server's to make under device signing (#240).
+    // their repo key: neither is the server's to make under device signing
+    // (#240); the attendee's device signs it through net.openfederation.repo.prepareAction.
     if (await respondIfDeviceSigning(res, attendeeDid)) return;
     const createdAt = new Date().toISOString();
     const record = { subject: event, status, createdAt };
@@ -59,7 +60,13 @@ export default async function rsvp(req: AuthRequest, res: Response): Promise<voi
     const previousUri = previous.rows[0]?.uri;
     const previousInPlace = previousUri
       && previousUri.startsWith(`at://${wantPrivate ? community : attendeeDid}/${CALENDAR_RSVP}/`);
-    if (previousUri && !previousInPlace) await deleteMemberContent(previousUri).catch(() => undefined);
+    // The old one moves out of the attendee's own repo only if the server may
+    // write there: under device signing (#240) it stays for their device to
+    // remove, and this RSVP takes the one signature the device gives.
+    if (previousUri && !previousInPlace
+      && !(previousUri.startsWith(`at://${attendeeDid}/`) && await isDeviceSigningOn(attendeeDid))) {
+      await deleteMemberContent(previousUri).catch(() => undefined);
+    }
 
     const result = await writeMemberContent({
       communityDid: community, authorDid: attendeeDid, collection: CALENDAR_RSVP, record,
@@ -68,7 +75,8 @@ export default async function rsvp(req: AuthRequest, res: Response): Promise<voi
     });
     const rkey = result.rkey;
 
-    await indexRsvp({ uri: result.uri, eventUri: event.uri, attendeeDid, status, createdAt });
+    const storedAt = typeof result.record.createdAt === 'string' ? result.record.createdAt : createdAt;
+    await indexRsvp({ uri: result.uri, eventUri: event.uri, attendeeDid, status, createdAt: storedAt });
     await auditLog('calendar.rsvp', req.auth!.userId, community, { uri: result.uri, event: event.uri, status });
     res.status(200).json({ uri: result.uri, cid: result.cid, rkey });
   } catch (error) {

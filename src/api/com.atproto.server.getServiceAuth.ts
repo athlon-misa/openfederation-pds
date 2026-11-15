@@ -65,8 +65,11 @@ export default async function getServiceAuth(req: AuthRequest, res: Response): P
 
   // Service-auth tokens are checked against the DID's atproto key. Under
   // device signing (#240) that is the device's key, so a token this server
-  // signed would be refused everywhere; say so instead of minting one.
-  if (await respondIfDeviceSigning(res, req.auth.did, 'This account\'s atproto key is on its device (device signing), so the server cannot sign service-auth tokens for it')) return;
+  // signed would be refused everywhere. The device mints its own: a
+  // service-auth token needs nothing from this server (iss, aud, exp, lxm,
+  // signed with the atproto key), `createServiceAuthToken` in
+  // @open-federation/sdk/custody.
+  if (await respondIfDeviceSigning(res, req.auth.did, 'This account\'s atproto key is on its device (device signing), so the server cannot sign service-auth tokens for it; sign the token on the device (createServiceAuthToken in @open-federation/sdk/custody)')) return;
 
   let keypair;
   try {

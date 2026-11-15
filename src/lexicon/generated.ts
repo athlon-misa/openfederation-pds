@@ -2146,9 +2146,11 @@ export type NetOpenfederationIdentitySignInAssertInput = {
   "walletAddress": string;
   "message": string;
   "walletSignature": string;
+  "signOnDevice"?: boolean;
 };
 export type NetOpenfederationIdentitySignInAssertOutput = {
-  "didToken": string;
+  "didToken"?: string;
+  "unsignedDidToken"?: string;
   "did": string;
   "audience": string;
   "walletProof": {
@@ -2447,6 +2449,28 @@ export type NetOpenfederationPseudonymSignLinkOutput = {
 };
 export type NetOpenfederationPseudonymSignLinkError = "Forbidden" | "InvalidStatement" | "SelfCustodyAccount" | "Unauthorized";
 
+export type NetOpenfederationRepoPrepareActionInput = {
+  "method": string;
+  "input": unknown;
+};
+export type NetOpenfederationRepoPrepareActionOutput = {
+  "method": string;
+  "kind": string;
+  "handle"?: string;
+  "expiresAt"?: string;
+  "commit"?: unknown;
+  "writes"?: Array<unknown>;
+  "authorSig"?: {
+  "repo": string;
+  "collection": string;
+  "rkey": string;
+  "record": unknown;
+  "cid": string;
+};
+  "result"?: unknown;
+};
+export type NetOpenfederationRepoPrepareActionError = "DeviceSigningOff" | "TooManyPendingCommits" | "UnsupportedMethod";
+
 export type NetOpenfederationRepoPrepareCommitInput = {
   "repo"?: string;
   "writes": Array<unknown>;
@@ -2468,13 +2492,15 @@ export type NetOpenfederationRepoSubmitCommitInput = {
   "sig": string;
 };
 export type NetOpenfederationRepoSubmitCommitOutput = {
-  "commit": {
+  "commit"?: {
   "cid": string;
   "rev": string;
 };
-  "writes": Array<unknown>;
+  "writes"?: Array<unknown>;
+  "signed": boolean;
+  "result"?: unknown;
 };
-export type NetOpenfederationRepoSubmitCommitError = "CommitExpired" | "DeviceSigningOff" | "InvalidSignature" | "RepoHeadMoved" | "UnknownCommit" | "UpstreamFailure";
+export type NetOpenfederationRepoSubmitCommitError = "ActionChanged" | "CommitExpired" | "DeviceSigningOff" | "InvalidSignature" | "RepoHeadMoved" | "UnknownCommit" | "UpstreamFailure";
 
 export type NetOpenfederationServerGetConfigInput = undefined;
 export type NetOpenfederationServerGetConfigOutput = {
@@ -2934,6 +2960,7 @@ export interface LexiconInputMap {
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysInput;
   'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkInput;
   'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkInput;
+  'net.openfederation.repo.prepareAction': NetOpenfederationRepoPrepareActionInput;
   'net.openfederation.repo.prepareCommit': NetOpenfederationRepoPrepareCommitInput;
   'net.openfederation.repo.submitCommit': NetOpenfederationRepoSubmitCommitInput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigInput;
@@ -3162,6 +3189,7 @@ export interface LexiconOutputMap {
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysOutput;
   'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkOutput;
   'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkOutput;
+  'net.openfederation.repo.prepareAction': NetOpenfederationRepoPrepareActionOutput;
   'net.openfederation.repo.prepareCommit': NetOpenfederationRepoPrepareCommitOutput;
   'net.openfederation.repo.submitCommit': NetOpenfederationRepoSubmitCommitOutput;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigOutput;
@@ -3390,6 +3418,7 @@ export interface LexiconErrorMap {
   'net.openfederation.pseudonym.getTokenKeys': NetOpenfederationPseudonymGetTokenKeysError;
   'net.openfederation.pseudonym.link': NetOpenfederationPseudonymLinkError;
   'net.openfederation.pseudonym.signLink': NetOpenfederationPseudonymSignLinkError;
+  'net.openfederation.repo.prepareAction': NetOpenfederationRepoPrepareActionError;
   'net.openfederation.repo.prepareCommit': NetOpenfederationRepoPrepareCommitError;
   'net.openfederation.repo.submitCommit': NetOpenfederationRepoSubmitCommitError;
   'net.openfederation.server.getConfig': NetOpenfederationServerGetConfigError;
@@ -3595,7 +3624,7 @@ export const lexiconContracts = {
   'net.openfederation.identity.resolveWallet': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.setExternalKey': { revision: 2, errors: ["InvalidProof", "InvalidPublicKey", "InvalidRequest", "KeyAlreadyClaimed"] as const },
   'net.openfederation.identity.setPrimaryWallet': { revision: 2, errors: ["Forbidden", "InvalidRequest", "UnsupportedChain", "WalletInactive", "WalletNotFound"] as const },
-  'net.openfederation.identity.signInAssert': { revision: 2, errors: ["ChallengeExpired", "ChallengeNotFound", "InvalidRequest", "InvalidSignature", "NoSigningKey", "UnsupportedChain"] as const },
+  'net.openfederation.identity.signInAssert': { revision: 3, errors: ["ChallengeExpired", "ChallengeNotFound", "InvalidRequest", "InvalidSignature", "NoSigningKey", "UnsupportedChain"] as const },
   'net.openfederation.identity.signInChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.unlinkWallet': { revision: 2, errors: ["CustodialWallet", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.identity.verifyRecord': { revision: 1, errors: ["InvalidRequest", "RecordNotFound"] as const },
@@ -3620,8 +3649,9 @@ export const lexiconContracts = {
   'net.openfederation.pseudonym.getTokenKeys': { revision: 2, errors: [] as const },
   'net.openfederation.pseudonym.link': { revision: 2, errors: [] as const },
   'net.openfederation.pseudonym.signLink': { revision: 2, errors: ["Forbidden", "InvalidStatement", "SelfCustodyAccount", "Unauthorized"] as const },
+  'net.openfederation.repo.prepareAction': { revision: 1, errors: ["DeviceSigningOff", "TooManyPendingCommits", "UnsupportedMethod"] as const },
   'net.openfederation.repo.prepareCommit': { revision: 1, errors: ["DeviceSigningOff", "ProbationLimit", "RecordNotFound", "TooManyPendingCommits", "UseDedicatedEndpoint"] as const },
-  'net.openfederation.repo.submitCommit': { revision: 1, errors: ["CommitExpired", "DeviceSigningOff", "InvalidSignature", "RepoHeadMoved", "UnknownCommit", "UpstreamFailure"] as const },
+  'net.openfederation.repo.submitCommit': { revision: 2, errors: ["ActionChanged", "CommitExpired", "DeviceSigningOff", "InvalidSignature", "RepoHeadMoved", "UnknownCommit", "UpstreamFailure"] as const },
   'net.openfederation.server.getConfig': { revision: 1, errors: [] as const },
   'net.openfederation.server.getPublicConfig': { revision: 7, errors: [] as const },
   'net.openfederation.vault.auditLog': { revision: 2, errors: [] as const },

@@ -34,7 +34,8 @@ export default async function deletePost(req: AuthRequest, res: Response): Promi
       const community = await query<{ status: string }>('SELECT status FROM communities WHERE did = $1', [communityDid]);
       if (community.rows[0] && !writableStatus(community.rows[0].status, res)) return;
     } else if (await respondIfDeviceSigning(res, authorDid)) {
-      // In the author's own repo, whose device signs it (#240).
+      // In the author's own repo, whose device signs it (#240): through
+      // net.openfederation.repo.prepareAction, the deletion is the device's commit.
       return;
     }
 

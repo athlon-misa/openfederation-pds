@@ -1,0 +1,132 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.repo.prepareAction",
+  "revision": 1,
+  "description": "Device signing, phase 2 (#240): run a method that writes on the caller's behalf (profile, contacts, forum, RSVPs, votes, objections) up to the write the device must sign, and return it unsigned. Nothing changes until net.openfederation.repo.submitCommit, which runs the method again with the device's signature in place and returns its answer. The method's own checks run both times; its errors are returned as they are. Only for accounts with device signing on. Handles expire after 5 minutes and count towards the same limit of 8 per account as prepareCommit.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Prepare a method's write for the account's device to sign.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "method",
+            "input"
+          ],
+          "properties": {
+            "method": {
+              "type": "string",
+              "format": "nsid",
+              "description": "One of: net.openfederation.account.updateProfile, net.openfederation.forum.createThread, net.openfederation.forum.createPost, net.openfederation.forum.deletePost, net.openfederation.calendar.rsvp, net.openfederation.community.voteOnProposal, net.openfederation.community.objectToProposal, net.openfederation.contact.sendRequest, net.openfederation.contact.respondToRequest, net.openfederation.contact.removeContact, net.openfederation.contact.withdrawRequest, net.openfederation.contact.block, net.openfederation.contact.unblock."
+            },
+            "input": {
+              "type": "unknown",
+              "description": "The method's input, exactly as it would be sent to the method."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "method",
+            "kind"
+          ],
+          "properties": {
+            "method": {
+              "type": "string",
+              "format": "nsid"
+            },
+            "kind": {
+              "type": "string",
+              "knownValues": [
+                "commit",
+                "authorSig",
+                "none"
+              ],
+              "description": "commit: sign commit.unsignedCommit (a commit into the caller's repo). authorSig: sign the bytes of authorSig.cid (a record the caller writes in a private community, kept in its repo). none: the method finished without needing the device; see result."
+            },
+            "handle": {
+              "type": "string",
+              "description": "For submitCommit (kinds commit and authorSig)."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "datetime"
+            },
+            "commit": {
+              "type": "unknown",
+              "description": "kind commit: the prepared commit, as net.openfederation.repo.prepareCommit returns one."
+            },
+            "writes": {
+              "type": "array",
+              "description": "kind commit: the writes in the commit, { action: create | update | delete, collection, rkey, record (create and update) }. Check them, and that the new tree holds exactly them, before signing.",
+              "items": {
+                "type": "unknown"
+              }
+            },
+            "authorSig": {
+              "type": "ref",
+              "ref": "#authorSigRequest"
+            },
+            "result": {
+              "type": "unknown",
+              "description": "kind none: the method's answer."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "UnsupportedMethod",
+          "description": "The method cannot be signed on the device through this call."
+        },
+        {
+          "name": "DeviceSigningOff",
+          "description": "Device signing is not on for this account; call the method directly."
+        },
+        {
+          "name": "TooManyPendingCommits",
+          "description": "The account already holds the maximum number of prepared commits."
+        }
+      ]
+    },
+    "authorSigRequest": {
+      "type": "object",
+      "description": "A record the caller signs as its author: authorSig = { key: the DID's atproto key, sig: base64url signature over the bytes of cid }.",
+      "required": [
+        "repo",
+        "collection",
+        "rkey",
+        "record",
+        "cid"
+      ],
+      "properties": {
+        "repo": {
+          "type": "string",
+          "format": "did",
+          "description": "The repository the record is kept in (the community's)."
+        },
+        "collection": {
+          "type": "string",
+          "format": "nsid"
+        },
+        "rkey": {
+          "type": "string"
+        },
+        "record": {
+          "type": "unknown",
+          "description": "The record as signed: with author, without authorSig."
+        },
+        "cid": {
+          "type": "string",
+          "description": "CID of record (dag-cbor, sha-256); recompute it before signing."
+        }
+      }
+    }
+  }
+}

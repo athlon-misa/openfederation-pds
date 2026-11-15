@@ -1,6 +1,6 @@
 # ADR-003: Identity custody modes, custodial and self (#251)
 
-**Status:** accepted, built (#361–#366 and the person-signed records PR) · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset), 2026-11-13 (optional recovery key, decision 13; device signing, decision 14) · **Issues:** #251 (daily unlock), #238 (recovery), #242 (write integrity), #240 (device signing)
+**Status:** accepted, built (#361–#366 and the person-signed records PR) · **Decided:** 2026-10-19 · **Written down:** 2026-11-11 · **Revised:** 2026-11-11 (the `assisted` mode; changing modes goes both ways; password reset), 2026-11-13 (optional recovery key, decision 13; device signing, decision 14), 2026-11-15 (device signing phase 2) · **Issues:** #251 (daily unlock), #238 (recovery), #242 (write integrity), #240 (device signing)
 
 One OpenFederation codebase serves two kinds of installation:
 
@@ -306,7 +306,7 @@ which key, and in what order.
       72 hours, and the PDS does not email about it (it never sees it), so the app should watch
       the DID's PLC log. Pseudonyms stay without recovery.
 
-14. **Device signing (#240), decided 2026-11-13, phases 1, 3 and 4 built.** A per-account choice,
+14. **Device signing (#240), decided 2026-11-13, phases 1 to 4 built.** A per-account choice,
     offered where the installation allows it (`DEVICE_SIGNING_ALLOWED`, on under the
     `privacy` profile, published as `identity.deviceSigningAllowed`).
 
@@ -349,16 +349,31 @@ which key, and in what order.
       `didToken`s. `RepoEngine` itself refuses to sign for the account, so a path that
       forgets to check still cannot. When a community turns private, a device-signing
       member's public content is left where it is (the server can neither re-sign nor delete
-      it). Writes into community repos are unaffected. Moving these features to device
-      signing is phase 2.
+      it). Writes into community repos are unaffected.
+    - **The features, signed on the device (phase 2).** Each feature that writes for the
+      person runs on the server as before, and the device signs the one write it makes:
+      `net.openfederation.repo.prepareAction` runs the method until that write (a commit in
+      the person's repo, or the `authorSig` on a record a private community keeps), changes
+      nothing, and returns it unsigned; `submitCommit` verifies the signature as for any
+      device commit and runs the method again, checks included, with the signed write in
+      place. Reusing the handlers keeps one copy of each feature's rules; the device's
+      check (the records say what was asked for, the tree holds exactly them, the CID is
+      recomputed) is what makes the signature mean something. Profile, contacts, forum,
+      RSVPs, votes and objections work this way. Service-auth tokens need nothing from the
+      server and are minted on the device; the SIWOF `didToken` is prepared by the server
+      (which checks the wallet signature and the challenge) and signed on the device after
+      it checks the claims. Author signatures are checked against the DID's current key
+      only: the server's former key stays in the DID's history and must not vouch for
+      anything. Left unavailable: external-key claims, the `getPrimaryWallet` proof, remote
+      timeline activity (each would need the server to sign as the person), and a
+      delegate's vote for a delegator with device signing.
     - **On and off.** `account.enableDeviceSigning` turns it on only once PLC names a key
       that is not one of this server's keys for the DID; `account.disableDeviceSigning`
       turns it off only once PLC names this server's key again
       (`getRecommendedDidCredentials`). If PLC names the server's key again without the
       PDS being told, the next `submitCommit` notices and turns it off.
     - **What the person gives up:** nothing can be written to their repository while their
-      device is offline, and features that write on their behalf are unavailable until they
-      move to device signing.
+      device is offline, and the few features listed above as unavailable.
     - **Losing the device** loses nothing permanent: the phrase signs a PLC update naming a
       new device key (`setDeviceRepoKey`, `rotateDeviceRepoKey`) or the server's key again
       (`disableDeviceSigning`). The recovery key (decision 13) can sign the same update

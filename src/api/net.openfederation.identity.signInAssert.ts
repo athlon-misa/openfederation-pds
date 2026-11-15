@@ -9,9 +9,10 @@ import { auditLog } from '../db/audit.js';
 import { parseSiwofMessage, normalizeSiwofAudience } from '../identity/siwof.js';
 import { verifyEthereumSignature } from '../identity/adapters/ethereum-verifier.js';
 import { verifySolanaSignature } from '../identity/adapters/solana-verifier.js';
-import { signServiceAuthJwt } from '../auth/service-auth.js';
+import { signServiceAuthJwt, serviceAuthSigningInput } from '../auth/service-auth.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
-import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
+import { isDeviceSigningOn, respondIfDeviceSigning } from '../repo/device-signing-state.js';
+import { parseDidKey } from '@atproto/crypto';
 import { isWalletChain } from '../wallet/index.js';
 
 const DID_TOKEN_TTL_SEC = 5 * 60; // 5 minutes — long enough for a dApp backend to verify without pressure
@@ -31,6 +32,12 @@ const DID_TOKEN_TTL_SEC = 5 * 60; // 5 minutes — long enough for a dApp backen
  *      The dApp independently verifies that signature against the wallet
  *      address in the CAIP-10 claim. Combined with the didToken, this is a
  *      cryptographic proof of "this DID controls this wallet."
+ *
+ * Under device signing (#240) the atproto key is on the person's device, so
+ * the server cannot sign the didToken. With `signOnDevice: true` it makes
+ * every check as usual and returns `unsignedDidToken` (the JWT's
+ * header.payload) instead; the device checks the claims, signs those bytes
+ * and appends the signature (`deviceSignInAssert` in @open-federation/sdk/custody).
  */
 export default async function signInAssert(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -67,6 +74,15 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
 
     const userDid = req.auth!.did;
     const addr = chain === 'ethereum' ? walletAddress.toLowerCase() : walletAddress;
+
+    // The didToken is checked against the DID's atproto key; under device
+    // signing (#240) that key is on the device. Without signOnDevice this is
+    // refused before the challenge is used up.
+    const onDevice = await isDeviceSigningOn(userDid);
+    if (onDevice && req.body?.signOnDevice !== true) {
+      await respondIfDeviceSigning(res, userDid, 'This account\'s atproto key is on its device (device signing), so the server cannot sign a didToken for it; call again with signOnDevice: true and sign unsignedDidToken on the device');
+      return;
+    }
 
     // CAIP-10 account address in the message must match the walletAddress argument.
     const parsedAddress = parsed.accountCaip10.split(':').slice(-1)[0];
@@ -133,30 +149,16 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Mint the didToken. The user's atproto signing key is what establishes
-    // "this DID said so," and any dApp can verify this offline.
-    // The didToken is checked against the DID's atproto key; under device
-    // signing (#240) that key is on the device, not here.
-    if (await respondIfDeviceSigning(res, userDid, 'This account\'s atproto key is on its device (device signing), so the server cannot sign a didToken for it')) return;
-    let keypair;
-    try {
-      keypair = await getKeypairForDid(userDid);
-    } catch {
-      res.status(500).json({ error: 'NoSigningKey', message: 'No atproto signing key for this DID' });
-      return;
-    }
     const messageExpiry = parsed.expirationTime ? Math.floor(Date.parse(parsed.expirationTime) / 1000) : NaN;
     const messageIssuedAt = Math.floor(Date.parse(parsed.issuedAt) / 1000);
     if (!Number.isFinite(messageExpiry) || !Number.isFinite(messageIssuedAt)) {
       res.status(400).json({ error: 'InvalidRequest', message: 'SIWOF message expiration is required' });
       return;
     }
-    const exp = messageExpiry;
-    const didToken = await signServiceAuthJwt({
-      keypair,
+    const claims = {
       iss: userDid,
       aud: messageAudience.uri,
-      exp,
+      exp: messageExpiry,
       iat: messageIssuedAt,
       lxm: 'net.openfederation.identity.signInAssert',
       extraClaims: {
@@ -166,17 +168,41 @@ export default async function signInAssert(req: AuthRequest, res: Response): Pro
         walletAddress: addr,
         chainIdCaip2: parsed.chainIdCaip2,
       },
-    });
+    };
+
+    // Mint the didToken. The user's atproto signing key is what establishes
+    // "this DID said so," and any dApp can verify this offline. Under device
+    // signing the device signs it (see above): the token is returned unsigned.
+    let didToken: string | undefined;
+    let unsignedDidToken: string | undefined;
+    if (onDevice) {
+      const deviceKey = (await query<{ device_signing_key: string | null }>(
+        'SELECT device_signing_key FROM users WHERE did = $1', [userDid],
+      )).rows[0]?.device_signing_key;
+      let alg = 'ES256K';
+      try { if (deviceKey) alg = parseDidKey(deviceKey).jwtAlg; } catch { /* the SDK's device keys are secp256k1 */ }
+      unsignedDidToken = serviceAuthSigningInput(alg, claims);
+    } else {
+      let keypair;
+      try {
+        keypair = await getKeypairForDid(userDid);
+      } catch {
+        res.status(500).json({ error: 'NoSigningKey', message: 'No atproto signing key for this DID' });
+        return;
+      }
+      didToken = await signServiceAuthJwt({ keypair, ...claims });
+    }
 
     await auditLog('identity.signInAssert', req.auth!.userId, userDid, {
       chain,
       walletAddress: addr,
       audience: messageAudience.uri,
       chainIdCaip2: parsed.chainIdCaip2,
+      ...(onDevice ? { signedOnDevice: true } : {}),
     });
 
     res.status(200).json({
-      didToken,
+      ...(didToken ? { didToken } : { unsignedDidToken }),
       walletProof: {
         message,
         signature: walletSignature,

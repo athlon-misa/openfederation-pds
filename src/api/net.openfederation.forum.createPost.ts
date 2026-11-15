@@ -45,7 +45,8 @@ export default async function createPost(req: AuthRequest, res: Response): Promi
 
     const authorDid = req.auth!.did;
     // A post is in the author's repo, or (private community) signed with the
-    // author's repo key: neither is the server's to make under device signing (#240).
+    // author's repo key: neither is the server's to make under device signing
+    // (#240); the author's device signs it through net.openfederation.repo.prepareAction.
     if (await respondIfDeviceSigning(res, authorDid)) return;
 
     if (!(await enforcePseudonymProbation(req, res))) return;
@@ -62,7 +63,7 @@ export default async function createPost(req: AuthRequest, res: Response): Promi
     await indexPost({
       uri: result.uri, cid: result.cid, communityDid: community, authorDid,
       threadRootUri: root.uri, parentUri: parent ? parent.uri : null,
-      record, createdAt,
+      record, createdAt: typeof record.createdAt === 'string' ? record.createdAt : createdAt,
     });
 
     await auditLog('forum.post.create', req.auth!.userId, community, { uri: result.uri, root: root.uri });

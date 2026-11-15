@@ -16,16 +16,13 @@
  * rest of the record. Anyone who can read the record can check it against the
  * author's atproto signing key.
  */
-import { cidForRecord } from '@atproto/repo';
-import type { Keypair } from '@atproto/crypto';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
-import { assertServerMaySign, isDeviceSigningOn } from '../repo/device-signing-state.js';
+import { assertMayWriteFor, isDeviceSigningOn } from '../repo/device-signing-state.js';
+import { writeRepoAs, signAsAuthor } from '../repo/device-actions.js';
 import { atprotoKeyHistory } from '../identity/account-migration.js';
-import {
-  authorSignatureValid, recordAuthor, withoutAuthorSignature, type AuthorSignature,
-} from '../governance/author-signature.js';
+import { currentAtprotoKey } from '../identity/device-signing.js';
+import { authorSignatureValid, recordAuthor } from '../governance/author-signature.js';
 export type { AuthorSignature } from '../governance/author-signature.js';
 import { FORUM_THREAD, FORUM_POST, CALENDAR_RSVP } from './forum-index.js';
 import { VOTE_COLLECTION, OBJECTION_COLLECTION, PROPOSAL_COLLECTION } from '../governance/decision-rules.js';
@@ -33,30 +30,30 @@ import { removeHomeMembershipsForCommunity, type HomeMembershipRemoval } from '.
 
 const SETTINGS_COLLECTION = 'net.openfederation.community.settings';
 
-function withoutSignature(record: Record<string, unknown>): Record<string, unknown> {
-  return withoutAuthorSignature(record);
-}
-
-async function signedBy(author: string, keypair: Keypair, record: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const unsigned = { ...withoutSignature(record), author };
-  const cid = await cidForRecord(unsigned);
-  const sig = Buffer.from(await keypair.sign(cid.bytes)).toString('base64url');
-  const authorSig: AuthorSignature = { key: keypair.did(), sig };
-  return { ...unsigned, authorSig };
-}
-
 /**
- * Check a record's author signature against every key the author's DID has
- * held as its atproto signing key, so records written before a key rotation
- * still verify. False for a record with no signature, a changed record, one
- * attributed to someone whose key did not sign it, or one whose author's DID
- * has been deleted.
+ * Check a record's author signature against the author's DID's **current**
+ * atproto signing key (#240 phase 2). False for a record with no signature, a
+ * changed record, one attributed to someone whose key did not sign it, one
+ * whose author's DID has been deleted, and one signed with a key the DID no
+ * longer names.
+ *
+ * Only the current key counts because a key the DID has rotated away from
+ * proves nothing about who signed: under device signing the server's own
+ * repo key is in every such DID's history, so accepting old keys would let
+ * the server sign "member" records the member never wrote. A record signed
+ * before a rotation stops verifying here; its author can sign it again.
+ * (Moving a community's repository between servers, `repo/import.ts`, still
+ * keeps records signed with any key the author has had: dropping them there
+ * would lose content, and the importing server only stores them.)
  */
 export async function verifyAuthorSignature(record: Record<string, unknown>): Promise<boolean> {
   const author = recordAuthor(record);
   if (!author) return false;
   try {
-    return await authorSignatureValid(record, await atprotoKeyHistory(author));
+    const keys = author.startsWith('did:plc:')
+      ? [await currentAtprotoKey(author)].filter((k): k is string => typeof k === 'string')
+      : await atprotoKeyHistory(author); // only the current key is known for other methods
+    return await authorSignatureValid(record, keys);
   } catch {
     return false;
   }
@@ -97,27 +94,33 @@ export async function writeMemberContent(opts: {
 }): Promise<StoredMemberContent> {
   // Both branches sign with the author's repo key (a commit in their repo, or
   // `authorSig` on a record in the community's). Under device signing (#240)
-  // that key is no longer theirs to the network, and not the server's to use.
-  await assertServerMaySign(opts.authorDid);
+  // that key is on the author's device: the device signs when it takes part in
+  // this request (net.openfederation.repo.prepareAction), and otherwise the
+  // server refuses.
+  await assertMayWriteFor(opts.authorDid);
   const rkey = opts.rkey ?? RepoEngine.generateTid();
-  const authorKeypair = await getKeypairForDid(opts.authorDid);
   const inCommunityRepo = opts.private ?? await isPrivateCommunity(opts.communityDid);
 
   if (!inCommunityRepo) {
-    const result = await new RepoEngine(opts.authorDid).putRecord(authorKeypair, opts.collection, rkey, opts.record);
-    return { uri: result.uri, cid: result.cid, rkey, repo: opts.authorDid, record: opts.record };
+    const [result] = await writeRepoAs(opts.authorDid, [{ action: 'write', collection: opts.collection, rkey, record: opts.record }]);
+    return { uri: result.uri, cid: result.cid!, rkey: result.rkey, repo: opts.authorDid, record: result.record ?? opts.record };
   }
 
-  const record = await signedBy(opts.authorDid, authorKeypair, opts.record);
-  const communityKeypair = await getKeypairForDid(opts.communityDid);
-  const result = await new RepoEngine(opts.communityDid).putRecord(communityKeypair, opts.collection, rkey, record);
-  return { uri: result.uri, cid: result.cid, rkey, repo: opts.communityDid, record };
+  const signed = await signAsAuthor({
+    author: opts.authorDid, repo: opts.communityDid, collection: opts.collection, rkey, record: opts.record,
+  });
+  const [result] = await writeRepoAs(opts.communityDid, [{ action: 'write', collection: opts.collection, rkey: signed.rkey, record: signed.record }]);
+  return { uri: result.uri, cid: result.cid!, rkey: signed.rkey, repo: opts.communityDid, record: signed.record };
 }
 
-/** Delete a member's record from whichever repository its URI says it is in. */
+/**
+ * Delete a member's record from whichever repository its URI says it is in.
+ * A record in the author's own repo is deleted by their device when it takes
+ * part in this request (device signing, #240).
+ */
 export async function deleteMemberContent(uri: string): Promise<void> {
   const [, , repo, collection, rkey] = uri.split('/');
-  await new RepoEngine(repo).deleteRecord(await getKeypairForDid(repo), collection, rkey);
+  await writeRepoAs(repo, [{ action: 'delete', collection, rkey }]);
 }
 
 /**

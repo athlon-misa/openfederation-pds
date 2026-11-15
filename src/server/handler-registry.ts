@@ -31,6 +31,7 @@ import disableDeviceSigning from '../api/net.openfederation.account.disableDevic
 import getDeviceSigning from '../api/net.openfederation.account.getDeviceSigning.js';
 import prepareCommit from '../api/net.openfederation.repo.prepareCommit.js';
 import submitCommit from '../api/net.openfederation.repo.submitCommit.js';
+import prepareAction from '../api/net.openfederation.repo.prepareAction.js';
 import registerAccount from '../api/net.openfederation.account.register.js';
 import approveAccount from '../api/net.openfederation.account.approve.js';
 import rejectAccount from '../api/net.openfederation.account.reject.js';
@@ -265,6 +266,9 @@ const handlers = Object.freeze({
   'net.openfederation.account.getDeviceSigning': { handler: getDeviceSigning },
   'net.openfederation.repo.prepareCommit': { handler: prepareCommit },
   'net.openfederation.repo.submitCommit': { handler: submitCommit },
+  // Runs one of the methods in DEVICE_ACTION_METHODS up to the write the
+  // device signs; those methods' own limits are only the global one too.
+  'net.openfederation.repo.prepareAction': { handler: prepareAction },
   'net.openfederation.account.approve': { handler: approveAccount },
   'net.openfederation.account.reject': { handler: rejectAccount },
   'net.openfederation.account.listPending': { handler: listPendingAccounts },

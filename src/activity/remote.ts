@@ -21,6 +21,7 @@
  */
 import { config } from '../config.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
+import { assertServerMaySign } from '../repo/device-signing-state.js';
 import { signServiceAuthJwt } from '../auth/service-auth.js';
 import { assertPublicHttpsUrl, readLimitedText } from '../security/outbound-fetch.js';
 import { resolveDidToPds } from '../federation/remote-verify.js';
@@ -84,6 +85,11 @@ async function peerServiceDid(peerUrl: string, signal: AbortSignal): Promise<str
 }
 
 async function tokenFor(viewerDid: string, aud: string, lxm: string): Promise<string> {
+  // Signed with the viewer's atproto key. Under device signing (#240) that
+  // key is on their device, so the server cannot ask other servers on their
+  // behalf: those servers are reported unavailable, and only this server's
+  // communities are listed.
+  await assertServerMaySign(viewerDid);
   const keypair = await getKeypairForDid(viewerDid);
   return signServiceAuthJwt({
     keypair,
