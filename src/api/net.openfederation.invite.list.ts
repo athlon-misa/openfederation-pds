@@ -48,13 +48,14 @@ export default async function listInvites(req: AuthRequest, res: Response): Prom
       code: string;
       max_uses: number;
       uses_count: number;
-      expires_at: string | null;
-      created_at: string;
+      expires_at: Date | string | null;
+      created_at: Date | string;
       created_by: string;
       creator_handle: string | null;
+      community_did: string | null;
     }>(
       `SELECT i.code, i.max_uses, i.uses_count, i.expires_at, i.created_at, i.created_by,
-              u.handle as creator_handle
+              u.handle as creator_handle, i.community_did
        FROM invites i
        LEFT JOIN users u ON u.id = i.created_by
        ${whereClause}
@@ -77,10 +78,13 @@ export default async function listInvites(req: AuthRequest, res: Response): Prom
         code: canViewCodes ? i.code : undefined,
         maxUses: i.max_uses,
         usesCount: i.uses_count,
-        expiresAt: i.expires_at,
-        createdAt: i.created_at,
+        // The driver gives Date objects; the lexicon (and the response check) wants datetime strings.
+        ...(i.expires_at ? { expiresAt: new Date(i.expires_at).toISOString() } : {}),
+        createdAt: new Date(i.created_at).toISOString(),
         createdByHandle: fullHandle(i.creator_handle) || 'unknown',
         status: computedStatus,
+        // A community invite code (#403) also joins this community.
+        ...(i.community_did ? { community: i.community_did } : {}),
       };
     });
 

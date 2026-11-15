@@ -231,7 +231,7 @@ describe('the PDS side: checking a batch', () => {
 
   it('refuses malformed batches', () => {
     const bad: Array<[unknown, RegExp]> = [
-      [{ ...base, platform: 'slack', posts: [post] }, /platform/],
+      [{ ...base, platform: 'telegram', posts: [post] }, /platform/],
       [{ ...base }, /empty/],
       [{ ...base, posts: [{ ...post, messageId: 'x' }] }, /messageId/],
       [{ ...base, posts: [{ ...post, createdAt: '5 Jan' }] }, /createdAt/],

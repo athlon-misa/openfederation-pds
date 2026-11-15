@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.invite.list",
-  "revision": 1,
+  "revision": 2,
   "description": "List invite codes with filtering. Requires admin or moderator role.",
   "defs": {
     "main": {
@@ -72,6 +72,11 @@
         "status": {
           "type": "string",
           "description": "Current status of the invite: active, expired, or exhausted."
+        },
+        "community": {
+          "type": "string",
+          "format": "did",
+          "description": "For a community invite code (#403): the community it also joins."
         }
       },
       "required": [

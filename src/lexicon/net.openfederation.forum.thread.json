@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.thread",
-  "revision": 3,
+  "revision": 4,
   "description": "A forum thread root. Lives in the author's user repo; aggregated per-community by the forum index.",
   "defs": {
     "main": {
@@ -66,14 +66,15 @@
         "platform": {
           "type": "string",
           "knownValues": [
-            "discord"
+            "discord",
+            "slack"
           ],
           "maxLength": 32
         },
         "channelId": {
           "type": "string",
           "maxLength": 32,
-          "description": "The source platform's id of the channel or thread this forum thread was made from."
+          "description": "The source platform's id of the channel or thread this forum thread was made from (a Discord snowflake, or a Slack channel id)."
         }
       }
     },

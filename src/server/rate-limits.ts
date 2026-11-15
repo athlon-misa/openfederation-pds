@@ -63,3 +63,13 @@ export const importLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'RateLimitExceeded', message: 'Too many import batches, please slow down' },
 });
+
+// Attachments of an import (#403), one upload per file: the same per-minute
+// setting, counted apart from the batches so files do not stall the posts.
+export const importBlobLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: config.rateLimits.importPerMin,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'RateLimitExceeded', message: 'Too many attachment uploads, please slow down' },
+});

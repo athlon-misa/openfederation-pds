@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.account.register",
-  "revision": 6,
+  "revision": 7,
   "description": "Register a new account. Requires an invite code if the server has invite-only registration enabled.",
   "defs": {
     "main": {
@@ -26,7 +26,7 @@
             },
             "inviteCode": {
               "type": "string",
-              "description": "Invite code (required if server has invite-only registration)."
+              "description": "Invite code (required if server has invite-only registration). A community invite code is used even when it is not required, and also joins its community."
             }
           },
           "required": [
@@ -63,6 +63,10 @@
                 "approved"
               ],
               "description": "'pending' (an admin approves it) or, when the server approves new accounts automatically, 'approved' (it can sign in at once)."
+            },
+            "community": {
+              "type": "ref",
+              "ref": "#communityJoin"
             }
           },
           "required": [
@@ -112,6 +116,30 @@
           "description": "This server does not allow custodial accounts (IDENTITY_CUSTODY_ALLOWED)."
         }
       ]
+    },
+    "communityJoin": {
+      "type": "object",
+      "description": "The community a community invite code joins (#403), and how far that got.",
+      "required": [
+        "did",
+        "status"
+      ],
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did"
+        },
+        "status": {
+          "type": "string",
+          "knownValues": [
+            "joined",
+            "pending",
+            "waitingForApproval",
+            "refused"
+          ],
+          "description": "'joined'; 'pending' (a join request for the community to approve); 'waitingForApproval' (joins when an admin approves the account); 'refused' (the community takes no members now)."
+        }
+      }
     }
   }
 }

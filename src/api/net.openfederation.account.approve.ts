@@ -4,6 +4,7 @@ import { requireRole } from '../auth/guards.js';
 import { fullHandle, localHandle, normalizeEmail } from '../auth/utils.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { applyInviteCommunityJoins } from '../community/invite-join.js';
 
 interface ApproveInput {
   userId?: string;
@@ -77,6 +78,8 @@ export default async function approveAccount(req: AuthRequest, res: Response): P
   await auditLog('account.approve', req.auth!.userId, rows[0].id, {
     handle: rows[0].handle,
   });
+  // A community invite code used at sign-up (#403) joins now.
+  await applyInviteCommunityJoins(rows[0].id);
 
   res.status(200).json({ ...rows[0], handle: fullHandle(rows[0].handle) });
 }

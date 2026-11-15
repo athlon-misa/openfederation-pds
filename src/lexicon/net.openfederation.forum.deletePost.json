@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.forum.deletePost",
-  "revision": 2,
-  "description": "Delete the caller's own forum post.",
+  "revision": 3,
+  "description": "Delete the caller's own forum post, or, with `community`, a post imported into that community (owner or PDS admin).",
   "defs": {
     "main": {
       "type": "procedure",
@@ -15,7 +15,13 @@
           ],
           "properties": {
             "rkey": {
-              "type": "string"
+              "type": "string",
+              "description": "Record key of the post."
+            },
+            "community": {
+              "type": "string",
+              "format": "did",
+              "description": "Delete a post imported into this community (net.openfederation.forum.importBatch) instead of one of the caller's own. Owner or PDS admin only. The post stays deleted when the import is run again."
             }
           }
         }
@@ -34,7 +40,7 @@
       "errors": [
         {
           "name": "NotFound",
-          "description": "No post of yours with that rkey."
+          "description": "No post of yours with that rkey, or no imported post with that rkey in the community."
         },
         {
           "name": "CommunitySuspended",
@@ -51,6 +57,14 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet (#267)."
+        },
+        {
+          "name": "Forbidden",
+          "description": "With `community`: the caller is not the community's owner or a PDS admin."
+        },
+        {
+          "name": "NotMember",
+          "description": "With `community`: the caller is not a member of the community."
         }
       ]
     }
