@@ -39,6 +39,16 @@ The setup page and the Railway template run in production. The images, the appli
 - Dashboard PDS address at runtime: `/runtime-config.js` (route handler, `PDS_URL` then `NEXT_PUBLIC_PDS_URL`) loaded with next/script `beforeInteractive`; `src/lib/runtime-config.ts` resolves it (`tests/web/runtime-config.test.ts`).
 - Appliance: `deploy/appliance/` (Compose: PDS, PostgreSQL 15, dashboard, Caddy; one `data/` folder; first start in setup mode). Caddy's on-demand TLS for `*.<handle domain>` asks `GET /tls-check?domain=` (`src/server/tls-check.ts`: 200 only for this server's own handles). `deploy/install.sh` (Debian/Ubuntu; embeds the appliance files, `tests/unit/install-script.test.ts` keeps them identical). Synology: `deploy/synology/compose.yaml`. Guides: [docs/install/](install/README.md).
 
+## Demo servers — **needs-validation** ([DEMO-SERVERS.md](DEMO-SERVERS.md))
+
+Built and tested; not yet run on the Railway demo project.
+
+- `DEMO_MODE=true` (environment only; `src/demo/demo-mode.ts`, `demo-settings.ts`, `cron.ts`): at `DEMO_RESET_SCHEDULE` (cron, UTC, default `0 3 * * *`) 503 `DemoResetting`, `TRUNCATE` of every `public` table but `schema_migrations`, local blobs deleted, keypair cache cleared, exit 75 (restart policy Always / On Failure). No audit.
+- Guards at start-up (refuses to start) and again inside the reset: `PLC_DIRECTORY_URL` not `plc.openfederation.net` / `plc.directory`; `PDS_HOSTNAME` and `PDS_SERVICE_URL` contain `demo` or equal `DEMO_ALLOWED_HOSTNAME`; `BLOB_STORAGE=local` in a safe directory.
+- Demo defaults in `resolveRuntimeSettings` below environment, admin and setup file (open sign-up, automatic approval, email verification off, pen names, device signing, open migration); no SMTP needed in production.
+- `getPublicConfig.demo` (revision 7); dashboard banner (`web-interface/src/components/demo-banner.tsx`).
+- PLC wrapper: `plc-server/demo-reset.js` (same schedule; guard on `PLC_PUBLIC_URL`; keeps the Kysely migration ledger).
+
 ## Auth — **shipped**
 
 - JWT access tokens + refresh token rotation with reuse detection (compromise → revoke all sessions)
