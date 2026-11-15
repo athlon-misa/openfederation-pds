@@ -136,6 +136,7 @@ export const SETUP_SCRIPT = `(function () {
       state.options = {
         inviteOnly: f.inviteOnly.checked, pseudonyms: f.pseudonyms.checked, custody: custody, custodyDefault: f.custodyDefault.value,
         accountApproval: approval ? approval.value : 'manual', appearance: look ? look.value : 'openfederation',
+        communityOwnerInvites: f.communityOwnerInvites.checked,
       };
     }
     saveDraft();
@@ -178,6 +179,8 @@ export const SETUP_SCRIPT = `(function () {
     // A draft saved by an older page has neither: the defaults.
     var approval = f.querySelector('input[name=accountApproval][value="' + (o.accountApproval === 'automatic' ? 'automatic' : 'manual') + '"]');
     if (approval) approval.checked = true;
+    // An older draft has no answer: the default, off while invite-only.
+    f.communityOwnerInvites.checked = typeof o.communityOwnerInvites === 'boolean' ? o.communityOwnerInvites : !o.inviteOnly;
     var look = f.querySelector('input[name=appearance][value="' + (LOOK_NAMES[o.appearance] ? o.appearance : 'openfederation') + '"]');
     if (look) look.checked = true;
   }
@@ -311,6 +314,7 @@ export const SETUP_SCRIPT = `(function () {
       ['Keys', (o.custody || []).map(function (m) { return CUSTODY_NAMES[m]; }).join(', ')],
       ['Offered first', CUSTODY_NAMES[o.custodyDefault] || ''],
       ['New accounts', o.accountApproval === 'automatic' ? 'Approved automatically' : 'Approved by an admin'],
+      ['Community owners', (typeof o.communityOwnerInvites === 'boolean' ? o.communityOwnerInvites : !o.inviteOnly) ? 'May create invite codes' : 'Only admins create invite codes'],
       ['Dashboard look', LOOK_NAMES[o.appearance] || LOOK_NAMES.openfederation],
     ]);
     box.appendChild(wrap);
@@ -439,6 +443,12 @@ export const SETUP_SCRIPT = `(function () {
     for (var j = 0; j < backs.length; j++) backs[j].addEventListener('click', function () { showStep(Math.max(1, current - 1)); });
 
     form('addresses').handleDomain.addEventListener('input', updateDomainSample);
+    // Until someone decides otherwise, owners' invite codes follow invite-only sign-up.
+    var ownerInvitesTouched = false;
+    form('options').communityOwnerInvites.addEventListener('change', function () { ownerInvitesTouched = true; });
+    form('options').inviteOnly.addEventListener('change', function (e) {
+      if (!ownerInvitesTouched) form('options').communityOwnerInvites.checked = !e.target.checked;
+    });
     var plc = form('addresses').querySelectorAll('input[name=plcChoice]');
     for (var p = 0; p < plc.length; p++) plc[p].addEventListener('change', function (e) { $('plcUrl-field').hidden = e.target.value !== 'own'; });
     var modes = form('email').querySelectorAll('input[name=mode]');

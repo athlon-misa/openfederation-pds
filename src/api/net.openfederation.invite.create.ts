@@ -4,6 +4,7 @@ import { requireRole, requireApprovedUser, isRemoteCaller, communityWriteRefusal
 import { generateInviteCode } from '../auth/utils.js';
 import { query } from '../db/client.js';
 import { auditLog } from '../db/audit.js';
+import { runtimeSettings } from '../settings/runtime-settings.js';
 
 interface InviteInput {
   maxUses?: number;
@@ -19,9 +20,11 @@ const MAX_COUNT = 100;
 
 /**
  * May the caller make invite codes that also join `community` (#403)? A PDS
- * admin for any community; its owner for their own. A PDS moderator who does
- * not own the community may not: the codes add people to someone else's
- * community. Refuses (and answers) when not.
+ * admin for any community; its owner for their own, while the server setting
+ * "Community owners may create invite codes" (COMMUNITY_OWNER_INVITES) is
+ * on, since each code is also a sign-up code for this server. A PDS
+ * moderator who does not own the community may not: the codes add people to
+ * someone else's community. Refuses (and answers) when not.
  */
 async function authorizeCommunityInvite(req: AuthRequest, res: Response, community: unknown): Promise<boolean> {
   if (!requireApprovedUser(req, res)) return false;
@@ -41,6 +44,13 @@ async function authorizeCommunityInvite(req: AuthRequest, res: Response, communi
   // Someone else's (possibly private) community answers like a missing one.
   if (!row || (!isAdmin && row.owner_did !== req.auth!.did)) {
     res.status(404).json({ error: 'NotFound', message: 'Community not found' });
+    return false;
+  }
+  if (!isAdmin && !runtimeSettings().communityOwnerInvites) {
+    res.status(403).json({
+      error: 'CommunityOwnerInvitesOff',
+      message: 'This server lets only its admins create community invite codes. Ask an admin of this server.',
+    });
     return false;
   }
   const refusal = communityWriteRefusal(row.status);

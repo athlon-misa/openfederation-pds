@@ -2236,7 +2236,7 @@ export type NetOpenfederationInviteCreateOutput = {
   "codes"?: Array<string>;
   "community"?: string;
 };
-export type NetOpenfederationInviteCreateError = "CommunityImporting" | "CommunityMoved" | "CommunitySuspended" | "CommunityTakenDown" | "InvalidRequest" | "NotFound";
+export type NetOpenfederationInviteCreateError = "CommunityImporting" | "CommunityMoved" | "CommunityOwnerInvitesOff" | "CommunitySuspended" | "CommunityTakenDown" | "InvalidRequest" | "NotFound";
 
 export type NetOpenfederationInviteListInput = {
   "limit"?: number;
@@ -3535,13 +3535,13 @@ export const lexiconContracts = {
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
   'net.openfederation.admin.createVerificationChallenge': { revision: 3, errors: ["EmailDeliveryFailed", "NoEmail", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },
-  'net.openfederation.admin.getServerSettings': { revision: 2, errors: ["Forbidden"] as const },
+  'net.openfederation.admin.getServerSettings': { revision: 3, errors: ["Forbidden"] as const },
   'net.openfederation.admin.importRepo': { revision: 4, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidRequest", "InvalidSignature", "PayloadTooLarge", "RepoAlreadyExists", "UnresolvableDid"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },
   'net.openfederation.admin.listExportSnapshots': { revision: 1, errors: [] as const },
   'net.openfederation.admin.reverseTakedown': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotTakenDown"] as const },
   'net.openfederation.admin.takedown': { revision: 1, errors: ["Forbidden", "InvalidDeadline", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.admin.updateServerSettings': { revision: 2, errors: ["Forbidden", "InvalidCombination", "InvalidRequest", "InvalidSetting", "SettingFixedByEnvironment"] as const },
+  'net.openfederation.admin.updateServerSettings': { revision: 3, errors: ["Forbidden", "InvalidCombination", "InvalidRequest", "InvalidSetting", "SettingFixedByEnvironment"] as const },
   'net.openfederation.admin.verifyChallenge': { revision: 1, errors: ["InvalidNonce", "NotFound"] as const },
   'net.openfederation.attestation.createViewingGrant': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
@@ -3653,7 +3653,7 @@ export const lexiconContracts = {
   'net.openfederation.identity.signInChallenge': { revision: 1, errors: ["InvalidRequest", "UnsupportedChain", "WalletNotFound"] as const },
   'net.openfederation.identity.unlinkWallet': { revision: 2, errors: ["CustodialWallet", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.identity.verifyRecord': { revision: 1, errors: ["InvalidRequest", "RecordNotFound"] as const },
-  'net.openfederation.invite.create': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.invite.create': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunityOwnerInvitesOff", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.invite.list': { revision: 2, errors: ["InvalidRequest"] as const },
   'net.openfederation.notification.list': { revision: 1, errors: [] as const },
   'net.openfederation.notification.markRead': { revision: 1, errors: [] as const },

@@ -70,6 +70,12 @@ export interface RuntimeSettings {
   migration: { accounts: AccountMigrationPolicy; pseudonyms: PseudonymMigrationPolicy; communities: AccountMigrationPolicy };
   inviteRequired: boolean;
   accountApproval: AccountApprovalPolicy;
+  /**
+   * Whether a community's owner who is not a PDS admin may make community
+   * invite codes (#403), which are also sign-up codes for this server.
+   * Default: off while sign-up is invite-only, on when it is open.
+   */
+  communityOwnerInvites: boolean;
   emailVerificationPolicy: EmailVerificationPolicy;
   /** FEDERATION_PEERS plus the older PEER_PDS_URLS (environment only). */
   federationPeers: string[];
@@ -88,6 +94,7 @@ export const SETTING_IDS = {
   deviceSigningAllowed: 'DEVICE_SIGNING_ALLOWED',
   inviteRequired: 'INVITE_REQUIRED',
   accountApproval: 'ACCOUNT_APPROVAL',
+  communityOwnerInvites: 'COMMUNITY_OWNER_INVITES',
   emailVerificationPolicy: 'EMAIL_VERIFICATION_POLICY',
   migrationAccounts: 'MIGRATION_ACCOUNTS',
   migrationPseudonyms: 'MIGRATION_PSEUDONYMS',
@@ -141,6 +148,7 @@ export function encodeSetting(id: SettingId, value: unknown, env: Env = process.
     case 'pseudonymsEnabled': return bool(id, value, 'Pen names');
     case 'deviceSigningAllowed': return bool(id, value, 'Device signing');
     case 'inviteRequired': return bool(id, value, 'Invite-only sign-up');
+    case 'communityOwnerInvites': return bool(id, value, 'Community owners may create invite codes');
     case 'pseudonymTokensPerEpoch': return intIn(id, value, 1, 1000, 'Creation passes per month');
     case 'pseudonymProbationDays': return intIn(id, value, 0, 365, 'Probation days');
     case 'pseudonymProbationDailyWrites': return intIn(id, value, 1, 100000, 'Posts a day on probation');
@@ -243,6 +251,18 @@ export function resolveRuntimeSettings(env: Env, admin: Layer, setup: Layer): Re
     throw new Error(`ACCOUNT_APPROVAL must be one of: ${ACCOUNT_APPROVAL_POLICIES.join(', ')} (got "${rawApproval}").`);
   }
 
+  // A community invite code is a sign-up code too, so the default follows
+  // invite-only sign-up: where an admin decides who signs up, owners do not
+  // hand out codes unless the admin says so; where anyone can sign up, a
+  // code lets nobody in who could not come anyway. An unknown value stops
+  // the server, like the other settings about who gets in.
+  const inviteRequired = merged.INVITE_REQUIRED !== 'false';
+  const rawOwnerInvites = merged.COMMUNITY_OWNER_INVITES?.trim();
+  if (rawOwnerInvites !== undefined && rawOwnerInvites !== 'true' && rawOwnerInvites !== 'false') {
+    throw new Error(`COMMUNITY_OWNER_INVITES must be true or false (got "${rawOwnerInvites}").`);
+  }
+  const communityOwnerInvites = rawOwnerInvites === undefined ? !inviteRequired : rawOwnerInvites === 'true';
+
   // A look is harmless to get wrong: warn, and use the built-in one.
   let defaultPreset: AppearancePreset = 'openfederation';
   const rawAppearance = merged.DEFAULT_APPEARANCE?.trim();
@@ -276,8 +296,9 @@ export function resolveRuntimeSettings(env: Env, admin: Layer, setup: Layer): Re
         pseudonyms: pick(PSEUDONYM_MIGRATION_POLICIES, merged.MIGRATION_PSEUDONYMS, 'open'),
         communities: pick(ACCOUNT_MIGRATION_POLICIES, merged.MIGRATION_COMMUNITIES, 'invite'),
       },
-      inviteRequired: merged.INVITE_REQUIRED !== 'false',
+      inviteRequired,
       accountApproval,
+      communityOwnerInvites,
       emailVerificationPolicy,
       federationPeers,
       appearance: { defaultPreset },
@@ -298,6 +319,7 @@ export function settingValue(s: RuntimeSettings, id: SettingId, env: Env = proce
     case 'deviceSigningAllowed': return s.identity.deviceSigningAllowed;
     case 'inviteRequired': return s.inviteRequired;
     case 'accountApproval': return s.accountApproval;
+    case 'communityOwnerInvites': return s.communityOwnerInvites;
     case 'defaultAppearance': return s.appearance.defaultPreset;
     case 'emailVerificationPolicy': return s.emailVerificationPolicy;
     case 'migrationAccounts': return s.migration.accounts;

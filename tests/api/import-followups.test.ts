@@ -106,12 +106,22 @@ describe('import follow-ups against the server', () => {
     return res.body.did as string;
   };
 
+  // Owners making community invite codes is a server setting, off by default
+  // under invite-only sign-up (tests/api/community-owner-invites.test.ts).
+  const savedOwnerInvites = process.env.COMMUNITY_OWNER_INVITES;
   beforeAll(async () => {
+    process.env.COMMUNITY_OWNER_INVITES = 'true';
+    await refreshRuntimeSettings();
     plc = await isPLCAvailable();
     if (!plc) return;
     adminToken = await getAdminToken();
     owner = await createTestUser(uniqueHandle('i403-owner'));
     other = await createTestUser(uniqueHandle('i403-other'));
+  });
+  afterAll(async () => {
+    if (savedOwnerInvites === undefined) delete process.env.COMMUNITY_OWNER_INVITES;
+    else process.env.COMMUNITY_OWNER_INVITES = savedOwnerInvites;
+    await refreshRuntimeSettings();
   });
 
   describe('Slack batches', () => {

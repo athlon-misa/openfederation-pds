@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.invite.create",
-  "revision": 3,
-  "description": "Create invite codes. Requires admin or moderator role; with `community`, the community's owner or a PDS admin. With `count`, creates that many independent codes with the same settings (one per person to invite).",
+  "revision": 4,
+  "description": "Create invite codes. Requires admin or moderator role; with `community`, a PDS admin, or the community's owner while the server setting COMMUNITY_OWNER_INVITES is on. With `count`, creates that many independent codes with the same settings (one per person to invite).",
   "defs": {
     "main": {
       "type": "procedure",
@@ -42,7 +42,7 @@
             "community": {
               "type": "string",
               "format": "did",
-              "description": "Make community invite codes (#403): used at sign-up, the account also joins this community, as if it had asked to join: at once under an open join policy, as a join request under approval; once the account is approved. Only the community's owner or a PDS admin."
+              "description": "Make community invite codes (#403): used at sign-up, the account also joins this community, as if it had asked to join: at once under an open join policy, as a join request under approval; once the account is approved. Only a PDS admin, or the community's owner while the server setting \"Community owners may create invite codes\" (COMMUNITY_OWNER_INVITES) is on."
             }
           }
         }
@@ -116,6 +116,10 @@
         {
           "name": "CommunityImporting",
           "description": "The community is still arriving here and is not active yet."
+        },
+        {
+          "name": "CommunityOwnerInvitesOff",
+          "description": "With `community`: the caller owns the community but is not a PDS admin, and this server lets only its admins create community invite codes (COMMUNITY_OWNER_INVITES is off)."
         }
       ]
     }

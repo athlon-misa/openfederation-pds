@@ -1214,7 +1214,8 @@ async function runPlatformImport(
         const status = (err as { status?: number }).status;
         if (status === 403 || status === 404) {
           throw new Error(inviteCommunity
-            ? 'Creating community invite codes needs the community\'s owner or a PDS admin. The import itself is done.'
+            ? 'Creating community invite codes needs a PDS admin, or the community\'s owner on a server that lets owners '
+              + 'create them (Admin → Server settings, "Community owners may create invite codes"). The import itself is done.'
             : 'Creating sign-up invite codes needs a PDS admin or moderator account. The import itself is done; '
               + 'leave out --invites-signup-only to make community codes as the owner.');
         }
