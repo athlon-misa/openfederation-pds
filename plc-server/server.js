@@ -1,7 +1,19 @@
 const { PlcServer, Database } = require('@did-plc/server');
 const express = require('express');
+const demo = require('./demo-reset.js');
 
 const run = async () => {
+  // Demo mode (DEMO_MODE=true, docs/DEMO-SERVERS.md): wiped on a schedule.
+  // Refuse to start when it is set where it must not be. Unset, nothing changes.
+  const demoProblems = demo.demoStartupProblems(process.env);
+  if (demoProblems.length > 0) {
+    console.error('FATAL: DEMO_MODE is set, but this PLC directory must not be reset as a demo:');
+    for (const problem of demoProblems) console.error(`  - ${problem}`);
+    console.error('See docs/DEMO-SERVERS.md. Unset DEMO_MODE on any directory that is not a demo.');
+    process.exit(1);
+  }
+  const demoMode = demo.readDemoConfig(process.env).enabled;
+
   const dbUrl = process.env.DATABASE_URL;
   let db;
   if (dbUrl) {
@@ -45,12 +57,26 @@ const run = async () => {
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
+  // While a demo reset runs, every request gets 503 DemoResetting.
+  if (demoMode) app.use(demo.resetGate);
   // The PLC library's own Express app adds the header too.
   if (typeof plc.app.disable === 'function') plc.app.disable('x-powered-by');
   app.use(plc.app);
 
   app.listen(port, () => {
     console.log(`PLC directory running on port ${port} with CORS enabled`);
+    if (demoMode) {
+      demo.startDemoResetScheduler({
+        reset: () => demo.runDemoReset({
+          endPoolOnFailure: true,
+          getPool: () => {
+            if (!dbUrl) return null;
+            const { Pool } = require('pg');
+            return new Pool({ connectionString: dbUrl, max: 1 });
+          },
+        }),
+      });
+    }
   });
 };
 
