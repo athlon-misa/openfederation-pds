@@ -90,6 +90,12 @@ export interface DeviceActionOptions {
    */
   verifyAgainst?: string;
   skipTreeCheck?: boolean;
+  /**
+   * did:keys of this device and the person's earlier device keys: refuse to
+   * sign a commit on top of a head none of them signed (`UntrustedHead`; see
+   * verifyPreparedCommit). Pass it after the first device write.
+   */
+  trustedHeadKeys?: string[];
   /** Tries when the repository moved, or the action changed, in between (default 3). */
   attempts?: number;
   fetch?: Fetch;
@@ -172,7 +178,7 @@ export async function deviceAction<T = unknown>(p: DeviceActionOptions & {
         if (!res.ok) throw new Error(`Could not read the repository to check the commit (${res.status})`);
         verifyPreparedCommit({
           did: p.did, prepared: request.commit, writes: request.writes as DeviceWrite[],
-          previousCar: new Uint8Array(await res.arrayBuffer()),
+          previousCar: new Uint8Array(await res.arrayBuffer()), trustedHeadKeys: p.trustedHeadKeys,
         });
       }
       sig = signCommitBytes(base64Decode(request.commit.unsignedCommit), p.deviceKey);

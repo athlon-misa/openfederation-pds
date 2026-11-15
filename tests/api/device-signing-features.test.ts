@@ -543,6 +543,18 @@ describe('device signing, phase 2: features signed on the device (#240)', () => 
     });
   });
 
+  it('with trustedHeadKeys, the device refuses to sign on top of a head it did not sign', async () => {
+    if (!plc) return;
+    // The head is the device's own now: accepted.
+    await deviceUpdateProfile({ ...opts(), description: 'trusted head', trustedHeadKeys: [device.didKey] });
+    // A key that never signed this repo's head: refused before signing, nothing written.
+    const head = await root(user.did);
+    const err = await deviceUpdateProfile({ ...opts(), description: 'x', trustedHeadKeys: [generateDeviceRepoKey().didKey] }).catch((e) => e);
+    expect(err).toBeInstanceOf(DeviceCommitRejected);
+    expect(err.reason).toBe('UntrustedHead');
+    expect(await root(user.did)).toBe(head);
+  });
+
   it('a prepared action can be inspected and is bound to the account', async () => {
     if (!plc) return;
     const seen: DeviceActionRequest[] = [];
