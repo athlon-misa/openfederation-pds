@@ -254,7 +254,7 @@ function IdentityScreens({ ctx }: { ctx: AccountContext }) {
         <div className="space-y-3 rounded-md border border-dashed p-4">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold">{DEVICE_SIGNING.title}</h3>
-            <Badge variant="outline">Coming later</Badge>
+            <Badge variant="outline">Not in this dashboard yet</Badge>
           </div>
           <p className="text-sm">{DEVICE_SIGNING.summary}</p>
           <ChoiceExplainer text={DEVICE_SIGNING} extra={[{ label: 'Who can use it', text: DEVICE_SIGNING.availability }]} />

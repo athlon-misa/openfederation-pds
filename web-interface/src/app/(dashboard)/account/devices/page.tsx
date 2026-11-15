@@ -24,7 +24,7 @@ export default function DevicesPage() {
       <PageHeader title="Devices & passkeys" description="Where you are signed in, and whether this device unlocks your 12 words with a passkey." />
       <SignedInDevices />
       {status === 'approved' && <AccountGate>{(ctx) => <ThisDevice ctx={ctx} />}</AccountGate>}
-      <Section title={DEVICE_SIGNING.title} description={<><Badge variant="outline">Coming later</Badge> {DEVICE_SIGNING.summary}</>}>
+      <Section title={DEVICE_SIGNING.title} description={<><Badge variant="outline">Not in this dashboard yet</Badge> {DEVICE_SIGNING.summary}</>}>
         <ChoiceExplainer text={DEVICE_SIGNING} extra={[{ label: 'Who can use it', text: DEVICE_SIGNING.availability }]} />
       </Section>
     </div>
