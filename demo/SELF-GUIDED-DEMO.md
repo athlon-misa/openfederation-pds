@@ -2,14 +2,14 @@
 
 A self-guided demo of OpenFederation for people on their own: about 15 minutes, a laptop and a phone. Unlike the stage demo, this uses the real dashboard with your own account.
 
-## Before you publish this guide
+## Before you run this demo
 
 It needs a server anyone can join without an invite. pds.openfederation.net is invite-only, so either:
 
 - **a separate demo server (recommended):** install one with the setup wizard (#405) as a "newsroom or privacy-first server", then in Admin → Server settings turn **invite-only sign-up off** and keep **pen names on**. Wipe it on a schedule and say so at the top of this guide; or
 - give each participant an invite code.
 
-New accounts also wait for an admin's approval, and passes need an approved account. Until there is a setting to approve sign-ups automatically, someone has to approve participants in Admin → Users as they sign up (or the demo server needs that setting first).
+New accounts wait for an admin's approval by default, and passes need an approved account. On the demo server, turn on **Approve new accounts automatically** in Admin → Server settings, so participants can start straight away; otherwise someone has to approve them in Admin → Users as they sign up.
 
 Replace `DEMO_SERVER` below with that server's dashboard address.
 

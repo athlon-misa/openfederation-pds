@@ -26,9 +26,9 @@ We credit reporters unless you prefer otherwise. We will not take legal action a
 
 ## Supported versions
 
-| Version | Security updates until |
+| Version | Security support |
 | --- | --- |
-| 1.x (latest release) | At least 11 November 2031 |
+| 0.x (latest release) | Security fixes in the latest 0.x release; from 1.0.0, at least five years per major version |
 
 Security fixes go into a new release of the current major version and are marked **Security** in [`CHANGELOG.md`](CHANGELOG.md). Older releases stay available for download. There are no backport branches; upgrade to the latest release.
 

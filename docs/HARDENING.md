@@ -72,7 +72,7 @@ Back up the database (keys at rest are only as safe as the backup) and `KEY_ENCR
 
 ## When the operator is the risk
 
-In AT Protocol the PDS holds the repo signing key, so whoever runs it can write records as any of its users, `self` custody accounts included ([ADR-003](adr/ADR-003-custody-modes.md)). Nothing on this page prevents that. Four protections make it detectable, attributable and short-lived (#241):
+In AT Protocol the PDS holds the repo signing key, so whoever runs it can write records as any of its users, `self` custody accounts included ([ADR-003](adr/ADR-003-custody-modes.md)). The exception is device signing (#240, ADR-003 decision 14): an `assisted` or `self` account that turns it on keeps the repo signing key on its device, points its DID's `atproto` key at it, and every server-side write for the account is refused, so the PDS can no longer sign records as that person. It needs `DEVICE_SIGNING_ALLOWED=true` (the default under `OPENFEDERATION_PROFILE=privacy`). For every other account, four protections make a forged write detectable, attributable and short-lived (#241):
 
 1. **Run the PDS yourself.** A newsroom that hosts its own PDS keeps the trust in-house. Use the checklist below.
 2. **Watch the repository.** The person's app records every commit its device makes and checks the public repository for writes it did not make: `RepoWatcher` in `@open-federation/sdk/custody` ([guide](sdk-integration-guide.md#watching-the-repository)). Repositories are public, so this works against any PDS. A hostile PDS can show the person a different repository from the one it shows everyone else, so check a relay or mirror as well as the PDS itself.
@@ -89,6 +89,7 @@ Settings of this server are named as they are. Settings of other products (nginx
 
 - [ ] `OPENFEDERATION_PROFILE=privacy`: new accounts default to `self` custody and pseudonyms are on. Or set `IDENTITY_CUSTODY_ALLOWED` / `IDENTITY_CUSTODY_DEFAULT` / `PSEUDONYMS_ENABLED` yourself.
 - [ ] Decide whether journalists may be `custodial` at all; leave `custodial` out of `IDENTITY_CUSTODY_ALLOWED` if not.
+- [ ] `DEVICE_SIGNING_ALLOWED=true` (set by the `privacy` profile), so `self` and `assisted` journalists can keep their repo signing key on their device and this server cannot write as them.
 - [ ] Everything under [Secrets](#secrets), [Smallest useful attack surface](#smallest-useful-attack-surface) and [Network](#network) above.
 - [ ] Recovery for journalists on `self`: tell them that losing the phrase is final unless they set up recovery (dashboard: Your account → Recovery), and that it is their choice: a backup phrase on paper, a split among people they trust, or a split in which the newsroom holds one share and can never recover alone. Agree who in the newsroom keeps its shares, offline and apart from the server, and that the newsroom hands its share back only to the journalist in person. Read the threat model in [ADR-003](adr/ADR-003-custody-modes.md), decision 13, before recommending one; under coercion risk, none may be the right answer.
 

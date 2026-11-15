@@ -1,44 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OpenFederation dashboard
 
-## Getting Started
+The web dashboard for an OpenFederation PDS: sign-up and sign-in, communities, the account area, pen names, and the admin pages. Next.js 16 (App Router), shadcn/ui, React Query and Zustand. It talks to the PDS over XRPC and keeps no data of its own.
 
-First, run the development server:
+## Development
+
+Run a PDS first (from the repository root: `npm run dev`, port 3000), then:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd web-interface
+npm install
+cp .env.example .env.local   # NEXT_PUBLIC_PDS_URL=http://localhost:3000
+npm run dev                  # http://localhost:3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`npm run build` and `npm start` (port `$PORT`, default 3000) run the production build.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Which PDS it talks to
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `NEXT_PUBLIC_PDS_URL`: the PDS's public URL, built into the bundle.
+- `PDS_URL`: read when the dashboard runs, and wins over `NEXT_PUBLIC_PDS_URL`. The container image (`Dockerfile.image`) uses it, so one image serves any PDS; the address reaches the browser through `/runtime-config.js`.
+- `NEXT_PUBLIC_PDS_SERVICE_DID` (optional): the PDS's service DID; pen-name sign-ins refuse a server that names another.
 
-## Learn More
+The PDS must list the dashboard's origin in its `CORS_ORIGINS`.
 
-To learn more about Next.js, take a look at the following resources:
+## Tests
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
+From the repository root, after `npm ci` there and in `web-interface`: `npm run test:web` (Vitest, jsdom, no database). On Node 26 run it with `NODE_OPTIONS=--no-experimental-webstorage`. In `web-interface`, also run `npm run lint` and `npm run build`.
 
 ## Themes and appearance
 
-Use **Appearance** in the dashboard header to choose **PDS Basic** (the original neutral styling) or **OpenFederation** (the website's paper/ink/teal palette and typography). Color mode is independent: Light, Dark, or Use device setting. New browsers start with OpenFederation/light. Choices are local to the browser and do not change server configuration or another person's preferences.
+Use **Appearance** in the dashboard header to choose **PDS Basic** (the original neutral styling), **OpenFederation** (the website's paper/ink/teal palette and typography) or **Open Newsrooms**, or to use the server's default look (`DEFAULT_APPEARANCE`, set on Admin → Server settings). Color mode is independent: Light, Dark, or Use device setting. Choices are local to the browser and do not change server configuration or another person's preferences.
 
 Presets live in `src/lib/appearance.ts` and `src/app/globals.css`; `data-theme` is placed on the document root so dialogs and dropdowns inherit it. `next-themes` controls only the `.dark` class. Keep both light/dark token sets in sync when adding a preset, and preserve semantic state colors and keyboard focus visibility.
 

@@ -18,8 +18,10 @@ Costs are compared in [HOSTING-COMPARISON.md](../HOSTING-COMPARISON.md).
 
 ## What is behind these guides
 
-- **Prebuilt images** for x86-64 and ARM64, published with every release:
+- **Prebuilt images** for x86-64 and ARM64, published with each PDS release starting with the next one (0.7.0):
   `ghcr.io/athlon-misa/openfederation-pds` and `ghcr.io/athlon-misa/openfederation-dashboard` (built by `.github/workflows/images.yml`). Nothing is built on your server.
+
+> **Until 0.7.0 is released** there are no published images yet, so the installer and the Synology project cannot download them. To try an install before then, build the two images yourself from a checkout of this repository, as in [Trying it on your own computer](vps.md#trying-it-on-your-own-computer).
 - **The appliance** ([`deploy/appliance/`](../../deploy/appliance/)): one Docker Compose stack with the PDS, PostgreSQL 15, the dashboard and Caddy for automatic HTTPS, keeping everything in one `data` folder.
 - **The installer** ([`deploy/install.sh`](../../deploy/install.sh)): sets up Docker and the appliance on Debian or Ubuntu and prints the setup code. Download it, read it, run it.
 - **The Synology project** ([`deploy/synology/compose.yaml`](../../deploy/synology/compose.yaml)): the same containers for Container Manager, with DSM's reverse proxy and certificates instead of Caddy.

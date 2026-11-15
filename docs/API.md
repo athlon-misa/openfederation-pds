@@ -22,6 +22,7 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | GET  | `com.atproto.repo.describeRepo` | No | Repo metadata and collections |
 | GET  | `com.atproto.repo.listRecords` | No | Paginated record listing |
 | GET  | `com.atproto.sync.getRepo` | No | Full repo as CAR stream (federation-critical) |
+| GET  | `com.atproto.sync.getBlob` | No (taken-down accounts and private community repos gated like `getRepo`) | Raw blob bytes by `did` + `cid` (#82); `BlobNotFound` otherwise |
 | POST | `com.atproto.admin.updateSubjectStatus` | Admin | Suspend/unsuspend or takedown/reverse-takedown a user by DID |
 | GET  | `com.atproto.admin.getSubjectStatus` | Admin | Check takedown/deactivation status of an account by DID |
 | POST | `net.openfederation.admin.takedown` | Admin | Take an account or community down, `standard` (owner export 30 days) or `hard` (no owner export, 90-day hold); changes tier or deadline of an existing takedown ([FAIR-USE.md](FAIR-USE.md)) |
@@ -44,6 +45,8 @@ Reference index of all XRPC endpoints exposed by the PDS. Lexicon JSONs in `src/
 | POST | `net.openfederation.account.updateRoles` | Admin | Add or remove PDS roles for a user |
 | POST | `net.openfederation.account.updateProfile` | Yes | Update standard or custom profile collection |
 | GET  | `net.openfederation.account.getProfile` | No | Get user profile (standard + custom collections) |
+| POST | `net.openfederation.account.changePassword` | Yes | `{ currentPassword, newPassword }`; same lockout as login. Ends every session and OAuth grant and voids pending reset links; log in again. Audited |
+| POST | `net.openfederation.account.resolveExternal` | No | "Sign in with ATProto" for accounts on other PDSes: `{ handle, codeChallenge? }` → `{ redirectUrl }` to the account's home authorization server. `ServiceUnavailable` (503) when external OAuth is off |
 | POST | `net.openfederation.invite.create` | Admin/Mod | Create an invite code; optional `maxUses`, `expiresAt`, `boundTo`, `note`, and `count` (1–100 codes with the same settings, returned as `codes`) |
 | GET  | `net.openfederation.invite.list` | Admin/Mod | List invite codes with status filter |
 
@@ -86,6 +89,7 @@ For `self` and `assisted` accounts, where `getPublicConfig` says `identity.devic
 | GET  | `net.openfederation.community.discover` | No | Public communities here and on the peers in `FEDERATION_PEERS`, deduplicated by DID (#41). Params `limit` (1–100, default 50), `cursor`, `q` (text filter on handle, name, description). Returns `communities[]` (`did`, `handle`, `displayName`, `description`, `memberCount`, `pdsUrl`, `webUrl?`: the hosting server's dashboard origin, community page at `{webUrl}/communities/{did}`, `source`: `local` / `peer`), `cursor` when there is more, and `peers[]` (`url`, `status`: `ok` / `failed`, `communityCount` or `error`: `Timeout`, `Unreachable`, `BlockedUrl`, `HttpError`, `InvalidResponse`, `ResponseTooLarge`). A failed peer never fails the request |
 | GET  | `/.well-known/openfederation-communities.json` | No | This PDS's public communities for peers to fetch: `{ version: 1, pds: { url, hostname, webUrl? }, generatedAt, communities: [{ did, handle, displayName, description, memberCount, pdsUrl }] }`. Same filter as unauthenticated `listAll`, at most 1000 entries, descriptions cut to 300 characters; never includes what peers list |
 | GET  | `net.openfederation.federation.listPeerCommunities` | No | **Deprecated: use `community.discover`.** Communities listed by the configured peers only (none hosted here), with peer health and `cachedAt`. Still served, not removed; the dashboard no longer calls it |
+| GET  | `net.openfederation.federation.listPeers` | No | This PDS (`self: { hostname, serviceUrl }`) and the configured peers with their health |
 | GET  | `net.openfederation.community.listMine` | Yes | List communities user belongs to |
 | POST | `net.openfederation.community.update` | Owner | Update community settings. When the community is private after the update, also returns `membershipRecords: { removed, keptOnDevice, elsewhere }`: membership records naming it were removed from members' repos here (`removed`), except those signed on a member's device (`keptOnDevice`); `elsewhere` counts members whose repo is on another PDS, whose records cannot be removed from here (see [Membership records](#membership-records-in-the-members-repo)) |
 | POST | `net.openfederation.community.join` | Approved | Join or request to join a community. Returns `status` and, when `joined` and the community is public, `homeRecord: { uri, collection, rkey, record, written }`: the membership record for the member's own repo (`written: false`: the member's home PDS or device writes it) |
@@ -93,6 +97,8 @@ For `self` and `assisted` accounts, where `getPublicConfig` says `identity.devic
 | POST | `net.openfederation.community.removeMember` | Owner/Admin | Remove (kick) a member |
 | POST | `net.openfederation.community.delete` | Owner/Admin | Delete a community and all its data |
 | GET  | `net.openfederation.community.listMembers` | Yes | List community members (members include `displayName` and `avatarUrl` from write-time projection) |
+| GET  | `net.openfederation.community.verifyMembership` | No (private communities: members and admins) | Is `memberDid` a member of `communityDid`? `{ isMember, role? }`; for external apps (Mastodon, Matrix) |
+| GET  | `net.openfederation.community.myCapabilities` | Yes | The caller's own standing: `{ isMember, isOwner, isAdmin, role?, permissions[] }`; `NotFound` for a private community the caller has no standing in |
 | GET  | `net.openfederation.community.listJoinRequests` | Owner/Admin | List pending join requests |
 | POST | `net.openfederation.community.resolveJoinRequest` | Owner/Admin | Approve or reject a join request |
 | GET  | `net.openfederation.community.export` | Owner/Admin | Export community data as JSON archive |
@@ -107,6 +113,35 @@ For `self` and `assisted` accounts, where `getPublicConfig` says `identity.devic
 | POST | `net.openfederation.attestation.requestDisclosure` | Yes | Request disclosure of a private attestation (policy-based) |
 | POST | `net.openfederation.attestation.createViewingGrant` | Yes | Create time-limited viewing grant (subject-only) for a private attestation or any attestation in a private community; the grantee can verify and redeem it |
 | GET  | `net.openfederation.attestation.verifyCommitment` | Yes (standing) | Verify commitment hash without revealing content; members, the subject, viewing-grant holders and admins only, otherwise NotFound |
+
+## OpenFederation Community Roles & Governance
+
+Auth names the community permission the caller's role must grant (`requireCommunityPermission`); the owner has all of them.
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| POST | `net.openfederation.community.createRole` | `community.role.write` | Create a custom role: `{ communityDid, name, description?, permissions[], attestationTypes? }` |
+| POST | `net.openfederation.community.updateRole` | `community.role.write` | Change a role's name, description, permissions or attestation types |
+| POST | `net.openfederation.community.deleteRole` | `community.role.write` | Delete a role; refused while members hold it |
+| GET  | `net.openfederation.community.listRoles` | No (private communities: members and admins) | Roles with member counts |
+| POST | `net.openfederation.community.setGovernanceModel` | `community.settings.write` | Switch between `benevolent-dictator`, `simple-majority` and `on-chain` (#198); leaving a model that requires a proposal needs one. `GovernanceDenied` otherwise |
+| POST | `net.openfederation.community.createProposal` | `community.governance.write` | Propose a change to a protected collection: `{ communityDid, targetCollection, targetRkey?, action, proposedRecord }` |
+| POST | `net.openfederation.community.amendProposal` | `community.governance.write` | Amend an open proposal (resets its votes) |
+| POST | `net.openfederation.community.voteOnProposal` | `community.governance.write` | `{ communityDid, proposalRkey, vote: for \| against }`; counts delegated votes. The vote is a record in the voter's own repo |
+| POST | `net.openfederation.community.objectToProposal` | `community.governance.write` | Object to a passed proposal inside its timelock window: `{ communityDid, proposalRkey, reason? }`, a record in the objector's repo. Errors include `ProposalNotPending`, `ObjectionWindowClosed`, `AlreadyObjected` |
+| GET  | `net.openfederation.community.listProposals` | No (private communities: members and admins) | Proposals, filter by `status`, paginated |
+| GET  | `net.openfederation.community.getProposal` | No (same) | One proposal by `rkey` |
+| POST | `net.openfederation.community.setDelegation` | `community.governance.write` | Delegate your vote to another member (`delegateDid`) |
+| POST | `net.openfederation.community.revokeDelegation` | Yes (the delegator) | Remove your delegation |
+| GET  | `net.openfederation.community.getDelegation` | No (same) | A member's current delegation |
+
+## OpenFederation Linked Applications (ActivityPub)
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| POST | `net.openfederation.community.linkApplication` | Approved + `community.application.write` | Link an app instance: `{ communityDid, appType: mastodon \| matrix \| discourse \| custom, instanceUrl, displayName? }`; the community then has an ActivityPub actor at `/ap/actor/:did` |
+| POST | `net.openfederation.community.unlinkApplication` | Approved + `community.application.delete` | Remove a linked app by `rkey` |
+| GET  | `net.openfederation.community.listApplications` | No (private communities: members and admins) | Apps linked to a community |
 
 ## OpenFederation Disclosure Proxy
 
@@ -178,10 +213,11 @@ For `self` and `assisted` accounts, where `getPublicConfig` says `identity.devic
 
 | Method | NSID | Auth | Description |
 |:---|:---|:---|:---|
-| POST | `net.openfederation.partner.register` | X-Partner-Key | Register user (no invite, auto-approved, returns tokens) |
+| POST | `net.openfederation.partner.register` | X-Partner-Key | Register a user without an invite. With a `ticket` signed by the partner's backend (required when the key has a ticket key): `approved` and returns tokens. Without one: `pending`, a verification email is sent, no tokens; verifying the email approves the account |
 | POST | `net.openfederation.partner.createKey` | Admin | Generate a new partner API key (shown once) |
 | GET  | `net.openfederation.partner.listKeys` | Admin | List all partner keys with stats |
 | POST | `net.openfederation.partner.revokeKey` | Admin | Revoke a partner key |
+| POST | `net.openfederation.partner.verifyKey` | Admin/Partner manager | Mark a key verified by fetching `/.well-known/openfederation-partner.json` from each of its allowed origins (https, public hosts only in production). `VerificationFailed` with the reasons otherwise |
 
 ## OpenFederation Admin
 
@@ -191,6 +227,10 @@ For `self` and `assisted` accounts, where `getPublicConfig` says `identity.devic
 | GET  | `net.openfederation.server.getConfig` | Admin | Get server config and stats |
 | POST | `net.openfederation.admin.createVerificationChallenge` | Admin | Send identity verification nonce to user |
 | POST | `net.openfederation.admin.verifyChallenge` | Admin | Verify nonce response from user |
+| POST | `net.openfederation.admin.createExportSchedule` | Admin | Scheduled exports of a community: `{ communityDid, interval: daily \| weekly \| monthly, retentionCount? }` |
+| GET  | `net.openfederation.admin.listExportSchedules` | Admin | Export schedules with their last run |
+| POST | `net.openfederation.admin.deleteExportSchedule` | Admin | Remove a community's export schedule |
+| GET  | `net.openfederation.admin.listExportSnapshots` | Admin | Snapshots taken for `communityDid` |
 | POST | `net.openfederation.admin.importRepo` | Admin | Restore a repository from a CAR backup (`?did=`, body `application/vnd.ipld.car`, at most 100 MB) for a DID with no repo here. Verified like `com.atproto.repo.importRepo` (DID, signature against the DID's current atproto key, complete record tree) and stored in one transaction. Output `{ did, rootCid, blockCount, recordCount }`. Errors: `InvalidRequest`, `RepoAlreadyExists` (409), `InvalidCar`, `DidMismatch`, `UnresolvableDid`, `InvalidSignature`, `InvalidRepo`, `PayloadTooLarge` (413) |
 | GET  | `net.openfederation.admin.getServerSettings` | Admin | The settings an admin can change at runtime (#410): `settings[]` of `{ id, envVar, value, source, fixed, fallback, fallbackSource, changedAt? }`, plus `profile?`, `problem?` (saved changes ignored because they conflict with the environment) and `refreshSeconds`. `source` is `environment` (fixed: shown, never changeable here), `admin`, `setup` (the setup wizard's choice) or `default` |
 | POST | `net.openfederation.admin.updateServerSettings` | Admin | `{ changes: { <id>: value \| null } }`; null drops the admin's change. All or nothing, applied without a restart (other instances within `refreshSeconds`), each change audited as `server.settings.update` with `before` and `after`. Errors: `InvalidRequest`, `InvalidSetting` (with `setting`), `InvalidCombination` (offered first not offered; device signing without Self or Assisted), `SettingFixedByEnvironment` |
@@ -215,6 +255,20 @@ Settings ids and the environment variable each is otherwise read from: `pseudony
 | GET  | `net.openfederation.contact.list` | Yes | List the caller's accepted contacts, paginated |
 | GET  | `net.openfederation.contact.listIncomingRequests` | Yes | List pending requests addressed to the caller |
 | GET  | `net.openfederation.contact.listOutgoingRequests` | Yes | List pending requests sent by the caller |
+| POST | `net.openfederation.contact.withdrawRequest` | Yes | Cancel a pending outgoing request by `rkey` |
+| POST | `net.openfederation.contact.block` | Yes | Block `subject` (a DID) |
+| POST | `net.openfederation.contact.unblock` | Yes | Lift a block |
+| GET  | `net.openfederation.contact.listBlocks` | Yes | The caller's blocks, paginated |
+| GET  | `net.openfederation.contact.listMutualContacts` | Yes | Contacts the caller shares with `subject`, paginated |
+| GET  | `net.openfederation.contact.listFriendOfFriends` | Yes | Second-degree contacts, most mutual contacts first, paginated |
+
+## OpenFederation Notifications
+
+| Method | NSID | Auth | Description |
+|:---|:---|:---|:---|
+| GET  | `net.openfederation.notification.list` | Yes | The caller's notifications: `category?`, `unreadOnly?`, `limit`, `cursor` |
+| GET  | `net.openfederation.notification.unreadCount` | Yes | Unread count |
+| POST | `net.openfederation.notification.markRead` | Yes | `{ ids: [uuid] \| "all" }` → `{ marked }` |
 
 ## OpenFederation Forum & Events
 
@@ -280,7 +334,7 @@ An entry is `{ id, kind, community, actor?, uri?, cid?, createdAt, summary? }`. 
 
 ## OpenFederation Pseudonyms
 
-Anonymous accounts that the owner can later reveal. The PDS never stores or logs which account owns a pseudonym. Design: `docs/superpowers/specs/2026-10-08-pseudonyms-design.md`; client library: `packages/openfederation-pseudonym`. Pseudonym endpoints write no `audit_log` entries, and pseudonym accounts are refused (indistinguishably) by email, password and recovery flows. Pseudonyms are ordinary `did:plc` accounts with `auth_type='pseudonym'`.
+Anonymous accounts that the owner can later reveal. The PDS never stores or logs which account owns a pseudonym. Client library: `packages/openfederation-pseudonym`. Pseudonym endpoints write no `audit_log` entries, and pseudonym accounts are refused (indistinguishably) by email, password and recovery flows. Pseudonyms are ordinary `did:plc` accounts with `auth_type='pseudonym'`.
 
 | Method | NSID | Auth | Rate limit | Description |
 |:---|:---|:---|:---|:---|
@@ -314,11 +368,11 @@ Environment variables:
 
 ## Account migration
 
-Moving an account to this PDS from another one, following AT Protocol account migration: open the account here (deactivated), import the repository, copy blobs, point the DID at this PDS, then activate. Built in slices (#250). Pseudonyms move with their own key; user accounts move with the old PDS's help (#266); communities move with the owner's rotation key (#267, [ADR-002](adr/ADR-002-community-migration.md)).
+Moving an account to this PDS from another one, following AT Protocol account migration: open the account here (deactivated), import the repository, copy blobs, point the DID at this PDS, then activate. Built in slices (#250). Pseudonyms move with their own key; user accounts move with the old PDS's help (#266), or, for `assisted` and `self` accounts, with the recovery phrase alone ([ADR-004](adr/ADR-004-self-custody-move-in.md), #382); communities move with the owner's rotation key (#267, [ADR-002](adr/ADR-002-community-migration.md)).
 
 **Nobody is locked out, nothing is lost (#265).** A deactivated account keeps a session: `createSession`, `net.openfederation.pseudonym.createSession` and `refreshSession` all work and return `active: false, status: 'deactivated'`. That session reaches only the endpoints marked *while deactivated* (status, import, blobs, credentials, activate, deactivate, session and read endpoints, `account.export`); everything else answers `AccountDeactivated` (403). An account is switched on only where its DID points, so one DID never has two live homes, and a copy left behind by a move is switched on again simply by pointing the DID back: `moveAccount` to a PDS that still holds the old copy signs in to it, refills it from the current home and activates it. Nothing is deleted while a DID points at this PDS. The only automatic clean-up removes copies that never activated here and whose DID named another PDS on two sweeps in a row, `MIGRATION_CLEANUP_DAYS` apart (sweeps never run at start-up; `0` disables). It keeps a flag, not a timestamp, and does nothing when the PLC directory is unreachable. The copy left behind by a move away is never swept.
 
-**Communities.** Ownership is by DID (`communities.owner_did`), so an owner whose account lives on another PDS administers the community through cross-PDS service auth. A community that moved away has `status = 'moved'`: reads keep working, every write answers `CommunityMoved` (403), `listAll` hides it, and it is never deleted automatically; one still arriving answers `CommunityImporting`. The weekly sweep also marks communities whose DID now names another PDS. `net.openfederation.community.transfer` is gone; the dashboard's Transfer action with it (a Move screen is a follow-up).
+**Communities.** Ownership is by DID (`communities.owner_did`), so an owner whose account lives on another PDS administers the community through cross-PDS service auth. A community that moved away has `status = 'moved'`: reads keep working, every write answers `CommunityMoved` (403), `listAll` hides it, and it is never deleted automatically; one still arriving answers `CommunityImporting`. The weekly sweep also marks communities whose DID now names another PDS. `net.openfederation.community.transfer` is gone; the dashboard's community page has a Move card instead (owner's rotation key, `migrateIn` on the new PDS, then `activate`), and `/account/move` moves a user account.
 
 **The gate.** `MIGRATION_ACCOUNTS` (`open` / `invite` / `closed`, default `invite`) applies to user accounts, `MIGRATION_PSEUDONYMS` (`open` / `token` / `closed`, default `open`) to pseudonyms; both appear in `net.openfederation.server.getPublicConfig` as `migration`. A refusal happens at `createAccount`, before anything has changed anywhere. Pseudonyms are never asked for an invite code, because a code can say who handed it out; `token` spends a blind creation token in the same transaction, so this PDS learns only that a pass was used, not whose. `moveAccount` in `@open-federation/pseudonym` runs the whole move for a pseudonym.
 

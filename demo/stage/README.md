@@ -135,6 +135,6 @@ Generated twelve-word phrases never contain crypto-, money- or security-sounding
 
 ## What it does not show yet
 
-- Blobs (images) are not moved yet (#264); Night Desk has none in the demo.
+- Images: moves copy the blobs a repository references (`copyMissingBlobs`, #264), but Night Desk has none in the demo, so the stage never shows it.
 - OAuth is disabled on both offline demo servers because they run on `localhost`. The demo doesn't use it.
 - A reveal signed with a passkey (a `webauthn` owner signature) is too long for a QR code; the demo signs with the key from Elena's phrase.
