@@ -13,6 +13,7 @@ import type { RuntimeSettingEnvVar } from '../settings/keys.js';
 export const DEMO_SETTING_DEFAULTS: Readonly<Partial<Record<RuntimeSettingEnvVar, string>>> = Object.freeze({
   INVITE_REQUIRED: 'false',
   ACCOUNT_APPROVAL: 'automatic',
+  COMMUNITY_OWNER_INVITES: 'true',
   EMAIL_VERIFICATION_POLICY: 'off',
   PSEUDONYMS_ENABLED: 'true',
   DEVICE_SIGNING_ALLOWED: 'true',

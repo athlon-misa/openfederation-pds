@@ -109,6 +109,7 @@ With `DEMO_MODE=true` these settings default to a server anyone can try; set the
 |---|---|
 | `INVITE_REQUIRED` | `false` |
 | `ACCOUNT_APPROVAL` | `automatic` |
+| `COMMUNITY_OWNER_INVITES` | `true` |
 | `EMAIL_VERIFICATION_POLICY` | `off` |
 | `IDENTITY_CUSTODY_ALLOWED` | `custodial,assisted,self` |
 | `PSEUDONYMS_ENABLED` | `true` |

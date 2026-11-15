@@ -11,6 +11,7 @@ export type SettingId =
   | 'deviceSigningAllowed'
   | 'inviteRequired'
   | 'accountApproval'
+  | 'communityOwnerInvites'
   | 'emailVerificationPolicy'
   | 'migrationAccounts'
   | 'migrationPseudonyms'

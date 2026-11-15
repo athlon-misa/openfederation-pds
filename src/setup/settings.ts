@@ -34,6 +34,12 @@ export interface SetupInput {
     custodyDefault: CustodyMode;
     /** New accounts wait for an admin (manual) or get in at once. Absent: manual. */
     accountApproval?: AccountApprovalPolicy;
+    /**
+     * Community owners may create invite codes (#403). Absent, or the same as
+     * the default (off while invite-only, on when open): nothing is written,
+     * so the default keeps following invite-only sign-up.
+     */
+    communityOwnerInvites?: boolean;
     /** The dashboard's look until a person chooses their own. Absent: openfederation. */
     appearance?: AppearancePreset;
   };
@@ -45,8 +51,8 @@ export type FieldErrors = Record<string, string>;
 /** The defaults the options step starts from, per kind of server. */
 export function defaultOptions(kind: ServerKind): SetupInput['options'] {
   return kind === 'privacy'
-    ? { inviteOnly: true, pseudonyms: true, custody: [...CUSTODY_MODES], custodyDefault: 'self', accountApproval: 'manual', appearance: 'openfederation' }
-    : { inviteOnly: true, pseudonyms: false, custody: [...CUSTODY_MODES], custodyDefault: 'custodial', accountApproval: 'manual', appearance: 'openfederation' };
+    ? { inviteOnly: true, pseudonyms: true, custody: [...CUSTODY_MODES], custodyDefault: 'self', accountApproval: 'manual', communityOwnerInvites: false, appearance: 'openfederation' }
+    : { inviteOnly: true, pseudonyms: false, custody: [...CUSTODY_MODES], custodyDefault: 'custodial', accountApproval: 'manual', communityOwnerInvites: false, appearance: 'openfederation' };
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -153,6 +159,9 @@ export function validateSection(section: SetupSection, input: Partial<SetupInput
       if (o?.accountApproval !== undefined && !(ACCOUNT_APPROVAL_POLICIES as readonly string[]).includes(o.accountApproval)) {
         errors.accountApproval = 'Choose whether new accounts wait for you or get in straight away.';
       }
+      if (o?.communityOwnerInvites !== undefined && typeof o.communityOwnerInvites !== 'boolean') {
+        errors.communityOwnerInvites = 'Choose whether community owners may create invite codes.';
+      }
       if (o?.appearance !== undefined && !(APPEARANCE_PRESETS as readonly string[]).includes(o.appearance)) {
         errors.appearance = 'Choose one of the looks shown.';
       }
@@ -221,6 +230,10 @@ export function resolveSetup(input: SetupInput, allowLocalHttp: boolean): Resolv
   env.IDENTITY_CUSTODY_ALLOWED = custody.join(',');
   env.IDENTITY_CUSTODY_DEFAULT = input.options.custodyDefault;
   env.ACCOUNT_APPROVAL = input.options.accountApproval ?? 'manual';
+  const ownerInvites = input.options.communityOwnerInvites;
+  if (ownerInvites !== undefined && ownerInvites !== !input.options.inviteOnly) {
+    env.COMMUNITY_OWNER_INVITES = ownerInvites ? 'true' : 'false';
+  }
   env.DEFAULT_APPEARANCE = input.options.appearance ?? 'openfederation';
 
   // The same check the server runs when it starts, so a choice it would

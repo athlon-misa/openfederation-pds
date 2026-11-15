@@ -225,6 +225,9 @@ ${progress()}
         <span><strong>Approve new accounts automatically</strong><span class="hint">Anyone who can sign up gets in straight away, with nobody checking first. Keep invite-only sign-up on if you want to decide who can sign up at all.</span></span></label>
       <p class="error" data-error="accountApproval" hidden></p>
     </fieldset>
+    <label class="choice compact"><input type="checkbox" name="communityOwnerInvites">
+      <span><strong>Community owners may create invite codes</strong><span class="hint">Lets community owners create invite codes that also sign new people up to this server. Off by default while sign-up is invite-only, so only admins hand out codes.</span></span></label>
+    <p class="error" data-error="communityOwnerInvites" hidden></p>
     <label class="choice compact"><input type="checkbox" name="pseudonyms">
       <span><strong>Allow pseudonyms</strong><span class="hint">Anonymous accounts that are not linked to anyone's main account, not even on this server. Useful for sources and whistle-blowers.</span></span></label>
     <fieldset class="field">

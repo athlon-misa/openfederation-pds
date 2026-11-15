@@ -26,12 +26,12 @@ export type GroupId = 'signup' | 'custody' | 'penNames' | 'moving' | 'federation
 export const GROUPS: Record<GroupId, GroupText> = {
   signup: {
     title: 'Who can sign up',
-    summary: 'Whether new people need an invite, whether an admin approves each new account, and what happens until they confirm their email.',
-    means: 'Invite-only sign-up asks new people for an invite code from an admin. Approving new accounts decides whether a new account waits until an admin approves it, or gets in straight away. Email verification decides what someone who has not yet confirmed their email address can do.',
+    summary: 'Whether new people need an invite, who may hand out invite codes, whether an admin approves each new account, and what happens until they confirm their email.',
+    means: 'Invite-only sign-up asks new people for an invite code from an admin. Community owners may also create invite codes for their community when you allow it: each one signs a new person up to this server and brings them into that community. Approving new accounts decides whether a new account waits until an admin approves it, or gets in straight away. Email verification decides what someone who has not yet confirmed their email address can do.',
     alreadyHere: 'Invite-only sign-up and approving new accounts only affect new sign-ups: turning on automatic approval does not approve the people already waiting; approve them on Admin, Users. Email verification applies at once to everyone: a stricter choice holds back anyone who has not confirmed their email until they do.',
     undo: 'Change it back at any time. Accounts created or approved meanwhile stay as they are, and people who were held back can act again straight away.',
     terms: [],
-    settings: ['inviteRequired', 'accountApproval', 'emailVerificationPolicy'],
+    settings: ['inviteRequired', 'communityOwnerInvites', 'accountApproval', 'emailVerificationPolicy'],
   },
   custody: {
     title: 'How accounts are looked after',
@@ -85,6 +85,7 @@ export const GROUP_ORDER: GroupId[] = ['signup', 'custody', 'penNames', 'moving'
 export const SETTING_LABEL: Record<SettingId, string> = {
   inviteRequired: 'Invite-only sign-up',
   accountApproval: 'Approving new accounts',
+  communityOwnerInvites: 'Community owners may create invite codes',
   emailVerificationPolicy: 'Email verification',
   custodyAllowed: 'Ways offered',
   custodyDefault: 'Offered first',
@@ -102,6 +103,7 @@ export const SETTING_LABEL: Record<SettingId, string> = {
 
 export const SETTING_HINT: Partial<Record<SettingId, string>> = {
   inviteRequired: 'New people need an invite code from an admin. When off, anyone who can reach this server can sign up.',
+  communityOwnerInvites: 'Lets community owners create invite codes that also sign new people up to this server. Admins can always create them; codes already handed out keep working when you turn this off. Unless you choose, it is off while sign-up is invite-only and on when sign-up is open.',
   deviceSigningAllowed: `${DEVICE_SIGNING.summary} Only for Self and Assisted accounts; people whose device already signs keep doing so if you turn this off.`,
   pseudonymsEnabled: 'When off, nobody can start a new pen name or move one here. Existing pen names keep working.',
   pseudonymTokensPerEpoch: 'How many pen names one account can start in a month. From 1 to 1000.',
@@ -198,6 +200,11 @@ export function effectsOnPeople(before: Partial<Record<SettingId, SettingValue>>
   }
   if (changed('inviteRequired') && after.inviteRequired === false) {
     notes.push('Anyone who can reach this server can sign up, without an invite code.');
+  }
+  if (changed('communityOwnerInvites') && after.communityOwnerInvites === true) {
+    notes.push((after.inviteRequired ?? before.inviteRequired) === false
+      ? 'Community owners can create invite codes for their communities.'
+      : 'Community owners can create invite codes, and each code lets one new person sign up to this server, even though sign-up is invite-only.');
   }
   if (changed('accountApproval') && after.accountApproval === 'automatic') {
     const open = (after.inviteRequired ?? before.inviteRequired) === false;

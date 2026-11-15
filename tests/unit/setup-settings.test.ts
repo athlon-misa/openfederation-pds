@@ -117,6 +117,19 @@ describe('resolveSetup', () => {
     expect(resolveSetup(input({ options: older }), false).env).toMatchObject({ ACCOUNT_APPROVAL: 'manual', DEFAULT_APPEARANCE: 'openfederation' });
   });
 
+  it('community owners\' invite codes: written only when the choice differs from the default, which follows invite-only', () => {
+    expect(defaultOptions('community').communityOwnerInvites).toBe(false);
+    expect(resolveSetup(input(), false).env.COMMUNITY_OWNER_INVITES).toBeUndefined();
+    const on = resolveSetup(input({ options: { ...defaultOptions('community'), communityOwnerInvites: true } }), false);
+    expect(on.env.COMMUNITY_OWNER_INVITES).toBe('true');
+    const open = resolveSetup(input({ options: { ...defaultOptions('community'), inviteOnly: false, communityOwnerInvites: true } }), false);
+    expect(open.env.COMMUNITY_OWNER_INVITES).toBeUndefined();
+    const openOff = resolveSetup(input({ options: { ...defaultOptions('community'), inviteOnly: false, communityOwnerInvites: false } }), false);
+    expect(openOff.env.COMMUNITY_OWNER_INVITES).toBe('false');
+    const bad = validateSection('options', input({ options: { ...defaultOptions('community'), communityOwnerInvites: 'yes' as never } }), false);
+    expect(bad.communityOwnerInvites).toBeTruthy();
+  });
+
   it('refuses an approval mode or a look that does not exist', () => {
     const bad = validateSection('options', input({ options: { ...defaultOptions('community'), accountApproval: 'sometimes' as never, appearance: 'neon' as never } }), false);
     expect(bad.accountApproval).toBeTruthy();
