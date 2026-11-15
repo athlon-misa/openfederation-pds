@@ -20,7 +20,7 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
     if (collection && !/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*){2,}$/.test(collection)) {
       res.status(400).json({
         error: 'InvalidRequest',
-        message: 'collection must be a valid NSID (e.g., app.grvty.actor.profile)',
+        message: 'collection must be a valid NSID (e.g., com.example.actor.profile)',
       });
       return;
     }

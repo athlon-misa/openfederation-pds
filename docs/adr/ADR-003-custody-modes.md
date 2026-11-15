@@ -4,7 +4,7 @@
 
 One OpenFederation codebase serves two kinds of installation:
 
-- **Community** (Grvty, sports): losing a key must not be catastrophic, so the PDS can
+- **Community** (gaming, sports): losing a key must not be catastrophic, so the PDS can
   always restore access.
 - **Privacy** (OpenNewsrooms, journalists): the person, not the PDS, controls their
   identity. The PDS cannot move, rewrite or speak for the DID at the person level.
@@ -172,7 +172,7 @@ which key, and in what order.
 
 9. **Client code goes in `@open-federation/sdk/custody`**, a subpath: key generation, PLC
    operations, passkey helpers, owner signing, mode changes. It is not in the `/sdk/v1.js`
-   IIFE bundle, so Grvty and FlappySoccer bundles do not change.
+   IIFE bundle, so existing IIFE consumers' bundles do not change.
    `@open-federation/pseudonym` uses the subpath for owner signing.
 
 10. **Recovery.**

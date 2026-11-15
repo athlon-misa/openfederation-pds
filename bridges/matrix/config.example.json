@@ -6,14 +6,14 @@
   },
   "mode": "partner-hosted",
   "matrix": {
-    "homeserverUrl": "https://matrix.grvty.net",
+    "homeserverUrl": "https://matrix.example.net",
     "adminToken": "syt_your_admin_token_here",
-    "handleTemplate": "{handle}:grvty.net"
+    "handleTemplate": "{handle}:example.net"
   },
   "communityMappings": [
     {
       "communityDid": "did:plc:your-community-did",
-      "matrixSpaceId": "!your-space-id:grvty.net",
+      "matrixSpaceId": "!your-space-id:example.net",
       "rolePowerLevels": {
         "owner": 100,
         "moderator": 50,

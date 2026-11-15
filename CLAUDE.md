@@ -2,7 +2,7 @@
 
 Personal Data Server for OpenFederation. Identity / auth provider for the multi-repo project; downstream consumers depend on this repo's `@open-federation/sdk` and PDS API.
 
-**Core principle:** AT Protocol compatibility is non-negotiable — only extend, never replace. Adhere to the design decisions in `Identity_Layer_Specification.md`.
+**Core principle:** AT Protocol compatibility is non-negotiable — only extend, never replace. Design decisions are recorded in `docs/adr/`.
 
 ## Where things live
 
@@ -20,7 +20,7 @@ Personal Data Server for OpenFederation. Identity / auth provider for the multi-
 ```bash
 npm install
 ./scripts/init-db.sh
-npm run dev               # PDS server (port 8080)
+npm run dev               # PDS server (port 3000 with .env.example; 8080 in the container)
 npm run plc:dev           # Local PLC directory (port 2582) — required for E2E
 npm run build             # Compiles PDS, builds SDK to dist/sdk/v1.js
 npm run cli -- <command>  # CLI (build first)
@@ -116,25 +116,3 @@ Every `src/lexicon/*.json` must contain a `"revision"` integer field (≥1) imme
 - New schemas start at `"revision": 1`.
 - `npm run lexicon:validate` before committing.
 - The docs builder (`npm run build:lexicon-docs`) renders the revision next to each schema heading.
-
-## Multi-repo coordination
-
-This repo owns: PDS API server, `@open-federation/sdk`, PLC directory service, Web UI admin dashboard. Bugs/features in any of those are fixed here directly.
-
-This repo has **no dependencies on sibling repos** — it is the upstream identity provider.
-
-**Downstream consumers:**
-- [grvty-leaderboards](https://github.com/athlon-misa/grvty-leaderboards) — uses `@open-federation/sdk` via `@grvty/identity`
-- [FlappySoccer](https://github.com/athlon-misa/flappysoccer) — uses `@open-federation/sdk` IIFE bundle from `/sdk/v1.js`
-
-**Topology:** `.multi-repo-manifest.json`. Glossary: [grvty-shared/docs/UBIQUITOUS_LANGUAGE.md](https://github.com/athlon-misa/grvty-shared/blob/main/docs/UBIQUITOUS_LANGUAGE.md).
-
-### Cross-repo routing
-
-When a bug or change request actually belongs in a downstream consumer:
-
-1. **Do NOT fix it here.** Game logic, leaderboard service code, etc. live in their own repos.
-2. **Draft a GitHub issue** against the correct downstream repo. Always show the full preview and ask for confirmation before filing.
-3. **`gh issue create`** defaults: labels `cross-repo` plus `bug` / `enhancement` / `breaking-change`. Body must include consumer repo + URL, SDK version, repro steps, expected vs actual.
-
-When you see `cross-repo`-labeled issues filed against this repo from sibling agents: treat as high-priority, reference the original issue number in the PR, and notify the user after fixing so the downstream repo can update its dependency.

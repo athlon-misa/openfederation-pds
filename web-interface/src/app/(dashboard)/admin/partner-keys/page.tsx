@@ -168,7 +168,7 @@ export default function AdminPartnerKeysPage() {
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. FlappySoccer Production"
+                    placeholder="e.g. Example Games Production"
                   />
                 </div>
                 <div className="space-y-2">
@@ -176,7 +176,7 @@ export default function AdminPartnerKeysPage() {
                   <Input
                     value={partnerName}
                     onChange={(e) => setPartnerName(e.target.value)}
-                    placeholder="e.g. games.grvty.tech"
+                    placeholder="e.g. games.example.com"
                   />
                 </div>
                 <div className="space-y-2">
@@ -184,7 +184,7 @@ export default function AdminPartnerKeysPage() {
                   <Input
                     value={allowedOrigins}
                     onChange={(e) => setAllowedOrigins(e.target.value)}
-                    placeholder="e.g. https://games.grvty.tech, https://app.example.com"
+                    placeholder="e.g. https://games.example.com, https://app.example.com"
                   />
                 </div>
                 <div className="space-y-2">

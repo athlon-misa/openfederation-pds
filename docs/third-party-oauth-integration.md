@@ -44,7 +44,7 @@ Your app must serve a JSON document at a public URL. This URL becomes your `clie
 ```json
 {
   "client_id": "https://your-app.com/oauth/client-metadata.json",
-  "client_name": "Grvty Games",
+  "client_name": "Example Games",
   "client_uri": "https://your-app.com",
   "redirect_uris": ["https://your-app.com/oauth/callback"],
   "scope": "atproto transition:generic",
@@ -70,7 +70,7 @@ import { NodeOAuthClient } from '@atproto/oauth-client-node';
 const client = new NodeOAuthClient({
   clientMetadata: {
     client_id: 'https://your-app.com/oauth/client-metadata.json',
-    client_name: 'Grvty Games',
+    client_name: 'Example Games',
     client_uri: 'https://your-app.com',
     redirect_uris: ['https://your-app.com/oauth/callback'],
     scope: 'atproto transition:generic',
@@ -247,7 +247,7 @@ const handle = doc?.alsoKnownAs
 
 ---
 
-## Architecture for Game Services (Grvty)
+## Architecture for a game service (example)
 
 For a game leaderboard service, the recommended architecture:
 
@@ -256,7 +256,7 @@ Browser
   │
   │  1. "Sign in with OpenFederation"
   ▼
-Grvty Backend
+Game backend
   │
   │  2. client.authorize(handle)
   │     → Redirects to PDS consent page
@@ -268,7 +268,7 @@ Grvty Backend
   │  4. Creates local user row: { did, handle, app_session_token }
   │     → Returns app session to browser
   ▼
-Grvty Game API
+Game API
   │
   │  5. All subsequent requests use YOUR app's session token
   │     (you do NOT need to call the PDS for every game API request)
@@ -288,7 +288,7 @@ Key points:
 - Store the user's **DID** as the foreign key in your scores/achievements tables
 - You do NOT need to proxy every API call through the PDS
 
-### Database Schema (Grvty side)
+### Database Schema (game service side)
 
 ```sql
 -- Your users table — DID is the link to OpenFederation identity
@@ -332,14 +332,14 @@ await session.fetchHandler(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       repo: userDid,
-      collection: 'net.grvty.game.achievement',
+      collection: 'com.example.game.achievement',
       record: {
-        $type: 'net.grvty.game.achievement',
+        $type: 'com.example.game.achievement',
         gameId: 'tetris',
         achievementType: 'high_score',
         value: 999999,
         attestation: {
-          issuerDid: 'did:plc:grvty-service-did',
+          issuerDid: 'did:plc:example-service-did',
           signature: signWithServiceKey({ gameId: 'tetris', value: 999999, playerDid: userDid }),
           issuedAt: new Date().toISOString(),
         },
@@ -350,7 +350,7 @@ await session.fetchHandler(
 );
 ```
 
-This is optional — only do it for achievements/badges you want to survive even if Grvty shuts down.
+This is optional — only do it for achievements/badges you want to survive even if the game service shuts down.
 
 ---
 
@@ -360,7 +360,7 @@ If your frontend calls the PDS directly (e.g., for the OAuth redirect), the PDS 
 
 ```bash
 # On the OpenFederation PDS
-CORS_ORIGINS=https://web.openfederation.net,https://grvty.com,https://games.grvty.com
+CORS_ORIGINS=https://web.openfederation.net,https://example.com,https://games.example.com
 ```
 
 The PDS exposes these headers for DPoP:
