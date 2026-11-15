@@ -47,7 +47,7 @@ Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc c
 
 | Option | Description |
 |--------|-------------|
-| `-s, --server <url>` | PDS server URL (default: `$PDS_SERVICE_URL` or `http://localhost:8080`) |
+| `-s, --server <url>` | PDS server URL (default: `$PDS_SERVICE_URL` or `http://localhost:3000`, the dev PDS) |
 | `--timeout <ms>` | Request timeout in milliseconds (default: 30000) |
 | `--json` | Output raw JSON to stdout |
 | `--no-color` | Disable ANSI colors |
@@ -79,6 +79,7 @@ Messages and errors go to **stderr**. Data goes to **stdout**. This means `ofc c
 | `account list-pending` | Admin/Mod | List pending registrations |
 | `account approve <handle>` | Admin/Mod | Approve a pending user |
 | `account reject <handle>` | Admin/Mod | Reject a pending user |
+| `account set-roles <did> [--add roles] [--remove roles]` | Admin | Add or remove PDS roles (comma-separated: `admin`, `moderator`, `partner-manager`, `auditor`, `user`) |
 
 ### `ofc invite` — Invite Codes
 
@@ -384,6 +385,14 @@ Pass `--proposal <rkey>` when an export holds more than one proposal.
 | `oracle create <communityDid> --name <label>` | Admin | Create Oracle credential for a community |
 | `oracle list [--community <did>]` | Admin | List Oracle credentials |
 | `oracle revoke <credentialId>` | Admin | Revoke an Oracle credential |
+
+### `ofc partner` — Partner Keys
+
+| Command | Auth | Description |
+|---------|:---:|-------------|
+| `partner create-key -n <name> -p <partner-name> [-o origins] [-r per-hour]` | Admin/Partner manager | Create a partner API key (shown once); `-o` comma-separated allowed origins, `-r` rate limit per hour (default 100) |
+| `partner list-keys` | Admin/Partner manager/Auditor | List partner keys with status and registration counts |
+| `partner revoke-key <id>` | Admin/Partner manager | Revoke a partner key |
 
 ### Additional Account Commands
 
