@@ -17,8 +17,8 @@
 
 import { RepoEngine } from '../repo/repo-engine.js';
 import { collectEligibilityEvidence } from './eligibility-evidence.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { isDeviceSigningOn } from '../repo/device-signing-state.js';
+import { writeRepoAs, actingDevice } from '../repo/device-actions.js';
 import { auditLog } from '../db/audit.js';
 
 // Defined in `decision-rules.ts` so the offline verifier can name the same
@@ -92,8 +92,11 @@ async function auditMissingVoteRecord(input: VoteRecordInput, reason: string): P
  */
 export async function canRecordVote(voterDid: string): Promise<boolean> {
   // A voter whose device signs their repo (#240): the server cannot sign the
-  // record for them, so the vote is as unrecordable as one with no repo.
-  if (await isDeviceSigningOn(voterDid)) return false;
+  // record for them, so the vote is as unrecordable as one with no repo,
+  // unless their device is signing it in this very request (prepareAction).
+  // That is never the case for a delegator: their vote is cast by someone
+  // else, and nothing signs it for them.
+  if (await isDeviceSigningOn(voterDid) && !actingDevice(voterDid)) return false;
   return new RepoEngine(voterDid).hasRepo();
 }
 
@@ -122,7 +125,6 @@ export async function writeVoteRecord(input: VoteRecordInput): Promise<VoteRecor
       return null;
     }
 
-    const keypair = await getKeypairForDid(input.voterDid);
     const rkey = RepoEngine.generateTid();
 
     // Captured now, not at tally: a vote is judged eligible as cast, and
@@ -155,12 +157,17 @@ export async function writeVoteRecord(input: VoteRecordInput): Promise<VoteRecor
         communityDid: input.communityDid, authorDid: input.voterDid, collection: VOTE_COLLECTION,
         record, rkey, private: true,
       });
-      return { voterDid: input.voterDid, uri: stored.uri, cid: stored.cid, rkey };
+      return { voterDid: input.voterDid, uri: stored.uri, cid: stored.cid, rkey: stored.rkey };
     }
 
-    const { uri, cid } = await engine.putRecord(keypair, VOTE_COLLECTION, rkey, record);
-    return { voterDid: input.voterDid, uri, cid, rkey };
+    // The voter's device signs it when it takes part in this request (#240).
+    const [written] = await writeRepoAs(input.voterDid, [{ action: 'write', collection: VOTE_COLLECTION, rkey, record }]);
+    return { voterDid: input.voterDid, uri: written.uri, cid: written.cid!, rkey: written.rkey };
   } catch (error) {
+    // The voter's own device is signing this vote (prepareAction): stopping
+    // here to get the signature, or failing to apply it, is the vote's
+    // outcome, not a missing record to audit and count around.
+    if (actingDevice(input.voterDid)) throw error;
     console.error(`[governance] failed to write vote record for ${input.voterDid}:`, error);
     await auditMissingVoteRecord(input, error instanceof Error ? error.message : String(error));
     return null;

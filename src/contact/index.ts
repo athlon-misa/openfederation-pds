@@ -1,8 +1,8 @@
 import { query, withAdvisoryLock } from '../db/client.js';
 import { fullHandle } from '../auth/utils.js';
 import { RepoEngine } from '../repo/repo-engine.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
-import { assertServerMaySign, isDeviceSigningOn } from '../repo/device-signing-state.js';
+import { assertMayWriteFor, isDeviceSigningOn } from '../repo/device-signing-state.js';
+import { writeRepoAs, actingDevice } from '../repo/device-actions.js';
 import type { AuthContext } from '../auth/types.js';
 import { resolveDisplayFields, batchResolveOptionalDisplayFields } from '../community/display-projection.js';
 import { createNotification } from '../notification/index.js';
@@ -27,8 +27,9 @@ export async function sendContactRequest(
   if (note !== undefined && note !== null && (typeof note !== 'string' || note.length > MAX_NOTE_LENGTH)) {
     throw Object.assign(new Error(`note must be text of at most ${MAX_NOTE_LENGTH} characters`), { code: 'InvalidRequest', status: 400 });
   }
-  // The request is a record in the caller's repo (#240: their device signs it).
-  await assertServerMaySign(callerDid);
+  // The request is a record in the caller's repo (#240: their device signs it,
+  // through net.openfederation.repo.prepareAction, when device signing is on).
+  await assertMayWriteFor(callerDid);
 
   // A request can only be accepted by an account on this PDS (acceptance
   // writes to both repositories), so one addressed to anything else can never
@@ -70,18 +71,15 @@ export async function sendContactRequest(
     );
   }
 
-  const engine = new RepoEngine(callerDid);
-  const keypair = await getKeypairForDid(callerDid);
-  const rkey = RepoEngine.generateTid();
-  const issuedAt = new Date().toISOString();
-
   const record = {
     subject,
-    createdAt: issuedAt,
+    createdAt: new Date().toISOString(),
     ...(note ? { note } : {}),
   };
 
-  const result = await engine.putRecord(keypair, REQUEST_COLLECTION, rkey, record);
+  const [result] = await writeRepoAs(callerDid, [{ action: 'write', collection: REQUEST_COLLECTION, rkey: RepoEngine.generateTid(), record }]);
+  const rkey = result.rkey;
+  const issuedAt = String(result.record?.createdAt ?? record.createdAt);
 
   // Get recipient's handle for the index
   const recipientRow = await query<{ handle: string }>(
@@ -105,7 +103,7 @@ export async function sendContactRequest(
     ...(note ? { note } : {}),
   }).catch(() => { /* non-critical */ });
 
-  return { rkey, uri: result.uri, cid: result.cid };
+  return { rkey, uri: result.uri, cid: result.cid! };
 }
 
 export async function respondToContactRequest(
@@ -133,13 +131,10 @@ export async function respondToContactRequest(
     }
     const { from_did: fromDid } = reqRow.rows[0];
 
-    // Accepting writes a contact record into both repos; neither can be
-    // written by the server when that person's device signs it (#240).
-    // Checked before anything is written, so no half-made contact is left.
-    if (action === 'accept') {
-      await assertServerMaySign(callerDid);
-      await assertServerMaySign(fromDid, 'The person who sent this request signs their repository on their own device, so the server cannot add the contact to it; they must add it themselves');
-    }
+    // Accepting writes a contact record into both repos. The caller's is
+    // written first: under device signing (#240) their device signs it
+    // (prepareAction), and nothing else has changed until it has.
+    if (action === 'accept') await assertMayWriteFor(callerDid);
 
     // Every step below checks whether it has already been done, and the
     // request row is removed last. If something fails part-way the request is
@@ -148,7 +143,19 @@ export async function respondToContactRequest(
     if (action === 'accept') {
       const acceptedAt = new Date().toISOString();
       await ensureContact(callerDid, fromDid, acceptedAt);
-      await ensureContact(fromDid, callerDid, acceptedAt);
+      const theirs = await query(
+        'SELECT 1 FROM records_index WHERE community_did = $1 AND collection = $2 AND record->>\'subject\' = $3 LIMIT 1',
+        [fromDid, CONTACT_COLLECTION, callerDid],
+      );
+      if (theirs.rows.length === 0 && await isDeviceSigningOn(fromDid) && !actingDevice(fromDid)) {
+        // The requester's device signs their repo, and only it can add their
+        // side. They are asked to confirm: a request from the caller, which
+        // their device accepts like any other (the caller's side is already
+        // there, so accepting it writes only theirs).
+        await askToConfirmContact(callerDid, fromDid, auth);
+      } else {
+        await ensureContact(fromDid, callerDid, acceptedAt);
+      }
     }
 
     // Remove the request record from the requester's repo, if it is still there.
@@ -159,12 +166,35 @@ export async function respondToContactRequest(
     // If the requester's device signs their repo (#240), their request record
     // stays for their device to delete; the request itself is still resolved.
     if (requestRecord.rows.length > 0 && !(await isDeviceSigningOn(fromDid))) {
-      const fromEngine = new RepoEngine(fromDid);
-      await fromEngine.deleteRecord(await getKeypairForDid(fromDid), REQUEST_COLLECTION, rkey);
+      await writeRepoAs(fromDid, [{ action: 'delete', collection: REQUEST_COLLECTION, rkey }]);
     }
 
     await query('DELETE FROM contact_requests WHERE to_did = $1 AND rkey = $2', [callerDid, rkey]);
   });
+}
+
+/**
+ * The other half of accepting a request from someone whose device signs their
+ * repo (#240): a pending request from `accepterDid` to them, with no record
+ * behind it (the accepter's contact record already says what it would). It
+ * shows as an incoming request; accepting it on their device writes their
+ * contact record.
+ */
+async function askToConfirmContact(accepterDid: string, requesterDid: string, auth: AuthContext): Promise<void> {
+  const rkey = RepoEngine.generateTid();
+  const inserted = await query(
+    `INSERT INTO contact_requests (from_did, to_did, rkey, note, created_at)
+     VALUES ($1, $2, $3, NULL, NOW())
+     ON CONFLICT DO NOTHING`,
+    [accepterDid, requesterDid, rkey],
+  );
+  if ((inserted.rowCount ?? 0) === 0) return;
+  await createNotification(requesterDid, 'contact-request', {
+    fromDid: accepterDid,
+    fromHandle: fullHandle(auth.handle) ?? accepterDid,
+    rkey,
+    confirm: true,
+  }).catch(() => { /* non-critical */ });
 }
 
 /**
@@ -181,12 +211,12 @@ async function ensureContact(ownerDid: string, contactDid: string, acceptedAt: s
   );
   let contactRkey = existing.rows[0]?.rkey;
   if (!contactRkey) {
-    contactRkey = RepoEngine.generateTid();
-    const engine = new RepoEngine(ownerDid);
-    await engine.putRecord(await getKeypairForDid(ownerDid), CONTACT_COLLECTION, contactRkey, {
-      subject: contactDid,
-      acceptedAt,
-    });
+    const [written] = await writeRepoAs(ownerDid, [{
+      action: 'write', collection: CONTACT_COLLECTION, rkey: RepoEngine.generateTid(),
+      record: { subject: contactDid, acceptedAt },
+    }]);
+    contactRkey = written.rkey;
+    if (typeof written.record?.acceptedAt === 'string') acceptedAt = written.record.acceptedAt;
   }
   await query(
     `INSERT INTO contacts (user_did, contact_did, rkey, accepted_at)
@@ -210,8 +240,9 @@ export async function removeContact(auth: AuthContext, subject: string): Promise
     throw Object.assign(new Error('No accepted contact relationship with the given DID'), { code: 'NotFound', status: 404 });
   }
   const callerContactRkey = callerRow.rows[0].rkey;
-  // The caller's contact record is in their repo (#240: their device signs it).
-  await assertServerMaySign(callerDid);
+  // The caller's contact record is in their repo (#240: their device signs
+  // the deletion, through prepareAction, when device signing is on).
+  await assertMayWriteFor(callerDid);
 
   const subjectRow = await query<{ rkey: string }>(
     'SELECT rkey FROM contacts WHERE user_did = $1 AND contact_did = $2',
@@ -219,18 +250,15 @@ export async function removeContact(auth: AuthContext, subject: string): Promise
   );
 
   // Delete caller's contact record from their repo
-  const callerEngine = new RepoEngine(callerDid);
-  const callerKeypair = await getKeypairForDid(callerDid);
-  await callerEngine.deleteRecord(callerKeypair, CONTACT_COLLECTION, callerContactRkey);
+  await writeRepoAs(callerDid, [{ action: 'delete', collection: CONTACT_COLLECTION, rkey: callerContactRkey }]);
 
   // Cooperatively remove from counterpart's repo if record exists
   if (subjectRow.rows.length > 0) {
     try {
-      const subjectEngine = new RepoEngine(subject);
-      const subjectKeypair = await getKeypairForDid(subject);
-      await subjectEngine.deleteRecord(subjectKeypair, CONTACT_COLLECTION, subjectRow.rows[0].rkey);
+      await writeRepoAs(subject, [{ action: 'delete', collection: CONTACT_COLLECTION, rkey: subjectRow.rows[0].rkey }]);
     } catch {
-      // Counterpart repo may be on a remote PDS — best effort
+      // Counterpart repo may be on a remote PDS, or signed by their device
+      // (#240) — best effort
     }
     await query(
       'DELETE FROM contacts WHERE user_did = $1 AND contact_did = $2',
@@ -444,11 +472,9 @@ export async function withdrawContactRequest(
   if (row.rows.length === 0) {
     throw Object.assign(new Error('No outgoing request with the given rkey, or already resolved'), { code: 'NotFound', status: 404 });
   }
-  await assertServerMaySign(callerDid); // #240
+  await assertMayWriteFor(callerDid); // #240: their device signs it, through prepareAction
 
-  const engine = new RepoEngine(callerDid);
-  const keypair = await getKeypairForDid(callerDid);
-  await engine.deleteRecord(keypair, REQUEST_COLLECTION, rkey);
+  await writeRepoAs(callerDid, [{ action: 'delete', collection: REQUEST_COLLECTION, rkey }]);
 
   await query('DELETE FROM contact_requests WHERE from_did = $1 AND rkey = $2', [callerDid, rkey]);
 }
@@ -460,73 +486,84 @@ export async function blockContact(auth: AuthContext, subject: string): Promise<
   if (!subject) throw Object.assign(new Error('Missing subject'), { code: 'InvalidRequest', status: 400 });
   if (subject === callerDid) throw Object.assign(new Error('Cannot block yourself'), { code: 'InvalidRequest', status: 400 });
   // The block is a record in the caller's repo (#240), refused before any
-  // contact or request is removed. The other side's records are removed best
-  // effort, which skips a repo whose device signs it.
-  await assertServerMaySign(callerDid);
+  // contact or request is removed. Under device signing the caller's device
+  // signs everything blocking changes in their repo, as one commit, first.
+  // The other side's records are removed best effort, which skips a repo
+  // whose device signs it.
+  await assertMayWriteFor(callerDid);
 
-  // Remove any existing contact in either direction
   const existingContact = await query<{ rkey: string; side: string }>(
     `SELECT rkey, 'caller' as side FROM contacts WHERE user_did = $1 AND contact_did = $2
      UNION ALL
      SELECT rkey, 'subject' as side FROM contacts WHERE user_did = $2 AND contact_did = $1`,
     [callerDid, subject],
   );
-  for (const row of existingContact.rows) {
-    try {
-      const ownerDid = row.side === 'caller' ? callerDid : subject;
-      const eng = new RepoEngine(ownerDid);
-      const kp = await getKeypairForDid(ownerDid);
-      await eng.deleteRecord(kp, CONTACT_COLLECTION, row.rkey);
-    } catch { /* best effort */ }
-  }
-  await query(
-    `DELETE FROM contacts WHERE (user_did = $1 AND contact_did = $2) OR (user_did = $2 AND contact_did = $1)`,
-    [callerDid, subject],
-  );
-
-  // Remove pending requests in either direction
   const pendingReqs = await query<{ from_did: string; rkey: string }>(
     `SELECT from_did, rkey FROM contact_requests
       WHERE (from_did = $1 AND to_did = $2) OR (from_did = $2 AND to_did = $1)`,
     [callerDid, subject],
   );
-  for (const row of pendingReqs.rows) {
+  // Already blocked: the cleanup below runs again, and there is nothing to
+  // add. Writing another block record each time left duplicates in the repo
+  // that a single unblock did not remove.
+  const alreadyBlocked = (await query(
+    'SELECT 1 FROM contact_blocks WHERE blocker_did = $1 AND blocked_did = $2',
+    [callerDid, subject],
+  )).rows.length > 0;
+
+  // The caller's own records: their contact record and request naming the
+  // subject (those still in the repo), and the new block record.
+  const ownDeletes = [
+    ...existingContact.rows.filter((r) => r.side === 'caller').map((r) => ({ collection: CONTACT_COLLECTION, rkey: r.rkey })),
+    ...pendingReqs.rows.filter((r) => r.from_did === callerDid).map((r) => ({ collection: REQUEST_COLLECTION, rkey: r.rkey })),
+  ];
+  const present = ownDeletes.length === 0 ? new Set<string>() : new Set((await query<{ key: string }>(
+    `SELECT collection || '/' || rkey AS key FROM records_index
+      WHERE community_did = $1 AND (collection || '/' || rkey) = ANY($2)`,
+    [callerDid, ownDeletes.map((d) => `${d.collection}/${d.rkey}`)],
+  )).rows.map((r) => r.key));
+  const ownOps = [
+    ...ownDeletes.filter((d) => present.has(`${d.collection}/${d.rkey}`)).map((d) => ({ action: 'delete' as const, ...d })),
+    ...(alreadyBlocked ? [] : [{
+      action: 'write' as const, collection: BLOCK_COLLECTION, rkey: RepoEngine.generateTid(),
+      record: { subject, createdAt: new Date().toISOString() },
+    }]),
+  ];
+  const written = await writeRepoAs(callerDid, ownOps);
+  const blockRkey = alreadyBlocked ? null : written[written.length - 1].rkey;
+
+  // The subject's side, best effort.
+  for (const row of existingContact.rows) {
+    if (row.side !== 'subject') continue;
     try {
-      const eng = new RepoEngine(row.from_did);
-      const kp = await getKeypairForDid(row.from_did);
-      await eng.deleteRecord(kp, REQUEST_COLLECTION, row.rkey);
+      await writeRepoAs(subject, [{ action: 'delete', collection: CONTACT_COLLECTION, rkey: row.rkey }]);
     } catch { /* best effort */ }
   }
+  for (const row of pendingReqs.rows) {
+    if (row.from_did === callerDid) continue;
+    try {
+      await writeRepoAs(row.from_did, [{ action: 'delete', collection: REQUEST_COLLECTION, rkey: row.rkey }]);
+    } catch { /* best effort */ }
+  }
+
+  await query(
+    `DELETE FROM contacts WHERE (user_did = $1 AND contact_did = $2) OR (user_did = $2 AND contact_did = $1)`,
+    [callerDid, subject],
+  );
   await query(
     `DELETE FROM contact_requests
       WHERE (from_did = $1 AND to_did = $2) OR (from_did = $2 AND to_did = $1)`,
     [callerDid, subject],
   );
 
-  // Already blocked: the cleanup above has run again, and there is nothing to
-  // add. Writing another block record each time left duplicates in the repo
-  // that a single unblock did not remove.
-  const alreadyBlocked = await query(
-    'SELECT 1 FROM contact_blocks WHERE blocker_did = $1 AND blocked_did = $2',
-    [callerDid, subject],
-  );
-  if (alreadyBlocked.rows.length > 0) return;
-
-  // Create block record on caller's repo
-  const engine = new RepoEngine(callerDid);
-  const keypair = await getKeypairForDid(callerDid);
-  const blockRkey = RepoEngine.generateTid();
-  await engine.putRecord(keypair, BLOCK_COLLECTION, blockRkey, {
-    subject,
-    createdAt: new Date().toISOString(),
-  });
-
-  await query(
-    `INSERT INTO contact_blocks (blocker_did, blocked_did, rkey)
-     VALUES ($1, $2, $3)
-     ON CONFLICT DO NOTHING`,
-    [callerDid, subject, blockRkey],
-  );
+  if (blockRkey) {
+    await query(
+      `INSERT INTO contact_blocks (blocker_did, blocked_did, rkey)
+       VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [callerDid, subject, blockRkey],
+    );
+  }
 }
 
 export async function unblockContact(auth: AuthContext, subject: string): Promise<void> {
@@ -539,11 +576,9 @@ export async function unblockContact(auth: AuthContext, subject: string): Promis
   if (row.rows.length === 0) {
     throw Object.assign(new Error('The given DID is not blocked'), { code: 'NotFound', status: 404 });
   }
-  await assertServerMaySign(callerDid); // #240
+  await assertMayWriteFor(callerDid); // #240: their device signs it, through prepareAction
 
-  const engine = new RepoEngine(callerDid);
-  const keypair = await getKeypairForDid(callerDid);
-  await engine.deleteRecord(keypair, BLOCK_COLLECTION, row.rows[0].rkey);
+  await writeRepoAs(callerDid, [{ action: 'delete', collection: BLOCK_COLLECTION, rkey: row.rows[0].rkey }]);
 
   await query('DELETE FROM contact_blocks WHERE blocker_did = $1 AND blocked_did = $2', [callerDid, subject]);
 }

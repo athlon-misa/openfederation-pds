@@ -15,8 +15,8 @@
  */
 
 import { RepoEngine } from '../repo/repo-engine.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { isDeviceSigningOn } from '../repo/device-signing-state.js';
+import { writeRepoAs, actingDevice } from '../repo/device-actions.js';
 
 export { OBJECTION_COLLECTION } from './decision-rules.js';
 import { OBJECTION_COLLECTION, PROPOSAL_COLLECTION, proposalUri } from './decision-rules.js';
@@ -54,8 +54,9 @@ export interface ObjectionRecordResult {
  * repo" is a verdict, a failed lookup is not.
  */
 export async function canRecordObjection(objectorDid: string): Promise<boolean> {
-  // As for votes: under device signing (#240) the server cannot sign it.
-  if (await isDeviceSigningOn(objectorDid)) return false;
+  // As for votes: under device signing (#240) the server cannot sign it; the
+  // objector's device can, when it takes part in this request.
+  if (await isDeviceSigningOn(objectorDid) && !actingDevice(objectorDid)) return false;
   return new RepoEngine(objectorDid).hasRepo();
 }
 
@@ -64,8 +65,6 @@ export async function canRecordObjection(objectorDid: string): Promise<boolean> 
  * Throws if the repo, key, or commit fails — see the module note.
  */
 export async function writeObjectionRecord(input: ObjectionRecordInput): Promise<ObjectionRecordResult> {
-  const engine = new RepoEngine(input.objectorDid);
-  const keypair = await getKeypairForDid(input.objectorDid);
   const rkey = RepoEngine.generateTid();
   const createdAt = new Date().toISOString();
 
@@ -90,9 +89,15 @@ export async function writeObjectionRecord(input: ObjectionRecordInput): Promise
       communityDid: input.communityDid, authorDid: input.objectorDid, collection: OBJECTION_COLLECTION,
       record, rkey, private: true,
     });
-    return { objectorDid: input.objectorDid, uri: stored.uri, cid: stored.cid, rkey, createdAt };
+    const storedAt = stored.record.createdAt;
+    return { objectorDid: input.objectorDid, uri: stored.uri, cid: stored.cid, rkey: stored.rkey, createdAt: typeof storedAt === 'string' ? storedAt : createdAt };
   }
 
-  const { uri, cid } = await engine.putRecord(keypair, OBJECTION_COLLECTION, rkey, record);
-  return { objectorDid: input.objectorDid, uri, cid, rkey, createdAt };
+  // The objector's device signs it when it takes part in this request (#240).
+  const [written] = await writeRepoAs(input.objectorDid, [{ action: 'write', collection: OBJECTION_COLLECTION, rkey, record }]);
+  const stored = written.record ?? record;
+  return {
+    objectorDid: input.objectorDid, uri: written.uri, cid: written.cid!, rkey: written.rkey,
+    createdAt: typeof stored.createdAt === 'string' ? stored.createdAt : createdAt,
+  };
 }

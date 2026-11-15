@@ -3,8 +3,8 @@ import type { AuthRequest } from '../auth/types.js';
 import { requireApprovedUser } from '../auth/guards.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { query } from '../db/client.js';
-import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { respondIfDeviceSigning } from '../repo/device-signing-state.js';
+import { writeRepoAs } from '../repo/device-actions.js';
 import { fanOutDisplayFields } from '../community/display-projection.js';
 
 const DEFAULT_COLLECTION = 'app.bsky.actor.profile';
@@ -26,11 +26,11 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
     }
 
     // The profile lives in the user's repo: with device signing on (#240) the
-    // device writes it (prepareCommit / submitCommit), not this server.
+    // device signs it (net.openfederation.repo.prepareAction with this method,
+    // then submitCommit), not this server.
     if (await respondIfDeviceSigning(res, did)) return;
 
     const engine = new RepoEngine(did);
-    const keypair = await getKeypairForDid(did);
 
     let finalRecord: Record<string, unknown>;
 
@@ -80,7 +80,7 @@ export default async function updateProfile(req: AuthRequest, res: Response): Pr
       }
     }
 
-    const result = await engine.putRecord(keypair, targetCollection, 'self', finalRecord);
+    const [result] = await writeRepoAs(did, [{ action: 'write', collection: targetCollection, rkey: 'self', record: finalRecord }]);
 
     // Fan out updated display fields to every community this user belongs to
     await fanOutDisplayFields(did, req.auth!.handle);

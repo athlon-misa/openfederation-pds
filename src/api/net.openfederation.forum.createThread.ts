@@ -24,7 +24,8 @@ export default async function createThread(req: AuthRequest, res: Response): Pro
 
     const authorDid = req.auth!.did;
     // A thread is in the author's repo, or (private community) signed with the
-    // author's repo key: neither is the server's to make under device signing (#240).
+    // author's repo key: neither is the server's to make under device signing
+    // (#240); the author's device signs it through net.openfederation.repo.prepareAction.
     if (await respondIfDeviceSigning(res, authorDid)) return;
 
     if (!(await enforcePseudonymProbation(req, res))) return;
@@ -38,9 +39,12 @@ export default async function createThread(req: AuthRequest, res: Response): Pro
     const result = await writeMemberContent({ communityDid: community, authorDid, collection: FORUM_THREAD, record });
     const rkey = result.rkey;
 
+    // As stored: when the author's device signed it (#240), the record it
+    // signed, prepared on an earlier run of this method.
+    const stored = result.record as typeof record;
     await indexThread({
       uri: result.uri, cid: result.cid, communityDid: community,
-      authorDid, title: record.title, tags: tagList, createdAt,
+      authorDid, title: stored.title, tags: stored.tags, createdAt: stored.createdAt,
     });
 
     await auditLog('forum.thread.create', req.auth!.userId, community, { uri: result.uri });
