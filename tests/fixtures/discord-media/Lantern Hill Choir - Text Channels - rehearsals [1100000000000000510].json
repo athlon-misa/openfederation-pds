@@ -1,0 +1,154 @@
+{
+  "guild": {
+    "id": "1000000000000000500",
+    "name": "Lantern Hill Choir",
+    "iconUrl": ""
+  },
+  "channel": {
+    "id": "1100000000000000510",
+    "type": "GuildTextChat",
+    "categoryId": "1100000000000000501",
+    "category": "Text Channels",
+    "name": "rehearsals",
+    "topic": null
+  },
+  "dateRange": {
+    "after": null,
+    "before": null
+  },
+  "exportedAt": "2026-11-01T10:00:00.000+00:00",
+  "messages": [
+    {
+      "id": "1200000000000000501",
+      "type": "Default",
+      "timestamp": "2026-03-02T19:00:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Stage plan for Friday attached. Wren, can you check the risers?",
+      "author": {
+        "id": "1000000000000000201",
+        "name": "hollis.v",
+        "discriminator": "0000",
+        "nickname": "Hollis",
+        "isBot": false,
+        "roles": []
+      },
+      "attachments": [
+        {
+          "id": "1300000000000000501",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/stage-plan-AAAA1.png",
+          "fileName": "stage-plan.png",
+          "fileSizeBytes": 67
+        },
+        {
+          "id": "1300000000000000502",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/wave-AAAA2.gif",
+          "fileName": "wave.gif",
+          "fileSizeBytes": 43
+        },
+        {
+          "id": "1300000000000000503",
+          "url": "https://cdn.discordapp.com/attachments/1100000000000000510/1300000000000000503/rehearsal.mp4?ex=abc&is=def&hm=SIGNED-TOKEN",
+          "fileName": "rehearsal.mp4",
+          "fileSizeBytes": 5000000
+        },
+        {
+          "id": "1300000000000000504",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/photo-AAAA3.jpg",
+          "fileName": "photo.jpg",
+          "fileSizeBytes": 64
+        },
+        {
+          "id": "1300000000000000505",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/setlist-AAAA4.pdf",
+          "fileName": "setlist.pdf",
+          "fileSizeBytes": 31
+        },
+        {
+          "id": "1300000000000000506",
+          "url": "../../../../etc/passwd",
+          "fileName": "passwd",
+          "fileSizeBytes": 100
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000502",
+      "type": "Default",
+      "timestamp": "2026-03-02T19:05:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Will do, thanks hollis.v! Persimmon can help too.",
+      "author": {
+        "id": "1000000000000000202",
+        "name": "wren_sings",
+        "discriminator": "0000",
+        "nickname": "Wren",
+        "isBot": false,
+        "roles": []
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "1200000000000000503",
+      "type": "Default",
+      "timestamp": "2026-03-02T19:10:00.000+00:00",
+      "timestampEdited": null,
+      "isPinned": false,
+      "content": "Five angles of the risers",
+      "author": {
+        "id": "1000000000000000202",
+        "name": "wren_sings",
+        "discriminator": "0000",
+        "nickname": "Wren",
+        "isBot": false,
+        "roles": []
+      },
+      "attachments": [
+        {
+          "id": "1300000000000000510",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/stage-plan-AAAA1.png",
+          "fileName": "risers-0.png",
+          "fileSizeBytes": 67
+        },
+        {
+          "id": "1300000000000000511",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/stage-plan-AAAA1.png",
+          "fileName": "risers-1.png",
+          "fileSizeBytes": 67
+        },
+        {
+          "id": "1300000000000000512",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/stage-plan-AAAA1.png",
+          "fileName": "risers-2.png",
+          "fileSizeBytes": 67
+        },
+        {
+          "id": "1300000000000000513",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/stage-plan-AAAA1.png",
+          "fileName": "risers-3.png",
+          "fileSizeBytes": 67
+        },
+        {
+          "id": "1300000000000000514",
+          "url": "Lantern Hill Choir - Text Channels - rehearsals [1100000000000000510].json_Files/stage-plan-AAAA1.png",
+          "fileName": "risers-4.png",
+          "fileSizeBytes": 67
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    }
+  ],
+  "messageCount": 3
+}

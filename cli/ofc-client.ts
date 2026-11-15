@@ -255,6 +255,26 @@ export class OFCClient {
     return this.handleResponse(resp);
   }
 
+  /** POST raw bytes (a blob upload), with query parameters. */
+  async authPostBytes(nsid: string, params: Record<string, string>, data: Uint8Array, contentType: string): Promise<any> {
+    const session = loadSession(this.serverUrl);
+    if (!session) throw new Error('Not logged in. Run: ofc auth login');
+    const url = new URL(`/xrpc/${nsid}`, this.serverUrl);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    const send = (token: string) => this.rawFetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': contentType, 'Accept': 'application/json' },
+      body: new Blob([new Uint8Array(data)], { type: contentType }),
+    });
+    let resp = await send(session.accessJwt);
+    if (resp.status === 401) {
+      const refreshed = await this.tryRefresh(session);
+      if (!refreshed) throw new Error('Session expired. Run: ofc auth login');
+      resp = await send(refreshed.accessJwt);
+    }
+    return this.handleResponse(resp);
+  }
+
   // ── Session management ──────────────────────────────────────────
 
   async login(identifier: string, password: string): Promise<StoredSession> {

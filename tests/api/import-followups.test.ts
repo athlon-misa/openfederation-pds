@@ -11,6 +11,43 @@ import { query } from '../../src/db/client.js';
 import { postRkey, threadRkey, snowflakeRkey, isSlackTs } from '../../src/forum/import.js';
 import { refreshRuntimeSettings } from '../../src/settings/runtime-settings.js';
 import { sniffImageType } from '../../src/blob/sniff.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readSlackExport, mapSlackExport } from '../../cli/slack-export.js';
+import { readExportDir, mapExport } from '../../cli/discord-export.js';
+import {
+  newCheckpoint, runImport, createInvites, inviteesFor, type ImportTransport, type ImportBatchBody, type StatusError,
+} from '../../cli/discord-import.js';
+
+const SLACK_FIXTURE = join(__dirname, '..', 'fixtures', 'slack');
+const DISCORD_MEDIA = join(__dirname, '..', 'fixtures', 'discord-media');
+
+function serverTransport(token: string): ImportTransport {
+  const fail = (res: { status: number; body: { error?: string; message?: string } }) => {
+    const err = new Error(`${res.status} ${res.body.error}: ${res.body.message}`) as StatusError;
+    err.status = res.status;
+    return err;
+  };
+  return {
+    async importBatch(body: ImportBatchBody) {
+      const res = await xrpcAuthPost(BATCH, token, body);
+      if (res.status !== 200) throw fail(res);
+      return res.body;
+    },
+    async uploadBlob(community: string, data: Buffer, mimeType: string) {
+      const res = await uploadBlob(token, community, data, mimeType);
+      if (res.status !== 200) throw fail(res);
+      return res.body.blob;
+    },
+    async createInvites(count: number, note?: string, community?: string) {
+      const res = await xrpcAuthPost('net.openfederation.invite.create', token, { count, maxUses: 1, ...(note ? { note } : {}), ...(community ? { community } : {}) });
+      if (res.status !== 201) throw fail(res);
+      return res.body.codes as string[];
+    },
+  };
+}
+const checkpoint = () => join(mkdtempSync(join(tmpdir(), 'ofc-403-api-')), 'checkpoint.json');
 
 const BATCH = 'net.openfederation.forum.importBatch';
 const BLOB = 'net.openfederation.forum.importBlob';
@@ -356,6 +393,54 @@ describe('import follow-ups against the server', () => {
       expect(res.status).toBe(201);
       expect(res.body.community).toEqual({ did, status: 'refused' });
       expect((await xrpcAuthPost('net.openfederation.invite.create', owner.accessJwt, { community: did })).status).toBe(403);
+    });
+  });
+
+  describe('end to end with the importer', () => {
+    it('Slack: imports the fixture with its image, re-runs create nothing, a deleted post stays deleted', async () => {
+      if (!plc) return;
+      const did = await newCommunity();
+      const exp = readSlackExport(SLACK_FIXTURE);
+      try {
+        const plan = mapSlackExport(exp);
+        const totals = await runImport(plan, newCheckpoint(did, exp.teamId, false, 'slack'), serverTransport(owner.accessJwt), { checkpointPath: checkpoint() });
+        expect(totals).toMatchObject({ threads: { created: 2 }, posts: { created: 8 }, attachments: { uploaded: 1, skipped: 0 } });
+
+        const list = await xrpcGet('net.openfederation.forum.listThreads', { community: did });
+        expect(list.body.threads.map((t: { title: string }) => t.title).sort()).toEqual(['#general', '#patterns']);
+        const general = list.body.threads.find((t: { title: string }) => t.title === '#general');
+        const thread = await xrpcGet('net.openfederation.forum.getThread', { uri: general.uri });
+        const posts = thread.body.posts;
+        expect(posts).toHaveLength(7);
+        expect(posts[2].parentUri).toBe(posts[1].uri);
+        const photo = posts.find((p: { record: { embeds?: unknown[] } }) => p.record.embeds);
+        expect(photo.record.embeds[0]).toMatchObject({ $type: 'blob', mimeType: 'image/png' });
+        expect(photo.record.importedFrom).toMatchObject({ platform: 'slack', channelId: 'C0GENERAL1', attachmentCount: 4 });
+
+        // Delete one, then run the whole import again with a new checkpoint.
+        const rkey = postRkey('slack', 'C0GENERAL1', '1767603600.000100');
+        expect((await xrpcAuthPost('net.openfederation.forum.deletePost', owner.accessJwt, { rkey, community: did })).status).toBe(200);
+        const again = await runImport(plan, newCheckpoint(did, exp.teamId, false, 'slack'), serverTransport(owner.accessJwt), { checkpointPath: checkpoint() });
+        expect(again).toMatchObject({ threads: { created: 0, existing: 2 }, posts: { created: 0, existing: 7, deleted: 1 } });
+        expect((await query('SELECT 1 FROM records_index WHERE community_did = $1 AND rkey = $2', [did, rkey])).rows).toHaveLength(0);
+      } finally {
+        exp.tree.close();
+      }
+    });
+
+    it('Discord with --media: images uploaded and linked; community invite codes from the importer', async () => {
+      if (!plc) return;
+      const did = await newCommunity();
+      const plan = mapExport(readExportDir(DISCORD_MEDIA), { exportDir: DISCORD_MEDIA });
+      const cp = newCheckpoint(did, '1000000000000000500', false);
+      const path = checkpoint();
+      const totals = await runImport(plan, cp, serverTransport(owner.accessJwt), { checkpointPath: path });
+      expect(totals).toMatchObject({ posts: { created: 3 }, attachments: { uploaded: 6, skipped: 0 } });
+
+      const rows = await createInvites(inviteesFor(plan, null), plan, cp, serverTransport(owner.accessJwt), { checkpointPath: path, community: did });
+      expect(rows).toHaveLength(2);
+      const stored = await query<{ community_did: string; created_by: string }>('SELECT community_did FROM invites WHERE code = ANY($1)', [rows.map((r) => r.code)]);
+      expect(stored.rows.map((r) => r.community_did)).toEqual([did, did]);
     });
   });
 });
