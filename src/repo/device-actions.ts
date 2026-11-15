@@ -223,14 +223,32 @@ export class CapturedResponse {
 
 type Handler = (req: Request, res: Response) => Promise<void> | void;
 
-async function handlerFor(method: string): Promise<Handler> {
+async function entryFor(method: string) {
   // Imported when used: the registry imports the endpoints that import this module.
   const { handlerRegistry } = await import('../server/handler-registry.js');
   const entry = Object.hasOwn(handlerRegistry, method) ? handlerRegistry[method] : undefined;
   if (!entry || !DEVICE_ACTION_METHODS.has(method)) {
     throw new HttpError(400, 'UnsupportedMethod', `${method} cannot be signed on the device; see net.openfederation.repo.prepareAction`);
   }
-  return entry.handler as Handler;
+  return entry;
+}
+
+async function handlerFor(method: string): Promise<Handler> {
+  return (await entryFor(method)).handler as Handler;
+}
+
+/**
+ * Apply `method`'s own rate limit to this request, as the router does when
+ * the method is called directly, so preparing it through prepareAction is
+ * not a way around it. False when the limiter has answered (limit reached).
+ */
+export async function applyMethodLimiter(method: string, req: Request, res: Response): Promise<boolean> {
+  const { limiter } = await entryFor(method);
+  if (!limiter) return true;
+  await new Promise<void>((resolve, reject) => {
+    limiter(req, res, (err?: unknown) => (err ? reject(err) : resolve()));
+  });
+  return !res.headersSent;
 }
 
 /** The same request, with another body: what the method sees. */

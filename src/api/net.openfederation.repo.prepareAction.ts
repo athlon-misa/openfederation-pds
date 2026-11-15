@@ -5,7 +5,7 @@ import { requireAuth } from '../auth/guards.js';
 import { query } from '../db/client.js';
 import { RepoEngine } from '../repo/repo-engine.js';
 import { assertPendingRoom, storePendingCommit, preparedCommitJson } from '../repo/device-commits.js';
-import { DEVICE_ACTION_METHODS, runPrepare, forwardResponse } from '../repo/device-actions.js';
+import { DEVICE_ACTION_METHODS, runPrepare, forwardResponse, applyMethodLimiter } from '../repo/device-actions.js';
 import { validateXrpcInput } from '../lexicon/runtime.js';
 import { HttpError, renderXrpcError } from '../xrpc/errors.js';
 
@@ -49,6 +49,9 @@ export default async function prepareAction(req: AuthRequest, res: Response): Pr
     const validation = validateXrpcInput(method, input);
     if (!validation.ok) throw new HttpError(400, 'InvalidRequest', validation.message);
 
+    // The method's own limit (forum posts, RSVPs: the creation limit) applies
+    // here, once per action: submitting is the second half of the same call.
+    if (!(await applyMethodLimiter(method, req, res))) return;
     await assertPendingRoom(did);
     const { ctx, res: answer } = await runPrepare(req, did, method, input as Record<string, unknown>);
     const needed = ctx.needed;
