@@ -12,7 +12,8 @@ import { Acknowledge, ChoiceExplainer, Note, Section, StatusMessage, WhatIsThis 
 import { PasskeyOffer } from '@/components/account/passkey-offer';
 import { ExistingPhrase, NewPhrase } from '@/components/custody/phrase-inputs';
 import { changeCustody, forgetRemembered, loadRemembered, recoverWithNewPhrase, type CustodyMode } from '@/lib/custody/custody';
-import { CUSTODY, DEVICE_SIGNING, POSTING_KEY_NOTE, switchAck, switchNote } from '@/lib/copy/glossary';
+import { CUSTODY, POSTING_KEY_NOTE, switchAck, switchNote } from '@/lib/copy/glossary';
+import { DeviceSigningSection } from '@/components/account/device-signing-section';
 import { THIS_PDS } from '@/hooks/use-identity';
 
 const ORDER: CustodyMode[] = ['custodial', 'assisted', 'self'];
@@ -251,15 +252,8 @@ function IdentityScreens({ ctx }: { ctx: AccountContext }) {
 
       <Section id="posting" title="The key that signs your posts">
         <p className="text-sm text-muted-foreground">{POSTING_KEY_NOTE}</p>
-        <div className="space-y-3 rounded-md border border-dashed p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold">{DEVICE_SIGNING.title}</h3>
-            <Badge variant="outline">Not in this dashboard yet</Badge>
-          </div>
-          <p className="text-sm">{DEVICE_SIGNING.summary}</p>
-          <ChoiceExplainer text={DEVICE_SIGNING} extra={[{ label: 'Who can use it', text: DEVICE_SIGNING.availability }]} />
-        </div>
       </Section>
+      <DeviceSigningSection ctx={ctx} />
     </>
   );
 }

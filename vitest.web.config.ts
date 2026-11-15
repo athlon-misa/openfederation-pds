@@ -10,6 +10,7 @@ export default defineConfig({
     'react-dom': resolve(import.meta.dirname, 'web-interface/node_modules/react-dom'),
     'kbar': resolve(import.meta.dirname, 'web-interface/node_modules/kbar'),
     'next-themes': resolve(import.meta.dirname, 'web-interface/node_modules/next-themes'),
+    '@tanstack/react-query': resolve(import.meta.dirname, 'web-interface/node_modules/@tanstack/react-query'),
     'next/navigation': resolve(import.meta.dirname, 'web-interface/node_modules/next/navigation.js'),
   } },
 });
