@@ -1,0 +1,114 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.account.getDeviceSigning",
+  "revision": 1,
+  "description": "Device signing (#240, ADR-003 decision 14): the caller's device-signing setting. Whether this installation offers it (DEVICE_SIGNING_ALLOWED) and the account's custody mode can have it, whether it is on here, the DID's atproto key as PLC names it now (read live), this server's repo key, how the two compare (state), and which features work while it is on. Changes nothing. PLC is the authority: a client that must not trust this server reads PLC itself.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Get the caller's device-signing setting.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "allowed",
+            "eligible",
+            "deviceSigning",
+            "plcReadable",
+            "state",
+            "features"
+          ],
+          "properties": {
+            "allowed": {
+              "type": "boolean",
+              "description": "This installation offers device signing."
+            },
+            "custodyMode": {
+              "type": "string",
+              "knownValues": [
+                "custodial",
+                "assisted",
+                "self"
+              ],
+              "description": "The account's custody mode; absent or null when this server controls no identity for it."
+            },
+            "eligible": {
+              "type": "boolean",
+              "description": "Offered here, and the custody mode can have it (self or assisted)."
+            },
+            "deviceSigning": {
+              "type": "boolean",
+              "description": "On at this server: every server-side write into the account's repository refuses."
+            },
+            "since": {
+              "type": "string",
+              "format": "datetime",
+              "description": "When it was last turned on."
+            },
+            "recordedKey": {
+              "type": "string",
+              "description": "The did:key this server recorded when it was last turned on."
+            },
+            "atprotoKey": {
+              "type": "string",
+              "description": "The DID's atproto key in PLC now; absent when PLC could not be read (plcReadable false) or names none."
+            },
+            "plcReadable": {
+              "type": "boolean"
+            },
+            "serverKey": {
+              "type": "string",
+              "description": "This server's repo key for the account: what PLC names while device signing is off."
+            },
+            "state": {
+              "type": "string",
+              "knownValues": [
+                "off",
+                "on",
+                "resumable",
+                "switchedBack"
+              ],
+              "description": "off; on; resumable (off here, but PLC names a key that is not this server's, for example after the person cancelled a switch back: enableDeviceSigning turns it on); switchedBack (on here, but PLC names this server's key again)."
+            },
+            "features": {
+              "type": "array",
+              "description": "Features that write into the person's repository, and whether each works while device signing is on.",
+              "items": {
+                "type": "ref",
+                "ref": "#feature"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "The account was not found."
+        }
+      ]
+    },
+    "feature": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "available"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "Plain words, as a dashboard shows them."
+        },
+        "available": {
+          "type": "boolean",
+          "description": "True: works with device signing on (signed on the device). False: unavailable while it is on."
+        }
+      }
+    }
+  }
+}

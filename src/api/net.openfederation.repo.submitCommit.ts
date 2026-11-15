@@ -8,6 +8,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { RepoConcurrentWriteError } from '../repo/pg-blockstore.js';
 import { takePendingCommit, dropPendingCommits } from '../repo/device-commits.js';
 import { currentAtprotoKey, serverAtprotoKey } from '../identity/device-signing.js';
+import { noticeDeviceSigningSwitchedOff } from '../identity/assisted-notice.js';
 import { HttpError, renderXrpcError } from '../xrpc/errors.js';
 
 const NSID = 'net.openfederation.repo.submitCommit';
@@ -65,6 +66,8 @@ export default async function submitCommit(req: AuthRequest, res: Response): Pro
       );
       await dropPendingCommits(did);
       await auditLog('account.deviceSigning.disable', user.id, user.id, { did, reason: 'plc-points-to-server-key' });
+      // Not something the person asked this server for: tell them (#240, phase 4).
+      await noticeDeviceSigningSwitchedOff(did);
       throw new HttpError(400, 'DeviceSigningOff', 'The DID names this server\'s key again, so device signing is now off; write with com.atproto.repo.*');
     }
 
