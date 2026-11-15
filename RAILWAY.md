@@ -4,15 +4,15 @@
 >
 > A server whose production environment has neither `AUTH_JWT_SECRET` nor `KEY_ENCRYPTION_SECRET` starts in **setup mode** (it serves only `/setup` and `/health`) instead of refusing to start. Setting the variables below, as this guide does, skips it entirely; `OPENFEDERATION_SETUP=off` turns it off explicitly.
 
-OpenFederation PDS deploys to Railway as **three services** from the same repository:
+OpenFederation PDS deploys to Railway as the PDS API, its PostgreSQL database and the Web UI, all from the same repository. Running your own PLC directory is optional: without one, set `PLC_DIRECTORY_URL=https://plc.openfederation.net` (the public directory) on the PDS.
 
 | Service | What it does | Root directory | Custom domain |
 |---------|-------------|----------------|---------------|
-| **PDS API** | Express.js backend, XRPC endpoints | `/` (repo root) | `pds.openfederation.net` |
-| **PLC Directory** | DID PLC resolution service | `/plc-server` | `plc.openfederation.net` |
+| **PDS API** | Express.js backend, XRPC endpoints | `/` (repo root) | `pds.yourdomain.com` |
 | **Web UI** | Next.js dashboard for managing communities | `/web-interface` | your choice |
+| **PLC Directory** (optional) | DID PLC resolution service | `/plc-server` | `plc.yourdomain.com` |
 
-Each service gets its own Railway-generated URL on **standard HTTPS (port 443)**. Railway handles TLS termination automatically. The PDS and PLC services each have their own PostgreSQL database.
+Each service gets its own Railway-generated URL on **standard HTTPS (port 443)**. Railway handles TLS termination automatically. The PDS has its own PostgreSQL database, and so does the PLC directory if you run one.
 
 ---
 
@@ -35,13 +35,13 @@ In Railway Dashboard:
 
 1. Click **"+ New"** → **"Database"** → **"Add PostgreSQL"**
 2. Railway auto-configures: `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
-3. This database is for the PDS API service (the PLC directory gets its own database in Step 5)
+3. This database is for the PDS API service (if you run your own PLC directory, it gets its own database in Step 5)
 
 ---
 
 ## 3. Configure the PDS API Service
 
-The service configuration for all three services (build, start, health check, domains) lives in `.railway/railway.ts`; change it there and run `railway config plan` / `railway config apply`. The PDS builds from the root `Dockerfile`. Click the service and set these **Variables**:
+The PDS builds from the root `Dockerfile`. (`.railway/railway.ts` in the repository is the configuration of the maintainers' own deployment, not something to apply to yours; set your services up in the Railway dashboard as described here.) Click the service and set these **Variables**:
 
 ### Required Variables
 
@@ -63,7 +63,25 @@ DB_NAME=${{Postgres.PGDATABASE}}
 DB_USER=${{Postgres.PGUSER}}
 DB_PASSWORD=${{Postgres.PGPASSWORD}}
 DB_SSL=true
+
+# PLC directory — the default (localhost:2582) only works in development
+PLC_DIRECTORY_URL=https://plc.openfederation.net   # or your own, from Step 5
+
+# OAuth signing key (ES256 JWK, one line) — production refuses to start without it
+# while OAuth is on. Generate with the command in .env.example.
+OAUTH_SIGNING_KEY=<one-line-jwk>
+
+# Email — production refuses to start without SMTP unless ALLOW_NO_EMAIL=true
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=<user>
+SMTP_PASSWORD=<password>
+SMTP_FROM=OpenFederation <noreply@yourdomain.com>
+# or, for a server that sends no mail:
+# ALLOW_NO_EMAIL=true
 ```
+
+`DB_SSL=true` is right for Railway's Postgres; production only warns when it is off and the database host is not local, `*.internal` or a single-label name. Add `REDIS_URL` (for example a Railway Redis service, `${{Redis.REDIS_URL}}`) before running more than one PDS instance: it keeps OAuth replay protection shared between instances, and production warns when it is unset.
 
 ### Bootstrap Admin (first-time setup)
 
@@ -88,8 +106,7 @@ CORS_ORIGINS=https://your-web-ui.up.railway.app
 ### Optional Variables
 
 ```
-HANDLE_SUFFIX=.openfederation.net
-PLC_DIRECTORY_URL=https://plc.openfederation.net  # Your PLC service from Step 5
+HANDLE_SUFFIX=.yourdomain.com   # default .openfederation.net
 INVITE_REQUIRED=true
 ACCESS_TOKEN_TTL=15m
 REFRESH_TOKEN_TTL=30d
@@ -132,9 +149,9 @@ Like `NEXT_PUBLIC_PDS_URL`, it is read when the dashboard is built.
 
 ---
 
-## 5. Add the PLC Directory Service
+## 5. Add the PLC Directory Service (optional)
 
-The PLC directory resolves `did:plc` identifiers. It needs its own service and database.
+The PLC directory resolves `did:plc` identifiers. Skip this step to use the public `https://plc.openfederation.net`. Your own needs its own service and database.
 
 ### Create the service
 
@@ -158,10 +175,10 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 
 ### Custom Domain
 
-Set custom domain `plc.openfederation.net` on the PLC service, then update the PDS service:
+Set a custom domain such as `plc.yourdomain.com` on the PLC service, then update the PDS service:
 
 ```
-PLC_DIRECTORY_URL=https://plc.openfederation.net
+PLC_DIRECTORY_URL=https://plc.yourdomain.com
 ```
 
 ---
@@ -170,32 +187,28 @@ PLC_DIRECTORY_URL=https://plc.openfederation.net
 
 The PDS **automatically initializes** its database schema on first startup. When the server detects the `users` table doesn't exist, it executes `src/db/schema.sql`. No manual `psql` runs needed.
 
-For manual migration of an existing database, use the migration scripts in `scripts/`:
-
-```bash
-railway run psql $DATABASE_URL -f scripts/migrate-001-repo-roots.sql
-railway run psql $DATABASE_URL -f scripts/migrate-002-user-signing-keys.sql
-```
-
 ### Migrations apply themselves on deploy
 
 `ensureSchema()` reads `src/db/schema.sql` only when the `users` table is absent
-(fresh database), but it applies every `scripts/migrate-*.sql` file on **every**
-startup, in sorted order. Deploying is all that is needed — there is no manual
+(fresh database), then applies the `scripts/migrate-*.sql` files this database
+has not had yet, in sorted order. Each one runs once and is recorded in the
+`schema_migrations` table. Deploying is all that is needed — there is no manual
 migration step on Railway.
 
 Confirm it in the deploy log:
 
 ```bash
-railway logs -s openfederation-pds -d --latest | grep "Applied .* migrations"
+railway logs -s openfederation-pds -d --latest | grep -E "Applied .* migration|schema is up to date"
 ```
 
 ```
-Applied 38 migrations (migrate-001-repo-roots.sql..migrate-037-governance-anchor-audit-index.sql).
+Applied 2 migration(s): migrate-061-device-signing.sql..migrate-062-server-settings.sql (61 already applied).
 ```
 
-A migration that fails is fatal: the server logs `Migration <file> failed: ...`
-and refuses to start, so a broken migration shows up as a failed healthcheck
+or, with nothing new, `Database schema is up to date (63 migrations already applied).`
+
+A migration that fails is fatal: the server logs `Migration <file> failed: ...`,
+refuses to start and tries that file again on the next start, so a broken migration shows up as a failed healthcheck
 rather than a silently half-migrated database.
 
 Because of this, adding an index to `schema.sql` alone does nothing for the
@@ -206,10 +219,10 @@ file, which is the copy that actually runs.
 
 ## 7. Verify Deployment
 
-### Check PLC directory
+### Check PLC directory (if you run your own)
 
 ```bash
-curl https://plc.openfederation.net/
+curl https://plc.yourdomain.com/
 # 404 on root is expected — the PLC server only responds to DID lookups
 ```
 
@@ -224,6 +237,7 @@ Expected:
 {
   "status": "ok",
   "database": "connected",
+  "email": "ok",
   "timestamp": "2026-02-07T..."
 }
 ```
@@ -249,7 +263,7 @@ Open `https://your-web-ui.up.railway.app` in your browser. You should see the lo
 
 - Create your first community from the **Communities** page
 - Go to **Admin** → **Communities** tab to see all communities and moderation controls
-- Go to **Admin** → **Users** tab to approve pending users (if `INVITE_REQUIRED=true`)
+- Go to **Admin** → **Users** tab to approve pending users (new accounts wait for approval unless `ACCOUNT_APPROVAL=automatic`, also on **Admin** → **Server settings**)
 - You can create invite codes from the dashboard to onboard other users
 
 ### Security: Remove bootstrap credentials
@@ -302,7 +316,7 @@ After verifying the admin account works, remove the `BOOTSTRAP_ADMIN_*` variable
 
 ### Build fails
 - Check Railway build logs
-- Ensure Node.js >=18 (set in `package.json` engines)
+- Node.js must match `package.json` engines (`>=22 <25`; `.nvmrc` pins 24)
 - Web UI: verify root directory is set to `web-interface`
 
 ### Bootstrap admin not created
@@ -325,7 +339,7 @@ After verifying the admin account works, remove the `BOOTSTRAP_ADMIN_*` variable
        │                                      ▼
        │                             ┌──────────────────┐
        └───────────────────────────→ │  PDS API (Express) │
-                                     │  pds.openfederation │
+                                     │  pds.yourdomain.com │
                                      └───┬──────────┬──────┘
                                          │          │
                               PLC_DIRECTORY_URL      │ DB_*
@@ -337,7 +351,7 @@ After verifying the admin account works, remove the `BOOTSTRAP_ADMIN_*` variable
                                          ▼
                                 ┌──────────────────┐
                                 │ PLC Directory     │
-                                │ plc.openfederation│
+                                │ plc (optional)    │
                                 └────────┬─────────┘
                                          │
                                          ▼
@@ -347,19 +361,13 @@ After verifying the admin account works, remove the `BOOTSTRAP_ADMIN_*` variable
                                 └──────────────┘
 ```
 
-All three services are accessible on **standard HTTPS port 443**. Railway handles TLS termination and port routing.
+All services are accessible on **standard HTTPS port 443**. Railway handles TLS termination and port routing.
 
 ---
 
-## Cost Estimate
+## Cost
 
-Railway Pricing (2026):
-- **Hobby Plan:** $5/month base + usage
-- **Compute:** ~$0.000463/minute per service
-- **PostgreSQL:** included in plan
-- **Storage:** ~$0.25/GB/month
-
-Typical monthly cost: **$5–20** for light-to-moderate usage.
+See the [hosting comparison](docs/HOSTING-COMPARISON.md) for what Railway and the other options cost.
 
 ---
 

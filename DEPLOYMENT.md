@@ -32,107 +32,15 @@ HANDLE_SUFFIX=.openfederation.net         # Handle suffix for communities
 
 ## Docker Deployment
 
-### Using Docker Compose (Recommended)
+To run the PDS on your own server with Docker, use the appliance in [`deploy/appliance/`](deploy/appliance/) (PDS, dashboard, Postgres and Caddy for HTTPS) and its one-command installer, [`deploy/install.sh`](deploy/install.sh). The [install guides](docs/install/README.md) walk through it for [any VPS](docs/install/vps.md), several providers and [Synology](docs/install/synology.md).
 
-Create a `docker-compose.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: openfederation_pds
-      POSTGRES_USER: pds_user
-      POSTGRES_PASSWORD: your_secure_password_here
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./src/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pds_user -d openfederation_pds"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  pds:
-    image: node:24-alpine
-    working_dir: /app
-    volumes:
-      - ./:/app
-    ports:
-      - "3000:3000"
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: openfederation_pds
-      DB_USER: pds_user
-      DB_PASSWORD: your_secure_password_here
-      PDS_HOSTNAME: pds.example.com
-      PDS_SERVICE_URL: https://pds.example.com
-      HANDLE_SUFFIX: .openfederation.net
-    command: sh -c "npm install && npm run build && npm start"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-volumes:
-  postgres_data:
-```
-
-Run with:
-```bash
-docker-compose up -d
-```
-
-### Using Docker Run
-
-1. **Start PostgreSQL:**
-```bash
-docker run -d \
-  --name openfed-postgres \
-  -e POSTGRES_DB=openfederation_pds \
-  -e POSTGRES_USER=pds_user \
-  -e POSTGRES_PASSWORD=your_secure_password \
-  -v postgres_data:/var/lib/postgresql/data \
-  -p 5432:5432 \
-  postgres:15-alpine
-```
-
-2. **Initialize database schema:**
-```bash
-docker exec -i openfed-postgres psql -U pds_user -d openfederation_pds < src/db/schema.sql
-```
-
-3. **Start the PDS:**
-```bash
-docker run -d \
-  --name openfed-pds \
-  --link openfed-postgres:postgres \
-  -e DB_HOST=postgres \
-  -e DB_PORT=5432 \
-  -e DB_NAME=openfederation_pds \
-  -e DB_USER=pds_user \
-  -e DB_PASSWORD=your_secure_password \
-  -e PORT=3000 \
-  -e PDS_HOSTNAME=pds.example.com \
-  -e PDS_SERVICE_URL=https://pds.example.com \
-  -p 3000:3000 \
-  -v $(pwd):/app \
-  -w /app \
-  node:24-alpine \
-  sh -c "npm install && npm run build && npm start"
-```
+The `docker-compose.yml` at the repository root is for development: it builds the image from your checkout and has no HTTPS in front of it. Inside the container the PDS listens on port 8080.
 
 ## Railway Deployment
 
-For complete Railway deployment instructions (two-service setup, bootstrap admin, HTTPS configuration), see **[RAILWAY.md](./RAILWAY.md)**.
+For complete Railway deployment instructions (services, bootstrap admin, HTTPS configuration), see **[RAILWAY.md](./RAILWAY.md)**.
 
-Quick summary: deploy as three Railway services (PDS API + PLC Directory + Web UI) from the same repo, each on standard HTTPS. Railway handles TLS and port assignment automatically.
+Quick summary: the PDS API, its Postgres database and the Web UI dashboard, deployed from the same repo, each on standard HTTPS. Running your own PLC directory (`plc-server/`) is optional; the PDS can use the public `https://plc.openfederation.net`. Railway handles TLS and port assignment automatically.
 
 ## First Admin Login
 
@@ -205,15 +113,19 @@ Expected response:
 {
   "status": "ok",
   "database": "connected",
+  "email": "ok",
   "timestamp": "2026-02-05T21:00:00.000Z"
 }
 ```
 
-If database is not connected:
+`email` is `ok` when the SMTP server answered at start-up, `not-configured` when no SMTP is set, `unreachable` when the SMTP check failed, and `unknown` for the moment before that check has run.
+
+`status` is `degraded` when the database is not connected or email is `unreachable`:
 ```json
 {
   "status": "degraded",
   "database": "disconnected",
+  "email": "unreachable",
   "timestamp": "2026-02-05T21:00:00.000Z"
 }
 ```
@@ -250,16 +162,24 @@ psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f src/db/schema.sql
 ### Migrations are applied automatically on startup
 
 `ensureSchema()` does two things at boot. It initializes from `schema.sql` only
-when the `users` table is missing — that part is fresh-install only — and then,
-on **every** start, it applies every `scripts/migrate-*.sql` file in sorted
-order. The migrations are written to be idempotent, so re-running them is a
-no-op, and a failure is fatal rather than silent: the server logs which file
-failed and refuses to start.
+when the `users` table is missing — that part is fresh-install only — and then
+it applies the `scripts/migrate-*.sql` files this database has not had yet, in
+sorted order. Each file runs once and is recorded in the `schema_migrations`
+table; later starts skip it. A failure is fatal rather than silent: the server
+logs which file failed (`Migration <file> failed: ...`), refuses to start, and
+tries that file again on the next start. Servers starting together take turns
+(an advisory lock), so two replicas never run the same migration at once.
 
-You will see the result in the startup log:
+You will see the result in the startup log, either:
 
 ```
-Applied 38 migrations (migrate-001-repo-roots.sql..migrate-037-governance-anchor-audit-index.sql).
+Applied 2 migration(s): migrate-061-device-signing.sql..migrate-062-server-settings.sql (61 already applied).
+```
+
+or, when there is nothing new:
+
+```
+Database schema is up to date (63 migrations already applied).
 ```
 
 **No manual step is required when upgrading.** Deploy, and the new migrations
@@ -292,6 +212,10 @@ Before going to production:
 - [ ] Set strong `DB_PASSWORD` (Railway auto-generates)
 - [ ] Set `AUTH_JWT_SECRET` (64-char random hex)
 - [ ] Set `KEY_ENCRYPTION_SECRET` (64-char random hex)
+- [ ] Set `OAUTH_SIGNING_KEY` (ES256 JWK on one line; production refuses to start without it while OAuth is on — see `.env.example` for the command)
+- [ ] Set `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM`, or `ALLOW_NO_EMAIL=true` if this server sends no mail (production refuses to start without one of them)
+- [ ] Set `DB_SSL=true` unless the database is on the same machine or a private network (production warns otherwise)
+- [ ] Set `REDIS_URL` before running more than one instance (OAuth replay protection; production warns when unset)
 - [ ] Configure `PDS_HOSTNAME` and `PDS_SERVICE_URL`
 - [ ] Set `PLC_DIRECTORY_URL` to your PLC service URL
 - [ ] Set `CORS_ORIGINS` to your Web UI URL
@@ -302,14 +226,14 @@ Before going to production:
 - [ ] Configure backups for PostgreSQL
 - [ ] Remove `BOOTSTRAP_ADMIN_*` variables after first login
 - [ ] Create partner API keys for third-party integrations (if needed)
-- [ ] Configure `PARTNER_API_ENABLED=true` and `PARTNER_DEFAULT_RATE_LIMIT` (if using partner registration)
+- [ ] Set `PARTNER_DEFAULT_RATE_LIMIT` if partner registration needs a limit other than 100/hour per key (`PARTNER_API_ENABLED=false` turns partner registration off)
 
 ## Monitoring
 
 ### Application Logs
 ```bash
-# Docker
-docker logs -f openfed-pds
+# Docker (appliance)
+docker compose logs -f pds
 
 # Railway
 railway logs
@@ -317,8 +241,8 @@ railway logs
 
 ### Database Logs
 ```bash
-# Docker
-docker logs -f openfed-postgres
+# Docker (appliance)
+docker compose logs -f postgres
 
 # Railway
 railway logs -s postgres

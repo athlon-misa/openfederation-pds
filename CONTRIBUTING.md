@@ -34,12 +34,14 @@ OpenFederation PDS is currently **founder-led**. All contributions are welcome, 
 - Ensure all tests pass and the build succeeds (`npm run build`).
 - Do not include secrets, credentials, or `.env` files.
 - Do not commit generated files (`dist/`, `node_modules/`).
-- New XRPC endpoints need lexicon definitions in `src/lexicon/`.
+- New XRPC endpoints need lexicon definitions in `src/lexicon/`. Every lexicon carries a `revision`: start at 1, bump it when inputs, outputs or errors change, and run `npm run lexicon:validate`.
+- A change to a published package (`packages/*`, such as `@open-federation/sdk`) needs a changeset: `npx changeset` (see `.changeset/README.md`).
+- Add an entry under `[Unreleased]` in `CHANGELOG.md` for anything a server operator, user or integrator would notice.
 
 ## Code Style
 
 - TypeScript with ESM modules
-- Follow existing patterns in the codebase (see `CLAUDE.md` for architecture details)
+- Follow existing patterns in the codebase. What exists and where it lives is in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md); the reasons behind larger design decisions are in [`docs/adr/`](docs/adr/); endpoints are in [`docs/API.md`](docs/API.md)
 - Use the existing auth guards (`requireAuth`, `requireRole`, `requireApprovedUser`) for new endpoints
 - Database queries go through `query()` from `src/db/client.ts`
 - All admin and security-relevant actions must be audit-logged

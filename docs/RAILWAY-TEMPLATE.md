@@ -21,7 +21,7 @@ Optional variant "with its own PLC directory" (most installs use `https://plc.op
 | `openfederation-plc` | same repo, root `/plc-server` | PLC directory |
 | `Postgres-PLC` | Railway's PostgreSQL database | The PLC database |
 
-No secret is set in the template. The setup wizard generates `AUTH_JWT_SECRET`, `KEY_ENCRYPTION_SECRET`, `OAUTH_SIGNING_KEY` and `OAUTH_DPOP_SECRET` and writes them to `/data/openfederation.env`. That is deliberate: a template's `${{secret()}}` would cover the first two but not the OAuth key, and keeping every secret in one place (the settings file the person downloads at the end) gives them a single thing to back up. It is also what the Docker install will do.
+No secret is set in the template. The setup wizard generates `AUTH_JWT_SECRET`, `KEY_ENCRYPTION_SECRET`, `OAUTH_SIGNING_KEY` and `OAUTH_DPOP_SECRET` and writes them to `/data/openfederation.env`. That is deliberate: a template's `${{secret()}}` would cover the first two but not the OAuth key, and keeping every secret in one place (the settings file the person downloads at the end) gives them a single thing to back up. The Docker install does the same ([`deploy/install.sh`](../deploy/install.sh) and the appliance's setup page).
 
 ## Click by click
 

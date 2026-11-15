@@ -44,23 +44,25 @@ npm install
 cp .env.example .env.local
 # Edit .env.local — set NEXT_PUBLIC_PDS_URL to your PDS server URL
 npm run build
-npm start              # Starts on $PORT (default 3000)
+npm start              # Starts on $PORT (default 3000, the PDS's dev port too: set PORT when both run on one machine)
 ```
 
 For local development, run both in parallel:
 ```bash
-# Terminal 1: PDS API (port 8080 or as configured in .env)
+# Terminal 1: PDS API (port 3000, PORT in .env)
 npm run dev
 
 # Terminal 2: Web UI (port 3001)
-cd web-interface && PORT=3001 npm run dev
+cd web-interface && npm run dev
 ```
+
+The Docker image and the appliance run the PDS on port 8080 inside the container.
 
 ### Required Environment Variables
 
 | Variable | Required In | Description |
 |----------|:---:|-------------|
-| `AUTH_JWT_SECRET` | Production | Random string, minimum 32 characters. Server refuses to start without it. |
+| `AUTH_JWT_SECRET` | Production | Random string, minimum 32 characters. A production server with neither this nor `KEY_ENCRYPTION_SECRET` (and no settings file) starts in setup mode, serving only the `/setup` page that generates them; with `OPENFEDERATION_SETUP=off` it refuses to start instead. |
 | `KEY_ENCRYPTION_SECRET` | Production | Encrypts recovery/signing keys at rest. Must be set before creating communities. |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | All | PostgreSQL connection. |
 | `DB_SSL` | Production | `true` for SSL connections. |
@@ -68,9 +70,13 @@ cd web-interface && PORT=3001 npm run dev
 | `INVITE_REQUIRED` | All | `true` (default) for invite-only registration. |
 | `BOOTSTRAP_ADMIN_EMAIL` / `HANDLE` / `PASSWORD` | First run | Creates an admin user on startup. |
 
-See `.env.example` for all options including CORS, token TTLs, and pool tuning.
+See `.env.example` for all options including CORS, token TTLs, rate limits and pool tuning. Many policy settings (invites, account approval, custody modes, pen names, migration, federation peers, the dashboard's look) can also be changed by an admin on Admin → Server settings without a restart; a setting given as an environment variable is fixed there (read-only).
 
 ## First Admin Login
+
+On a production server installed with the setup page (Railway template, appliance), the page creates the first admin account: open `/setup`, enter the one-time setup code from the server log, and fill in the admin's handle, email and password.
+
+Without the setup page:
 
 1. Set `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_HANDLE`, and `BOOTSTRAP_ADMIN_PASSWORD` in your environment
 2. Start the PDS with a connected database — check logs for `✓ Bootstrap admin user created`
@@ -82,19 +88,25 @@ See `.env.example` for all options including CORS, token TTLs, and pool tuning.
 
 For Railway deployment (recommended), see **[RAILWAY.md](./RAILWAY.md)**.
 
-The project deploys as three Railway services from the same repo:
+A Railway deployment has three parts from the same repo:
 - **PDS API** (root directory) — Express.js backend on standard HTTPS
-- **PLC Directory** (`plc-server/` directory) — DID PLC resolution service with its own PostgreSQL
+- **PostgreSQL** — the PDS's database
 - **Web UI** (`web-interface/` directory) — Next.js dashboard on standard HTTPS
+
+Running your own PLC directory (`plc-server/`, with its own PostgreSQL) is optional; the public `https://plc.openfederation.net` works without one.
 
 For Docker and other platforms, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 
 ## Authentication and Admin Flow
 
 ### Roles
-- **admin**: full access — manage users, communities, moderation (suspend/takedown), view audit log, server stats
-- **moderator**: approve/reject users, create and list invites, list accounts
+- **admin**: full access — manage users, communities, moderation (suspend/takedown), server settings, audit log, server stats
+- **moderator**: approve/reject users, create and list invites, list accounts, suspend/unsuspend accounts
+- **partner-manager**: create, list, verify and revoke partner API keys
+- **auditor**: read-only — audit log, server config and stats, account, invite and partner key lists, account moderation status
 - **user**: can create communities once approved
+
+Admins assign roles on Admin → Users, or with `ofc account set-roles`.
 
 ### Account Status Lifecycle
 
@@ -117,10 +129,10 @@ pending → approved → suspended → approved     (admin suspend/unsuspend)
 
 ### Typical Flow
 
-1. Bootstrap admin is created on first startup (via `.env` variables).
-2. Admin creates invite codes.
+1. The first admin is created by the setup page, or on first startup from the `BOOTSTRAP_ADMIN_*` variables.
+2. Admin creates invite codes (when `INVITE_REQUIRED=true`, the default).
 3. Users register with an invite code (status = `pending`).
-4. Admin/moderator approves the user.
+4. Admin/moderator approves the user. With `ACCOUNT_APPROVAL=automatic` (or "Approve new accounts automatically" on Admin → Server settings) new accounts start `approved` and this step is skipped.
 5. User logs in and creates communities.
 
 ### Password Requirements
@@ -133,71 +145,7 @@ Handles must be 3-30 characters: lowercase letters, numbers, and hyphens. No lea
 
 ## API Endpoints
 
-All endpoints are XRPC methods at `/xrpc/{nsid}`. Formal lexicon schemas for all custom endpoints are in `src/lexicon/`.
-
-### ATProto Sessions
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `com.atproto.server.createSession` | POST | No | Login |
-| `com.atproto.server.refreshSession` | POST | Yes | Rotate refresh token (with reuse detection) |
-| `com.atproto.server.getSession` | GET | Yes | Get current session |
-| `com.atproto.server.deleteSession` | POST | Yes | Logout |
-| `com.atproto.repo.getRecord` | GET | No | Fetch a record |
-| `com.atproto.repo.putRecord` | POST | Yes | Write a record (real MST signed commit) |
-| `com.atproto.repo.createRecord` | POST | Yes | Create a record with auto-generated TID rkey |
-| `com.atproto.repo.deleteRecord` | POST | Yes | Delete a record (signed commit) |
-| `com.atproto.repo.describeRepo` | GET | No | Repo metadata and available collections |
-| `com.atproto.repo.listRecords` | GET | No | Paginated record listing |
-| `com.atproto.sync.getRepo` | GET | No | Full repo as CAR stream (federation) |
-| `com.atproto.admin.updateSubjectStatus` | POST | Admin | Suspend/unsuspend or takedown/reverse-takedown a user by DID |
-| `com.atproto.admin.getSubjectStatus` | GET | Admin | Check moderation status of an account by DID |
-| `com.atproto.admin.deleteAccount` | POST | Admin | Permanently delete a user account and all repo data |
-| `com.atproto.server.deactivateAccount` | POST | Yes | User deactivates own account (self-service) |
-| `com.atproto.server.activateAccount` | POST | Yes | User reactivates own account after self-deactivation |
-
-### Account Management
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.account.register` | POST | No | Register (invite required) |
-| `net.openfederation.account.listPending` | GET | Admin/Mod | List pending users |
-| `net.openfederation.account.list` | GET | Admin/Mod | List all accounts (search, filter by status/role) |
-| `net.openfederation.account.approve` | POST | Admin/Mod | Approve user |
-| `net.openfederation.account.reject` | POST | Admin/Mod | Reject user |
-| `net.openfederation.invite.create` | POST | Admin/Mod | Create invite code |
-| `net.openfederation.invite.list` | GET | Admin/Mod | List invite codes (filter by status) |
-| `net.openfederation.account.export` | GET | Self/Admin | Export user repo data as JSON (AT Protocol "free to go") |
-
-### Community Management
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.community.create` | POST | Approved | Create community (did:plc or did:web) |
-| `net.openfederation.community.get` | GET | No | Get community details (auth optional for membership info) |
-| `net.openfederation.community.listAll` | GET | Yes | Browse public communities (excludes user's own; admin mode=all shows everything) |
-| `net.openfederation.community.listMine` | GET | Yes | List my communities with role |
-| `net.openfederation.community.update` | POST | Owner | Update community settings |
-| `net.openfederation.community.join` | POST | Approved | Join (open) or request to join (approval). Re-request after rejection allowed. |
-| `net.openfederation.community.leave` | POST | Member | Leave community (owner cannot leave) |
-| `net.openfederation.community.listMembers` | GET | Yes | List members (private communities: members/owner/admin only) |
-| `net.openfederation.community.listJoinRequests` | GET | Owner/Admin | List pending join requests |
-| `net.openfederation.community.resolveJoinRequest` | POST | Owner/Admin | Approve/reject join request |
-| `net.openfederation.community.removeMember` | POST | Owner/Admin | Remove (kick) a member from a community |
-| `net.openfederation.community.delete` | POST | Owner/Admin | Permanently delete a community and all its data |
-
-### AT Protocol Compliance (Moderation & Portability)
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.community.export` | GET | Owner/Admin | Export full community data as JSON archive |
-| `net.openfederation.community.suspend` | POST | PDS Admin | Suspend a community (reversible) |
-| `net.openfederation.community.unsuspend` | POST | PDS Admin | Lift a community suspension |
-| `net.openfederation.community.takedown` | POST | PDS Admin | Take down a community (requires prior export) |
-| `net.openfederation.community.migrateIn` | POST | Rotation-key proof | Open (or refresh) a copy of a community moving here |
-| `net.openfederation.community.checkMigration` | GET | Public | How far a community's move here has come |
-| `net.openfederation.community.markMoved` | POST | Owner | Mark the old copy moved (read-only) once the DID points elsewhere |
-| `net.openfederation.community.getMovedKeys` | GET | Public | Hand the moved community's keys to its new PDS |
+All endpoints are XRPC methods at `/xrpc/{nsid}`: the standard `com.atproto.*` methods (sessions, repos, sync, admin moderation) plus `net.openfederation.*` methods for accounts, communities, governance, partners, identity bridging, pen names, migration and server settings. The full list, with the auth each one needs, is in **[docs/API.md](./docs/API.md)**. Formal lexicon schemas for the custom endpoints are in `src/lexicon/`.
 
 Both communities and user accounts follow the AT Protocol "free to go" principle:
 - Owners/users can always export their data
@@ -208,95 +156,30 @@ Both communities and user accounts follow the AT Protocol "free to go" principle
 - Admin-suspended accounts cannot be reactivated by the user — only admins can unsuspend
 - All moderation actions (suspend, unsuspend, takedown, delete) are recorded in the audit log
 
-### Partner API (Third-Party Registration)
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.partner.register` | POST | X-Partner-Key | Register user (no invite, auto-approved, returns tokens) |
-| `net.openfederation.partner.createKey` | POST | PDS Admin | Generate a new partner API key (shown once) |
-| `net.openfederation.partner.listKeys` | GET | PDS Admin | List all partner keys with stats |
-| `net.openfederation.partner.revokeKey` | POST | PDS Admin | Revoke a partner key |
-
-Partner keys allow trusted third-party apps (e.g., game platforms) to register users directly — no invite code, no approval wait. See [SDK Integration Guide](./docs/sdk-integration-guide.md) for full documentation.
-
-### Identity Bridge (Cross-Network Keys)
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.identity.setExternalKey` | POST | Yes | Store an external public key (Ed25519, X25519, secp256k1, P256) |
-| `net.openfederation.identity.listExternalKeys` | GET | No | List external keys for a DID |
-| `net.openfederation.identity.getExternalKey` | GET | No | Get a specific external key |
-| `net.openfederation.identity.deleteExternalKey` | POST | Yes | Delete an external key |
-| `net.openfederation.identity.resolveByKey` | GET | No | Reverse lookup: find ATProto DID by external public key |
-
-Enables cross-network identity bridging for Meshtastic, Nostr, WireGuard, SSH, and hardware devices. Keys stored as ATProto repo records in `did:key` multibase format.
-
-### Community Attestations
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.community.issueAttestation` | POST | Owner/Mod | Issue a verifiable attestation for a member |
-| `net.openfederation.community.deleteAttestation` | POST | Owner/Mod | Revoke an attestation (delete-as-revoke) |
-| `net.openfederation.community.listAttestations` | GET | No | List attestations by community/subject/type |
-| `net.openfederation.community.verifyAttestation` | GET | No | Verify attestation (supports remote PDS communities) |
-
-### Community Roles & Governance
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.community.createRole` | POST | Owner | Create a custom role with permissions |
-| `net.openfederation.community.updateRole` | POST | Owner | Update role permissions |
-| `net.openfederation.community.deleteRole` | POST | Owner | Delete a role (fails if members assigned) |
-| `net.openfederation.community.listRoles` | GET | No | List roles with member counts |
-| `net.openfederation.community.updateMember` | POST | Owner/Admin | Partial update of member record: role, kind, tags, attributes (any subset). Renamed from updateMemberRole (#50). |
-| `net.openfederation.community.setGovernanceModel` | POST | Owner | Switch governance mode (benevolent-dictator / simple-majority) |
-| `net.openfederation.community.createProposal` | POST | Voter | Propose a change to a protected collection |
-| `net.openfederation.community.amendProposal` | POST | Voter | Amend an open proposal (resets votes) |
-| `net.openfederation.community.voteOnProposal` | POST | Voter | Cast vote (supports delegation) |
-| `net.openfederation.community.listProposals` | GET | No | List governance proposals |
-| `net.openfederation.community.getProposal` | GET | No | Get proposal details |
-| `net.openfederation.community.setDelegation` | POST | Voter | Delegate your vote to another member |
-| `net.openfederation.community.revokeDelegation` | POST | Voter | Remove vote delegation |
-| `net.openfederation.community.getDelegation` | GET | No | Check delegation status |
-
-### User Profiles
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.account.updateProfile` | POST | Yes | Update standard or custom profile collection |
-| `net.openfederation.account.getProfile` | GET | No | Get profile (standard + custom collections) |
-
-### Administration
-
-| NSID | Method | Auth | Description |
-|------|:---:|:---:|-------------|
-| `net.openfederation.audit.list` | GET | PDS Admin | List audit log entries |
-| `net.openfederation.server.getConfig` | GET | PDS Admin | Get server config and statistics |
-| `net.openfederation.admin.importRepo` | POST | PDS Admin | Import a CAR file to create/restore a repo |
-| `net.openfederation.admin.createExportSchedule` | POST | PDS Admin | Create automated export schedule |
-| `net.openfederation.admin.listExportSchedules` | GET | PDS Admin | List export schedules with status |
-| `net.openfederation.admin.deleteExportSchedule` | POST | PDS Admin | Remove an export schedule |
-| `net.openfederation.admin.listExportSnapshots` | GET | PDS Admin | List export snapshots for a community |
+Partner keys (`X-Partner-Key`) let third-party apps register users without an invite code. A key with a ticket key set requires a registration ticket signed by the partner's backend: the account is approved and gets tokens. A key without one creates a `pending` account that becomes usable once its email is verified, and returns no tokens. See the [SDK Integration Guide](./docs/sdk-integration-guide.md).
 
 ## Web Interface
 
-The web UI (`web-interface/`) is built with Next.js 15, shadcn/ui, React Query v5, and kbar.
+The web UI (`web-interface/`) is built with Next.js 16, shadcn/ui, React Query v5, and kbar.
 
 ### Features
 
 - **Sidebar shell** with navigation (Dashboard, My Communities, Explore) and admin section
 - **Command palette** (Ctrl+K) for quick navigation and admin actions
 - **Dashboard** with stat cards and quick actions
-- **Community management**: create, browse, join, leave, member management, settings
-- **Admin pages**: Users (search/filter/approve/reject), Communities (suspend/unsuspend/takedown/delete), Invites (create/list), Audit Log (filter/search)
+- **Community management**: create, browse, join, leave, member management, settings, moving a community to another server
+- **Explore**: this server's public communities and, under Federated, those of the peer servers it knows
+- **Account area**: identity and keys, devices, recovery, history, moving the account to another server
+- **Pen names**: create pen names and sign in as one
+- **Themes**: pick how the dashboard looks; the admin sets the default
+- **Admin pages**: Users (search/filter/approve/reject, roles), Communities (suspend/unsuspend/takedown/delete), Invites, Partner keys, Server settings (runtime settings without a restart), Audit Log (filter/search)
 - **Data tables** with server-side pagination via @tanstack/react-table
-- **Settings** page with account info display
 
 ### Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | UI | shadcn/ui + Tailwind CSS |
 | Server state | React Query v5 (30s staleTime, 5min gcTime) |
 | Auth state | Zustand (persisted refresh token) |
@@ -308,7 +191,7 @@ The web UI (`web-interface/`) is built with Next.js 15, shadcn/ui, React Query v
 
 Create invite (admin/moderator):
 ```bash
-curl -X POST http://localhost:8080/xrpc/net.openfederation.invite.create \
+curl -X POST http://localhost:3000/xrpc/net.openfederation.invite.create \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"maxUses":1}'
@@ -316,7 +199,7 @@ curl -X POST http://localhost:8080/xrpc/net.openfederation.invite.create \
 
 Register (invite required):
 ```bash
-curl -X POST http://localhost:8080/xrpc/net.openfederation.account.register \
+curl -X POST http://localhost:3000/xrpc/net.openfederation.account.register \
   -H "Content-Type: application/json" \
   -d '{
     "handle": "alice",
@@ -328,7 +211,7 @@ curl -X POST http://localhost:8080/xrpc/net.openfederation.account.register \
 
 Approve user (admin/moderator):
 ```bash
-curl -X POST http://localhost:8080/xrpc/net.openfederation.account.approve \
+curl -X POST http://localhost:3000/xrpc/net.openfederation.account.approve \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"handle":"alice"}'
@@ -336,14 +219,14 @@ curl -X POST http://localhost:8080/xrpc/net.openfederation.account.approve \
 
 Login (approved user):
 ```bash
-curl -X POST http://localhost:8080/xrpc/com.atproto.server.createSession \
+curl -X POST http://localhost:3000/xrpc/com.atproto.server.createSession \
   -H "Content-Type: application/json" \
   -d '{"identifier":"alice","password":"MyStr0ng!Pass"}'
 ```
 
 Create community (approved user):
 ```bash
-curl -X POST http://localhost:8080/xrpc/net.openfederation.community.create \
+curl -X POST http://localhost:3000/xrpc/net.openfederation.community.create \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -355,7 +238,7 @@ curl -X POST http://localhost:8080/xrpc/net.openfederation.community.create \
 
 Create a partner API key (admin):
 ```bash
-curl -X POST http://localhost:8080/xrpc/net.openfederation.partner.createKey \
+curl -X POST http://localhost:3000/xrpc/net.openfederation.partner.createKey \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"name":"My App","partnerName":"myapp.com","allowedOrigins":["https://myapp.com"]}'
@@ -364,22 +247,23 @@ curl -X POST http://localhost:8080/xrpc/net.openfederation.partner.createKey \
 
 Register via partner key (no invite needed):
 ```bash
-curl -X POST http://localhost:8080/xrpc/net.openfederation.partner.register \
+curl -X POST http://localhost:3000/xrpc/net.openfederation.partner.register \
   -H "X-Partner-Key: ofp_abc123..." \
   -H "Content-Type: application/json" \
   -d '{"handle":"alice","email":"alice@example.com","password":"MyStr0ng!Pass"}'
-# Returns user info + access/refresh tokens (user is auto-approved)
+# Without a ticket key on the partner key: user is pending, email verification is sent, no tokens.
+# With one, add "ticket" (signed by your backend): user is approved and tokens are returned.
 ```
 
 Export community (owner):
 ```bash
-curl 'http://localhost:8080/xrpc/net.openfederation.community.export?did=did:plc:abc123' \
+curl 'http://localhost:3000/xrpc/net.openfederation.community.export?did=did:plc:abc123' \
   -H "Authorization: Bearer <accessJwt>"
 ```
 
 Suspend a user account (admin):
 ```bash
-curl -X POST http://localhost:8080/xrpc/com.atproto.admin.updateSubjectStatus \
+curl -X POST http://localhost:3000/xrpc/com.atproto.admin.updateSubjectStatus \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"subject":{"did":"did:plc:user123"},"deactivated":{"applied":true,"ref":"Violation of ToS"}}'
@@ -387,7 +271,7 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.admin.updateSubjectStatus \
 
 Unsuspend a user (admin):
 ```bash
-curl -X POST http://localhost:8080/xrpc/com.atproto.admin.updateSubjectStatus \
+curl -X POST http://localhost:3000/xrpc/com.atproto.admin.updateSubjectStatus \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"subject":{"did":"did:plc:user123"},"deactivated":{"applied":false}}'
@@ -395,31 +279,31 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.admin.updateSubjectStatus \
 
 Check account moderation status (admin):
 ```bash
-curl 'http://localhost:8080/xrpc/com.atproto.admin.getSubjectStatus?did=did:plc:user123' \
+curl 'http://localhost:3000/xrpc/com.atproto.admin.getSubjectStatus?did=did:plc:user123' \
   -H "Authorization: Bearer <accessJwt>"
 ```
 
 Export user data (self or admin):
 ```bash
-curl 'http://localhost:8080/xrpc/net.openfederation.account.export?did=did:plc:user123' \
+curl 'http://localhost:3000/xrpc/net.openfederation.account.export?did=did:plc:user123' \
   -H "Authorization: Bearer <accessJwt>"
 ```
 
 Deactivate own account (user):
 ```bash
-curl -X POST http://localhost:8080/xrpc/com.atproto.server.deactivateAccount \
+curl -X POST http://localhost:3000/xrpc/com.atproto.server.deactivateAccount \
   -H "Authorization: Bearer <accessJwt>"
 ```
 
 Reactivate own account (user):
 ```bash
-curl -X POST http://localhost:8080/xrpc/com.atproto.server.activateAccount \
+curl -X POST http://localhost:3000/xrpc/com.atproto.server.activateAccount \
   -H "Authorization: Bearer <accessJwt>"
 ```
 
 Delete a user account (admin — permanent):
 ```bash
-curl -X POST http://localhost:8080/xrpc/com.atproto.admin.deleteAccount \
+curl -X POST http://localhost:3000/xrpc/com.atproto.admin.deleteAccount \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"did":"did:plc:user123"}'
@@ -427,7 +311,7 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.admin.deleteAccount \
 
 Logout:
 ```bash
-curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
+curl -X POST http://localhost:3000/xrpc/com.atproto.server.deleteSession \
   -H "Authorization: Bearer <accessJwt>" \
   -H "Content-Type: application/json" \
   -d '{"refreshJwt":"<refreshJwt>"}'
@@ -435,9 +319,9 @@ curl -X POST http://localhost:8080/xrpc/com.atproto.server.deleteSession \
 
 ## JavaScript SDK (`@open-federation/sdk`)
 
-A zero-dependency browser SDK for third-party apps to register and log in users. Available via npm or as a `<script>` tag served from the PDS.
+A browser SDK for third-party apps to register and log in users. Available via npm or as a `<script>` tag served from the PDS.
 
-**Script tag** (2.5KB gzipped):
+**Script tag** (self-contained, about 270 KB gzipped):
 ```html
 <script src="https://pds.openfederation.net/sdk/v1.js"></script>
 <script>
@@ -446,7 +330,7 @@ A zero-dependency browser SDK for third-party apps to register and log in users.
     partnerKey: 'ofp_your_key_here',
   });
   const user = await ofd.register({ handle: 'alice', email: 'a@b.com', password: 'Str0ng!Pass1' });
-  console.log(user.did); // "did:plc:..."
+  console.log(user.did); // "did:plc:..."; pending until the email is verified, unless your backend signed a ticket
 </script>
 ```
 
@@ -470,6 +354,8 @@ See [SDK Integration Guide](./docs/sdk-integration-guide.md) for complete API re
 | Registration | 5 per hour per IP |
 | Community creation | 10 per hour per IP |
 | Partner registration | Configurable per key (default 100/hour) |
+
+Each limit is configurable (`GLOBAL_RATE_LIMIT`, `AUTH_RATE_LIMIT`, `REGISTRATION_RATE_LIMIT`, `CREATE_RATE_LIMIT`, ...); `.env.example` lists them all with their defaults.
 
 ## CLI (`ofc`)
 
@@ -510,7 +396,7 @@ AT Protocol lexicon definitions for custom `net.openfederation.*` endpoints are 
 ## Development
 
 ```bash
-npm run dev          # Start PDS with ts-node (ESM)
+npm run dev          # Start PDS with ts-node (ESM), port 3000
 npm run build        # TypeScript compile + SDK build
 npm run build:sdk    # Build SDK only (packages/openfederation-sdk)
 npm run db:check     # Check database connectivity

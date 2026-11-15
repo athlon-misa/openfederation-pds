@@ -1,6 +1,6 @@
 # OpenFederation SDK Integration Guide
 
-How to add user registration and login to your website using the `@open-federation/sdk`. This is the simplest way to let users create OpenFederation accounts directly from your app — no redirects, no invite codes, users are auto-approved and logged in immediately.
+How to add user registration and login to your website using the `@open-federation/sdk`. This is the simplest way to let users create OpenFederation accounts directly from your app — no redirects, no invite codes. With a [registration ticket](#registration-tickets) signed by your backend, the user is approved and signed in immediately; without one, the account waits until the user confirms their email address.
 
 ---
 
@@ -17,7 +17,7 @@ How to add user registration and login to your website using the `@open-federati
 ## Prerequisites
 
 1. An OpenFederation PDS instance (e.g., `https://pds.openfederation.net`)
-2. A **partner API key** — ask the PDS admin to create one for you (see [Admin: Creating Partner Keys](#admin-creating-partner-keys) below)
+2. A **partner API key** — ask the PDS admin to create one for you (see [Admin: Managing Partner Keys](#admin-managing-partner-keys) below)
 
 ---
 
@@ -51,7 +51,7 @@ The fastest way — no build tools, no npm, just a script tag.
 </script>
 ```
 
-The SDK bundle is served directly from the PDS at `/sdk/v1.js` (~2.5KB gzipped, zero dependencies).
+The SDK bundle is served directly from the PDS at `/sdk/v1.js`. It is self-contained (its cryptography libraries are bundled in), about 270 KB gzipped.
 
 ---
 
@@ -127,19 +127,24 @@ const ofd = createClient({
 | `autoRefresh` | `boolean` | `true` | When `true`, the SDK schedules a token refresh 60 seconds before the access token expires. Set to `false` to manage refresh timing yourself. |
 | `onAuthChange` | `(user: User \| null) => void` | — | Called when auth state changes: after `login()`, `register()`, `logout()`, or when a token refresh fails. You can also subscribe later with `ofd.onAuthChange()`. |
 
-### `ofd.register({ handle, email, password })`
+### `ofd.register({ handle, email, password, ticket? })`
 
-Register a new user via the partner API. No invite code needed — the user is auto-approved and logged in immediately.
+Register a new user via the partner API. No invite code needed. What happens next depends on the partner key:
 
-Returns: `Promise<User>`
+- **Key with a ticket key, request with a valid `ticket`:** the user is approved and signed in at once (`active: true`, `emailVerificationRequired: false`). See [Registration Tickets](#registration-tickets).
+- **Key without a ticket key:** the account is created `pending` and the PDS emails the user a verification link. No tokens are returned (`active: false`, `emailVerificationRequired: true`); the user signs in with `login()` after confirming the address.
+
+Returns: `Promise<User & { emailVerificationRequired: boolean }>`
 
 ```typescript
 const user = await ofd.register({
   handle: 'alice',           // 3-30 chars, lowercase alphanumeric + hyphens
   email: 'alice@example.com',
   password: 'SecureP@ss1',  // 10-128 chars, 3 of 4 categories
+  ticket,                    // from your backend; only for keys with a ticket key
 });
-// user = { did: "did:plc:...", handle: "alice.openfederation.net", email: "alice@example.com", active: true }
+// with a ticket:    { did: "did:plc:...", handle: "alice.openfederation.net", email: "alice@example.com", active: true, emailVerificationRequired: false }
+// without a ticket: { ..., active: false, emailVerificationRequired: true }
 ```
 
 `user.handle` is always the full AT Protocol handle: the name plus the server's handle domain, the name in the DID document (#411). Servers before that returned the name only (`"alice"`); the SDK completes it with the domain from the server's `describeServer`, so apps see one form either way. Show the short name with `displayHandle()`, and key anything you store by `user.did`, which never changes, not by the handle.
@@ -150,6 +155,31 @@ const user = await ofd.register({
 - `RateLimitError` (429) — partner rate limit exceeded
 - `AuthenticationError` (401) — invalid or revoked partner key
 - `ForbiddenError` (403) — origin not allowed for this partner key
+- `AuthenticationError` (401, `TicketRequired` / `TicketInvalid`) — the key has a ticket key and the ticket is missing, expired, already used, issued for another handle or email, or does not verify
+
+### Registration Tickets
+
+A partner key (`ofp_…`) sits in your page source, so it names your app but cannot prove a request comes from you. A partner with a backend can do better: register a public key with the partner key, and have the backend sign a ticket for each sign-up.
+
+```typescript
+// On your server, never in browser code
+import { generatePartnerTicketKey, createPartnerTicket } from '@open-federation/sdk';
+
+// Once: make a key pair. Give `publicKey` (a secp256k1 did:key) to the PDS admin
+// as `ticketPublicKey` when the partner key is created; keep `privateKeyHex` secret.
+const { privateKeyHex, publicKey } = generatePartnerTicketKey();
+
+// Per sign-up: mint a ticket for exactly this handle and email, send it to the browser
+const ticket = createPartnerTicket({
+  partnerKeyId: '<partner key id from createKey, not the ofp_ secret>',
+  privateKeyHex,
+  audience: 'did:web:pds.example.com',   // the PDS's service DID
+  handle: 'alice',
+  email: 'alice@example.com',
+});
+```
+
+A ticket is an ES256K JWT (ES256 keys are accepted too) with `iss` = the partner key id, `aud` = the PDS service DID, `exp`, a random `jti`, and the `handle` and `email` it was issued for. The PDS accepts it only if the signature verifies against the key's `ticketPublicKey`, it lives no longer than 300 seconds (the SDK's default is 120), it names the handle and email being registered, and its `jti` has not been used before. Once a key has a ticket key, every registration with it needs a ticket. The code: `src/auth/partner-ticket.ts` (PDS) and `packages/openfederation-sdk/src/partner-ticket.ts` (SDK).
 
 ### `ofd.login({ identifier, password })`
 
@@ -486,7 +516,7 @@ fullHandle('alice.bsky.social', '.openfederation.net');  // "alice.bsky.social"
 
 ### `SDK_VERSION`
 
-The SDK version string (e.g. `"0.1.0"`). Follows semver.
+The SDK version string: the package's version (e.g. `"0.7.1"`). Follows semver.
 
 ```typescript
 import { SDK_VERSION } from '@open-federation/sdk';
@@ -717,11 +747,11 @@ The SDK follows [Semantic Versioning](https://semver.org/).
 
 ### IIFE Bundle Endpoint
 
-The PDS serves the IIFE bundle at `/sdk/v1.js`. The `v1` in the URL is the **API major version**, not the package version. All `0.x` and `1.x` package releases are served through this endpoint.
+The PDS serves the IIFE bundle at `/sdk/v1.js`: the SDK release the PDS was built with. The `v1` in the URL is the **API major version**, not the package version. Today that is a `0.x` release.
 
 | Endpoint | Package Versions | Status |
 |----------|-----------------|--------|
-| `/sdk/v1.js` | `0.1.0` through `1.x` | Current |
+| `/sdk/v1.js` | `0.x` | Current |
 
 When a breaking change requires a new major version, a `/sdk/v2.js` endpoint will be introduced. The previous endpoint will continue working for a deprecation period.
 
@@ -729,11 +759,11 @@ When a breaking change requires a new major version, a `/sdk/v2.js` endpoint wil
 
 ```javascript
 // IIFE
-console.log(OpenFederation.SDK_VERSION);  // "0.1.0"
+console.log(OpenFederation.SDK_VERSION);  // e.g. "0.7.1"
 
 // npm
 import { SDK_VERSION } from '@open-federation/sdk';
-console.log(SDK_VERSION);  // "0.1.0"
+console.log(SDK_VERSION);  // e.g. "0.7.1"
 ```
 
 ### Changelog
@@ -811,10 +841,11 @@ The partner API key is intentionally **public** — it's visible in your page so
 
 1. **Origin restriction** — the PDS validates the `Origin` header against the key's `allowed_origins` list. Requests from unlisted origins get 403.
 2. **Permission scoping** — keys only grant `register` permission. They can't log in as users, access admin endpoints, or read other users' data.
-3. **Per-key rate limiting** — each key has a configurable hourly limit (default: 100 registrations/hour). Exceeding it returns 429.
-4. **Revocation** — the PDS admin can instantly revoke a compromised key. Existing users are unaffected.
+3. **Ticket or email check** — without a [registration ticket](#registration-tickets) signed by your backend, a new account stays `pending` until its email address is confirmed, so a copied key cannot mint usable accounts.
+4. **Per-key rate limiting** — each key has a configurable hourly limit (default: 100 registrations/hour). Exceeding it returns 429.
+5. **Revocation** — the PDS admin can instantly revoke a compromised key. Existing users are unaffected.
 
-The `Origin` header can be spoofed by non-browser clients (curl, scripts), so rate limiting is the primary defense against abuse. For most use cases, the combination of origin + rate limit + revocation provides sufficient protection.
+The `Origin` header can be spoofed by non-browser clients (curl, scripts), so the origin check alone stops nothing. Tickets (or, without them, email verification) and rate limiting are what defend against abuse.
 
 ---
 
@@ -842,10 +873,16 @@ See [PDS Roles](#pds-roles) below for the full role system.
 3. Click **Create Key** and fill in:
    - **Key Name** — a label for your reference (e.g., "FlappySoccer Production")
    - **Partner Name** — the partner's domain or identifier (e.g., "games.grvty.tech")
-   - **Allowed Origins** — comma-separated origins for CORS validation (leave blank to allow any origin)
+   - **Allowed Origins** — comma-separated origins for CORS validation (at least one)
    - **Rate Limit** — max registrations per hour for this key (default: 100)
 4. Copy the raw key from the dialog — it won't be shown again
 5. To revoke a key, click the **Revoke** button in the table
+
+The web UI and the CLI create keys without a ticket key. To register a `ticketPublicKey`, create the key through the API (Option 3).
+
+### Verifying a New Key
+
+`partner.register` refuses a new key until it is verified. `createKey` returns a `verification` object: publish its `wellKnownBody` (`{"token": "…"}`) at `/.well-known/openfederation-partner.json` on every allowed origin, then an admin or partner manager calls `net.openfederation.partner.verifyKey` with `{"id": "<key id>"}`. The PDS fetches the file from each origin and marks the key verified.
 
 ### Option 2: CLI
 
@@ -883,6 +920,7 @@ curl -X POST https://pds.openfederation.net/xrpc/net.openfederation.partner.crea
     "name": "Grvty Production",
     "partnerName": "grvty.tech",
     "allowedOrigins": ["https://grvty.tech", "https://www.grvty.tech"],
+    "ticketPublicKey": "did:key:zQ3sh...",
     "rateLimitPerHour": 200
   }'
 ```
@@ -898,7 +936,14 @@ Response (raw key shown ONCE — save it immediately):
   "permissions": ["register"],
   "allowedOrigins": ["https://grvty.tech", "https://www.grvty.tech"],
   "rateLimitPerHour": 200,
-  "status": "active"
+  "status": "active",
+  "verificationState": "pending",
+  "verification": {
+    "token": "...",
+    "wellKnownPath": "/.well-known/openfederation-partner.json",
+    "wellKnownBody": { "token": "..." },
+    "instructions": "..."
+  }
 }
 ```
 
@@ -920,7 +965,8 @@ curl -X POST https://pds.openfederation.net/xrpc/net.openfederation.partner.revo
 |-------|:--------:|:-------:|-------------|
 | `name` | Yes | — | Label for identifying the key (e.g., "FlappySoccer Production") |
 | `partnerName` | Yes | — | Partner domain or identifier (e.g., "games.grvty.tech") |
-| `allowedOrigins` | No | Any | Origins allowed to use the key. Leave blank to allow all origins. Set for browser apps to restrict usage to your domain(s). |
+| `allowedOrigins` | Yes | — | Origins (http or https URLs) allowed to use the key; the verification file is checked on each |
+| `ticketPublicKey` | No | — | A `did:key` (secp256k1 or P-256) your backend signs [registration tickets](#registration-tickets) with. With it, sign-ups need a ticket and are approved at once; without it, they wait for email verification |
 | `rateLimitPerHour` | No | 100 | Max registrations per hour (1–10,000) |
 | `permissions` | No | `["register"]` | Permission scopes granted to this key |
 
@@ -928,7 +974,7 @@ curl -X POST https://pds.openfederation.net/xrpc/net.openfederation.partner.revo
 
 Partner keys are specifically for **user registration** by third-party apps. They:
 
-- **Allow** apps to register new users without invite codes (auto-approved)
+- **Allow** apps to register new users without invite codes (approved at once with a ticket, otherwise after email verification)
 - **Restrict** which origins (domains) can make registration requests
 - **Limit** registration rate per key to prevent abuse
 - **Can be revoked** instantly if a key is compromised
@@ -944,10 +990,11 @@ Partner keys do **not** control:
 
 | NSID | Method | Auth | Description |
 |------|:---:|:---:|-------------|
-| `net.openfederation.partner.register` | POST | X-Partner-Key | Register user (no invite, auto-approved, returns tokens) |
+| `net.openfederation.partner.register` | POST | X-Partner-Key | Register user (no invite). With a ticket: approved, returns tokens. Without: `pending` until the email is verified, no tokens |
 | `net.openfederation.partner.createKey` | POST | Admin or Partner Manager | Generate a new partner key (raw key shown once) |
 | `net.openfederation.partner.listKeys` | GET | Admin, Partner Manager, or Auditor | List all keys with stats (never shows raw key) |
 | `net.openfederation.partner.revokeKey` | POST | Admin or Partner Manager | Revoke a partner key |
+| `net.openfederation.partner.verifyKey` | POST | Admin or Partner Manager | Check the key's `/.well-known/openfederation-partner.json` on every allowed origin and activate it |
 
 ---
 
@@ -1028,33 +1075,7 @@ A PDS moderator can approve registrations server-wide but has no special powers 
 
 ## Database Schema (PDS Side)
 
-The partner system adds one table and one column:
-
-```sql
--- Partner API keys
-CREATE TABLE partner_keys (
-    id VARCHAR(36) PRIMARY KEY,
-    key_hash VARCHAR(128) NOT NULL UNIQUE,
-    key_prefix VARCHAR(12) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    partner_name VARCHAR(255) NOT NULL,
-    created_by VARCHAR(36) REFERENCES users(id),
-    permissions JSONB NOT NULL DEFAULT '["register"]',
-    allowed_origins JSONB DEFAULT NULL,
-    rate_limit_per_hour INTEGER NOT NULL DEFAULT 100,
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
-    total_registrations INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);
-
--- Track which partner created each user
-ALTER TABLE users ADD COLUMN created_by_partner VARCHAR(36) REFERENCES partner_keys(id);
-```
-
-Migrations:
-- `scripts/migrate-004-partner-keys.sql` — partner keys table
-- `scripts/migrate-006-rbac-roles.sql` — adds `partner-manager` and `auditor` roles
-
+Partner keys live in the `partner_keys` table (including `ticket_public_key` and the verification columns), used tickets in `partner_ticket_uses`, and `users.created_by_partner` records which key created each account. See [`src/db/schema.sql`](../src/db/schema.sql) for the current definitions.
 
 ---
 
@@ -1564,13 +1585,6 @@ const { did, walletAddress, audience, nonce } = await verifySignInAssertion(
 ```
 
 The verifier pulls the issuer DID via public W3C DID resolution (did:plc + did:web), checks the JWT signature, checks the wallet signature — zero calls to OpenFederation required.
-
-### Planned follow-ups
-
-- `@open-federation/wagmi-connector` — wagmi v2 `Connector` so OF appears as a wallet in the EVM dApp ecosystem.
-- `@open-federation/solana-adapter` — implements `@solana/wallet-adapter-base.WalletAdapter` for drop-in Solana integrations.
-- Full demo dApp (`demos/siwof-dapp/`) wiring an EVM contract call + Solana message sign entirely through OpenFederation.
-
 
 ---
 

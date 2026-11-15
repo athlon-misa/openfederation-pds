@@ -66,7 +66,7 @@ export const CUSTODY: Record<CustodyMode, ChoiceText & { short: string; restore:
 
 /** True in every mode, said wherever the modes are compared. */
 export const POSTING_KEY_NOTE =
-  'In every mode this server keeps the key it signs your posts with; that is how the network works today. So whoever runs it could still post in your name. Assisted and Self stop it from taking or moving your identity. Device signing, coming later, closes this gap.';
+  'In every mode this server keeps the key it signs your posts with; that is how the network works today. So whoever runs it could still post in your name. Assisted and Self stop it from taking or moving your identity. Device signing, where this server offers it, closes this gap.';
 
 /** What changes with each switch, on top of the target mode's own text. */
 export function switchNote(from: CustodyMode, to: CustodyMode): string {
@@ -156,9 +156,10 @@ export const PASSKEY: ChoiceText = {
 };
 
 /**
- * Device signing (#240) is being built separately. Described here so the
- * words are settled; the dashboard shows it as "coming later" and has no
- * controls for it yet.
+ * Device signing (#240): phase 1 is built in the server and the SDK
+ * (`@open-federation/sdk/custody`), offered where the admin allows it
+ * (`DEVICE_SIGNING_ALLOWED`). This dashboard has no controls for it yet and
+ * says so ("Not in this dashboard yet"); apps built on the SDK can turn it on.
  */
 export const DEVICE_SIGNING: ChoiceText & { status: 'coming'; availability: string } = {
   status: 'coming',
@@ -328,7 +329,7 @@ export const GLOSSARY_SECTIONS: { title: string; terms: GlossaryTerm[] }[] = [
       { id: 'self', term: CUSTODY.self.title, text: CUSTODY.self.summary },
       { id: 'twelve-words', term: 'Your 12 words', technical: 'identity phrase, recovery phrase in some apps', text: 'Twelve ordinary words, made on your device, that hold the keys to your identity in Assisted and Self. Whoever has them controls your identity. This server never sees them.' },
       { id: 'posting-key', term: 'The key that signs your posts', technical: 'repo signing key', text: POSTING_KEY_NOTE },
-      { id: 'device-signing', term: DEVICE_SIGNING.title, coming: 'Coming later (#240)', text: `${DEVICE_SIGNING.means} ${DEVICE_SIGNING.wrong} ${DEVICE_SIGNING.availability} ${DEVICE_SIGNING.undo}` },
+      { id: 'device-signing', term: DEVICE_SIGNING.title, coming: 'Not in this dashboard yet (#240)', text: `${DEVICE_SIGNING.means} ${DEVICE_SIGNING.wrong} ${DEVICE_SIGNING.availability} ${DEVICE_SIGNING.undo}` },
     ],
   },
   {

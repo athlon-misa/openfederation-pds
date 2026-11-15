@@ -245,8 +245,10 @@ ${progress()}
         </select>
         <p class="error" data-error="custodyDefault" hidden></p></div>
     </fieldset>
-    <label class="choice compact disabled"><input type="checkbox" name="deviceSigning" disabled>
-      <span><strong>Device signing</strong> (coming soon)<span class="hint">Lets people approve important actions on their own phone or computer instead of trusting the server. It is being built; you will be able to turn it on later.</span></span></label>
+    <div class="field">
+      <p><strong>Device signing</strong></p>
+      <p class="hint">Lets people whose key is shared or kept by themselves sign their posts on their own device, so this server can no longer post in their name. While it is on for an account, that account can only post from its device. It starts on for a newsroom or privacy-first server and off for a community server; change it later in the dashboard under Admin, Server settings.</p>
+    </div>
     <fieldset class="field">
       <legend><strong>How the dashboard looks</strong></legend>
       <p class="hint">What people see when they open the dashboard. Each person can still pick another look for themselves.</p>

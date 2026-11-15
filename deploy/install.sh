@@ -85,7 +85,7 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$INSTALL_DIR" ] || die "--dir needs a folder."
-[[ "$VERSION" =~ ^[A-Za-z0-9._-]+$ ]] || die "--version must look like 1.6.0 or latest."
+[[ "$VERSION" =~ ^[A-Za-z0-9._-]+$ ]] || die "--version must look like 0.7.0 or latest."
 
 interactive() { [ "$ASSUME_YES" = 0 ] && [ -t 0 ]; }
 

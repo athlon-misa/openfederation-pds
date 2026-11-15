@@ -6,7 +6,7 @@ This guide is for anyone who wants their own OpenFederation server: a club, a ne
 
 **What you need:**
 
-- A [Railway](https://railway.com) account. Railway runs the server for you; it costs roughly 5 to 20 US dollars a month for a small community.
+- A [Railway](https://railway.com) account. Railway runs the server for you and charges for it each month; see the [hosting comparison](HOSTING-COMPARISON.md) for what it costs.
 - A domain you own (for example `example.org`), and access to its DNS settings at the company where you bought it. You can start without one and add it later.
 - An account with an email sending service (for example Resend, Postmark, Mailgun or Amazon SES) or the outgoing mail (SMTP) settings of your email provider. You can also start without email.
 
@@ -77,9 +77,11 @@ Choose a name, your email and a strong password. This is the account you use to 
 ### Step 5: Options
 
 - **Invite-only sign-up**: new people need an invite from you. Recommended at first.
+- **When someone signs up**: an admin approves each new account (recommended), or **Approve new accounts automatically**, so anyone who can sign up gets in straight away.
 - **Allow pseudonyms**: anonymous accounts that are not linked to anyone, not even on your server.
 - **Who looks after people's keys**: which ways you allow, and which one is offered first.
-- **Device signing**: coming soon.
+- **Device signing**: people whose key is shared or kept by themselves can sign their posts on their own device, so the server can no longer post in their name. It starts on for a newsroom server and off for a community server; you change it later under Admin, Server settings.
+- **How the dashboard looks**: the look people see first (OpenFederation, PDS Basic or Open Newsrooms). Each person can still pick another for themselves.
 
 ### Step 6: Review and finish
 
@@ -103,21 +105,23 @@ The last screen shows a checklist. In short:
 
 ## Changing settings later
 
-The setup page saves your choices in a settings file on the server's disk. To change one later, add a **variable** with the same name in Railway; a variable always wins over the settings file.
+**Options from step 5, and moving and federation**: open the dashboard, sign in as admin and go to **Admin, Server settings**. Changes apply at once, without a restart. This covers invite-only sign-up, approving new accounts, pseudonyms, who looks after people's keys, device signing, email confirmation, moving to this server, federation peers and how the dashboard looks.
+
+**Addresses, email and secrets**: the setup page saves these in a settings file on the server's disk. To change one, add a **variable** with the same name in Railway; a variable always wins over the settings file.
 
 1. Click **openfederation-pds**, then **Variables**, then **New Variable**.
 2. Enter the name and the value, for example `SMTP_HOST` and `smtp.example.com`.
 3. Railway restarts the server with the new value.
 
-The names are listed in the expert guide ([RAILWAY.md](../RAILWAY.md) and the table in `CLAUDE.md`). The most common ones:
+A variable also works for the Server settings options (for example `INVITE_REQUIRED`), but then that setting is fixed: the Server settings page shows it as set by the server's environment and you can no longer change it there.
+
+The names are listed in the expert guide ([RAILWAY.md](../RAILWAY.md)) and in [`.env.example`](../.env.example). The most common ones:
 
 | You want to change | Variable |
 |---|---|
 | The server's address | `PDS_SERVICE_URL` and `PDS_HOSTNAME` |
 | The dashboard's address | `WEB_UI_URL` and `CORS_ORIGINS` |
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (and remove `ALLOW_NO_EMAIL`) |
-| Invite-only sign-up | `INVITE_REQUIRED` (`true` or `false`) |
-| Pseudonyms | `PSEUDONYMS_ENABLED` (`true` or `false`) |
 | Security contact | `SECURITY_CONTACT` |
 
 ### Changing the dashboard address

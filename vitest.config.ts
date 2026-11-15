@@ -1,7 +1,12 @@
 import { defineConfig } from 'vitest/config';
+import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
+const sdkVersion = JSON.parse(readFileSync(resolve(import.meta.dirname, 'packages/openfederation-sdk/package.json'), 'utf8')).version;
+
 export default defineConfig({
+  // Same as the SDK's tsup build: SDK_VERSION is package.json's version.
+  define: { __SDK_VERSION__: JSON.stringify(sdkVersion) },
   test: {
     globals: true,
     environment: 'node',

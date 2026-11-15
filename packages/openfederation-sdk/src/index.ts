@@ -127,8 +127,13 @@ export {
 import { OpenFederationClient } from './client.js';
 import type { ClientConfig } from './types.js';
 
-/** SDK version. Follows semver. */
-export const SDK_VERSION = '0.1.0';
+// Replaced at build time with the version in package.json (tsup `define`;
+// the root vitest config defines it too). `0.0.0-dev` only when neither ran.
+declare const __SDK_VERSION__: string | undefined;
+
+/** SDK version: the published package's version (semver). */
+export const SDK_VERSION: string =
+  typeof __SDK_VERSION__ === 'string' ? __SDK_VERSION__ : '0.0.0-dev';
 
 /**
  * Create an OpenFederation client instance.

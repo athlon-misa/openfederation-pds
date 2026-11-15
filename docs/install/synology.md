@@ -4,6 +4,8 @@ If you already have a Synology NAS running all day, it can host your OpenFederat
 
 Menu names are from DSM 7.2 and may differ slightly between versions.
 
+> **Before 0.7.0:** the project downloads prebuilt images, which are published with each PDS release starting with 0.7.0. Until that release is out there is nothing to download; the two images have to be built from a checkout of this repository first (the `docker build` commands in [Trying it on your own computer](vps.md#trying-it-on-your-own-computer)) and their tag in the project changed from `latest` to the one you built.
+
 ## What you need
 
 - **DSM 7.2 or newer**, on a model that can run **Container Manager**: a 64-bit **x86-64** or **ARM64** (armv8) model. 32-bit ARM models cannot run it. Synology lists the models on the [Container Manager page](https://www.synology.com/en-global/dsm/packages/ContainerManager); check yours there ("Plus" in the name is not a guarantee).

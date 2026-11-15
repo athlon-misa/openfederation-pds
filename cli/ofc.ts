@@ -30,7 +30,7 @@ program
   .name('ofc')
   .description('OpenFederation CLI — manage your PDS from the command line')
   .version(VERSION, '-V, --version')
-  .option('-s, --server <url>', 'PDS server URL', process.env.PDS_SERVICE_URL || 'http://localhost:8080')
+  .option('-s, --server <url>', 'PDS server URL', process.env.PDS_SERVICE_URL || 'http://localhost:3000')
   .option('--timeout <ms>', 'Request timeout in milliseconds', '30000')
   .addOption(new Option('--json', 'Output raw JSON to stdout').default(false))
   .addOption(new Option('--no-color', 'Disable ANSI colors'))

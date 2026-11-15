@@ -1,9 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'tsup';
+
+// SDK_VERSION in src/index.ts comes from package.json, so it never goes stale.
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+const define = { __SDK_VERSION__: JSON.stringify(version) };
 
 export default defineConfig([{
   entry: ['src/index.ts'],
   format: ['esm', 'cjs', 'iife'],
   globalName: 'OpenFederation',
+  define,
   dts: true,
   clean: true,
   sourcemap: true,
@@ -24,6 +30,7 @@ export default defineConfig([{
   // /sdk/v1.js IIFE, so Grvty and FlappySoccer bundles don't change.
   entry: { custody: 'src/custody/index.ts' },
   format: ['esm', 'cjs'],
+  define,
   dts: true,
   clean: false,
   sourcemap: true,

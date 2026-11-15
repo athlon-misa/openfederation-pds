@@ -6,7 +6,7 @@ A practical guide for running and writing tests for the OpenFederation PDS.
 
 ## 1. Prerequisites
 
-- **Node.js 18+** and **npm**
+- **Node.js 22–24** (`.nvmrc`: 24) and **npm**
 - **PostgreSQL 15** — required for integration and E2E tests
 - **PLC directory** — required for integration tests that create users (creates real `did:plc` identities) and all E2E tests. Run locally via `npm run plc:dev` (port 2582).
 - **`.env` file** configured with valid `AUTH_JWT_SECRET`, `KEY_ENCRYPTION_SECRET`, and `DB_*` variables. Copy from `.env.example` as a starting point.
@@ -267,6 +267,6 @@ GitHub Actions runs the security and integration tests on every push.
 | "Failed to get admin token" | Bootstrap admin not in DB | `npm run db:seed-admin` |
 | "relation does not exist" | Missing migration(s) | Run all `scripts/migrate-*.sql` in order |
 | Stale endpoint behavior | Old compiled output in `dist/` | `npm run build` |
-| "Port 8080 in use" | Another PDS instance running | Kill the other process or change `PORT` in `.env` |
+| "Port 3000 in use" | Another PDS instance running | Kill the other process or change `PORT` in `.env` |
 | Tests pass locally, fail in CI | PLC-dependent test not gated | Add `if (!plcAvailable) return;` guard |
 | "KEY_ENCRYPTION_SECRET not set" | Missing env var | Set it in `.env` (any random 32+ char string for dev) |

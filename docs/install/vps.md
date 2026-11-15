@@ -15,6 +15,8 @@ One server running four programs, each in its own container:
 
 Everything that must be kept (database, uploaded pictures, the server's settings and keys, certificates) lives in one folder: `/opt/openfederation/data`.
 
+> **Before 0.7.0:** the installer downloads prebuilt images, which are published with each PDS release starting with 0.7.0. Until that release is out there is nothing to download: build the two images yourself (the `docker build` commands in [Trying it on your own computer](#trying-it-on-your-own-computer), tagged `local`) and run the installer with `--version local`.
+
 ## 1. Choose and order a server
 
 Pick a plan with:
@@ -156,7 +158,7 @@ docker compose pull
 docker compose up -d
 ```
 
-`OPENFEDERATION_VERSION` in `.env` picks the version: `latest` follows every release; a number such as `1.6.0` stays put until you change it. Running the installer again also refreshes `compose.yaml` and the `Caddyfile`; a file you had edited is kept next to the new one as `*.bak`.
+`OPENFEDERATION_VERSION` in `.env` picks the version: `latest` follows every release; a number such as `0.7.0` stays put until you change it. Running the installer again also refreshes `compose.yaml` and the `Caddyfile`; a file you had edited is kept next to the new one as `*.bak`.
 
 ## Useful commands
 
