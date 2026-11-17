@@ -6,8 +6,12 @@
  * rotation keys there. So the directory is wiped with the PDSes: with
  * DEMO_MODE=true, at DEMO_RESET_SCHEDULE (cron, UTC; default 03:00 daily) it
  * answers 503 DemoResetting, empties its tables (all but the migration
- * ledger) and exits with code 75, for the platform to start it again
- * (restart policy ON_FAILURE or ALWAYS).
+ * ledger) and serves again, in the same process: @did-plc/server reads every
+ * answer from the database and keeps no cache, so nothing in memory still
+ * knows a deleted DID (an in-memory directory is emptied with
+ * clearMockDatabase). It exits with code 75, for the platform to start it
+ * again, only when that fails: the restart is the fallback, not the reset
+ * (on 2026-11-16 Railway left a demo PDS crashed after such an exit).
  *
  * Guards, checked at start-up (the directory refuses to start) and again
  * right before the wipe: PLC_PUBLIC_URL, this directory's own public URL,
@@ -185,10 +189,19 @@ async function truncatePlcTables(pool, schema = 'public') {
   return tables.length;
 }
 
+/** Empty an in-memory directory (Database.mock()): its operations live in `contents`. */
+function clearMockDatabase(db) {
+  if (!db || typeof db.contents !== 'object' || db.contents === null) throw new Error('not an in-memory PLC database');
+  db.contents = {};
+}
+
 /**
- * Wipe this demo directory and exit. Refuses, touching nothing, unless
- * DEMO_MODE=true and every guard passes. `getPool` returns a pg Pool, or
- * null when the directory runs in memory (the exit is then the wipe).
+ * Wipe this demo directory and keep serving. Refuses, touching nothing,
+ * unless DEMO_MODE=true and every guard passes. `getPool` returns a pg Pool,
+ * or null when the directory runs in memory; `clearMemory` empties whatever
+ * the directory holds in memory (the in-memory database). `endPool` ends the
+ * pool afterwards (one made for the reset). Exits with EXIT_CODE only when
+ * the directory cannot be brought back after the wipe; the gate stays up.
  */
 async function runDemoReset(opts) {
   const env = opts.env || process.env;
@@ -207,18 +220,28 @@ async function runDemoReset(opts) {
   await sleep(opts.drainMs === undefined ? DRAIN_MS : opts.drainMs);
   let tables = 0;
   const pool = opts.getPool ? await opts.getPool() : null;
+  const endPool = async () => { if (pool && pool.end) await pool.end().catch(() => {}); };
   if (pool) {
     try {
       tables = await truncatePlcTables(pool, opts.schema || 'public');
     } catch (err) {
       resetting = false;
       console.error('Demo reset failed; nothing was deleted:', err.message);
-      if (opts.endPoolOnFailure && pool.end) await pool.end().catch(() => {});
+      if (opts.endPool || opts.endPoolOnFailure) await endPool();
       return 'failed';
     }
   }
-  console.log(`Demo reset: emptied ${tables} PLC tables; exiting with code ${EXIT_CODE} for a fresh start.`);
-  exit(EXIT_CODE);
+  if (opts.endPool) await endPool();
+  try {
+    if (opts.clearMemory) await opts.clearMemory();
+  } catch (err) {
+    console.error('Demo reset: could not empty the directory held in memory:', err.message);
+    console.log(`Demo reset: emptied ${tables} PLC tables; exiting with code ${EXIT_CODE} for the platform to start the directory again.`);
+    exit(EXIT_CODE);
+    return 'exited';
+  }
+  resetting = false;
+  console.log(`Demo reset: emptied ${tables} PLC tables${opts.clearMemory ? ' and the directory held in memory' : ''}; serving again.`);
   return 'reset';
 }
 
@@ -263,6 +286,6 @@ function stopDemoResetScheduler() {
 module.exports = {
   DEFAULT_SCHEDULE, EXIT_CODE, PRODUCTION_PLC_HOSTS, KEEP_TABLES,
   parseCron, nextCronRun, readDemoConfig, demoGuardProblems, demoStartupProblems,
-  resetGate, isResetting, setResettingForTests, truncatePlcTables, runDemoReset,
+  resetGate, isResetting, setResettingForTests, truncatePlcTables, clearMockDatabase, runDemoReset,
   startDemoResetScheduler, stopDemoResetScheduler,
 };

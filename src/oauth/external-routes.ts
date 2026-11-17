@@ -80,6 +80,11 @@ function addPendingCode(code: string, entry: PendingCode): void {
   pendingCodes.set(code, entry);
 }
 
+/** Forget every handoff code not yet redeemed (the demo reset, src/server/fresh-start.ts). */
+export function clearPendingCodes(): void {
+  pendingCodes.clear();
+}
+
 /**
  * Seed a handoff code directly.
  *

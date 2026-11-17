@@ -424,6 +424,15 @@ export async function refreshRuntimeSettings(): Promise<void> {
   }
 }
 
+/**
+ * Back to what the process starts with: the environment and the setup file,
+ * no admin changes (the demo reset, src/server/fresh-start.ts, after
+ * server_settings was emptied). Throws, as at start-up, when they are invalid.
+ */
+export function resetRuntimeSettingsToStartup(): void {
+  state = computeState({}, null);
+}
+
 let timer: ReturnType<typeof setInterval> | null = null;
 
 export async function startRuntimeSettings(): Promise<void> {

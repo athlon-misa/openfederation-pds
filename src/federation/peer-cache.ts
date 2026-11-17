@@ -254,3 +254,13 @@ export async function getCachedPeerInfo(): Promise<PeerInfo[]> {
 
   return inFlightPeerInfo;
 }
+
+/** Forget the peers' communities and info (the demo reset, src/server/fresh-start.ts). */
+export function clearPeerCaches(): void {
+  cachedCommunities = [];
+  communitiesCachedAt = 0;
+  inFlightCommunities = null;
+  cachedPeerInfo = [];
+  peerInfoCachedAt = 0;
+  inFlightPeerInfo = null;
+}

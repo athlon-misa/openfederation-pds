@@ -5,10 +5,16 @@
  * DEMO_MODE=true (environment only, never a dashboard setting) turns it on.
  * At DEMO_RESET_SCHEDULE (cron, UTC; default 03:00 every day) the server
  * refuses requests with 503 DemoResetting, empties every application table,
- * deletes its blobs and exits with DEMO_RESET_EXIT_CODE, for the platform to
- * start it again on an empty database (restart policy ON_FAILURE or ALWAYS).
- * The normal start-up then runs: the bootstrap admin from the environment,
- * if one is configured.
+ * deletes its blobs, then brings this process back to a fresh start without
+ * exiting (src/server/fresh-start.ts: every in-memory cache emptied, the
+ * start-up seeding run again, so the bootstrap admin is back when one is
+ * configured) and serves again.
+ *
+ * It used to exit with DEMO_RESET_EXIT_CODE and leave the restart to the
+ * platform; on 2026-11-16 Railway marked one demo PDS crashed after that exit
+ * and never started it again, although its restart policy was Always. The
+ * exit is now only the fallback, when the fresh start itself fails: the gate
+ * stays up until the process is gone, so it never serves half-restored state.
  *
  * The wipe is reachable only through runDemoReset(), which re-reads DEMO_MODE
  * and re-checks every guard itself before touching anything; the server also
@@ -34,12 +40,13 @@ import { resolve, parse, sep, join } from 'path';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
 import { clearKeypairCache } from '../auth/keypair-cache.js';
+import { clearInMemoryState, seedStartupData } from '../server/fresh-start.js';
 import { parseCron, nextCronRun, type CronSchedule } from './cron.js';
 
 type Env = Record<string, string | undefined>;
 
 export const DEFAULT_DEMO_RESET_SCHEDULE = '0 3 * * *';
-/** EX_TEMPFAIL: "try again", so the platform starts the server afresh. */
+/** EX_TEMPFAIL: "try again". Only when the in-process fresh start fails, for the platform to start the server afresh. */
 export const DEMO_RESET_EXIT_CODE = 75;
 /** Never a demo's PLC directory. */
 export const PRODUCTION_PLC_HOSTS = ['plc.openfederation.net', 'plc.directory'] as const;
@@ -209,18 +216,25 @@ export function demoPublicInfo(env: Env = process.env, now: Date = new Date()): 
 
 // ── The reset ────────────────────────────────────────────────────
 
-export type DemoResetOutcome = 'reset' | 'refused' | 'failed';
+/**
+ * reset: wiped and serving again. refused: a guard failed, nothing touched.
+ * failed: the wipe failed, nothing deleted, still serving. exited: wiped, but
+ * the fresh start failed, so the process exits (DEMO_RESET_EXIT_CODE).
+ */
+export type DemoResetOutcome = 'reset' | 'refused' | 'failed' | 'exited';
 
 export interface DemoResetOptions {
   env?: Env;
   /** Defaults to this server's configuration (currentDemoGuardInput). */
   guard?: DemoGuardInput;
-  /** Defaults to process.exit. */
+  /** Defaults to process.exit; only called when the fresh start fails. */
   exit?: (code: number) => void;
+  /** The start-up seeding run after the wipe. Defaults to seedStartupData (tests inject a failure). */
+  seed?: () => Promise<void>;
   sleep?: (ms: number) => Promise<void>;
   drainMs?: number;
   /** Tests: called at each step. */
-  onPhase?: (phase: 'draining' | 'database' | 'blobs' | 'caches') => void;
+  onPhase?: (phase: 'draining' | 'database' | 'blobs' | 'caches' | 'seeding') => void;
 }
 
 async function truncateApplicationTables(): Promise<number> {
@@ -244,7 +258,8 @@ async function deleteLocalBlobs(dir: string): Promise<number> {
 }
 
 /**
- * Wipe this demo server and exit. Refuses, touching nothing, unless
+ * Wipe this demo server and bring it back to a fresh start in-process,
+ * exiting only when that fails. Refuses, touching nothing, unless
  * DEMO_MODE=true and every guard passes.
  */
 export async function runDemoReset(opts: DemoResetOptions = {}): Promise<DemoResetOutcome> {
@@ -295,12 +310,23 @@ export async function runDemoReset(opts: DemoResetOptions = {}): Promise<DemoRes
     console.error('Demo reset: could not delete every blob:', err instanceof Error ? err.message : err);
   }
 
-  opts.onPhase?.('caches');
-  // The process is about to go; the decrypted signing keys go first.
-  clearKeypairCache();
+  try {
+    opts.onPhase?.('caches');
+    await clearInMemoryState();
+    opts.onPhase?.('seeding');
+    await (opts.seed ?? seedStartupData)();
+  } catch (err) {
+    // The data is gone but this process is not back to a fresh start. Keep
+    // refusing requests and let the platform start it again: the last resort.
+    clearKeypairCache();
+    console.error('Demo reset: the fresh start after the wipe failed:', err instanceof Error ? err.message : err);
+    console.log(`Demo reset: emptied ${tables} tables and ${blobs} blob entries; exiting with code ${DEMO_RESET_EXIT_CODE} for the platform to start the server again.`);
+    exit(DEMO_RESET_EXIT_CODE);
+    return 'exited';
+  }
 
-  console.log(`Demo reset: emptied ${tables} tables and ${blobs} blob entries; exiting with code ${DEMO_RESET_EXIT_CODE} for a fresh start.`);
-  exit(DEMO_RESET_EXIT_CODE);
+  resetting = false;
+  console.log(`Demo reset: emptied ${tables} tables and ${blobs} blob entries, cleared the caches and ran the start-up seeding; serving again.`);
   return 'reset';
 }
 

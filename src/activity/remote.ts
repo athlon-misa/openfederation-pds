@@ -160,3 +160,8 @@ export function getRemoteActivityClient(): RemoteActivityClient {
 export function _setRemoteActivityClient(next: RemoteActivityClient | null): void {
   client = next ?? httpRemoteActivityClient;
 }
+
+/** Forget the peers' service DIDs (the demo reset, src/server/fresh-start.ts). */
+export function clearPeerDidCache(): void {
+  peerDidCache.clear();
+}

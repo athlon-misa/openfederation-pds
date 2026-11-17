@@ -4,8 +4,8 @@ import { join } from 'path';
 import { config } from '../config.js';
 import { testConnection, closePool } from '../db/client.js';
 import { authMiddleware, setOAuthVerifier } from '../auth/middleware.js';
-import { ensureBootstrapAdmin, validateBootstrapAdminConfig } from '../auth/bootstrap.js';
-import { completePendingSetupAdmin } from '../auth/setup-admin.js';
+import { validateBootstrapAdminConfig } from '../auth/bootstrap.js';
+import { seedStartupData } from './fresh-start.js';
 import { createSetupDoneRouter } from '../setup/setup-app.js';
 import { query } from '../db/client.js';
 import { createOAuthProvider } from '../oauth/oauth-setup.js';
@@ -33,7 +33,7 @@ import { createWellKnownRouter } from './well-known-routes.js';
 import { createTlsCheckRouter } from './tls-check.js';
 import { SERVER_VERSION } from './server-version.js';
 import { applyMigrations } from '../db/migrate.js';
-import { startRuntimeSettings, stopRuntimeSettings } from '../settings/runtime-settings.js';
+import { stopRuntimeSettings } from '../settings/runtime-settings.js';
 import type { Server } from 'http';
 import { createAccountPagesRouter } from './account-pages.js';
 import { createWalletConsentRouter } from './wallet-consent-page.js';
@@ -485,13 +485,11 @@ export async function startServer(): Promise<Server> {
   } else {
     console.log('Database connection successful');
     await ensureSchema();
-    // The settings an admin changed on the dashboard (#410), then re-read
-    // periodically so a change made on another instance reaches this one.
-    await startRuntimeSettings();
-    await ensureBootstrapAdmin();
-    // The first admin chosen in the setup wizard, created on the first start after it.
-    const setupAdmin = await completePendingSetupAdmin();
-    if (setupAdmin !== 'none') console.log('✓ Admin account from the setup wizard created');
+    // The settings an admin changed on the dashboard (#410), re-read
+    // periodically so a change made on another instance reaches this one;
+    // the bootstrap admin; the setup wizard's first admin. The demo reset
+    // runs the same function after emptying the database (fresh-start.ts).
+    await seedStartupData();
 
     // Initialize OAuth provider if enabled
     if (config.oauth.enabled) {

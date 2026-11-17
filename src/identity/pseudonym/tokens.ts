@@ -163,3 +163,13 @@ export async function redeemToken(client: PoolClient, token: CreationToken): Pro
     'INSERT INTO pseudonym_tokens_spent (epoch, token_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING', [token.epoch, hash]);
   return inserted.rowCount === 1 ? 'ok' : 'spent';
 }
+
+/**
+ * Forget the epoch keys held in memory (the demo reset, src/server/fresh-start.ts).
+ * Without it a key whose row was deleted would keep signing and verifying
+ * passes, and a pass collected before the reset would still redeem.
+ */
+export function clearTokenKeyCache(): void {
+  publicCache.clear();
+  signerCache.clear();
+}

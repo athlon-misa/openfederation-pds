@@ -76,3 +76,10 @@ export async function getCachedPartnerOrigins(): Promise<string[]> {
   });
   return inFlight;
 }
+
+/** Forget the partner origins allowed for CORS (the demo reset, src/server/fresh-start.ts). */
+export function clearPartnerOriginsCache(): void {
+  cachedOrigins = [];
+  cachedAt = 0;
+  inFlight = null;
+}

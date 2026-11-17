@@ -30,7 +30,7 @@ CREATE DATABASE plc;
 
 Each service resets only the database it is connected to (the PDS lists the tables of its own database's `public` schema; the PLC directory of its own).
 
-**Restart policy.** The reset ends with the process exiting with code **75**, so the platform starts it again on an empty database. On every one of the three services set **Settings → Deploy → Restart Policy** to **Always** (or **On Failure** with enough retries; Railway counts failed restarts, so Always is the safer choice). With **Never**, a service stays down after its first reset.
+**Restart policy.** The reset does not depend on it: each service empties its data and keeps running in the same process. Only if a service cannot bring itself back after the wipe does it exit with code **75**, for the platform to start it again. For that fallback, set **Settings → Deploy → Restart Policy** to **Always** on every one of the three services (or **On Failure** with enough retries; Railway counts failed restarts, so Always is the safer choice). Do not count on it alone: on 16 November 2026 Railway marked a demo PDS crashed after its exit and never started it again, although its policy was Always, which is why the reset no longer exits.
 
 ## Variables
 
@@ -75,7 +75,7 @@ OAUTH_SIGNING_KEY=<one-line ES256 JWK>
 CORS_ORIGINS=https://opennewsrooms.com   # the demo page's origin (OAuth and other non-XRPC paths); add a dashboard's
 DEFAULT_APPEARANCE=openfederation
 
-# Optional: an admin, recreated after every reset (bootstrap runs on each start).
+# Optional: an admin, recreated after every reset (the reset runs the start-up steps again).
 # BOOTSTRAP_ADMIN_EMAIL=admin@demo.openfederation.net
 # BOOTSTRAP_ADMIN_HANDLE=admin
 # BOOTSTRAP_ADMIN_PASSWORD=<strong password>
@@ -145,12 +145,15 @@ At `DEMO_RESET_SCHEDULE` (five-field cron, UTC; default `0 3 * * *`, 03:00 every
 
 1. answers every request with **503 `DemoResetting`** (with `Retry-After`; the PDS still answers `/health`) and gives requests already running a few seconds;
 2. empties every table: the PDS every table in its database's `public` schema except `schema_migrations` (`TRUNCATE … RESTART IDENTITY CASCADE`), the PLC directory every table except its migration ledger (`kysely_migration`, `kysely_migration_lock`). The schema stays, so nothing is migrated again;
-3. the PDS deletes everything inside its blob directory (`BLOB_STORAGE_PATH`; the directory itself stays, it may be a volume) and drops the signing keys it holds in memory;
-4. logs one line and **exits with code 75**. Nothing is written to the audit log: it is emptied with everything else.
+3. the PDS deletes everything inside its blob directory (`BLOB_STORAGE_PATH`; the directory itself stays, it may be a volume);
+4. it returns to the state of a fresh start without exiting. The PDS empties every cache it holds in memory of data from the deleted rows or from other servers (signing keys, pen-name pass keys, ActivityPub keys, sign-in handoff codes, account contexts, DID documents, handles, partner origins, per-DID counters, pen-name probation counts, the admin's server settings, repo blocks, activity and federation caches; the list is `src/server/fresh-start.ts`), then runs the same start-up steps as when the process starts: the server settings are read again, and the bootstrap admin is recreated when one is configured. The PLC directory has nothing to clear: `@did-plc/server` reads every answer from its database;
+5. logs one line and serves again. Nothing is written to the audit log: it is emptied with everything else.
 
-The platform starts the service again (restart policy above); it starts as on any other day, recreating the bootstrap admin when one is configured. Expect each service to be unavailable for a minute or two around the scheduled time.
+Expect each service to answer `503` for a few seconds around the scheduled time.
 
 If emptying the tables fails, nothing was deleted (it is one statement); the service logs it, keeps serving and tries again at the next scheduled time.
+
+If step 4 fails (the bootstrap admin cannot be created, for example), the service logs why and **exits with code 75**, still answering `503` until it is gone, so it never serves half-restored state; the platform then starts it again (restart policy above), and it starts as on any other day.
 
 `getPublicConfig` on a demo PDS says so: `demo: { enabled: true, resetSchedule, nextResetAt }` (`{ enabled: false }` everywhere else). The dashboard shows "Demo server — everything is deleted every night at HH:MM UTC" on every page when it is set; the demo page on opennewsrooms.com can read the same field.
 
@@ -185,4 +188,4 @@ Put this, or something like it, on the demo page:
 - **No email is sent**, so there is no password reset and no email verification. Write the password down for the day.
 - Handles are free again after the reset; someone else may take yours the next day.
 - Proof links and QR codes made today stop verifying after the reset.
-- Around the reset each server is unavailable for a minute or two ("This demo server is deleting everything for its nightly fresh start").
+- Around the reset each server is briefly unavailable ("This demo server is deleting everything for its nightly fresh start").

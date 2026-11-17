@@ -43,11 +43,11 @@ The setup page and the Railway template run in production. The images, the appli
 
 Built and tested; not yet run on the Railway demo project.
 
-- `DEMO_MODE=true` (environment only; `src/demo/demo-mode.ts`, `demo-settings.ts`, `cron.ts`): at `DEMO_RESET_SCHEDULE` (cron, UTC, default `0 3 * * *`) 503 `DemoResetting`, `TRUNCATE` of every `public` table but `schema_migrations`, local blobs deleted, keypair cache cleared, exit 75 (restart policy Always / On Failure). No audit.
+- `DEMO_MODE=true` (environment only; `src/demo/demo-mode.ts`, `demo-settings.ts`, `cron.ts`): at `DEMO_RESET_SCHEDULE` (cron, UTC, default `0 3 * * *`) 503 `DemoResetting`, `TRUNCATE` of every `public` table but `schema_migrations`, local blobs deleted, then a fresh start in the same process (`src/server/fresh-start.ts`: `clearInMemoryState()` empties every cache of per-account / per-DID data, `seedStartupData()`, shared with `startServer()`, recreates the bootstrap admin) and the gate lifts. Exit 75 only when that fresh start fails (restart policy Always is the fallback). No audit.
 - Guards at start-up (refuses to start) and again inside the reset: `PLC_DIRECTORY_URL` not `plc.openfederation.net` / `plc.directory`; `PDS_HOSTNAME` and `PDS_SERVICE_URL` contain `demo` or equal `DEMO_ALLOWED_HOSTNAME`; `BLOB_STORAGE=local` in a safe directory.
 - Demo defaults in `resolveRuntimeSettings` below environment, admin and setup file (open sign-up, automatic approval, email verification off, pen names, device signing, open migration); no SMTP needed in production.
 - `getPublicConfig.demo` (revision 7); dashboard banner (`web-interface/src/components/demo-banner.tsx`).
-- PLC wrapper: `plc-server/demo-reset.js` (same schedule; guard on `PLC_PUBLIC_URL`; keeps the Kysely migration ledger).
+- PLC wrapper: `plc-server/demo-reset.js` (same schedule; guard on `PLC_PUBLIC_URL`; keeps the Kysely migration ledger; serves again after the truncate, as `@did-plc/server` caches nothing; exit 75 only as the fallback).
 
 ## Auth — **shipped**
 
