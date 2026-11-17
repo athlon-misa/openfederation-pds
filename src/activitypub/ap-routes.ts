@@ -36,6 +36,11 @@ router.use((req, res, next) => {
 // In-memory cache for RSA key pairs per community DID (performance — avoids repeated DB lookups)
 const rsaKeyCache = new Map<string, { publicKey: string; privateKey: string }>();
 
+/** Forget the decrypted AP keys (the demo reset, src/server/fresh-start.ts). */
+export function clearApKeyCache(): void {
+  rsaKeyCache.clear();
+}
+
 /**
  * Get or create a persisted RSA keypair for AP actor HTTP signatures.
  * AP ecosystem (Mastodon, GoToSocial, etc.) requires RSA keys for HTTP signatures.

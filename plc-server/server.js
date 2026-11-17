@@ -67,8 +67,11 @@ const run = async () => {
     console.log(`PLC directory running on port ${port} with CORS enabled`);
     if (demoMode) {
       demo.startDemoResetScheduler({
+        // In-process: the library reads everything from the database, so the
+        // directory serves again once the tables are empty (exit is the fallback).
         reset: () => demo.runDemoReset({
-          endPoolOnFailure: true,
+          endPool: true,
+          clearMemory: dbUrl ? undefined : () => demo.clearMockDatabase(db),
           getPool: () => {
             if (!dbUrl) return null;
             const { Pool } = require('pg');

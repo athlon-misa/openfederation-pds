@@ -2,15 +2,18 @@
  * The demo PLC directory's reset (plc-server/demo-reset.js,
  * docs/DEMO-SERVERS.md): its guards, and the wipe against a real PLC schema
  * built by @did-plc/server's own migrations in a scratch schema of the test
- * database.
+ * database. The wipe keeps the directory serving; exiting (code 75) is only
+ * the fallback.
  */
 import { describe, it, expect, vi, afterEach, beforeAll, afterAll } from 'vitest';
 import { createRequire } from 'module';
 import { Pool } from 'pg';
+import request from 'supertest';
 
 const require = createRequire(import.meta.url);
 const demo = require('../../plc-server/demo-reset.js');
-const { Database } = require('@did-plc/server');
+const { Database, PlcServer } = require('@did-plc/server');
+const express = require('express');
 
 const DEMO_ENV = { DEMO_MODE: 'true', PLC_PUBLIC_URL: 'https://plc.demo.openfederation.net' };
 
@@ -119,17 +122,56 @@ describe('the wipe', () => {
     expect(await rows('operations')).toBe(1);
   });
 
-  it('empties the operations, keeps the migration ledger, then exits non-zero', async () => {
+  it('empties the operations, keeps the migration ledger, and keeps serving without exiting', async () => {
+    const did = 'did:plc:demoresettest0000000000a';
     const migrations = await rows('kysely_migration');
     expect(migrations).toBeGreaterThan(0);
     expect(await rows('operations')).toBeGreaterThan(0);
+    // The directory as server.js wires it: the gate in front of the library's app.
+    const plc = PlcServer.create({ db: plcDb, port: 0 });
+    const app = express();
+    app.use(demo.resetGate);
+    app.use(plc.app);
+
     const exit = vi.fn();
     const outcome = await demo.runDemoReset({ env: DEMO_ENV, getPool: () => pool, schema: SCHEMA, exit, sleep: async () => {} });
     expect(outcome).toBe('reset');
+    expect(exit).not.toHaveBeenCalled();
+    expect(demo.isResetting()).toBe(false);
     expect(await rows('operations')).toBe(0);
     expect(await rows('kysely_migration')).toBe(migrations);
+    // Still serving, and the deleted DID is gone.
+    expect((await request(app).get('/_health')).status).toBe(200);
+    expect((await request(app).get(`/${did}/log`)).status).toBe(404);
+  });
+
+  it('exits with code 75 when it cannot finish the fresh start, and keeps refusing requests', async () => {
+    const exit = vi.fn();
+    const outcome = await demo.runDemoReset({
+      env: DEMO_ENV, getPool: () => pool, schema: SCHEMA, exit, sleep: async () => {},
+      clearMemory: () => { throw new Error('cannot clear'); },
+    });
+    expect(outcome).toBe('exited');
     expect(exit).toHaveBeenCalledWith(demo.EXIT_CODE);
-    expect(demo.EXIT_CODE).not.toBe(0);
+    expect(demo.EXIT_CODE).toBe(75);
     expect(demo.isResetting()).toBe(true);
+    demo.setResettingForTests(false);
+  });
+});
+
+describe('the wipe, in memory', () => {
+  afterEach(() => demo.setResettingForTests(false));
+
+  it('empties an in-memory directory without exiting', async () => {
+    const db = Database.mock();
+    db.contents['did:plc:demoresetmemory00000000a'] = [{ did: 'did:plc:demoresetmemory00000000a' }];
+    const exit = vi.fn();
+    const outcome = await demo.runDemoReset({
+      env: DEMO_ENV, getPool: () => null, clearMemory: () => demo.clearMockDatabase(db), exit, sleep: async () => {},
+    });
+    expect(outcome).toBe('reset');
+    expect(exit).not.toHaveBeenCalled();
+    expect(db.contents).toEqual({});
+    expect(demo.isResetting()).toBe(false);
   });
 });

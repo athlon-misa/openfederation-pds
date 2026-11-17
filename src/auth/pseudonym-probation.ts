@@ -11,8 +11,13 @@ import { runtimeSettings } from '../settings/runtime-settings.js';
 
 const counters = new Map<string, { day: string; count: number }>();
 
-export function resetProbationForTests(): void {
+/** Forget every count (the demo reset, src/server/fresh-start.ts). */
+export function clearProbationCounters(): void {
   counters.clear();
+}
+
+export function resetProbationForTests(): void {
+  clearProbationCounters();
 }
 
 export async function enforcePseudonymProbation(req: AuthRequest, res: Response): Promise<boolean> {
