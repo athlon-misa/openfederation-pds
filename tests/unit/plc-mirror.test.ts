@@ -13,6 +13,7 @@ const mirror = require('../../plc-server/mirror.js') as {
   planDid: (s: unknown[] | null, t: unknown[] | null) => { status: string; toSend: unknown[] };
   mirrorOnce: (o: Record<string, unknown>) => Promise<{ checked: number; sent: number; same: number; diverged: string[]; failed: { did: string }[]; cursor: string | null }>;
   readMirrorTargets: (env: Record<string, string>) => string[];
+  readDidList: (raw: string | undefined, name: string) => string[] | null;
 };
 
 const A = 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa';
@@ -138,10 +139,41 @@ describe('a failed operation keeps the cursor, so the next pass retries', () => 
   });
 });
 
+describe('test accounts stay out of the public directory', () => {
+  const tomb = (did: string) => ({ type: 'plc_tombstone', did, prev: `${did}-0` });
+
+  it('a DID removed here is not published to a directory that never had it', () => {
+    expect(mirror.planDid([op(A, 0), tomb(A)], null)).toEqual({ status: 'tombstoned', toSend: [] });
+  });
+
+  it('a DID the target already has gets its tombstone, so it is deactivated there too', () => {
+    expect(mirror.planDid([op(A, 0), tomb(A)], [op(A, 0)])).toEqual({ status: 'behind', toSend: [tomb(A)] });
+  });
+
+  it('only the allowed DIDs are mirrored; excluded ones never', async () => {
+    const source = directory(new Map([[A, [op(A, 0)]], [B, [op(B, 0)]], [C, [op(C, 0)]]]));
+    const target = directory(new Map());
+    const [s1, t1] = await Promise.all([listen(source.server), listen(target.server)]);
+    try {
+      const only = await mirror.mirrorOnce({ source: s1, target: t1, apply: true, only: [A, B], exclude: [B] });
+      expect(target.posted.map((p) => p.did)).toEqual([A]);
+      expect(only.skipped).toBe(2);
+    } finally {
+      await Promise.all([source.server, target.server].map((x) => new Promise((r) => x.close(r))));
+    }
+  });
+
+  it('DID lists accept did:plc only', () => {
+    expect(mirror.readDidList(` ${A}, ${B} `, 'X')).toEqual([A, B]);
+    expect(mirror.readDidList('', 'X')).toBeNull();
+    expect(() => mirror.readDidList('did:web:example.com', 'PLC_MIRROR_ONLY_DIDS')).toThrow(/PLC_MIRROR_ONLY_DIDS/);
+  });
+});
+
 describe('PLC_MIRROR_TARGETS', () => {
   it('off when unset; a list otherwise; invalid stops the service', () => {
     expect(mirror.readMirrorTargets({})).toEqual([]);
     expect(mirror.readMirrorTargets({ PLC_MIRROR_TARGETS: 'https://plc.directory/, https://plc.directory' })).toEqual(['https://plc.directory']);
-    expect(() => mirror.readMirrorTargets({ PLC_MIRROR_TARGETS: 'ftp://x' })).toThrow();
+    expect(() => mirror.readMirrorTargets({ PLC_MIRROR_TARGETS: 'ftp://x' })).toThrow(/PLC_MIRROR_TARGETS/);
   });
 });

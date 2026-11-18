@@ -67,10 +67,14 @@ const run = async () => {
   // Mirror this directory's DIDs into other directories, e.g. plc.directory
   // (PLC_MIRROR_TARGETS, mirror.js, docs/PLC-MIRROR.md). Never on a demo.
   let mirrorTargets = [];
+  let mirrorOnly = null;
+  let mirrorExclude = null;
   try {
     mirrorTargets = mirror.readMirrorTargets(process.env);
+    mirrorOnly = mirror.readDidList(process.env.PLC_MIRROR_ONLY_DIDS, 'PLC_MIRROR_ONLY_DIDS');
+    mirrorExclude = mirror.readDidList(process.env.PLC_MIRROR_EXCLUDE_DIDS, 'PLC_MIRROR_EXCLUDE_DIDS');
   } catch (err) {
-    console.error(`FATAL: PLC_MIRROR_TARGETS: ${err.message}`);
+    console.error(`FATAL: ${err.message}`);
     process.exit(1);
   }
   if (mirrorTargets.length > 0 && demoMode) {
@@ -84,7 +88,9 @@ const run = async () => {
       const source = process.env.PLC_MIRROR_SOURCE || `http://127.0.0.1:${port}`;
       const intervalMs = Math.max(10, parseInt(process.env.PLC_MIRROR_INTERVAL_SECONDS || '60', 10)) * 1000;
       console.log(`Mirroring DIDs to ${mirrorTargets.join(', ')} every ${intervalMs / 1000}s`);
-      mirror.startMirror({ source, targets: mirrorTargets, intervalMs });
+      if (mirrorOnly) console.log(`  only ${mirrorOnly.length} listed DID(s) (PLC_MIRROR_ONLY_DIDS)`);
+      if (mirrorExclude) console.log(`  never ${mirrorExclude.length} listed DID(s) (PLC_MIRROR_EXCLUDE_DIDS)`);
+      mirror.startMirror({ source, targets: mirrorTargets, intervalMs, only: mirrorOnly, exclude: mirrorExclude });
     }
     if (demoMode) {
       demo.startDemoResetScheduler({
