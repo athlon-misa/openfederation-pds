@@ -21,7 +21,7 @@ export interface GroupText {
   settings: SettingId[];
 }
 
-export type GroupId = 'signup' | 'custody' | 'penNames' | 'moving' | 'federation' | 'appearance';
+export type GroupId = 'signup' | 'custody' | 'penNames' | 'moving' | 'federation' | 'otherApps' | 'appearance';
 
 export const GROUPS: Record<GroupId, GroupText> = {
   signup: {
@@ -69,6 +69,15 @@ export const GROUPS: Record<GroupId, GroupText> = {
     terms: [],
     settings: ['federationPeers'],
   },
+  otherApps: {
+    title: 'Sign-in for other apps',
+    summary: 'Whether apps like Mastodon and Lemmy can let people sign in with their account from here or any other AT Protocol server.',
+    means: 'An app you register under Admin, Sign-in for other apps can send people here to sign in: people with an account on this server use their password, people from Bluesky or any other server sign in on their own server. The app learns their permanent identifier, handle and display name, and, for accounts here, their email if it asks. It never gets their password or anything else.',
+    alreadyHere: 'Nothing changes for anyone until you register an app. Turning this off stops every registered app from signing anyone in; people already signed in to an app stay signed in there, and the apps stay registered.',
+    undo: 'Turn it back on at any time; registered apps work again straight away.',
+    terms: [],
+    settings: ['oidcProviderEnabled'],
+  },
   appearance: {
     title: 'Appearance',
     summary: 'How the dashboard looks to someone who has not chosen a look of their own.',
@@ -80,7 +89,7 @@ export const GROUPS: Record<GroupId, GroupText> = {
   },
 };
 
-export const GROUP_ORDER: GroupId[] = ['signup', 'custody', 'penNames', 'moving', 'federation', 'appearance'];
+export const GROUP_ORDER: GroupId[] = ['signup', 'custody', 'penNames', 'moving', 'federation', 'otherApps', 'appearance'];
 
 export const SETTING_LABEL: Record<SettingId, string> = {
   inviteRequired: 'Invite-only sign-up',
@@ -99,6 +108,7 @@ export const SETTING_LABEL: Record<SettingId, string> = {
   migrationCommunities: 'Communities',
   federationPeers: 'Servers to ask',
   defaultAppearance: 'Default look',
+  oidcProviderEnabled: 'Apps may sign people in through this server',
 };
 
 export const SETTING_HINT: Partial<Record<SettingId, string>> = {
@@ -112,6 +122,7 @@ export const SETTING_HINT: Partial<Record<SettingId, string>> = {
   custodyDefault: 'The way apps suggest first. It must be one of the ways offered.',
   federationPeers: 'One web address per line, like https://pds.example.org. Up to 50.',
   defaultAppearance: 'What the dashboard looks like until a person chooses their own look.',
+  oidcProviderEnabled: 'Only apps an admin registers can use it. Off by default.',
 };
 
 export const APPROVAL: Record<string, { title: string; text: string }> = {

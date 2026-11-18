@@ -377,6 +377,18 @@ Pass `--proposal <rkey>` when an export holds more than one proposal.
 | `security check-config` | Admin | Check server config for security issues |
 | `security audit-summary [--days N]` | Admin | Summarize recent security events (default: 7 days) |
 
+### `ofc oidc` — Sign-in for Other Apps (OpenID Connect)
+
+Apps such as Mastodon and Lemmy that sign people in through this server ([docs/OIDC.md](../docs/OIDC.md)). Turn the provider on first: Admin → Server settings → Sign-in for other apps.
+
+| Command | Auth | Description |
+|---------|------|-------------|
+| `oidc list` | Admin | Registered apps, whether the provider is on, its issuer |
+| `oidc add --name <n> [--preset mastodon\|lemmy\|gotosocial\|generic] [--app-url <url>] [--redirect-uri <uri>...] [--scope <s>...] [--community <did>] [--client-id <id>]` | Admin | Register an app; prints the secret (once) inside the configuration to paste into the app |
+| `oidc setup <clientId>` | Admin | The app's configuration again, without the secret |
+| `oidc rotate-secret <clientId>` | Admin | New secret; the old one stops working |
+| `oidc remove <clientId>` | Admin | The app can no longer sign anyone in |
+
 ### `ofc pseudonym` — Pseudonym Proofs (work offline)
 
 | Command | Auth | Description |

@@ -127,6 +127,10 @@ export type AuditAction =
   | 'wallet.consent.originRejected'
   // Login handoff code presented by a browser that did not start the flow (#146).
   | 'auth.external.handoffRejected'
+  | 'oidc.signIn'
+  | 'oidc.client.create'
+  | 'oidc.client.rotateSecret'
+  | 'oidc.client.delete'
   | 'identity.signInAssert'
   | 'identity.setPrimaryWallet'
   | 'wallet.retrieveForUpgrade'

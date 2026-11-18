@@ -53,6 +53,11 @@ import takedownCommunity from '../api/net.openfederation.community.takedown.js';
 import adminTakedown from '../api/net.openfederation.admin.takedown.js';
 import adminReverseTakedown from '../api/net.openfederation.admin.reverseTakedown.js';
 import getServerSettings from '../api/net.openfederation.admin.getServerSettings.js';
+import createOidcClient from '../api/net.openfederation.oidc.createClient.js';
+import listOidcClients from '../api/net.openfederation.oidc.listClients.js';
+import getOidcClientSetup from '../api/net.openfederation.oidc.getClientSetup.js';
+import rotateOidcClientSecret from '../api/net.openfederation.oidc.rotateClientSecret.js';
+import deleteOidcClient from '../api/net.openfederation.oidc.deleteClient.js';
 import updateServerSettings from '../api/net.openfederation.admin.updateServerSettings.js';
 import removeMember from '../api/net.openfederation.community.removeMember.js';
 import deleteCommunity from '../api/net.openfederation.community.delete.js';
@@ -387,6 +392,13 @@ const handlers = Object.freeze({
   'net.openfederation.admin.reverseTakedown': { handler: adminReverseTakedown },
   'net.openfederation.admin.getServerSettings': { handler: getServerSettings },
   'net.openfederation.admin.updateServerSettings': { handler: updateServerSettings },
+
+  // OpenID Connect clients: apps that sign people in through this server (ADR-005)
+  'net.openfederation.oidc.createClient': { handler: createOidcClient },
+  'net.openfederation.oidc.listClients': { handler: listOidcClients },
+  'net.openfederation.oidc.getClientSetup': { handler: getOidcClientSetup },
+  'net.openfederation.oidc.rotateClientSecret': { handler: rotateOidcClientSecret },
+  'net.openfederation.oidc.deleteClient': { handler: deleteOidcClient },
   'net.openfederation.admin.createExportSchedule': { handler: createExportSchedule },
   'net.openfederation.admin.listExportSchedules': { handler: listExportSchedules },
   'net.openfederation.admin.deleteExportSchedule': { handler: deleteExportSchedule },

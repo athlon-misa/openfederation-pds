@@ -2293,6 +2293,70 @@ export type NetOpenfederationNotificationUnreadCountOutput = {
 };
 export type NetOpenfederationNotificationUnreadCountError = never;
 
+export type NetOpenfederationOidcCreateClientInput = {
+  "name": string;
+  "preset"?: string;
+  "appUrl"?: string;
+  "redirectUris"?: Array<string>;
+  "scopes"?: Array<string>;
+  "communityDid"?: string;
+  "clientId"?: string;
+};
+export type NetOpenfederationOidcCreateClientOutput = {
+  "client": {
+  "clientId": string;
+  "name": string;
+  "redirectUris": Array<string>;
+  "scopes": Array<string>;
+  "communityDid"?: string;
+  "preset"?: string;
+  "appUrl"?: string;
+  "createdBy"?: string;
+  "createdAt": string;
+  "secretRotatedAt"?: string;
+};
+  "clientSecret": string;
+  "issuer": string;
+  "configuration"?: string;
+};
+export type NetOpenfederationOidcCreateClientError = "Conflict" | "Forbidden" | "InvalidRequest" | "NotFound";
+
+export type NetOpenfederationOidcDeleteClientInput = {
+  "clientId": string;
+};
+export type NetOpenfederationOidcDeleteClientOutput = {
+  "deleted": boolean;
+};
+export type NetOpenfederationOidcDeleteClientError = "Forbidden" | "InvalidRequest" | "NotFound";
+
+export type NetOpenfederationOidcGetClientSetupInput = {
+  "clientId": string;
+};
+export type NetOpenfederationOidcGetClientSetupOutput = {
+  "client": undefined;
+  "issuer": string;
+  "configuration": string;
+};
+export type NetOpenfederationOidcGetClientSetupError = "Forbidden" | "InvalidRequest" | "NotFound";
+
+export type NetOpenfederationOidcListClientsInput = undefined;
+export type NetOpenfederationOidcListClientsOutput = {
+  "enabled": boolean;
+  "issuer": string;
+  "clients": Array<undefined>;
+};
+export type NetOpenfederationOidcListClientsError = "Forbidden";
+
+export type NetOpenfederationOidcRotateClientSecretInput = {
+  "clientId": string;
+};
+export type NetOpenfederationOidcRotateClientSecretOutput = {
+  "clientId": string;
+  "clientSecret": string;
+  "configuration"?: string;
+};
+export type NetOpenfederationOidcRotateClientSecretError = "Forbidden" | "InvalidRequest" | "NotFound";
+
 export type NetOpenfederationOracleCreateCredentialInput = {
   "communityDid": string;
   "name": string;
@@ -2966,6 +3030,11 @@ export interface LexiconInputMap {
   'net.openfederation.notification.list': NetOpenfederationNotificationListInput;
   'net.openfederation.notification.markRead': NetOpenfederationNotificationMarkReadInput;
   'net.openfederation.notification.unreadCount': NetOpenfederationNotificationUnreadCountInput;
+  'net.openfederation.oidc.createClient': NetOpenfederationOidcCreateClientInput;
+  'net.openfederation.oidc.deleteClient': NetOpenfederationOidcDeleteClientInput;
+  'net.openfederation.oidc.getClientSetup': NetOpenfederationOidcGetClientSetupInput;
+  'net.openfederation.oidc.listClients': NetOpenfederationOidcListClientsInput;
+  'net.openfederation.oidc.rotateClientSecret': NetOpenfederationOidcRotateClientSecretInput;
   'net.openfederation.oracle.createCredential': NetOpenfederationOracleCreateCredentialInput;
   'net.openfederation.oracle.listCredentials': NetOpenfederationOracleListCredentialsInput;
   'net.openfederation.oracle.revokeCredential': NetOpenfederationOracleRevokeCredentialInput;
@@ -3196,6 +3265,11 @@ export interface LexiconOutputMap {
   'net.openfederation.notification.list': NetOpenfederationNotificationListOutput;
   'net.openfederation.notification.markRead': NetOpenfederationNotificationMarkReadOutput;
   'net.openfederation.notification.unreadCount': NetOpenfederationNotificationUnreadCountOutput;
+  'net.openfederation.oidc.createClient': NetOpenfederationOidcCreateClientOutput;
+  'net.openfederation.oidc.deleteClient': NetOpenfederationOidcDeleteClientOutput;
+  'net.openfederation.oidc.getClientSetup': NetOpenfederationOidcGetClientSetupOutput;
+  'net.openfederation.oidc.listClients': NetOpenfederationOidcListClientsOutput;
+  'net.openfederation.oidc.rotateClientSecret': NetOpenfederationOidcRotateClientSecretOutput;
   'net.openfederation.oracle.createCredential': NetOpenfederationOracleCreateCredentialOutput;
   'net.openfederation.oracle.listCredentials': NetOpenfederationOracleListCredentialsOutput;
   'net.openfederation.oracle.revokeCredential': NetOpenfederationOracleRevokeCredentialOutput;
@@ -3426,6 +3500,11 @@ export interface LexiconErrorMap {
   'net.openfederation.notification.list': NetOpenfederationNotificationListError;
   'net.openfederation.notification.markRead': NetOpenfederationNotificationMarkReadError;
   'net.openfederation.notification.unreadCount': NetOpenfederationNotificationUnreadCountError;
+  'net.openfederation.oidc.createClient': NetOpenfederationOidcCreateClientError;
+  'net.openfederation.oidc.deleteClient': NetOpenfederationOidcDeleteClientError;
+  'net.openfederation.oidc.getClientSetup': NetOpenfederationOidcGetClientSetupError;
+  'net.openfederation.oidc.listClients': NetOpenfederationOidcListClientsError;
+  'net.openfederation.oidc.rotateClientSecret': NetOpenfederationOidcRotateClientSecretError;
   'net.openfederation.oracle.createCredential': NetOpenfederationOracleCreateCredentialError;
   'net.openfederation.oracle.listCredentials': NetOpenfederationOracleListCredentialsError;
   'net.openfederation.oracle.revokeCredential': NetOpenfederationOracleRevokeCredentialError;
@@ -3535,13 +3614,13 @@ export const lexiconContracts = {
   'net.openfederation.admin.createExportSchedule': { revision: 1, errors: [] as const },
   'net.openfederation.admin.createVerificationChallenge': { revision: 3, errors: ["EmailDeliveryFailed", "NoEmail", "NotFound"] as const },
   'net.openfederation.admin.deleteExportSchedule': { revision: 2, errors: ["NotFound"] as const },
-  'net.openfederation.admin.getServerSettings': { revision: 3, errors: ["Forbidden"] as const },
+  'net.openfederation.admin.getServerSettings': { revision: 4, errors: ["Forbidden"] as const },
   'net.openfederation.admin.importRepo': { revision: 4, errors: ["DidMismatch", "InvalidCar", "InvalidRepo", "InvalidRequest", "InvalidSignature", "PayloadTooLarge", "RepoAlreadyExists", "UnresolvableDid"] as const },
   'net.openfederation.admin.listExportSchedules': { revision: 1, errors: [] as const },
   'net.openfederation.admin.listExportSnapshots': { revision: 1, errors: [] as const },
   'net.openfederation.admin.reverseTakedown': { revision: 1, errors: ["InvalidRequest", "NotFound", "NotTakenDown"] as const },
   'net.openfederation.admin.takedown': { revision: 1, errors: ["Forbidden", "InvalidDeadline", "InvalidRequest", "NotFound"] as const },
-  'net.openfederation.admin.updateServerSettings': { revision: 3, errors: ["Forbidden", "InvalidCombination", "InvalidRequest", "InvalidSetting", "SettingFixedByEnvironment"] as const },
+  'net.openfederation.admin.updateServerSettings': { revision: 4, errors: ["Forbidden", "InvalidCombination", "InvalidRequest", "InvalidSetting", "SettingFixedByEnvironment"] as const },
   'net.openfederation.admin.verifyChallenge': { revision: 1, errors: ["InvalidNonce", "NotFound"] as const },
   'net.openfederation.attestation.createViewingGrant': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.attestation.requestDisclosure': { revision: 1, errors: ["AttestationPublic", "Forbidden", "InvalidRequest", "NotFound"] as const },
@@ -3658,6 +3737,11 @@ export const lexiconContracts = {
   'net.openfederation.notification.list': { revision: 1, errors: [] as const },
   'net.openfederation.notification.markRead': { revision: 1, errors: [] as const },
   'net.openfederation.notification.unreadCount': { revision: 1, errors: [] as const },
+  'net.openfederation.oidc.createClient': { revision: 1, errors: ["Conflict", "Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.oidc.deleteClient': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.oidc.getClientSetup': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
+  'net.openfederation.oidc.listClients': { revision: 1, errors: ["Forbidden"] as const },
+  'net.openfederation.oidc.rotateClientSecret': { revision: 1, errors: ["Forbidden", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.oracle.createCredential': { revision: 1, errors: ["CredentialExists", "InvalidRequest"] as const },
   'net.openfederation.oracle.listCredentials': { revision: 1, errors: [] as const },
   'net.openfederation.oracle.revokeCredential': { revision: 1, errors: ["NotFound"] as const },

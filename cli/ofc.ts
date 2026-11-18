@@ -2254,6 +2254,94 @@ pseudonymCmd
     }
   });
 
+// ── ofc oidc ────────────────────────────────────────────────────────
+// Apps (Mastodon, Lemmy, GoToSocial, any OpenID Connect client) that sign
+// people in through this server (ADR-005). PDS admin only.
+
+const oidc = program.command('oidc').description('Apps that sign people in through this server (OpenID Connect)');
+
+oidc
+  .command('list')
+  .description('List registered apps')
+  .action(run(async () => {
+    const res = await client().authGet('net.openfederation.oidc.listClients');
+    if (isJsonMode()) return json(res);
+    info(`Provider: ${res.enabled ? 'on' : 'off (Admin → Server settings → Sign-in for other apps)'} · issuer ${res.issuer}`);
+    if (res.clients.length === 0) return hint('No apps registered. Add one: ofc oidc add --preset mastodon --app-url https://mastodon.example --name "Our Mastodon"');
+    table(['Client ID', 'Name', 'Preset', 'Community', 'Redirect URIs'], res.clients.map((c: any) => [
+      c.clientId, c.name, c.preset ?? '', c.communityDid ?? '', (c.redirectUris as string[]).join(' '),
+    ]));
+  }));
+
+oidc
+  .command('add')
+  .description('Register an app and print the configuration to paste into it (the secret is shown once)')
+  .requiredOption('--name <name>', 'Name shown on the sign-in page')
+  .option('--preset <preset>', 'mastodon, lemmy, gotosocial or generic')
+  .option('--app-url <url>', 'The app\'s public address (required with a preset other than generic)')
+  .option('--redirect-uri <uri...>', 'Exact redirect URI(s) (required without a preset)')
+  .option('--scope <scope...>', 'openid, profile, email (default: the preset\'s)')
+  .option('--community <did>', 'Only members of this community can sign in to the app')
+  .option('--client-id <id>', 'Client ID to use (default: made from the name)')
+  .action(run(async () => {
+    const opts = oidc.commands.find((c) => c.name() === 'add')!.opts();
+    const res = await client().authPost('net.openfederation.oidc.createClient', {
+      name: opts.name,
+      ...(opts.preset ? { preset: opts.preset } : {}),
+      ...(opts.appUrl ? { appUrl: opts.appUrl } : {}),
+      ...(opts.redirectUri ? { redirectUris: opts.redirectUri } : {}),
+      ...(opts.scope ? { scopes: opts.scope } : {}),
+      ...(opts.community ? { communityDid: opts.community } : {}),
+      ...(opts.clientId ? { clientId: opts.clientId } : {}),
+    });
+    if (isJsonMode()) return json(res);
+    success(`Registered ${res.client.name} as ${res.client.clientId}`);
+    keyValue([
+      ['Issuer', res.issuer],
+      ['Client ID', res.client.clientId],
+      ['Client secret', res.clientSecret],
+      ['Redirect URIs', (res.client.redirectUris as string[]).join(' ')],
+    ]);
+    warn('The client secret is shown only now. It is part of the configuration below.');
+    console.log('');
+    console.log(res.configuration);
+  }));
+
+oidc
+  .command('setup')
+  .description('Print an app\'s configuration again (without its secret)')
+  .argument('<clientId>', 'Client ID')
+  .action(run(async () => {
+    const clientId = oidc.commands.find((c) => c.name() === 'setup')!.args[0];
+    const res = await client().authGet('net.openfederation.oidc.getClientSetup', { clientId });
+    if (isJsonMode()) return json(res);
+    console.log(res.configuration);
+  }));
+
+oidc
+  .command('rotate-secret')
+  .description('Give an app a new secret; the old one stops working at once')
+  .argument('<clientId>', 'Client ID')
+  .action(run(async () => {
+    const clientId = oidc.commands.find((c) => c.name() === 'rotate-secret')!.args[0];
+    const res = await client().authPost('net.openfederation.oidc.rotateClientSecret', { clientId });
+    if (isJsonMode()) return json(res);
+    success(`New secret for ${clientId} (shown once): ${res.clientSecret}`);
+    console.log('');
+    console.log(res.configuration);
+  }));
+
+oidc
+  .command('remove')
+  .description('Remove an app: it can no longer sign anyone in')
+  .argument('<clientId>', 'Client ID')
+  .action(run(async () => {
+    const clientId = oidc.commands.find((c) => c.name() === 'remove')!.args[0];
+    const res = await client().authPost('net.openfederation.oidc.deleteClient', { clientId });
+    if (isJsonMode()) return json(res);
+    success(`Removed ${clientId}`);
+  }));
+
 // ── Parse & execute ─────────────────────────────────────────────────
 
 program.parse();
