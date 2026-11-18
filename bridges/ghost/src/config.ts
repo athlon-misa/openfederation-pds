@@ -39,8 +39,11 @@ export interface BridgeConfig {
 }
 
 export function loadConfig(): BridgeConfig {
+  // "<id>:<hex secret>". Ghost 6's API returns the key's `secret` field
+  // already in that form, so a value assembled as id + ':' + secret has the id
+  // twice: the last two parts are the key either way.
   const key = required('GHOST_ADMIN_API_KEY');
-  const [id, secret] = key.split(':');
+  const [id, secret] = key.split(':').slice(-2);
   if (!id || !secret || !/^[0-9a-f]+$/i.test(secret)) {
     throw new Error('GHOST_ADMIN_API_KEY must be "<id>:<hex secret>" (Ghost Admin → Integrations → custom integration)');
   }

@@ -33,6 +33,16 @@ export function noteConfirmsDid(note: string | null, did: string): boolean {
 export class GhostAdmin {
   constructor(private readonly cfg: BridgeConfig) {}
 
+  /**
+   * Ghost redirects plain-HTTP requests for its site to https. Reached
+   * directly inside Docker, it is told the request came in over HTTPS for the
+   * public host, as Caddy does for browser traffic.
+   */
+  private get forwarded(): Record<string, string> {
+    const host = new URL(this.cfg.ghostUrl).host;
+    return this.cfg.ghostInternalUrl === this.cfg.ghostUrl ? {} : { 'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': host, Host: host };
+  }
+
   private async token(): Promise<string> {
     return new SignJWT({})
       .setProtectedHeader({ alg: 'HS256', kid: this.cfg.ghostAdminKey.id, typ: 'JWT' })
@@ -46,6 +56,7 @@ export class GhostAdmin {
     const res = await fetch(`${this.cfg.ghostInternalUrl}/ghost/api/admin${path}`, {
       method,
       headers: {
+        ...this.forwarded,
         Authorization: `Ghost ${await this.token()}`,
         'Accept-Version': 'v6.0',
         ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -105,11 +116,11 @@ export class GhostAdmin {
   /** Ask Ghost to email an existing member a sign-in link (the Members API, as the sign-in form does). */
   async sendSigninEmail(email: string): Promise<void> {
     const base = this.cfg.ghostInternalUrl;
-    const integrity = await fetch(`${base}/members/api/integrity-token/`, { headers: { Origin: this.cfg.ghostUrl } });
+    const integrity = await fetch(`${base}/members/api/integrity-token/`, { headers: { ...this.forwarded, Origin: this.cfg.ghostUrl } });
     const integrityToken = integrity.ok ? (await integrity.text()).trim() : undefined;
     const res = await fetch(`${base}/members/api/send-magic-link/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: this.cfg.ghostUrl, Referer: `${this.cfg.ghostUrl}/` },
+      headers: { ...this.forwarded, 'Content-Type': 'application/json', Origin: this.cfg.ghostUrl, Referer: `${this.cfg.ghostUrl}/` },
       body: JSON.stringify({ email, emailType: 'signin', ...(integrityToken ? { integrityToken } : {}) }),
     });
     if (!res.ok) throw new Error(`Ghost send-magic-link: ${res.status} ${(await res.text()).slice(0, 300)}`);
