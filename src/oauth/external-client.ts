@@ -10,6 +10,9 @@ import { NodeOAuthClient } from '@atproto/oauth-client-node';
 import type { NodeSavedState, NodeSavedSession, NodeSavedStateStore, NodeSavedSessionStore } from '@atproto/oauth-client-node';
 import { query } from '../db/client.js';
 import { config } from '../config.js';
+import { getDidResolver } from '../identity/did-resolver.js';
+import { resolveExternalHandle } from '../identity/external-handle-resolver.js';
+import { handleForHost, localDidForHandle } from '../server/tls-check.js';
 
 // ---------- PostgreSQL State Store ----------
 
@@ -61,6 +64,46 @@ class PgSessionStore implements NodeSavedSessionStore {
   }
 }
 
+// ---------- Identity resolution ----------
+
+/**
+ * Handle → DID for sign-in. A name under this server's own handle domain is
+ * answered from this server's database, which is authoritative for it: it
+ * works before (or without) the wildcard DNS that makes those names
+ * resolvable elsewhere. Anything else goes through DNS TXT and
+ * https://<handle>/.well-known/atproto-did with the SSRF guards of
+ * resolveExternalHandle.
+ */
+export async function resolveSignInHandle(handle: string): Promise<string | null> {
+  const bare = handleForHost(handle);
+  if (bare) {
+    const local = await localDidForHandle(bare);
+    if (local) return local;
+  }
+  return resolveExternalHandle(handle.trim().toLowerCase());
+}
+
+const signInHandleResolver = {
+  async resolve(handle: string): Promise<`did:${string}:${string}` | null> {
+    const did = await resolveSignInHandle(handle);
+    return did && /^did:[a-z]+:.+/.test(did) ? (did as `did:${string}:${string}`) : null;
+  },
+};
+
+/**
+ * DID → document through every directory in PLC_RESOLVER_URLS (and did:web),
+ * shared and cached with service-auth (src/identity/did-resolver.ts). Without
+ * it the OAuth client asks plc.directory only and cannot sign in an account
+ * whose DID lives in this server's own directory.
+ */
+const signInDidResolver = {
+  async resolve(did: string, options?: { noCache?: boolean }) {
+    const doc = await getDidResolver().resolve(did, options?.noCache ?? false);
+    if (!doc) throw new Error(`DID not found in any configured PLC directory: ${did}`);
+    return doc;
+  },
+};
+
 // ---------- Client Singleton ----------
 
 let oauthClient: NodeOAuthClient | null = null;
@@ -83,6 +126,10 @@ export function createExternalOAuthClient(): NodeOAuthClient {
     },
     stateStore: new PgStateStore(),
     sessionStore: new PgSessionStore(),
+    // The library's own types for these are branded (Did, DidDocument);
+    // ours return the same shapes, validated by @atproto/identity.
+    handleResolver: signInHandleResolver as never,
+    didResolver: signInDidResolver as never,
     allowHttp: !config.env.isProduction,
   });
 

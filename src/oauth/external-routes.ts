@@ -32,7 +32,7 @@ import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tok
 import type { UserRole, UserStatus } from '../auth/types.js';
 import { parseCookies } from '../auth/utils.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
-import { DidResolver } from '@atproto/identity';
+import { getDidResolver } from '../identity/did-resolver.js';
 import { chooseExternalHandle } from './external-handle.js';
 import { resolveExternalHandle } from '../identity/external-handle-resolver.js';
 
@@ -599,10 +599,9 @@ async function localHandleFor(did: string): Promise<string> {
  */
 async function resolveHandleFromDid(did: string): Promise<string | null> {
   try {
-    // Use default PLC directory (https://plc.directory) for resolving external DIDs
-    // rather than our own PLC directory which only has local DIDs
-    const resolver = new DidResolver({});
-    const doc = await resolver.resolve(did);
+    // Every directory in PLC_RESOLVER_URLS: an account from elsewhere is
+    // usually on plc.directory, but may be on any listed directory.
+    const doc = await getDidResolver().resolve(did);
     if (doc?.alsoKnownAs) {
       for (const aka of doc.alsoKnownAs) {
         if (aka.startsWith('at://')) {
