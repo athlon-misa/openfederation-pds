@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { readConfigFile, resolveConfigFilePath, applyConfigToEnv } from './setup/config-file.js';
 import { splitSettingsFile } from './settings/keys.js';
+import { parsePlcResolverUrls } from './identity/plc-directories.js';
 
 // quiet: dotenv 17 prints an informational banner to stdout on every load,
 // which corrupts machine-readable output from the ofc CLI. Loading is unchanged.
@@ -80,6 +81,12 @@ export const config = {
   // PLC directory
   plc: {
     directoryUrl: process.env.PLC_DIRECTORY_URL || 'http://localhost:2582',
+    // Directories DIDs are read from, in order (src/identity/plc-directories.ts):
+    // by default this server's own, then plc.directory.
+    resolverUrls: parsePlcResolverUrls(
+      process.env.PLC_RESOLVER_URLS,
+      process.env.PLC_DIRECTORY_URL || 'http://localhost:2582',
+    ),
   },
 
   // Handle suffix for did:plc communities

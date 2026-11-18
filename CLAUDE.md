@@ -51,6 +51,7 @@ See `.env.example` for the full list. Critical ones:
 | `OAUTH_SIGNING_KEY` | Production | ES256 JWK (one line); production refuses to start without it while OAuth is on. Generate: see `.env.example` |
 | `REDIS_URL` | No | OAuth replay protection across instances; production warns when unset |
 | `PLC_DIRECTORY_URL` | No | Default `http://localhost:2582` (dev). Production: `https://plc.openfederation.net` |
+| `PLC_RESOLVER_URLS` | No | Directories DIDs are read from, in order, first match wins (sign-in from other servers, service-auth). Default: `PLC_DIRECTORY_URL`, then `https://plc.directory`; `none` = own directory only. Registration still uses `PLC_DIRECTORY_URL` only. Invalid values stop the server |
 | `PDS_SERVICE_DID` | No | Inbound service-auth `aud` claim; default `did:web:{PDS_HOSTNAME}` |
 | `CHAIN_ADAPTERS` | No | Treat as secret — contains RPC API keys. Format: `eip155:137=https://rpc.example.com` |
 | `GLOBAL_RATE_LIMIT` | No | Default 120/min/IP across every endpoint; raise it when clients share an egress IP |
