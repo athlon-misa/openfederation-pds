@@ -18,6 +18,7 @@ import { OidcClient, type Identity } from './oidc.js';
 import { GhostAdmin, didNote } from './ghost.js';
 import { seal, unseal, parseCookies, cookie } from './cookies.js';
 import { page, esc } from './pages.js';
+import { isPlausibleEmail, maskEmail } from './email.js';
 
 const cfg = loadConfig();
 const oidc = new OidcClient(cfg);
@@ -127,10 +128,6 @@ async function redirectSignedIn(res: Response, memberId: string, returnTo: strin
   res.redirect(303, url.toString());
 }
 
-export function maskEmail(email: string): string {
-  const [user, domain] = email.split('@');
-  return `${user.slice(0, 1)}${'•'.repeat(Math.max(1, Math.min(user.length - 1, 6)))}@${domain}`;
-}
 
 function emailForm(res: Response, p: Pending, error?: string): void {
   page(res, error ? 400 : 200, cfg.siteName, 'One more step', `
@@ -151,7 +148,7 @@ router.post('/email', async (req: Request, res: Response) => {
     return;
   }
   const email = String(req.body?.email ?? '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+  if (!isPlausibleEmail(email)) {
     emailForm(res, p, 'Enter a valid email address.');
     return;
   }

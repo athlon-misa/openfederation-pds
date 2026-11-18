@@ -3,6 +3,12 @@
  * typo stops the bridge instead of breaking sign-in later.
  */
 
+function trimSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end--;
+  return value.slice(0, end);
+}
+
 function required(name: string): string {
   const v = process.env[name]?.trim();
   if (!v) throw new Error(`${name} is required`);
@@ -14,7 +20,7 @@ function url(name: string, fallback?: string): string {
   if (!raw) throw new Error(`${name} is required`);
   const u = new URL(raw);
   if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error(`${name} must be an http(s) URL`);
-  return u.toString().replace(/\/+$/, '');
+  return trimSlashes(u.toString());
 }
 
 export interface BridgeConfig {
@@ -49,7 +55,7 @@ export function loadConfig(): BridgeConfig {
   }
   const cookieSecret = required('BRIDGE_COOKIE_SECRET');
   if (cookieSecret.length < 32) throw new Error('BRIDGE_COOKIE_SECRET must be at least 32 characters');
-  const basePath = (process.env.BRIDGE_BASE_PATH || '/auth/openfederation').replace(/\/+$/, '');
+  const basePath = trimSlashes(process.env.BRIDGE_BASE_PATH || '/auth/openfederation');
   if (!basePath.startsWith('/')) throw new Error('BRIDGE_BASE_PATH must start with /');
   return {
     port: parseInt(process.env.PORT || '3080', 10),
