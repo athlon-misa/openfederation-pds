@@ -188,6 +188,7 @@ ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.
 | `identity list-keys --did <did> [--purpose <purpose>]` | No | List external keys for a DID |
 | `identity delete-key --rkey <rkey>` | Yes | Delete an external key |
 | `identity resolve-key --public-key <key> [--purpose <purpose>]` | No | Find ATProto DID by external key |
+| `identity check <handle\|did> [--plc <url>...]` | No | Can the rest of the AT Protocol network find it? DNS TXT, HTTPS well-known, each PLC directory (default: this server's and plc.directory) and what is missing ([docs/ATPROTO-NETWORK.md](../docs/ATPROTO-NETWORK.md)) |
 
 ### `ofc role` — Community Roles
 

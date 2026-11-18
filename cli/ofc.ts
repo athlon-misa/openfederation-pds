@@ -14,6 +14,7 @@ import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import { randomBytes } from 'node:crypto';
 import { OFCClient, loadSession, promptPassword, readPasswordStdin } from './ofc-client.js';
+import { checkIdentity } from './identity-check.js';
 import {
   info, success, error, warn, hint,
   table, keyValue, json,
@@ -1686,6 +1687,48 @@ attestation
 // ── ofc identity ─────────────────────────────────────────────────────
 
 const identity = program.command('identity').description('External identity key management');
+
+identity
+  .command('check')
+  .description('Can the rest of the AT Protocol network find this handle or DID? (docs/ATPROTO-NETWORK.md)')
+  .argument('<handleOrDid>', 'A handle (alice.example.net) or a DID')
+  .option('--plc <url...>', 'PLC directories to look in (default: this server\'s and https://plc.directory)')
+  .action(run(async () => {
+    const cmd = identity.commands.find((c) => c.name() === 'check')!;
+    const input = cmd.args[0];
+    let directories: string[] = cmd.opts().plc ?? [];
+    if (directories.length === 0) {
+      try {
+        const pub = await client().get('net.openfederation.server.getPublicConfig');
+        if (typeof pub?.plcDirectoryUrl === 'string') directories.push(pub.plcDirectoryUrl);
+      } catch {
+        // No server reachable: plc.directory only.
+      }
+      directories.push('https://plc.directory');
+      directories = [...new Set(directories.map((d) => d.replace(/\/+$/, '')))];
+    }
+    let result = await checkIdentity(input, { directories });
+    // Given a DID, also check its handle the way the network would.
+    if (input.startsWith('did:') && result.handle) {
+      const byHandle = await checkIdentity(result.handle, { directories });
+      result = { ...byHandle, input, did: input, directories: result.directories, problems: [...new Set([...result.problems, ...byHandle.problems])] };
+      if (byHandle.did && byHandle.did !== input) result.problems.push(`The handle ${result.handle} points to ${byHandle.did}, not ${input}.`);
+    }
+    if (isJsonMode()) return json(result);
+    keyValue([
+      ['Handle', result.handle ?? '(none)'],
+      ['DID', result.did ?? '(not found)'],
+      ...(result.dnsTxt ? [['DNS TXT _atproto', result.dnsTxt.did ?? `none (${result.dnsTxt.error ?? 'no record'})`] as [string, string]] : []),
+      ...(result.wellKnown ? [['HTTPS well-known', result.wellKnown.did ?? `none (${result.wellKnown.error ?? 'no answer'})`] as [string, string]] : []),
+      ...result.directories.map((d) => [d.url, d.status === 'found' ? `found (handle ${d.handle ?? '?'}, PDS ${d.pds ?? '?'})` : d.status === 'missing' ? 'not registered' : `error: ${d.error}`] as [string, string]),
+    ]);
+    if (result.problems.length === 0) {
+      success('Resolvable across the AT Protocol network.');
+    } else {
+      for (const p of result.problems) warn(p);
+      process.exitCode = 1;
+    }
+  }));
 
 identity
   .command('set-key')
