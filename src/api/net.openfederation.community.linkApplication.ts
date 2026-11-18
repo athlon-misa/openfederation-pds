@@ -5,7 +5,7 @@ import { RepoEngine } from '../repo/repo-engine.js';
 import { getKeypairForDid } from '../repo/keypair-utils.js';
 import { auditLog } from '../db/audit.js';
 
-const ALLOWED_APP_TYPES = ['mastodon', 'matrix', 'discourse', 'custom'] as const;
+const ALLOWED_APP_TYPES = ['mastodon', 'lemmy', 'matrix', 'discourse', 'custom'] as const;
 const COLLECTION = 'net.openfederation.community.application';
 
 /**

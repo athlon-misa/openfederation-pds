@@ -167,7 +167,7 @@ Built and tested; not yet run on the Railway demo project.
 - XRPC endpoints registered: `linkApplication`, `unlinkApplication`, `listApplications`, `verifyMembership`
 - Controlled by `ACTIVITYPUB_ENABLED` (default: enabled)
 - `tests/api/activitypub-discovery.test.ts` walks Mastodon's discovery checks (WebFinger → actor → WebFinger back) and NodeInfo 2.1 schema constraints locally
-- `tests/api/activitypub-interop.test.ts` has Fedify discover the community over HTTP (WebFinger, `Group` actor, RSA key, inbox/outbox, attachments), expands the actor with jsonld.js, and validates NodeInfo with Ajv against the vendored 2.1 schema; `AP_LIVE_TEST=1` repeats it read-only against production (no community there has linked applications yet). Not yet fetched by a running Mastodon instance
+- `tests/api/activitypub-interop.test.ts` has Fedify discover the community over HTTP (WebFinger, `Group` actor, RSA key, inbox/outbox, attachments), expands the actor with jsonld.js, and validates NodeInfo with Ajv against the vendored 2.1 schema; `AP_LIVE_TEST=1` repeats it read-only against production. Checked by hand on 2026-11-17 with a local Mastodon 4.5.8 and Lemmy 0.19.18 against pds.openfederation.net: Mastodon resolves the community by handle and by actor URL and shows the linked instances; a follow stays pending (the inbox refuses deliveries with 405, so no Accept or Reject is sent); Lemmy needed the empty `endpoints` removed
 - The actor `url` and WebFinger profile-page link are the web UI's community page (`WEB_UI_URL`), omitted when unset
 
 ## Lexicons — **shipped**

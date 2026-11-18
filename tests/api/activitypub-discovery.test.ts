@@ -232,6 +232,13 @@ describe('ActivityPub discovery (#80)', () => {
       // requires inbox and outbox on every actor.
       expect(typeof actor.inbox).toBe('string');
       expect(typeof actor.outbox).toBe('string');
+      // Lemmy (0.19) parses `endpoints` as an object whose `sharedInbox` is
+      // required, and drops the whole actor when it is missing: an empty
+      // `endpoints: {}` made the community unresolvable from Lemmy. The field
+      // is optional in ActivityPub, so it is either absent or complete.
+      if ('endpoints' in actor) {
+        expect(typeof actor.endpoints.sharedInbox).toBe('string');
+      }
       expect(actor.name).toBe('AP Reading Circle');
       expect(actor.summary).toBe('A community with a Mastodon instance');
       expect(Number.isNaN(Date.parse(actor.published))).toBe(false);

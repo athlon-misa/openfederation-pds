@@ -1,12 +1,12 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.community.linkApplication",
-  "revision": 4,
+  "revision": 5,
   "description": "Link an external application to a community. Creates a repo record for the linked app.",
   "defs": {
     "main": {
       "type": "procedure",
-      "description": "Link a fediverse application (Mastodon, Matrix, Discourse, etc.) to a community. Only community owner or PDS admin.",
+      "description": "Link a fediverse application (Mastodon, Lemmy, Matrix, Discourse, etc.) to a community. Only community owner or PDS admin.",
       "input": {
         "encoding": "application/json",
         "schema": {
@@ -20,6 +20,7 @@
               "type": "string",
               "enum": [
                 "mastodon",
+                "lemmy",
                 "matrix",
                 "discourse",
                 "custom"

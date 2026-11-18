@@ -65,7 +65,9 @@ export function buildCommunityActor(
     published: community.created_at,
     inbox: `${actorId}/inbox`,
     outbox: `${actorId}/outbox`,
-    endpoints: {},
+    // No `endpoints`: the actor has no shared inbox, and the field is
+    // optional. An empty `endpoints: {}` made Lemmy reject the whole actor,
+    // since it requires `sharedInbox` whenever `endpoints` is present.
     attachment: applications.map((app) => ({
       type: 'PropertyValue',
       name: app.appType,
