@@ -1,6 +1,7 @@
 const { PlcServer, Database } = require('@did-plc/server');
 const express = require('express');
 const demo = require('./demo-reset.js');
+const mirror = require('./mirror.js');
 
 const run = async () => {
   // Demo mode (DEMO_MODE=true, docs/DEMO-SERVERS.md): wiped on a schedule.
@@ -63,8 +64,28 @@ const run = async () => {
   if (typeof plc.app.disable === 'function') plc.app.disable('x-powered-by');
   app.use(plc.app);
 
+  // Mirror this directory's DIDs into other directories, e.g. plc.directory
+  // (PLC_MIRROR_TARGETS, mirror.js, docs/PLC-MIRROR.md). Never on a demo.
+  let mirrorTargets = [];
+  try {
+    mirrorTargets = mirror.readMirrorTargets(process.env);
+  } catch (err) {
+    console.error(`FATAL: PLC_MIRROR_TARGETS: ${err.message}`);
+    process.exit(1);
+  }
+  if (mirrorTargets.length > 0 && demoMode) {
+    console.error('FATAL: PLC_MIRROR_TARGETS is set on a demo directory; demo DIDs must never reach another directory.');
+    process.exit(1);
+  }
+
   app.listen(port, () => {
     console.log(`PLC directory running on port ${port} with CORS enabled`);
+    if (mirrorTargets.length > 0) {
+      const source = process.env.PLC_MIRROR_SOURCE || `http://127.0.0.1:${port}`;
+      const intervalMs = Math.max(10, parseInt(process.env.PLC_MIRROR_INTERVAL_SECONDS || '60', 10)) * 1000;
+      console.log(`Mirroring DIDs to ${mirrorTargets.join(', ')} every ${intervalMs / 1000}s`);
+      mirror.startMirror({ source, targets: mirrorTargets, intervalMs });
+    }
     if (demoMode) {
       demo.startDemoResetScheduler({
         // In-process: the library reads everything from the database, so the
