@@ -24,6 +24,10 @@ OpenID Connect provider ([docs/OIDC.md](../../docs/OIDC.md)).
   (signature, issuer, audience `ghost-opennewsrooms`, expiry, verified email) and signs in
   the **existing, active** staff user with that email. Invite staff in Ghost as usual; they
   sign in with an AT Protocol account whose verified email matches.
+- Opening Ghost admin (`/ghost/`) with no session, including right after logging out, goes
+  straight to the AT Protocol staff sign-in (a Caddy rule), not Ghost's password form.
+  **`/ghost-password`** opens the password form for 10 minutes, for when the PDS is
+  unreachable (the owner's password is kept outside the repo).
 
 ## Deploying a change
 
