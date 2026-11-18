@@ -34,6 +34,12 @@ const JWKS_TTL_MS = 10 * 60 * 1000;
 // Ghost's signed-in user states (warn-N: active, with failed-login warnings).
 const ACTIVE_STATUSES = new Set(['active', 'warn-1', 'warn-2', 'warn-3', 'warn-4']);
 
+function trimSlashes(value) {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end--;
+  return value.slice(0, end);
+}
+
 function b64urlJson(part) {
   return JSON.parse(Buffer.from(part, 'base64url').toString('utf-8'));
 }
@@ -52,7 +58,7 @@ class OpenFederationSSO extends SSOBase {
     if (!config.issuer || !config.clientId) {
       throw new Error('openfederation SSO adapter: "issuer" and "clientId" are required');
     }
-    this.issuer = String(config.issuer).replace(/\/+$/, '');
+    this.issuer = trimSlashes(String(config.issuer));
     this.clientId = String(config.clientId);
     this.cookieName = config.cookieName || 'of_ghost_sso';
     this.jwks = null;
