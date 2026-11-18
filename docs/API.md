@@ -149,7 +149,7 @@ Auth names the community permission the caller's role must grant (`requireCommun
 
 | Method | NSID | Auth | Description |
 |:---|:---|:---|:---|
-| POST | `net.openfederation.community.linkApplication` | Approved + `community.application.write` | Link an app instance: `{ communityDid, appType: mastodon \| matrix \| discourse \| custom, instanceUrl, displayName? }`; the community then has an ActivityPub actor at `/ap/actor/:did` |
+| POST | `net.openfederation.community.linkApplication` | Approved + `community.application.write` | Link an app instance: `{ communityDid, appType: mastodon \| lemmy \| matrix \| discourse \| custom, instanceUrl, displayName? }`; the community then has an ActivityPub actor at `/ap/actor/:did` |
 | POST | `net.openfederation.community.unlinkApplication` | Approved + `community.application.delete` | Remove a linked app by `rkey` |
 | GET  | `net.openfederation.community.listApplications` | No (private communities: members and admins) | Apps linked to a community |
 

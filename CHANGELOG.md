@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Lemmy can resolve a community's ActivityPub actor** ([#80](https://github.com/athlon-misa/openfederation-pds/issues/80)). The `Group` actor no longer carries an empty `endpoints: {}`: Lemmy (0.19) requires `sharedInbox` whenever `endpoints` is present and rejected the whole actor, so `!community@pds` and the actor URL failed to resolve. Found with a local Lemmy 0.19.18 against pds.openfederation.net; Mastodon 4.5.8 resolved the community, its linked instances and its key either way. `net.openfederation.community.linkApplication` (revision 5) accepts `appType: "lemmy"`.
+
 ### Documentation
 
 - **Pen names are recognisable as pen names, by design** (`docs/IMPLEMENTATION_STATUS.md`, known limits). The "decoy commitment" follow-up is dropped: what is protected is who is behind a pen name, not the fact that it is one.

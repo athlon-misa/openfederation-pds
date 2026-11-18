@@ -3649,7 +3649,7 @@ export const lexiconContracts = {
   'net.openfederation.community.issueAttestation': { revision: 7, errors: ["AttestationTypeNotAllowed", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember", "PayloadTooLarge"] as const },
   'net.openfederation.community.join': { revision: 5, errors: ["AlreadyMember", "AlreadyRequested", "CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "InvalidRequest", "NotFound", "PayloadTooLarge"] as const },
   'net.openfederation.community.leave': { revision: 3, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
-  'net.openfederation.community.linkApplication': { revision: 4, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Conflict", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
+  'net.openfederation.community.linkApplication': { revision: 5, errors: ["CommunityImporting", "CommunityMoved", "CommunitySuspended", "CommunityTakenDown", "Conflict", "Forbidden", "InvalidRequest", "NotFound", "NotMember"] as const },
   'net.openfederation.community.listAll': { revision: 1, errors: [] as const },
   'net.openfederation.community.listApplications': { revision: 2, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
   'net.openfederation.community.listAttestations': { revision: 4, errors: ["CommunityTakenDown", "InvalidRequest", "NotFound"] as const },
