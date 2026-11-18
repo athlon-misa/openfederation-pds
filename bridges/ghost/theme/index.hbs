@@ -1,0 +1,13 @@
+{{!< default}}
+<section class="hero">
+    <p class="label">{{@site.description}}</p>
+    <h1 class="display">{{@custom.tagline}}</h1>
+</section>
+
+<section class="cards">
+    {{#foreach posts}}
+        {{> "post-card"}}
+    {{/foreach}}
+</section>
+
+{{pagination}}

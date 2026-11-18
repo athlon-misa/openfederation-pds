@@ -1,0 +1,11 @@
+<article class="card {{post_class}}">
+    <a class="card-link" href="{{url}}">
+        {{#if feature_image}}
+            <img class="card-image" src="{{img_url feature_image size="m"}}" alt="{{#if feature_image_alt}}{{feature_image_alt}}{{else}}{{title}}{{/if}}" loading="lazy">
+        {{/if}}
+        {{#if primary_tag}}<p class="label">{{primary_tag.name}}</p>{{/if}}
+        <h2 class="card-title">{{title}}</h2>
+        {{#if excerpt}}<p class="card-excerpt">{{excerpt words="32"}}</p>{{/if}}
+        <p class="meta">{{#if primary_author}}{{primary_author.name}} · {{/if}}<time datetime="{{date format="YYYY-MM-DD"}}">{{date format="D MMMM YYYY"}}</time>{{#if reading_time}} · {{reading_time}}{{/if}}</p>
+    </a>
+</article>

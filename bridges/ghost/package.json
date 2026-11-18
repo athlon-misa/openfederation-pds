@@ -1,0 +1,24 @@
+{
+  "name": "@open-federation/ghost-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sign in to Ghost (readers and staff) with an AT Protocol account through an OpenFederation PDS's OpenID Connect provider",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts",
+    "test": "node --test --import tsx test/*.test.ts"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "jose": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.5.0"
+  }
+}

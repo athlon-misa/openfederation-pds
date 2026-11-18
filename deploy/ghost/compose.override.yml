@@ -1,0 +1,29 @@
+# Added to TryGhost/ghost-docker's compose.yml (copy next to it).
+# - bridge: OpenFederation sign-in for readers and staff (bridges/ghost)
+# - ghost: the OpenFederation SSO adapter for staff, and its settings
+services:
+  ghost:
+    environment:
+      adapters__sso__active: openfederation
+      adapters__sso__openfederation__issuer: ${OIDC_ISSUER:?OIDC_ISSUER is required}
+      adapters__sso__openfederation__clientId: ${OIDC_CLIENT_ID:?OIDC_CLIENT_ID is required}
+      adapters__sso__openfederation__cookieName: of_ghost_sso
+    volumes:
+      - ./openfederation/sso-adapter:/var/lib/ghost/content/adapters/sso/openfederation
+
+  bridge:
+    build: ./openfederation/bridge
+    restart: always
+    environment:
+      GHOST_URL: https://${DOMAIN}
+      GHOST_INTERNAL_URL: http://ghost:2368
+      GHOST_ADMIN_API_KEY: ${GHOST_ADMIN_API_KEY:?create a custom integration in Ghost and set GHOST_ADMIN_API_KEY}
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET is required}
+      BRIDGE_COOKIE_SECRET: ${BRIDGE_COOKIE_SECRET:?BRIDGE_COOKIE_SECRET is required}
+      SITE_NAME: ${SITE_NAME:-Ghost}
+    depends_on:
+      - ghost
+    networks:
+      - ghost_network

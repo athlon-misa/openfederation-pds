@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="{{@site.locale}}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{meta_title}}</title>
+    <link rel="preload" href="{{asset "fonts/newsreader-normal-300-800-latin.woff2"}}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{asset "css/screen.css"}}">
+    {{ghost_head}}
+</head>
+<body class="{{body_class}}">
+<div class="site">
+    <header class="site-header">
+        <a class="logo" href="{{@site.url}}" aria-label="{{@site.title}} home">
+            <span class="logo-mark" aria-hidden="true">“</span>
+            <span class="logo-text">{{@site.title}}</span>
+        </a>
+        <nav class="site-nav" aria-label="Main">
+            {{navigation}}
+            {{#if @site.members_enabled}}
+                {{#if @member}}
+                    <a class="nav-account" href="#/portal/account" data-portal="account">Account</a>
+                {{else}}
+                    <a class="nav-join" href="{{@custom.openfederation_signin_path}}/signin?for=member">Sign in</a>
+                {{/if}}
+            {{/if}}
+        </nav>
+    </header>
+
+    <main class="site-main">
+        {{{body}}}
+    </main>
+
+    <footer class="site-footer">
+        {{#if @site.members_enabled}}
+            {{#unless @member}}
+                {{> "signin"}}
+            {{/unless}}
+        {{/if}}
+        <div class="footer-row">
+            <span>{{@site.title}} &copy; {{date format="YYYY"}}</span>
+            {{navigation type="secondary"}}
+            <a href="{{@custom.openfederation_signin_path}}/signin?for=staff">Staff sign-in</a>
+            <a href="https://openfederation.net">Identity by OpenFederation</a>
+        </div>
+    </footer>
+</div>
+{{ghost_foot}}
+</body>
+</html>

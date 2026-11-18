@@ -1,0 +1,10 @@
+{
+  "name": "ghost-sso-openfederation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ghost SSO adapter: staff sign in with an AT Protocol account through an OpenFederation PDS (OpenID Connect)",
+  "main": "index.js",
+  "dependencies": {
+    "@tryghost/adapter-base-sso": "^0.1.9"
+  }
+}

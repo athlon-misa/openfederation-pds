@@ -1,0 +1,41 @@
+# ghost-docker's caddy/Caddyfile.example plus the OpenFederation sign-in bridge.
+{$DOMAIN} {
+	import snippets/Logging
+
+	import snippets/TrafficAnalytics
+
+	# ActivityPub Service
+	import snippets/ActivityPub
+
+	# OpenFederation sign-in (readers and staff)
+	handle /auth/openfederation/* {
+		reverse_proxy bridge:3080
+	}
+
+	# Staff sign in with their AT Protocol account: opening Ghost admin with no
+	# session (also right after logging out) goes to the bridge instead of
+	# Ghost's password form. Not while a sign-in is landing (of_ghost_sso), so
+	# it cannot loop. /ghost-password opens Ghost's own password form instead
+	# (for 10 minutes), for when the PDS is unreachable.
+	@ghostAdminNoSession {
+		method GET
+		path /ghost /ghost/
+		not header_regexp adminSession Cookie (^|;\s*)ghost-admin-api-session=
+		not header_regexp ssoLanding Cookie (^|;\s*)of_ghost_sso=
+		not header_regexp passwordSignin Cookie (^|;\s*)of_ghost_password=
+	}
+	redir @ghostAdminNoSession /auth/openfederation/signin?for=staff 303
+
+	handle /ghost-password {
+		header Set-Cookie "of_ghost_password=1; Path=/ghost; Max-Age=600; HttpOnly; Secure; SameSite=Lax"
+		redir * /ghost/#/signin 303
+	}
+
+	handle {
+		reverse_proxy ghost:2368
+	}
+
+	encode gzip
+
+	import snippets/SecurityHeaders
+}
