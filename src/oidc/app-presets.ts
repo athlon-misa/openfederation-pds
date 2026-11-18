@@ -65,6 +65,7 @@ export function presetConfiguration(input: PresetInput): string {
         `OIDC_CLIENT_ID=${input.clientId}`,
         `OIDC_CLIENT_SECRET=${secret}`,
         `OIDC_REDIRECT_URI=${redirect}`,
+        `OIDC_IDP_LOGOUT_REDIRECT_URI=${base(input.appUrl)}/`,
         'OIDC_USE_PKCE=true',
         'OIDC_SECURITY_ASSUME_EMAIL_IS_VERIFIED=false',
         '# Optional: only allow this sign-in (no Mastodon passwords).',

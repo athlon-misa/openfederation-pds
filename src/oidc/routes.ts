@@ -34,7 +34,8 @@ import {
 } from './requests.js';
 import { localPerson, remotePerson, isCommunityMember, communityName } from './person.js';
 import { signIdToken, signAccessToken, verifyAccessToken, ACCESS_TOKEN_TTL_SECONDS } from './tokens.js';
-import { signInPage, passwordPage, errorPage } from './pages.js';
+import { signInPage, passwordPage, errorPage, signedOutPage } from './pages.js';
+import { compactVerify } from 'jose';
 
 /** The provider's issuer: `{PDS_SERVICE_URL}/oidc`. */
 export function oidcIssuer(): string {
@@ -190,6 +191,7 @@ export function createOidcRouter(): Router {
       token_endpoint: `${issuer}/token`,
       userinfo_endpoint: `${issuer}/userinfo`,
       jwks_uri: `${issuer}/jwks`,
+      end_session_endpoint: `${issuer}/end_session`,
       response_types_supported: ['code'],
       response_modes_supported: ['query'],
       grant_types_supported: ['authorization_code'],
@@ -205,6 +207,61 @@ export function createOidcRouter(): Router {
       authorization_response_iss_parameter_supported: true,
     });
   });
+
+  /**
+   * RP-initiated logout (OpenID Connect RP-Initiated Logout 1.0). There is no
+   * sign-in session here to end (ADR-005, decision 9), so this only sends the
+   * person back to the app: to `post_logout_redirect_uri` when it is on the
+   * same origin as one of the app's registered redirect URIs, else to a
+   * "signed out" page. The app is known from `client_id` or from the
+   * audience of `id_token_hint`, whose signature must be this provider's
+   * (its expiry does not matter: it is a hint, not a credential). Mastodon
+   * with OMNIAUTH_ONLY sends every sign-out here and answered 404 without it.
+   */
+  const endSession = async (req: Request, res: Response) => {
+    const params = { ...(req.query as Record<string, unknown>), ...(req.body ?? {}) } as Record<string, unknown>;
+    const str = (k: string) => (typeof params[k] === 'string' ? (params[k] as string) : undefined);
+    try {
+      let clientId = str('client_id');
+      const hint = str('id_token_hint');
+      if (!clientId && hint) {
+        try {
+          const key = await getOidcSigningKey();
+          const { payload } = await compactVerify(hint, key.publicKey);
+          const claims = JSON.parse(new TextDecoder().decode(payload)) as { iss?: string; aud?: string | string[] };
+          if (claims.iss === oidcIssuer()) clientId = Array.isArray(claims.aud) ? claims.aud[0] : claims.aud;
+        } catch {
+          // Not one of ours: treated as no hint.
+        }
+      }
+      const client = clientId ? await getClient(clientId) : null;
+      const origins = new Set((client?.redirectUris ?? []).map((u) => { try { return new URL(u).origin; } catch { return ''; } }).filter(Boolean));
+      const target = str('post_logout_redirect_uri');
+      if (client && target) {
+        try {
+          const url = new URL(target);
+          if (origins.has(url.origin) && (url.protocol === 'https:' || url.hostname === '127.0.0.1' || url.hostname === 'localhost')) {
+            const state = str('state');
+            if (state) url.searchParams.set('state', state.slice(0, 1024));
+            res.redirect(303, url.toString());
+            return;
+          }
+        } catch {
+          // Not a URL: fall through to the page.
+        }
+      }
+      signedOutPage(res, {
+        appName: client?.name ?? null,
+        appOrigin: client ? (client.appUrl ?? ([...origins][0] ?? null)) : null,
+        serverName: serverName(),
+      });
+    } catch (err) {
+      console.error('OIDC end_session error:', err);
+      errorPage(res, 500, 'Something went wrong', 'You can close this page.');
+    }
+  };
+  router.get('/oidc/end_session', pageLimiter, endSession);
+  router.post('/oidc/end_session', pageLimiter, form, endSession);
 
   router.get('/oidc/jwks', async (_req: Request, res: Response) => {
     try {

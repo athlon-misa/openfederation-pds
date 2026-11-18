@@ -95,6 +95,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
     expect(disc.body.authorization_endpoint).toBe(`${oidcIssuer()}/authorize`);
     expect(disc.body.id_token_signing_alg_values_supported).toEqual(['RS256']);
     expect(disc.body.code_challenge_methods_supported).toEqual(['S256']);
+    expect(disc.body.end_session_endpoint).toBe(`${oidcIssuer()}/end_session`);
     const jwks = await api.get('/oidc/jwks');
     expect(jwks.body.keys).toHaveLength(1);
     expect(jwks.body.keys[0]).toMatchObject({ kty: 'RSA', alg: 'RS256', use: 'sig' });
@@ -115,6 +116,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
     expect(res.body.configuration).toContain('OIDC_UID_FIELD=did_slug');
     expect(res.body.configuration).toContain(`OIDC_CLIENT_SECRET=${clientSecret}`);
     expect(res.body.configuration).toContain(`OIDC_ISSUER=${oidcIssuer()}`);
+    expect(res.body.configuration).toContain(`OIDC_IDP_LOGOUT_REDIRECT_URI=${APP}/`);
 
     // The secret is only ever stored hashed and never listed.
     const stored = await query<{ secret_hash: string }>('SELECT secret_hash FROM oidc_clients WHERE client_id = $1', [clientId]);
@@ -284,6 +286,41 @@ describe('OpenID Connect provider (ADR-005)', () => {
     await query('UPDATE users SET password_hash = (SELECT password_hash FROM users WHERE did = $1) WHERE did = $2', [user.did, owner.did]);
     const member = await signInWithPassword(gated.body.client.clientId, owner.fullHandle);
     expect(new URL(String(member.cont.headers.location)).searchParams.get('code')).toBeTruthy();
+  });
+
+  it('sign-out sends the person back to the app, and only to the app', async () => {
+    if (!plc) return;
+    // An ID token from this provider identifies the app (Mastodon sends one).
+    const { cont } = await signInWithPassword(clientId, user.fullHandle, { scope: 'openid profile' });
+    const code = new URL(String(cont.headers.location)).searchParams.get('code')!;
+    const token = await api.post('/oidc/token').type('form')
+      .send({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, client_id: clientId, client_secret: clientSecret });
+    const hint = token.body.id_token as string;
+
+    const back = await api.get(`/oidc/end_session?${new URLSearchParams({ id_token_hint: hint, post_logout_redirect_uri: `${APP}/`, state: 's9' })}`);
+    expect(back.status).toBe(303);
+    expect(back.headers.location).toBe(`${APP}/?state=s9`);
+
+    // By client_id, too.
+    const byId = await api.get(`/oidc/end_session?${new URLSearchParams({ client_id: clientId, post_logout_redirect_uri: `${APP}/bye` })}`);
+    expect(byId.headers.location).toBe(`${APP}/bye`);
+
+    // Never somewhere the app did not register.
+    const evil = await api.get(`/oidc/end_session?${new URLSearchParams({ id_token_hint: hint, post_logout_redirect_uri: 'https://evil.example/' })}`);
+    expect(evil.status).toBe(200);
+    expect(evil.headers.location).toBeUndefined();
+    expect(evil.text).toContain('signed out');
+
+    // A forged hint names no app.
+    const forged = `${hint.split('.').slice(0, 2).join('.')}.AAAA`;
+    const noApp = await api.get(`/oidc/end_session?${new URLSearchParams({ id_token_hint: forged, post_logout_redirect_uri: `${APP}/` })}`);
+    expect(noApp.status).toBe(200);
+    expect(noApp.headers.location).toBeUndefined();
+
+    // No parameters at all (what Mastodon sends without OIDC_IDP_LOGOUT_REDIRECT_URI).
+    const bare = await api.get('/oidc/end_session');
+    expect(bare.status).toBe(200);
+    expect(bare.text).toContain('signed out');
   });
 
   it('rotating the secret retires the old one; deleting the app stops sign-in', async () => {

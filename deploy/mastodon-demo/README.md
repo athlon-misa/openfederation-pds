@@ -59,6 +59,7 @@ openssl rand -hex 64     # SECRET_KEY_BASE, and again for OTP_SECRET
 | `SMTP_PASSWORD` | `${{openfederation-pds.SMTP_PASSWORD}}` |
 | `SMTP_FROM_ADDRESS` | `Mastodon demo <noreply@openfederation.net>` |
 | `OMNIAUTH_ONLY` | `true` (no Mastodon passwords: AT Protocol sign-in only) |
+| `RAILWAY_RUN_UID` | `0`: Railway volumes are owned by root and Mastodon runs as uid 991, so it could not write uploads (avatars) to `/opt/mastodon/public/system` |
 | `OIDC_*` | the block printed in step 1 |
 
 Mail is needed: accounts from Bluesky and other servers bring no email, so Mastodon asks
