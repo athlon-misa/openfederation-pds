@@ -151,7 +151,7 @@ describe('the admin endpoints', () => {
     expect(res.body.settings.map((s: { id: string }) => s.id)).toEqual([
       'pseudonymsEnabled', 'pseudonymTokensPerEpoch', 'pseudonymProbationDays', 'pseudonymProbationDailyWrites',
       'custodyAllowed', 'custodyDefault', 'deviceSigningAllowed', 'inviteRequired', 'accountApproval', 'communityOwnerInvites', 'emailVerificationPolicy',
-      'migrationAccounts', 'migrationPseudonyms', 'migrationCommunities', 'federationPeers', 'defaultAppearance',
+      'migrationAccounts', 'migrationPseudonyms', 'migrationCommunities', 'federationPeers', 'defaultAppearance', 'oidcProviderEnabled',
     ]);
     expect(setting(res.body, 'pseudonymTokensPerEpoch')).toMatchObject({ value: 20, source: 'default', fixed: false, envVar: 'PSEUDONYM_TOKENS_PER_EPOCH' });
     expect(res.body.refreshSeconds).toBeGreaterThan(0);

@@ -1,0 +1,63 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.oidc.getClientSetup",
+  "revision": 1,
+  "description": "The configuration to paste into a registered app, without its secret. PDS admin only.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Configuration text for the client's preset (generic when it has none); the secret is a placeholder.",
+      "parameters": {
+        "type": "params",
+        "required": [
+          "clientId"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "description": "The app's client ID."
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "client",
+            "issuer",
+            "configuration"
+          ],
+          "properties": {
+            "client": {
+              "type": "ref",
+              "ref": "net.openfederation.oidc.createClient#client"
+            },
+            "issuer": {
+              "type": "string",
+              "description": "The provider's issuer."
+            },
+            "configuration": {
+              "type": "string",
+              "description": "Configuration text."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid input."
+        },
+        {
+          "name": "Forbidden",
+          "description": "PDS admin required."
+        },
+        {
+          "name": "NotFound",
+          "description": "No such client."
+        }
+      ]
+    }
+  }
+}

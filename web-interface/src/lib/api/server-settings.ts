@@ -17,6 +17,7 @@ export type SettingId =
   | 'migrationPseudonyms'
   | 'migrationCommunities'
   | 'federationPeers'
+  | 'oidcProviderEnabled'
   | 'defaultAppearance';
 
 export type SettingValue = boolean | number | string | string[];

@@ -188,6 +188,7 @@ ofc record put -r did:plc:abc -c app.bsky.actor.profile -k self --data @profile.
 | `identity list-keys --did <did> [--purpose <purpose>]` | No | List external keys for a DID |
 | `identity delete-key --rkey <rkey>` | Yes | Delete an external key |
 | `identity resolve-key --public-key <key> [--purpose <purpose>]` | No | Find ATProto DID by external key |
+| `identity check <handle\|did> [--plc <url>...]` | No | Can the rest of the AT Protocol network find it? DNS TXT, HTTPS well-known, each PLC directory (default: this server's and plc.directory) and what is missing ([docs/ATPROTO-NETWORK.md](../docs/ATPROTO-NETWORK.md)) |
 
 ### `ofc role` — Community Roles
 
@@ -376,6 +377,18 @@ Pass `--proposal <rkey>` when an export holds more than one proposal.
 |---------|:---:|-------------|
 | `security check-config` | Admin | Check server config for security issues |
 | `security audit-summary [--days N]` | Admin | Summarize recent security events (default: 7 days) |
+
+### `ofc oidc` — Sign-in for Other Apps (OpenID Connect)
+
+Apps such as Mastodon and Lemmy that sign people in through this server ([docs/OIDC.md](../docs/OIDC.md)). Turn the provider on first: Admin → Server settings → Sign-in for other apps.
+
+| Command | Auth | Description |
+|---------|------|-------------|
+| `oidc list` | Admin | Registered apps, whether the provider is on, its issuer |
+| `oidc add --name <n> [--preset mastodon\|lemmy\|gotosocial\|generic] [--app-url <url>] [--redirect-uri <uri>...] [--scope <s>...] [--community <did>] [--client-id <id>]` | Admin | Register an app; prints the secret (once) inside the configuration to paste into the app |
+| `oidc setup <clientId>` | Admin | The app's configuration again, without the secret |
+| `oidc rotate-secret <clientId>` | Admin | New secret; the old one stops working |
+| `oidc remove <clientId>` | Admin | The app can no longer sign anyone in |
 
 ### `ofc pseudonym` — Pseudonym Proofs (work offline)
 

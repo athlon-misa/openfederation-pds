@@ -1,0 +1,168 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.oidc.createClient",
+  "revision": 1,
+  "description": "Register an app (Mastodon, Lemmy, GoToSocial or any OpenID Connect client) to sign people in through this server (ADR-005). PDS admin only.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Register an OpenID Connect client. With `preset` and `appUrl` the redirect URI and scopes are filled in and the app's configuration is returned. The secret is returned only here.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name shown on the sign-in page, e.g. the instance's name."
+            },
+            "preset": {
+              "type": "string",
+              "knownValues": [
+                "mastodon",
+                "lemmy",
+                "gotosocial",
+                "generic"
+              ],
+              "description": "App kind: fills in the redirect URI and scopes and returns its configuration."
+            },
+            "appUrl": {
+              "type": "string",
+              "description": "The app's public address (https), required with a preset other than generic."
+            },
+            "redirectUris": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Exact redirect URIs. Required without a preset; added to the preset's."
+            },
+            "scopes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "openid, profile, email. Default: the preset's, or openid profile."
+            },
+            "communityDid": {
+              "type": "string",
+              "description": "Only members of this community can sign in to the app."
+            },
+            "clientId": {
+              "type": "string",
+              "description": "Client ID to use (2\u201363 lowercase letters, digits, dashes). Default: made from the name."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "client",
+            "clientSecret",
+            "issuer"
+          ],
+          "properties": {
+            "client": {
+              "type": "ref",
+              "ref": "#client"
+            },
+            "clientSecret": {
+              "type": "string",
+              "description": "The client secret. Shown once: store it in the app's configuration."
+            },
+            "issuer": {
+              "type": "string",
+              "description": "The provider's issuer, {PDS_SERVICE_URL}/oidc."
+            },
+            "configuration": {
+              "type": "string",
+              "description": "Ready-to-paste configuration for the preset, with the secret filled in."
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid input."
+        },
+        {
+          "name": "Forbidden",
+          "description": "PDS admin required."
+        },
+        {
+          "name": "Conflict",
+          "description": "A client with that ID already exists."
+        },
+        {
+          "name": "NotFound",
+          "description": "Community not found."
+        }
+      ]
+    },
+    "client": {
+      "type": "object",
+      "required": [
+        "clientId",
+        "name",
+        "redirectUris",
+        "scopes",
+        "createdAt"
+      ],
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "The app's client ID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name shown on the sign-in page."
+        },
+        "redirectUris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Exact redirect URIs the app may use."
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Scopes the app may receive: openid, profile, email."
+        },
+        "communityDid": {
+          "type": "string",
+          "description": "When set, only members of this community can sign in to the app."
+        },
+        "preset": {
+          "type": "string",
+          "description": "mastodon, lemmy, gotosocial or generic, when the app was set up from a preset."
+        },
+        "appUrl": {
+          "type": "string",
+          "description": "The app's address, when set up from a preset."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "DID of the admin who registered the app."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "datetime"
+        },
+        "secretRotatedAt": {
+          "type": "string",
+          "format": "datetime"
+        }
+      }
+    }
+  }
+}

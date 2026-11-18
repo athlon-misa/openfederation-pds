@@ -39,7 +39,7 @@ Always rebuild **and restart** after backend changes — stale `dist/` is the mo
 
 See `.env.example` for the full list. Critical ones:
 
-**Runtime settings (#410):** `PSEUDONYMS_ENABLED`, `PSEUDONYM_*`, `IDENTITY_CUSTODY_*`, `DEVICE_SIGNING_ALLOWED`, `INVITE_REQUIRED`, `ACCOUNT_APPROVAL`, `EMAIL_VERIFICATION_POLICY`, `MIGRATION_ACCOUNTS/PSEUDONYMS/COMMUNITIES`, `FEDERATION_PEERS`, `DEFAULT_APPEARANCE` and `COMMUNITY_OWNER_INVITES` can also be changed by an admin on Admin → Server settings, without a restart (`src/settings/runtime-settings.ts`, read with `runtimeSettings()`, never `config`). Precedence: environment variable > admin's change (`server_settings`) > setup wizard's choice (settings file) > profile default > built-in default. Set in the environment, a setting is fixed (read-only on the page).
+**Runtime settings (#410):** `PSEUDONYMS_ENABLED`, `PSEUDONYM_*`, `IDENTITY_CUSTODY_*`, `DEVICE_SIGNING_ALLOWED`, `INVITE_REQUIRED`, `ACCOUNT_APPROVAL`, `EMAIL_VERIFICATION_POLICY`, `MIGRATION_ACCOUNTS/PSEUDONYMS/COMMUNITIES`, `FEDERATION_PEERS`, `DEFAULT_APPEARANCE`, `COMMUNITY_OWNER_INVITES` and `OIDC_PROVIDER_ENABLED` can also be changed by an admin on Admin → Server settings, without a restart (`src/settings/runtime-settings.ts`, read with `runtimeSettings()`, never `config`). Precedence: environment variable > admin's change (`server_settings`) > setup wizard's choice (settings file) > profile default > built-in default. Set in the environment, a setting is fixed (read-only on the page).
 
 | Variable | Required | Notes |
 |----------|:---:|-------|
@@ -52,6 +52,7 @@ See `.env.example` for the full list. Critical ones:
 | `REDIS_URL` | No | OAuth replay protection across instances; production warns when unset |
 | `PLC_DIRECTORY_URL` | No | Default `http://localhost:2582` (dev). Production: `https://plc.openfederation.net` |
 | `PLC_RESOLVER_URLS` | No | Directories DIDs are read from, in order, first match wins (sign-in from other servers, service-auth). Default: `PLC_DIRECTORY_URL`, then `https://plc.directory`; `none` = own directory only. Registration still uses `PLC_DIRECTORY_URL` only. Invalid values stop the server |
+| `OIDC_PROVIDER_ENABLED` | No | Default `false`: other apps (Mastodon, Lemmy, any OpenID Connect client) may sign people in through this server, issuer `{PDS_SERVICE_URL}/oidc` (ADR-005, `docs/OIDC.md`). Apps are registered by an admin (`ofc oidc add`). Invalid values stop the server |
 | `PDS_SERVICE_DID` | No | Inbound service-auth `aud` claim; default `did:web:{PDS_HOSTNAME}` |
 | `CHAIN_ADAPTERS` | No | Treat as secret — contains RPC API keys. Format: `eip155:137=https://rpc.example.com` |
 | `GLOBAL_RATE_LIMIT` | No | Default 120/min/IP across every endpoint; raise it when clients share an egress IP |

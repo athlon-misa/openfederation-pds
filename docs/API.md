@@ -153,6 +153,25 @@ Auth names the community permission the caller's role must grant (`requireCommun
 | POST | `net.openfederation.community.unlinkApplication` | Approved + `community.application.delete` | Remove a linked app by `rkey` |
 | GET  | `net.openfederation.community.listApplications` | No (private communities: members and admins) | Apps linked to a community |
 
+## Sign-in for other apps (OpenID Connect, ADR-005)
+
+Apps such as Mastodon and Lemmy sign people in through this server; setup in [OIDC.md](OIDC.md). Server setting `oidcProviderEnabled` (`OIDC_PROVIDER_ENABLED`, default off): off, every `/oidc` route is 404.
+
+| Method | Path / NSID | Auth | Description |
+|:---|:---|:---|:---|
+| GET | `/oidc/.well-known/openid-configuration` | No | Discovery. Issuer `{PDS_SERVICE_URL}/oidc` |
+| GET | `/oidc/jwks` | No | The RS256 signing key |
+| GET | `/oidc/authorize` | No | Authorization request (`response_type=code`, `openid` required, PKCE `S256`). Unknown client or unregistered `redirect_uri`: an error page, never a redirect |
+| POST | `/oidc/token` | Client secret (basic or post) | `grant_type=authorization_code` → `id_token`, `access_token` (10 min, userinfo only). Codes: one use, 60 s, bound to client, redirect URI and PKCE |
+| GET/POST | `/oidc/userinfo` | Bearer access token | Claims: `sub` (DID), `did`, `did_slug`, `handle`, `preferred_username`, `name`; `email`, `email_verified` for accounts of this server with the `email` scope |
+| POST | `net.openfederation.oidc.createClient` | Admin | `{ name, preset?: mastodon \| lemmy \| gotosocial \| generic, appUrl?, redirectUris?, scopes?, communityDid?, clientId? }` → `{ client, clientSecret, issuer, configuration }`; the secret is returned only here. Audited `oidc.client.create` |
+| GET | `net.openfederation.oidc.listClients` | Admin | `{ enabled, issuer, clients }` |
+| GET | `net.openfederation.oidc.getClientSetup` | Admin | `{ clientId }` → the app's configuration, secret as a placeholder |
+| POST | `net.openfederation.oidc.rotateClientSecret` | Admin | `{ clientId }` → new `clientSecret`; the old one stops working. Audited |
+| POST | `net.openfederation.oidc.deleteClient` | Admin | `{ clientId }`; its unfinished sign-ins go with it. Audited |
+
+The sign-in pages (`/oidc/authorize/signin`, `identify`, `password`, `continue`) are for browsers. Accounts of other servers continue at their own server through `/oauth/external/callback`. Each completed sign-in is audited as `oidc.signIn`.
+
 ## OpenFederation Disclosure Proxy
 
 | Method | NSID | Auth | Description |

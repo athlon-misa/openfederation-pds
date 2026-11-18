@@ -228,6 +228,9 @@ ${progress()}
     <label class="choice compact"><input type="checkbox" name="communityOwnerInvites">
       <span><strong>Community owners may create invite codes</strong><span class="hint">Lets community owners create invite codes that also sign new people up to this server. Off by default while sign-up is invite-only, so only admins hand out codes.</span></span></label>
     <p class="error" data-error="communityOwnerInvites" hidden></p>
+    <label class="choice compact"><input type="checkbox" name="oidcProvider">
+      <span><strong>Other apps may sign people in through this server</strong><span class="hint">Lets apps you register later, like a Mastodon or Lemmy server, offer "sign in with your AT Protocol account" through this server. Off by default; nothing happens until you register an app.</span></span></label>
+    <p class="error" data-error="oidcProvider" hidden></p>
     <label class="choice compact"><input type="checkbox" name="pseudonyms">
       <span><strong>Allow pseudonyms</strong><span class="hint">Anonymous accounts that are not linked to anyone's main account, not even on this server. Useful for sources and whistle-blowers.</span></span></label>
     <fieldset class="field">

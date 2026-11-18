@@ -16,6 +16,7 @@ import {
   UserRound,
   LogOut,
   ChevronUp,
+  AppWindow,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import {
@@ -56,6 +57,7 @@ const adminNav = [
   { title: 'Invites', href: '/admin/invites', icon: Ticket, roles: ['admin', 'moderator', 'auditor'] },
   { title: 'Audit Log', href: '/admin/audit', icon: ScrollText, roles: ['admin', 'auditor'] },
   { title: 'Server settings', href: '/admin/settings', icon: SlidersHorizontal, roles: ['admin'] },
+  { title: 'Sign-in for other apps', href: '/admin/apps', icon: AppWindow, roles: ['admin'] },
 ];
 
 export function AppSidebar() {

@@ -37,6 +37,7 @@ import { stopRuntimeSettings } from '../settings/runtime-settings.js';
 import type { Server } from 'http';
 import { createAccountPagesRouter } from './account-pages.js';
 import { createWalletConsentRouter } from './wallet-consent-page.js';
+import { createOidcRouter } from '../oidc/routes.js';
 import { productionConfigProblems } from './production-checks.js';
 import { requireRepoReadable } from '../auth/guards.js';
 import type { AuthRequest } from '../auth/types.js';
@@ -275,6 +276,9 @@ app.get('/verify-email', async (req: Request, res: Response) => {
 app.use(createAccountPagesRouter());
 // The page where a user approves a dApp's request to sign with their wallet.
 app.use(createWalletConsentRouter());
+// OpenID Connect provider for other apps (ADR-005); every route answers 404
+// while the server setting is off.
+app.use(createOidcRouter());
 // The first-run setup wizard runs only before the server is configured
 // (src/setup/launcher.ts); here /setup just says it is done (#405).
 app.use(createSetupDoneRouter());

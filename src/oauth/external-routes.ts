@@ -33,6 +33,7 @@ import type { UserRole, UserStatus } from '../auth/types.js';
 import { parseCookies } from '../auth/utils.js';
 import { getCachedPartnerOrigins } from '../auth/partner-guard.js';
 import { getDidResolver } from '../identity/did-resolver.js';
+import { OIDC_STATE_PREFIX, completeAtprotoSignIn } from '../oidc/routes.js';
 import { chooseExternalHandle } from './external-handle.js';
 import { resolveExternalHandle } from '../identity/external-handle-resolver.js';
 
@@ -356,6 +357,18 @@ export function createExternalOAuthRouter(): Router {
       const params = new URLSearchParams(req.query as Record<string, string>);
       const { session, state: oauthState } = await client.callback(params);
       const did = session.did;
+
+      // A sign-in started by the OpenID Connect provider (ADR-005): no local
+      // account and no tokens here; the person goes back to the app.
+      if (typeof oauthState === 'string' && oauthState.startsWith(OIDC_STATE_PREFIX)) {
+        const next = await completeAtprotoSignIn(oauthState, did);
+        if (next) {
+          res.redirect(303, next);
+        } else {
+          res.status(400).type('text/plain').send('This sign-in has expired. Go back to the app and start again.');
+        }
+        return;
+      }
 
       // Create or find local user for this external DID
       const localTokens = await ensureExternalUser(did, session);

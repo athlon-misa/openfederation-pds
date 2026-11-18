@@ -14,6 +14,7 @@ import { Command, Option } from 'commander';
 import { readFileSync } from 'fs';
 import { randomBytes } from 'node:crypto';
 import { OFCClient, loadSession, promptPassword, readPasswordStdin } from './ofc-client.js';
+import { checkIdentity } from './identity-check.js';
 import {
   info, success, error, warn, hint,
   table, keyValue, json,
@@ -1688,6 +1689,48 @@ attestation
 const identity = program.command('identity').description('External identity key management');
 
 identity
+  .command('check')
+  .description('Can the rest of the AT Protocol network find this handle or DID? (docs/ATPROTO-NETWORK.md)')
+  .argument('<handleOrDid>', 'A handle (alice.example.net) or a DID')
+  .option('--plc <url...>', 'PLC directories to look in (default: this server\'s and https://plc.directory)')
+  .action(run(async () => {
+    const cmd = identity.commands.find((c) => c.name() === 'check')!;
+    const input = cmd.args[0];
+    let directories: string[] = cmd.opts().plc ?? [];
+    if (directories.length === 0) {
+      try {
+        const pub = await client().get('net.openfederation.server.getPublicConfig');
+        if (typeof pub?.plcDirectoryUrl === 'string') directories.push(pub.plcDirectoryUrl);
+      } catch {
+        // No server reachable: plc.directory only.
+      }
+      directories.push('https://plc.directory');
+      directories = [...new Set(directories.map((d) => d.replace(/\/+$/, '')))];
+    }
+    let result = await checkIdentity(input, { directories });
+    // Given a DID, also check its handle the way the network would.
+    if (input.startsWith('did:') && result.handle) {
+      const byHandle = await checkIdentity(result.handle, { directories });
+      result = { ...byHandle, input, did: input, directories: result.directories, problems: [...new Set([...result.problems, ...byHandle.problems])] };
+      if (byHandle.did && byHandle.did !== input) result.problems.push(`The handle ${result.handle} points to ${byHandle.did}, not ${input}.`);
+    }
+    if (isJsonMode()) return json(result);
+    keyValue([
+      ['Handle', result.handle ?? '(none)'],
+      ['DID', result.did ?? '(not found)'],
+      ...(result.dnsTxt ? [['DNS TXT _atproto', result.dnsTxt.did ?? `none (${result.dnsTxt.error ?? 'no record'})`] as [string, string]] : []),
+      ...(result.wellKnown ? [['HTTPS well-known', result.wellKnown.did ?? `none (${result.wellKnown.error ?? 'no answer'})`] as [string, string]] : []),
+      ...result.directories.map((d) => [d.url, d.status === 'found' ? `found (handle ${d.handle ?? '?'}, PDS ${d.pds ?? '?'})` : d.status === 'missing' ? 'not registered' : `error: ${d.error}`] as [string, string]),
+    ]);
+    if (result.problems.length === 0) {
+      success('Resolvable across the AT Protocol network.');
+    } else {
+      for (const p of result.problems) warn(p);
+      process.exitCode = 1;
+    }
+  }));
+
+identity
   .command('set-key')
   .description('Store an external public key')
   .requiredOption('--rkey <rkey>', 'Record key (e.g., meshtastic-relay-1)')
@@ -2253,6 +2296,94 @@ pseudonymCmd
       process.exitCode = 1;
     }
   });
+
+// ── ofc oidc ────────────────────────────────────────────────────────
+// Apps (Mastodon, Lemmy, GoToSocial, any OpenID Connect client) that sign
+// people in through this server (ADR-005). PDS admin only.
+
+const oidc = program.command('oidc').description('Apps that sign people in through this server (OpenID Connect)');
+
+oidc
+  .command('list')
+  .description('List registered apps')
+  .action(run(async () => {
+    const res = await client().authGet('net.openfederation.oidc.listClients');
+    if (isJsonMode()) return json(res);
+    info(`Provider: ${res.enabled ? 'on' : 'off (Admin → Server settings → Sign-in for other apps)'} · issuer ${res.issuer}`);
+    if (res.clients.length === 0) return hint('No apps registered. Add one: ofc oidc add --preset mastodon --app-url https://mastodon.example --name "Our Mastodon"');
+    table(['Client ID', 'Name', 'Preset', 'Community', 'Redirect URIs'], res.clients.map((c: any) => [
+      c.clientId, c.name, c.preset ?? '', c.communityDid ?? '', (c.redirectUris as string[]).join(' '),
+    ]));
+  }));
+
+oidc
+  .command('add')
+  .description('Register an app and print the configuration to paste into it (the secret is shown once)')
+  .requiredOption('--name <name>', 'Name shown on the sign-in page')
+  .option('--preset <preset>', 'mastodon, lemmy, gotosocial or generic')
+  .option('--app-url <url>', 'The app\'s public address (required with a preset other than generic)')
+  .option('--redirect-uri <uri...>', 'Exact redirect URI(s) (required without a preset)')
+  .option('--scope <scope...>', 'openid, profile, email (default: the preset\'s)')
+  .option('--community <did>', 'Only members of this community can sign in to the app')
+  .option('--client-id <id>', 'Client ID to use (default: made from the name)')
+  .action(run(async () => {
+    const opts = oidc.commands.find((c) => c.name() === 'add')!.opts();
+    const res = await client().authPost('net.openfederation.oidc.createClient', {
+      name: opts.name,
+      ...(opts.preset ? { preset: opts.preset } : {}),
+      ...(opts.appUrl ? { appUrl: opts.appUrl } : {}),
+      ...(opts.redirectUri ? { redirectUris: opts.redirectUri } : {}),
+      ...(opts.scope ? { scopes: opts.scope } : {}),
+      ...(opts.community ? { communityDid: opts.community } : {}),
+      ...(opts.clientId ? { clientId: opts.clientId } : {}),
+    });
+    if (isJsonMode()) return json(res);
+    success(`Registered ${res.client.name} as ${res.client.clientId}`);
+    keyValue([
+      ['Issuer', res.issuer],
+      ['Client ID', res.client.clientId],
+      ['Client secret', res.clientSecret],
+      ['Redirect URIs', (res.client.redirectUris as string[]).join(' ')],
+    ]);
+    warn('The client secret is shown only now. It is part of the configuration below.');
+    console.log('');
+    console.log(res.configuration);
+  }));
+
+oidc
+  .command('setup')
+  .description('Print an app\'s configuration again (without its secret)')
+  .argument('<clientId>', 'Client ID')
+  .action(run(async () => {
+    const clientId = oidc.commands.find((c) => c.name() === 'setup')!.args[0];
+    const res = await client().authGet('net.openfederation.oidc.getClientSetup', { clientId });
+    if (isJsonMode()) return json(res);
+    console.log(res.configuration);
+  }));
+
+oidc
+  .command('rotate-secret')
+  .description('Give an app a new secret; the old one stops working at once')
+  .argument('<clientId>', 'Client ID')
+  .action(run(async () => {
+    const clientId = oidc.commands.find((c) => c.name() === 'rotate-secret')!.args[0];
+    const res = await client().authPost('net.openfederation.oidc.rotateClientSecret', { clientId });
+    if (isJsonMode()) return json(res);
+    success(`New secret for ${clientId} (shown once): ${res.clientSecret}`);
+    console.log('');
+    console.log(res.configuration);
+  }));
+
+oidc
+  .command('remove')
+  .description('Remove an app: it can no longer sign anyone in')
+  .argument('<clientId>', 'Client ID')
+  .action(run(async () => {
+    const clientId = oidc.commands.find((c) => c.name() === 'remove')!.args[0];
+    const res = await client().authPost('net.openfederation.oidc.deleteClient', { clientId });
+    if (isJsonMode()) return json(res);
+    success(`Removed ${clientId}`);
+  }));
 
 // ── Parse & execute ─────────────────────────────────────────────────
 

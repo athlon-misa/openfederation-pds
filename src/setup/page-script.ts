@@ -137,6 +137,7 @@ export const SETUP_SCRIPT = `(function () {
         inviteOnly: f.inviteOnly.checked, pseudonyms: f.pseudonyms.checked, custody: custody, custodyDefault: f.custodyDefault.value,
         accountApproval: approval ? approval.value : 'manual', appearance: look ? look.value : 'openfederation',
         communityOwnerInvites: f.communityOwnerInvites.checked,
+        oidcProvider: f.oidcProvider.checked,
       };
     }
     saveDraft();
@@ -181,6 +182,7 @@ export const SETUP_SCRIPT = `(function () {
     if (approval) approval.checked = true;
     // An older draft has no answer: the default, off while invite-only.
     f.communityOwnerInvites.checked = typeof o.communityOwnerInvites === 'boolean' ? o.communityOwnerInvites : !o.inviteOnly;
+    f.oidcProvider.checked = o.oidcProvider === true;
     var look = f.querySelector('input[name=appearance][value="' + (LOOK_NAMES[o.appearance] ? o.appearance : 'openfederation') + '"]');
     if (look) look.checked = true;
   }
@@ -315,6 +317,7 @@ export const SETUP_SCRIPT = `(function () {
       ['Offered first', CUSTODY_NAMES[o.custodyDefault] || ''],
       ['New accounts', o.accountApproval === 'automatic' ? 'Approved automatically' : 'Approved by an admin'],
       ['Community owners', (typeof o.communityOwnerInvites === 'boolean' ? o.communityOwnerInvites : !o.inviteOnly) ? 'May create invite codes' : 'Only admins create invite codes'],
+      ['Sign-in for other apps', o.oidcProvider === true ? 'On' : 'Off'],
       ['Dashboard look', LOOK_NAMES[o.appearance] || LOOK_NAMES.openfederation],
     ]);
     box.appendChild(wrap);

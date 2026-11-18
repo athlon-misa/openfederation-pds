@@ -1,0 +1,46 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.oidc.listClients",
+  "revision": 1,
+  "description": "List the apps registered to sign people in through this server. PDS admin only.",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "All OpenID Connect clients, whether the provider is on, and its issuer.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "issuer",
+            "clients"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether the provider is on (server setting oidcProviderEnabled)."
+            },
+            "issuer": {
+              "type": "string",
+              "description": "The provider's issuer."
+            },
+            "clients": {
+              "type": "array",
+              "items": {
+                "type": "ref",
+                "ref": "net.openfederation.oidc.createClient#client"
+              }
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "Forbidden",
+          "description": "PDS admin required."
+        }
+      ]
+    }
+  }
+}

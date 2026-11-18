@@ -1,0 +1,55 @@
+{
+  "lexicon": 1,
+  "id": "net.openfederation.oidc.deleteClient",
+  "revision": 1,
+  "description": "Remove a registered app: it can no longer sign anyone in. PDS admin only.",
+  "defs": {
+    "main": {
+      "type": "procedure",
+      "description": "Delete an OpenID Connect client and its unfinished sign-ins.",
+      "input": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "clientId"
+          ],
+          "properties": {
+            "clientId": {
+              "type": "string",
+              "description": "The app's client ID."
+            }
+          }
+        }
+      },
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": [
+            "deleted"
+          ],
+          "properties": {
+            "deleted": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "errors": [
+        {
+          "name": "InvalidRequest",
+          "description": "Missing or invalid input."
+        },
+        {
+          "name": "Forbidden",
+          "description": "PDS admin required."
+        },
+        {
+          "name": "NotFound",
+          "description": "No such client."
+        }
+      ]
+    }
+  }
+}

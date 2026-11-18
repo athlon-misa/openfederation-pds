@@ -81,6 +81,11 @@ export interface RuntimeSettings {
   federationPeers: string[];
   /** What the dashboard looks like until a person chooses (getPublicConfig.appearance). */
   appearance: { defaultPreset: AppearancePreset };
+  /**
+   * Whether other apps (Mastodon, Lemmy, any OpenID Connect client) may sign
+   * people in through this server (ADR-005). Default off.
+   */
+  oidcProviderEnabled: boolean;
 }
 
 /** The dashboard's name for each setting, and the environment variable it is read from. */
@@ -101,6 +106,7 @@ export const SETTING_IDS = {
   migrationCommunities: 'MIGRATION_COMMUNITIES',
   federationPeers: 'FEDERATION_PEERS',
   defaultAppearance: 'DEFAULT_APPEARANCE',
+  oidcProviderEnabled: 'OIDC_PROVIDER_ENABLED',
 } as const satisfies Record<string, RuntimeSettingEnvVar>;
 
 export type SettingId = keyof typeof SETTING_IDS;
@@ -149,6 +155,7 @@ export function encodeSetting(id: SettingId, value: unknown, env: Env = process.
     case 'deviceSigningAllowed': return bool(id, value, 'Device signing');
     case 'inviteRequired': return bool(id, value, 'Invite-only sign-up');
     case 'communityOwnerInvites': return bool(id, value, 'Community owners may create invite codes');
+    case 'oidcProviderEnabled': return bool(id, value, 'Sign-in for other apps');
     case 'pseudonymTokensPerEpoch': return intIn(id, value, 1, 1000, 'Creation passes per month');
     case 'pseudonymProbationDays': return intIn(id, value, 0, 365, 'Probation days');
     case 'pseudonymProbationDailyWrites': return intIn(id, value, 1, 100000, 'Posts a day on probation');
@@ -263,6 +270,14 @@ export function resolveRuntimeSettings(env: Env, admin: Layer, setup: Layer): Re
   }
   const communityOwnerInvites = rawOwnerInvites === undefined ? !inviteRequired : rawOwnerInvites === 'true';
 
+  // Who may sign people in to other apps is about who gets in: an unknown
+  // value stops the server.
+  const rawOidc = merged.OIDC_PROVIDER_ENABLED?.trim();
+  if (rawOidc !== undefined && rawOidc !== 'true' && rawOidc !== 'false') {
+    throw new Error(`OIDC_PROVIDER_ENABLED must be true or false (got "${rawOidc}").`);
+  }
+  const oidcProviderEnabled = rawOidc === 'true';
+
   // A look is harmless to get wrong: warn, and use the built-in one.
   let defaultPreset: AppearancePreset = 'openfederation';
   const rawAppearance = merged.DEFAULT_APPEARANCE?.trim();
@@ -302,6 +317,7 @@ export function resolveRuntimeSettings(env: Env, admin: Layer, setup: Layer): Re
       emailVerificationPolicy,
       federationPeers,
       appearance: { defaultPreset },
+      oidcProviderEnabled,
     },
     sources,
   };
@@ -321,6 +337,7 @@ export function settingValue(s: RuntimeSettings, id: SettingId, env: Env = proce
     case 'accountApproval': return s.accountApproval;
     case 'communityOwnerInvites': return s.communityOwnerInvites;
     case 'defaultAppearance': return s.appearance.defaultPreset;
+    case 'oidcProviderEnabled': return s.oidcProviderEnabled;
     case 'emailVerificationPolicy': return s.emailVerificationPolicy;
     case 'migrationAccounts': return s.migration.accounts;
     case 'migrationPseudonyms': return s.migration.pseudonyms;

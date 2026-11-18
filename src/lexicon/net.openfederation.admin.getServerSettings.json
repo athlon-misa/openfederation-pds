@@ -1,8 +1,8 @@
 {
   "lexicon": 1,
   "id": "net.openfederation.admin.getServerSettings",
-  "revision": 3,
-  "description": "The server settings an admin can change at runtime: pen names, custody modes, device signing, invite-only sign-up, approving new accounts, whether community owners may create invite codes, email verification, moving here and federation peers. Requires admin role.",
+  "revision": 4,
+  "description": "The server settings an admin can change at runtime: pen names, custody modes, device signing, invite-only sign-up, approving new accounts, whether community owners may create invite codes, email verification, moving here, federation peers and whether other apps may sign people in through this server. Requires admin role.",
   "defs": {
     "main": {
       "type": "query",
@@ -83,7 +83,8 @@
             "migrationPseudonyms",
             "migrationCommunities",
             "federationPeers",
-            "defaultAppearance"
+            "defaultAppearance",
+            "oidcProviderEnabled"
           ]
         },
         "envVar": {
