@@ -9,7 +9,7 @@ OpenID Connect provider ([docs/OIDC.md](../../docs/OIDC.md)).
 | VM | Google Compute Engine `ghost-opennewsrooms`, project `n8n-automations-491912`, `europe-west4-a`, e2-medium, static IP `ghost-opennewsrooms-ip` (34.178.125.173), firewall `ghost-web-allow-http-https` (tag `ghost-web`) |
 | Stack | `/opt/ghost`: a checkout of [TryGhost/ghost-docker](https://github.com/TryGhost/ghost-docker) plus this folder's `compose.override.yml` and `Caddyfile`, and `openfederation/` (bridge, SSO adapter, theme) |
 | DNS | Cloudflare, `A ghost → 34.178.125.173`, DNS only (Caddy gets the certificate) |
-| Mail | Resend, `noreply@opennewsrooms.com` (SMTP 465) |
+| Mail | Resend, `noreply@opennewsrooms.com` (SMTP 465). The Resend key may send from `opennewsrooms.com` only, so Ghost's **member support address** (Settings → Portal) and the **newsletter sender** must be `noreply@opennewsrooms.com`: their default is `noreply@ghost.opennewsrooms.com`, and reader sign-in emails then fail with "550 not authorized" |
 | OIDC client | `ghost-opennewsrooms` on pds.openfederation.net, redirect `https://ghost.opennewsrooms.com/auth/openfederation/callback` |
 
 ## How sign-in works
