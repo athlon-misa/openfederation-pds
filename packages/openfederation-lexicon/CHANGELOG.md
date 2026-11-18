@@ -1,5 +1,12 @@
 # @open-federation/lexicon
 
+## 0.11.0
+
+### Minor Changes
+
+- d266645: `net.openfederation.community.linkApplication` (revision 5) accepts `appType: "lemmy"`.
+- 9d1016f: Sign-in for other apps (OpenID Connect provider, ADR-005): new `net.openfederation.oidc.createClient`, `listClients`, `getClientSetup`, `rotateClientSecret` and `deleteClient` (revision 1); `net.openfederation.admin.getServerSettings` and `updateServerSettings` (revision 4) list the setting `oidcProviderEnabled`.
+
 ## 0.10.0
 
 ### Minor Changes
