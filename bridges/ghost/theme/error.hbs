@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="{{@site.locale}}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{meta_title}}</title>
+    <link rel="stylesheet" href="{{asset "css/screen.css"}}">
+</head>
+<body class="error-template">
+<main class="site-main">
+    <section class="hero">
+        <p class="label">Error {{statusCode}}</p>
+        <h1 class="display">{{message}}</h1>
+        <p><a class="btn" href="{{@site.url}}">Back to {{@site.title}}</a></p>
+    </section>
+</main>
+</body>
+</html>

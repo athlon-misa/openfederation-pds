@@ -1,0 +1,48 @@
+{
+  "name": "opennewsrooms",
+  "description": "Open Newsrooms: newsprint, ink and a red quote mark. Readers and staff sign in with their AT Protocol account through OpenFederation.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "engines": {
+    "ghost": ">=5.0.0"
+  },
+  "keywords": [
+    "ghost-theme"
+  ],
+  "author": {
+    "name": "OpenFederation",
+    "url": "https://openfederation.net",
+    "email": "hello@opennewsrooms.com"
+  },
+  "config": {
+    "posts_per_page": 12,
+    "image_sizes": {
+      "s": {
+        "width": 400
+      },
+      "m": {
+        "width": 800
+      },
+      "l": {
+        "width": 1200
+      },
+      "xl": {
+        "width": 2000
+      }
+    },
+    "card_assets": true,
+    "custom": {
+      "openfederation_signin_path": {
+        "type": "text",
+        "default": "/auth/openfederation",
+        "group": "homepage",
+        "description": "Where the OpenFederation sign-in bridge is mounted on this site"
+      },
+      "tagline": {
+        "type": "text",
+        "default": "Independent journalism, on identities nobody can take away.",
+        "group": "homepage"
+      }
+    }
+  }
+}

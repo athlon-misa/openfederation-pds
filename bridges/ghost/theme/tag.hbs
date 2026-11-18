@@ -1,0 +1,12 @@
+{{!< default}}
+{{#tag}}
+<section class="hero">
+    <p class="label">Topic</p>
+    <h1 class="display">{{name}}</h1>
+    {{#if description}}<p class="lede">{{description}}</p>{{/if}}
+</section>
+{{/tag}}
+<section class="cards">
+    {{#foreach posts}}{{> "post-card"}}{{/foreach}}
+</section>
+{{pagination}}

@@ -1,0 +1,5 @@
+node_modules
+dist
+theme
+sso-adapter/node_modules
+test
