@@ -38,10 +38,20 @@ To keep them in step, set on the PLC service (`openfederation-plc`):
 | `PLC_MIRROR_TARGETS` | Comma-separated directories to mirror into, e.g. `https://plc.directory`. Unset: off. Refused on a demo directory |
 | `PLC_MIRROR_INTERVAL_SECONDS` | Default 60 |
 | `PLC_MIRROR_SOURCE` | Default the service itself (`http://127.0.0.1:$PORT`) |
+| `PLC_MIRROR_ONLY_DIDS` | Optional allowlist: mirror only these DIDs (comma-separated). Same as `--only-dids-file` |
+| `PLC_MIRROR_EXCLUDE_DIDS` | Optional: never mirror these DIDs. Same as `--exclude-dids-file` |
 
 The first pass covers every DID, so turning it on also backfills.
 
 **Before you turn it on:**
+
+- **Nothing can be deleted from plc.directory.** The most a DID can get is a tombstone
+  (`plc_tombstone`, signed with its rotation key): it stops resolving, but its whole history
+  (handles, PDS address, keys) stays in the public log for good. So keep test accounts out:
+  test on a demo server or locally, and mirror real identities with `--did` or the allowlist
+  until the server holds no test data. A DID already tombstoned in this directory is never
+  published to a directory that has not seen it; one the target already has gets the
+  tombstone too.
 
 - It is **permanent and public**: plc.directory keeps every operation it accepts. That
   includes pen names' DIDs (which are public in this directory too) and DIDs nobody uses any
