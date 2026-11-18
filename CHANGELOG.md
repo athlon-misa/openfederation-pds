@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Signing out of Mastodon no longer ends on a 404** (ADR-005). With `OMNIAUTH_ONLY=true` Mastodon sends every sign-out to the OpenID Connect provider's sign-out address, which the provider did not have. New `{issuer}/end_session` (RP-initiated logout, in discovery as `end_session_endpoint`): there is no sign-in session to end, so it sends the person back to `post_logout_redirect_uri` when that is on the same origin as one of the app's registered redirect URIs (the app known from `client_id` or a signed `id_token_hint`), and shows a signed-out page otherwise. The Mastodon preset now prints `OIDC_IDP_LOGOUT_REDIRECT_URI`. The Mastodon demo's media volume is mounted at `/opt/mastodon/public/system`, where Mastodon 4.5 keeps uploads (avatars failed with "Permission denied").
 - **Lemmy can resolve a community's ActivityPub actor** ([#80](https://github.com/athlon-misa/openfederation-pds/issues/80)). The `Group` actor no longer carries an empty `endpoints: {}`: Lemmy (0.19) requires `sharedInbox` whenever `endpoints` is present and rejected the whole actor, so `!community@pds` and the actor URL failed to resolve. Found with a local Lemmy 0.19.18 against pds.openfederation.net; Mastodon 4.5.8 resolved the community, its linked instances and its key either way. `net.openfederation.community.linkApplication` (revision 5) accepts `appType: "lemmy"`.
 
 ### Documentation

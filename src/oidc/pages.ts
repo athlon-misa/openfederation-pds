@@ -124,3 +124,13 @@ ${input.error ? `<p class="error" role="alert">${escapeHtml(input.error)}</p>` :
 </form>`;
   sendPage(res, input.status ?? (input.error ? 401 : 200), `Sign in to ${input.appName}`, body);
 }
+
+export function signedOutPage(res: Response, input: { appName: string | null; appOrigin: string | null; serverName: string }): void {
+  const back = input.appOrigin
+    ? `<p><a href="${escapeHtml(input.appOrigin)}">Back to ${escapeHtml(input.appName ?? input.appOrigin)}</a></p>`
+    : '';
+  sendPage(res, 200, 'Signed out', `
+<h1>You are signed out${input.appName ? ` of ${escapeHtml(input.appName)}` : ''}</h1>
+<p class="app">${escapeHtml(input.serverName)} keeps no sign-in session for apps: the next time you sign in to one, you will be asked for your account again.</p>
+${back}`);
+}

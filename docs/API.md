@@ -164,6 +164,7 @@ Apps such as Mastodon and Lemmy sign people in through this server; setup in [OI
 | GET | `/oidc/authorize` | No | Authorization request (`response_type=code`, `openid` required, PKCE `S256`). Unknown client or unregistered `redirect_uri`: an error page, never a redirect |
 | POST | `/oidc/token` | Client secret (basic or post) | `grant_type=authorization_code` → `id_token`, `access_token` (10 min, userinfo only). Codes: one use, 60 s, bound to client, redirect URI and PKCE |
 | GET/POST | `/oidc/userinfo` | Bearer access token | Claims: `sub` (DID), `did`, `did_slug`, `handle`, `preferred_username`, `name`; `email`, `email_verified` for accounts of this server with the `email` scope |
+| GET/POST | `/oidc/end_session` | No | RP-initiated logout. No session is kept, so it redirects to `post_logout_redirect_uri` when that is on the same origin as one of the app's redirect URIs (app from `client_id` or a signed `id_token_hint`), else shows a signed-out page |
 | POST | `net.openfederation.oidc.createClient` | Admin | `{ name, preset?: mastodon \| lemmy \| gotosocial \| generic, appUrl?, redirectUris?, scopes?, communityDid?, clientId? }` → `{ client, clientSecret, issuer, configuration }`; the secret is returned only here. Audited `oidc.client.create` |
 | GET | `net.openfederation.oidc.listClients` | Admin | `{ enabled, issuer, clients }` |
 | GET | `net.openfederation.oidc.getClientSetup` | Admin | `{ clientId }` → the app's configuration, secret as a placeholder |

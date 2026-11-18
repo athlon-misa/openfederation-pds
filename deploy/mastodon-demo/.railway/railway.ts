@@ -26,7 +26,7 @@ export default defineRailway(() => {
     healthcheckTimeout: 300,
     deploy: { restartPolicyType: "ALWAYS" },
     replicas: { "us-west2": 1 },
-    volumeMounts: { "mastodon-media-us": { mountPath: "/mastodon/public/system" } },
+    volumeMounts: { "mastodon-media-us": { mountPath: "/opt/mastodon/public/system" } },
     // Custom domain mastodon.openfederation.net (port 3000): added with
     // `railway domain`, not config (Railway does not register custom domains
     // from configuration).

@@ -22,6 +22,7 @@ The provider:
 | Signing | RS256, key made on first use, stored encrypted (`KEY_ENCRYPTION_SECRET` required) |
 | Client auth | `client_secret_basic`, `client_secret_post`; PKCE `S256` when the app sends it |
 | Scopes | `openid` (required), `profile`, `email` |
+| Sign-out | `{issuer}/end_session` (RP-initiated logout): back to the app, nothing else to end |
 
 ## 2. Register the app
 
@@ -55,6 +56,7 @@ OIDC_UID_FIELD=did_slug
 OIDC_CLIENT_ID=…
 OIDC_CLIENT_SECRET=…
 OIDC_REDIRECT_URI=https://mastodon.example/auth/auth/openid_connect/callback
+OIDC_IDP_LOGOUT_REDIRECT_URI=https://mastodon.example/
 OIDC_USE_PKCE=true
 OIDC_SECURITY_ASSUME_EMAIL_IS_VERIFIED=false
 ```
@@ -67,7 +69,7 @@ OIDC_SECURITY_ASSUME_EMAIL_IS_VERIFIED=false
 - People from other servers bring no email: Mastodon asks for one and sends a confirmation,
   so Mastodon needs working SMTP. Accounts of this server bring theirs, marked verified when
   it was verified here.
-- `OMNIAUTH_ONLY=true` makes this the only way in (no Mastodon passwords).
+- `OMNIAUTH_ONLY=true` makes this the only way in (no Mastodon passwords). Mastodon then sends every sign-out to the provider's `end_session_endpoint`, which sends the person back to `OIDC_IDP_LOGOUT_REDIRECT_URI` (it must be on the same origin as the app's redirect URI).
 - Mastodon allows one OpenID Connect provider per instance.
 
 ### Lemmy (1.0 or later)
