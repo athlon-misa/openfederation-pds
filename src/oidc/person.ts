@@ -31,9 +31,13 @@ export async function localPerson(user: { did: string; handle: string; email: st
 /**
  * An account of another server, signed in at its own PDS. Its handle is
  * taken from its DID document and given only when it resolves back to the
- * same DID (the usual two-way check); no email.
+ * same DID (the usual two-way check). The email is the one that server shared
+ * for this sign-in (`transition:email`, #461), if any.
  */
-export async function remotePerson(did: string): Promise<SignedInPerson> {
+export async function remotePerson(
+  did: string,
+  sharedEmail: { email: string; emailVerified: boolean } | null = null,
+): Promise<SignedInPerson> {
   let handle: string | null = null;
   try {
     const doc = await getDidResolver().resolve(did);
@@ -43,7 +47,13 @@ export async function remotePerson(did: string): Promise<SignedInPerson> {
   } catch {
     handle = null;
   }
-  return { did, handle, displayName: null, email: null, emailVerified: false };
+  return {
+    did,
+    handle,
+    displayName: null,
+    email: sharedEmail?.email ?? null,
+    emailVerified: sharedEmail ? sharedEmail.emailVerified : false,
+  };
 }
 
 /** Is this DID a member of the community (the authority is the community's member record)? */

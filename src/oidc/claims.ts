@@ -36,6 +36,30 @@ export function parseScopes(raw: string | undefined | null): OidcScope[] {
   return SUPPORTED_SCOPES.filter((s) => asked.has(s));
 }
 
+/** Servers whose email confirmation is passed on by default: Bluesky's. */
+export const DEFAULT_TRUSTED_EMAIL_ISSUERS = ['https://bsky.social'];
+
+/**
+ * OIDC_TRUSTED_EMAIL_ISSUERS (#461): the authorization servers whose "this
+ * address is confirmed" an app may rely on. Anyone can run a server and claim
+ * any address is confirmed, so an address from any other server is passed on
+ * as unverified (the app confirms it itself). Unset: Bluesky's; `none`: no
+ * server. Accounts of this server are unaffected (their address is checked
+ * here). Invalid values stop the server.
+ */
+export function parseTrustedEmailIssuers(raw: string | undefined): string[] {
+  const value = (raw ?? '').trim();
+  if (!value) return [...DEFAULT_TRUSTED_EMAIL_ISSUERS];
+  if (value.toLowerCase() === 'none') return [];
+  return value.split(',').map((s) => s.trim()).filter(Boolean).map((entry) => {
+    let url: URL;
+    try { url = new URL(entry); } catch { throw new Error(`OIDC_TRUSTED_EMAIL_ISSUERS: "${entry}" is not a URL`); }
+    if (url.protocol !== 'https:') throw new Error(`OIDC_TRUSTED_EMAIL_ISSUERS: "${entry}" must be https`);
+    if (url.pathname !== '/' || url.search || url.hash) throw new Error(`OIDC_TRUSTED_EMAIL_ISSUERS: "${entry}" must be an origin only`);
+    return url.origin;
+  });
+}
+
 /** The claims for both the ID token and userinfo. */
 export function claimsFor(person: SignedInPerson, scopes: readonly OidcScope[]): Record<string, unknown> {
   const claims: Record<string, unknown> = { sub: person.did };
