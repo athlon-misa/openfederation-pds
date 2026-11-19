@@ -15,6 +15,8 @@ Users get real `did:plc` decentralized identifiers with signed data repositories
 
 The server includes configurable registration (open or invite-only), an admin dashboard, a partner API for third-party apps to register users directly, a JavaScript SDK, cross-network identity bridging (Meshtastic, Nostr, WireGuard, SSH), and full AT Protocol compliance for moderation, portability, and federation.
 
+It is also an identity layer for the fediverse: an OpenID Connect provider lets ActivityPub apps (Mastodon, Lemmy 1.0+, Ghost, GoToSocial, …) sign people in with their account on this server or any other AT Protocol account, Bluesky included. Content stays in the apps. Live demos: [mastodon.openfederation.net](https://mastodon.openfederation.net) and [ghost.opennewsrooms.com](https://ghost.opennewsrooms.com).
+
 ## Install your own server
 
 No technical background needed: one click creates the server, its database and the dashboard on Railway, then a setup page in your browser asks for your addresses, email and admin account and generates every secret for you.
@@ -377,6 +379,16 @@ npm run cli -- auth logout
 
 - **[SDK Integration Guide](./docs/sdk-integration-guide.md)** — Register and log in users from your website using the JS SDK and partner API keys. Best for game platforms and apps creating new accounts.
 - **[OAuth Integration Guide](./docs/third-party-oauth-integration.md)** — "Sign in with OpenFederation" using ATProto OAuth. Best for authenticating existing ATProto users.
+- **[Sign-in for other apps (OpenID Connect)](./docs/OIDC.md)** — Let Mastodon, Lemmy 1.0+, GoToSocial or any OIDC client sign people in with any AT Protocol account (Bluesky, OpenFederation, a self-hosted PDS). `ofc oidc add --preset mastodon …` prints the app's configuration. Design: [ADR-005](./docs/adr/ADR-005-oidc-provider.md).
+- **[Ghost bridge](./bridges/ghost/README.md)** — Readers and staff of a Ghost site sign in with their AT Protocol account; includes an SSO adapter for Ghost admin and the Open Newsrooms theme. Deployment: [deploy/ghost](./deploy/ghost/README.md).
+- **[Joining the AT Protocol network](./docs/ATPROTO-NETWORK.md)** — Reading DIDs from several PLC directories, mirroring into plc.directory, wildcard handle DNS, and `ofc identity check`.
+
+### Live demos
+
+| Demo | What it shows | Tested |
+|---|---|---|
+| [mastodon.openfederation.net](https://mastodon.openfederation.net) | Mastodon 4.5 whose only sign-in is "your AT Protocol account" through pds.openfederation.net | Bluesky and OpenFederation accounts sign in; the same DID returns to the same Mastodon account; sign-out returns to Mastodon |
+| [ghost.opennewsrooms.com](https://ghost.opennewsrooms.com) | Ghost 6 with self-hosted ActivityPub and the Open Newsrooms theme | Readers sign in with Bluesky (email confirmed once) and OpenFederation; staff sign in to Ghost admin with OpenFederation; Mastodon finds and follows `@index@ghost.opennewsrooms.com` |
 
 ## Security
 
