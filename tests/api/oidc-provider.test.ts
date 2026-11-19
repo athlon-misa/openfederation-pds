@@ -364,6 +364,180 @@ describe('OpenID Connect provider (ADR-005)', () => {
     expect(bare.text).toContain('signed out');
   });
 
+  // ---- Remembered sign-in for apps (#462) ----
+
+  function sessionCookieFrom(res: { headers: Record<string, unknown> }): string | null {
+    const raw = res.headers['set-cookie'];
+    const list = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
+    const c = list.map(String).find((v) => v.startsWith('ofd_oidcsession=') && !v.startsWith('ofd_oidcsession=;'));
+    return c ? c.split(';')[0] : null;
+  }
+
+  async function codeToClaims(location: string) {
+    const code = new URL(location).searchParams.get('code')!;
+    const token = await api.post('/oidc/token').type('form')
+      .send({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, client_id: clientId, client_secret: clientSecret });
+    expect(token.status).toBe(200);
+    return decodeJwt(token.body.id_token);
+  }
+
+  /** Sign in with the password once; returns the remembered-session cookie. */
+  async function signInOnceAndRemember(): Promise<{ session: string; authTime: unknown }> {
+    const { cont } = await signInWithPassword(clientId, user.fullHandle);
+    expect(cont.status).toBe(303);
+    const session = sessionCookieFrom(cont);
+    expect(session).toBeTruthy();
+    const claims = await codeToClaims(String(cont.headers.location));
+    return { session: session!, authTime: claims.auth_time };
+  }
+
+  it('after one sign-in, the next app offers "Continue as …" and one click signs in', async () => {
+    if (!plc) return;
+    const { session, authTime } = await signInOnceAndRemember();
+    const auth = await api.get(authorizeUrl(clientId, { state: 'st-2', nonce: 'n-2' })).set('Cookie', session);
+    expect(auth.status).toBe(303);
+    expect(String(auth.headers.location)).toMatch(/^\/oidc\/authorize\/session\?request=/);
+    const id = new URL(String(auth.headers.location), 'http://x').searchParams.get('request')!;
+    const cookie = `${cookieFrom(auth)}; ${session}`;
+
+    const page = await api.get(String(auth.headers.location)).set('Cookie', cookie);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain(`Continue as ${user.fullHandle}`);
+    expect(page.text).toContain('Use a different account');
+
+    const go = await api.post('/oidc/authorize/session').set('Cookie', cookie).type('form').send({ request: id });
+    expect(go.status).toBe(303);
+    const cont = await api.get(String(go.headers.location)).set('Cookie', cookie);
+    expect(cont.status).toBe(303);
+    const claims = await codeToClaims(String(cont.headers.location));
+    expect(claims.sub).toBe(user.did);
+    expect(claims.nonce).toBe('n-2');
+    // auth_time is when the person actually signed in, not now.
+    expect(claims.auth_time).toBe(authTime);
+    // The browser already remembers this account: no second session.
+    expect(sessionCookieFrom(cont)).toBeNull();
+  });
+
+  it('the remembered sign-in only works in the browser that holds it', async () => {
+    if (!plc) return;
+    const { session } = await signInOnceAndRemember();
+    const auth = await api.get(authorizeUrl(clientId)).set('Cookie', session);
+    const id = new URL(String(auth.headers.location), 'http://x').searchParams.get('request')!;
+    // The request cookie without the session cookie: back to the normal sign-in.
+    const go = await api.post('/oidc/authorize/session').set('Cookie', cookieFrom(auth)).type('form').send({ request: id });
+    expect(go.status).toBe(303);
+    expect(String(go.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+    // A made-up session cookie is ignored.
+    const forged = await api.get(authorizeUrl(clientId)).set('Cookie', 'ofd_oidcsession=not-a-real-token');
+    expect(String(forged.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+  });
+
+  it('prompt=login asks again; prompt=none answers from the remembered sign-in or says login_required', async () => {
+    if (!plc) return;
+    const { session } = await signInOnceAndRemember();
+    const login = await api.get(authorizeUrl(clientId, { prompt: 'login' })).set('Cookie', session);
+    expect(String(login.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+    // Opening the "Continue as" step by hand does not get around it.
+    const loginId = new URL(String(login.headers.location), 'http://x').searchParams.get('request')!;
+    const loginCookie = `${cookieFrom(login)}; ${session}`;
+    const byHand = await api.post('/oidc/authorize/session').set('Cookie', loginCookie).type('form').send({ request: loginId });
+    expect(String(byHand.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+    const page = await api.get(`/oidc/authorize/session?request=${loginId}`).set('Cookie', loginCookie);
+    expect(String(page.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+
+    const none = await api.get(authorizeUrl(clientId, { prompt: 'none' })).set('Cookie', session);
+    expect(String(none.headers.location)).toMatch(/^\/oidc\/authorize\/continue\?/);
+    const cont = await api.get(String(none.headers.location)).set('Cookie', `${cookieFrom(none)}; ${session}`);
+    expect((await codeToClaims(String(cont.headers.location))).sub).toBe(user.did);
+
+    const noSession = await api.get(authorizeUrl(clientId, { prompt: 'none' }));
+    const back = new URL(String(noSession.headers.location));
+    expect(back.origin + back.pathname).toBe(REDIRECT);
+    expect(back.searchParams.get('error')).toBe('login_required');
+  });
+
+  it('max_age asks again when the sign-in is older', async () => {
+    if (!plc) return;
+    const { session } = await signInOnceAndRemember();
+    await new Promise((r) => setTimeout(r, 1100));
+    const auth = await api.get(authorizeUrl(clientId, { max_age: '0' })).set('Cookie', session);
+    expect(String(auth.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+  });
+
+  it('signing out of an app ends the remembered sign-in', async () => {
+    if (!plc) return;
+    const { session } = await signInOnceAndRemember();
+    const out = await api.get(`/oidc/end_session?client_id=${encodeURIComponent(clientId)}`).set('Cookie', session);
+    expect(out.status).toBe(200);
+    expect(String(out.headers['set-cookie'])).toContain('ofd_oidcsession=;');
+    const auth = await api.get(authorizeUrl(clientId)).set('Cookie', session);
+    expect(String(auth.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+  });
+
+  it('signing out everywhere (token_version) or a suspension ends it', async () => {
+    if (!plc) return;
+    const first = await signInOnceAndRemember();
+    const rows = async () => (await query('SELECT 1 FROM oidc_sessions WHERE did = $1', [user.did])).rowCount ?? 0;
+    const before = await rows();
+    await query('UPDATE users SET token_version = token_version + 1 WHERE did = $1', [user.did]);
+    const after = await api.get(authorizeUrl(clientId)).set('Cookie', first.session);
+    expect(String(after.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+    // And the stale remembered sign-in is deleted.
+    expect(await rows()).toBe(before - 1);
+
+    const second = await signInOnceAndRemember();
+    await query("UPDATE users SET status = 'suspended' WHERE did = $1", [user.did]);
+    try {
+      const suspended = await api.get(authorizeUrl(clientId)).set('Cookie', second.session);
+      expect(String(suspended.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+    } finally {
+      await query("UPDATE users SET status = 'approved' WHERE did = $1", [user.did]);
+    }
+  });
+
+  it('an account from another server is offered again, but not to an app wanting an email it never shared', async () => {
+    if (!plc) return;
+    const { id, cookie } = await start(clientId, { scope: 'openid profile' });
+    const next = await completeAtprotoSignIn(`${OIDC_STATE_PREFIX}${id}`, user.did);
+    const cont = await api.get(next!).set('Cookie', cookie);
+    const session = sessionCookieFrom(cont)!;
+    expect(session).toBeTruthy();
+    await codeToClaims(String(cont.headers.location));
+
+    const profileOnly = await api.get(authorizeUrl(clientId, { scope: 'openid profile' })).set('Cookie', session);
+    expect(String(profileOnly.headers.location)).toMatch(/^\/oidc\/authorize\/session\?/);
+    // Wants an email: the person's own server is asked again.
+    const withEmail = await api.get(authorizeUrl(clientId)).set('Cookie', session);
+    expect(String(withEmail.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
+  });
+
+  it('a shared email is remembered with the sign-in for the next app', async () => {
+    if (!plc) return;
+    const { id, cookie } = await start(clientId);
+    const next = await completeAtprotoSignIn(`${OIDC_STATE_PREFIX}${id}`, user.did, { email: 'reader@bsky.example', emailVerified: true });
+    const cont = await api.get(next!).set('Cookie', cookie);
+    const session = sessionCookieFrom(cont)!;
+    await codeToClaims(String(cont.headers.location));
+
+    const none = await api.get(authorizeUrl(clientId, { prompt: 'none' })).set('Cookie', session);
+    const again = await api.get(String(none.headers.location)).set('Cookie', `${cookieFrom(none)}; ${session}`);
+    const claims = await codeToClaims(String(again.headers.location));
+    expect(claims.email).toBe('reader@bsky.example');
+    expect(claims.email_verified).toBe(true);
+  });
+
+  it('OIDC_SESSION_DAYS=0 remembers nothing', async () => {
+    if (!plc) return;
+    const was = config.oidc.sessionDays;
+    (config.oidc as { sessionDays: number }).sessionDays = 0;
+    try {
+      const { cont } = await signInWithPassword(clientId, user.fullHandle);
+      expect(sessionCookieFrom(cont)).toBeNull();
+    } finally {
+      (config.oidc as { sessionDays: number }).sessionDays = was;
+    }
+  });
+
   it('rotating the secret retires the old one; deleting the app stops sign-in', async () => {
     if (!plc) return;
     const rot = await xrpcAuthPost('net.openfederation.oidc.rotateClientSecret', adminToken, { clientId });

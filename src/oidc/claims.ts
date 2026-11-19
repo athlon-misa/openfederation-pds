@@ -60,6 +60,20 @@ export function parseTrustedEmailIssuers(raw: string | undefined): string[] {
   });
 }
 
+/**
+ * OIDC_SESSION_DAYS (#462): how long a remembered sign-in for apps lasts.
+ * Default 7; 0 turns it off (every app sign-in asks for the account). Whole
+ * days from 0 to 90; anything else stops the server.
+ */
+export function parseSessionDays(raw: string | undefined): number {
+  const value = (raw ?? '').trim();
+  if (!value) return 7;
+  if (!/^\d{1,2}$/.test(value) || Number(value) > 90) {
+    throw new Error(`OIDC_SESSION_DAYS: "${value}" must be a whole number of days from 0 to 90`);
+  }
+  return Number(value);
+}
+
 /** The claims for both the ID token and userinfo. */
 export function claimsFor(person: SignedInPerson, scopes: readonly OidcScope[]): Record<string, unknown> {
   const claims: Record<string, unknown> = { sub: person.did };

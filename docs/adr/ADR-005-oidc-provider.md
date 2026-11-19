@@ -56,6 +56,11 @@ in again to the same account. It also showed what a provider must get right (dec
    only good for userinfo. No refresh tokens: an app keeps its own session, as Mastodon does.
 9. **No single sign-on session in this version.** Every authorization asks the person to sign
    in. A remembered session is a later step.
+   *Amended 2026-11-19 (#462):* a remembered sign-in, per browser, for `OIDC_SESSION_DAYS`
+   (default 7, `0` off). The next app offers "Continue as …" (one click, never silent except
+   for `prompt=none`); signing out of any app ends it; an account of this server is checked on
+   every use and follows `users.token_version`, so every "end all sessions" event ends it too.
+   Details in docs/OIDC.md.
 10. **Off by default.** Admin setting "OpenID Connect sign-in for other apps"
     (`OIDC_PROVIDER_ENABLED`, setup wizard and Admin → Server settings). Off, every `/oidc`
     route answers 404 and existing clients are kept.

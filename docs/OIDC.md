@@ -123,9 +123,28 @@ other server is passed on unverified and the app confirms it itself.
 - With a community set on the app: members only; others are sent back to the app with
   `access_denied`.
 
-Every sign-in is asked for again (there is no single sign-on session yet). Each completed
-sign-in is audited as `oidc.signIn`; registering, rotating and removing apps as
+Each completed sign-in is audited as `oidc.signIn`; registering, rotating and removing apps as
 `oidc.client.*`.
+
+### Remembered sign-in
+
+After the first app, the next one in the same browser shows **Continue as @handle** (one click)
+and **Use a different account**, instead of asking for the account again (#462). The browser
+keeps a random token (cookie `ofd_oidcsession`, path `/oidc`, HttpOnly); only its SHA-256 is
+stored (`oidc_sessions`).
+
+- Lasts `OIDC_SESSION_DAYS` (default 7; `0` turns it off).
+- **Signing out of any app ends it** (`end_session`), for every app in that browser.
+- An account of this server is checked on every use: still approved, allowed by the email
+  policy, and not signed out everywhere since. Anything that ends all of an account's sessions
+  (password change or reset, recovery, dashboard sign-out, refresh-token reuse, suspension,
+  takedown) ends it too.
+- An account of another server is checked by its own server only at the first sign-in; the
+  remembered sign-in lasts until it expires or the person signs out of an app. An app that
+  wants an email the first sign-in did not share goes back to that server.
+- `prompt=login` and `max_age` ask for the account again; `prompt=none` answers from the
+  remembered sign-in, or returns `login_required`. `auth_time` is the original sign-in.
+- Community limits on an app apply every time.
 
 ## Limits
 

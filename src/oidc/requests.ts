@@ -30,6 +30,7 @@ export interface OidcRequest {
   /** Email the account's own server shared for this sign-in (#461); atproto sign-ins only. */
   remoteEmail: string | null;
   remoteEmailVerified: boolean;
+  rememberedAllowed: boolean;
 }
 
 interface Row {
@@ -46,6 +47,7 @@ interface Row {
   auth_time: string | null;
   remote_email: string | null;
   remote_email_verified: boolean;
+  remembered_allowed: boolean;
   browser_hash: string;
 }
 
@@ -64,6 +66,7 @@ function fromRow(r: Row): OidcRequest {
     authTime: r.auth_time ? new Date(r.auth_time) : null,
     remoteEmail: r.remote_email,
     remoteEmailVerified: r.remote_email_verified === true,
+    rememberedAllowed: r.remembered_allowed === true,
   };
 }
 
@@ -84,6 +87,8 @@ export interface NewRequest {
   state: string | null;
   nonce: string | null;
   codeChallenge: string | null;
+  /** May a remembered sign-in answer it (#462)? False when the app asked for the account again. */
+  rememberedAllowed?: boolean;
 }
 
 /** Start a sign-in. Returns its id and the browser cookie value that binds it. */
@@ -93,10 +98,10 @@ export async function createRequest(input: NewRequest): Promise<{ id: string; br
   // Housekeeping: forget sign-ins nobody finished.
   await query('DELETE FROM oidc_requests WHERE expires_at < NOW()');
   await query(
-    `INSERT INTO oidc_requests (id, browser_hash, client_id, redirect_uri, scope, state, nonce, code_challenge, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW() + make_interval(secs => $9))`,
+    `INSERT INTO oidc_requests (id, browser_hash, client_id, redirect_uri, scope, state, nonce, code_challenge, remembered_allowed, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $10, NOW() + make_interval(secs => $9))`,
     [id, sha256(browserToken), input.clientId, input.redirectUri, input.scope,
-      input.state, input.nonce, input.codeChallenge, REQUEST_TTL_SECONDS],
+      input.state, input.nonce, input.codeChallenge, REQUEST_TTL_SECONDS, input.rememberedAllowed === true],
   );
   return { id, browserToken };
 }
@@ -108,7 +113,7 @@ export async function createRequest(input: NewRequest): Promise<{ id: string; br
 export async function getOpenRequest(id: string, browserToken: string | undefined): Promise<OidcRequest | null> {
   if (!id || !browserToken) return null;
   const r = await query<Row>(
-    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, browser_hash
+    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, remembered_allowed, browser_hash
      FROM oidc_requests WHERE id = $1 AND expires_at > NOW() AND code_hash IS NULL`,
     [id],
   );
@@ -120,7 +125,7 @@ export async function getOpenRequest(id: string, browserToken: string | undefine
 /** The request without the browser check, for the AT Protocol callback (it re-checks on continue). */
 export async function getRequestById(id: string): Promise<OidcRequest | null> {
   const r = await query<Row>(
-    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, browser_hash
+    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, remembered_allowed, browser_hash
      FROM oidc_requests WHERE id = $1 AND expires_at > NOW() AND code_hash IS NULL`,
     [id],
   );
@@ -134,12 +139,14 @@ export async function recordSignIn(
   handle: string | null,
   source: 'password' | 'atproto',
   sharedEmail: { email: string; emailVerified: boolean } | null = null,
+  authTime: Date | null = null,
 ): Promise<boolean> {
+  // authTime: when the person actually signed in, for a remembered sign-in (#462); else now.
   const r = await query(
-    `UPDATE oidc_requests SET did = $2, handle = $3, auth_source = $4, auth_time = NOW(),
+    `UPDATE oidc_requests SET did = $2, handle = $3, auth_source = $4, auth_time = COALESCE($7, NOW()),
             remote_email = $5, remote_email_verified = $6
      WHERE id = $1 AND did IS NULL AND code_hash IS NULL AND expires_at > NOW()`,
-    [id, did, handle, source, sharedEmail?.email ?? null, sharedEmail?.emailVerified === true],
+    [id, did, handle, source, sharedEmail?.email ?? null, sharedEmail?.emailVerified === true, authTime],
   );
   return (r.rowCount ?? 0) > 0;
 }
@@ -171,7 +178,7 @@ export async function redeemCode(
 ): Promise<OidcRequest | null> {
   const r = await query<Row & { code_expires_at: string }>(
     `DELETE FROM oidc_requests WHERE code_hash = $1
-     RETURNING id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, browser_hash, code_expires_at`,
+     RETURNING id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, remembered_allowed, browser_hash, code_expires_at`,
     [sha256(code)],
   );
   const row = r.rows[0];
