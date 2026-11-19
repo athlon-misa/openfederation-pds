@@ -24,7 +24,7 @@ import { runtimeSettings } from '../settings/runtime-settings.js';
 import { parseCookies, fullHandle } from '../auth/utils.js';
 import { checkPasswordWithLockout } from '../auth/password-check.js';
 import { handleForHost } from '../server/tls-check.js';
-import { getExternalOAuthClient } from '../oauth/external-client.js';
+import { getExternalOAuthClient, SIGNIN_SCOPE, SIGNIN_SCOPE_WITH_EMAIL } from '../oauth/external-client.js';
 import { claimsFor, parseScopes, SUPPORTED_SCOPES, type OidcScope, type SignedInPerson } from './claims.js';
 import { getClient, authenticateClient, type OidcClient } from './clients.js';
 import { getOidcSigningKey } from './keys.js';
@@ -159,11 +159,17 @@ async function renderSignIn(res: Response, request: OidcRequest, client: OidcCli
  * started here. Records who signed in and returns where to send the browser
  * (continue re-checks the browser cookie), or null when the request is gone.
  */
-export async function completeAtprotoSignIn(state: string, did: string): Promise<string | null> {
+export async function completeAtprotoSignIn(
+  state: string,
+  did: string,
+  sharedEmail: { email: string; emailVerified: boolean } | null = null,
+): Promise<string | null> {
   const requestId = state.slice(OIDC_STATE_PREFIX.length);
   const request = await getRequestById(requestId);
   if (!request) return null;
-  if (!(await recordSignIn(request.id, did, null, 'atproto'))) return null;
+  // Only an app that asked for email gets the shared address.
+  const email = parseScopes(request.scope).includes('email') ? sharedEmail : null;
+  if (!(await recordSignIn(request.id, did, null, 'atproto', email))) return null;
   return `/oidc/authorize/continue?request=${encodeURIComponent(request.id)}`;
 }
 
@@ -363,6 +369,8 @@ export function createOidcRouter(): Router {
         return;
       }
       const url = await atproto.authorize(handle, {
+        // Ask the person's own server for their email only when the app asked for it (#461).
+        scope: parseScopes(request.scope).includes('email') ? SIGNIN_SCOPE_WITH_EMAIL : SIGNIN_SCOPE,
         state: `${OIDC_STATE_PREFIX}${request.id}`,
         signal: AbortSignal.timeout(30_000),
       });
@@ -502,7 +510,10 @@ export function createOidcRouter(): Router {
         if (!row) return fail(400, 'invalid_grant', 'The account no longer exists');
         person = await localPerson({ did: row.did, handle: row.handle, email: row.email, emailVerified: row.verified });
       } else {
-        person = await remotePerson(request.did);
+        person = await remotePerson(
+          request.did,
+          request.remoteEmail ? { email: request.remoteEmail, emailVerified: request.remoteEmailVerified } : null,
+        );
       }
       const claims = claimsFor(person, scopes);
       const issuer = oidcIssuer();

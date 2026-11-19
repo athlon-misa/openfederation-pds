@@ -9,7 +9,7 @@
  */
 
 import { Request, Response } from 'express';
-import { getExternalOAuthClient } from '../oauth/external-client.js';
+import { getExternalOAuthClient, SIGNIN_SCOPE } from '../oauth/external-client.js';
 
 export default async function resolveExternal(req: Request, res: Response): Promise<void> {
   try {
@@ -49,6 +49,7 @@ export default async function resolveExternal(req: Request, res: Response): Prom
 
     // Resolve handle → DID → PDS → AS metadata → PAR → redirect URL
     const redirectUrl = await client.authorize(handle.trim(), {
+      scope: SIGNIN_SCOPE,
       signal: AbortSignal.timeout(30_000),
       ...(codeChallenge ? { state: JSON.stringify({ codeChallenge }) } : {}),
     });

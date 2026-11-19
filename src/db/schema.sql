@@ -954,6 +954,8 @@ CREATE TABLE IF NOT EXISTS oidc_requests (
     handle TEXT,
     auth_source VARCHAR(16),
     auth_time TIMESTAMPTZ,
+    remote_email TEXT,
+    remote_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     code_hash CHAR(64) UNIQUE,
     code_expires_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ NOT NULL,

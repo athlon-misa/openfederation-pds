@@ -66,9 +66,10 @@ OIDC_SECURITY_ASSUME_EMAIL_IS_VERIFIED=false
   fails with "Error creating an account for this identity". `did_slug`
   (`plc_svyqejp7a6te7uuouvt3leqb`) is the same DID in a usable form; usernames are therefore
   DID-derived, and Mastodon does not let people rename.
-- People from other servers bring no email: Mastodon asks for one and sends a confirmation,
-  so Mastodon needs working SMTP. Accounts of this server bring theirs, marked verified when
-  it was verified here.
+- People from other servers bring the email their server shares (see below); when it is
+  missing or unverified, Mastodon asks for one or sends a confirmation, so Mastodon needs
+  working SMTP. Accounts of this server bring theirs, marked verified when it was verified
+  here.
 - `OMNIAUTH_ONLY=true` makes this the only way in (no Mastodon passwords). Mastodon then sends every sign-out to the provider's `end_session_endpoint`, which sends the person back to `OIDC_IDP_LOGOUT_REDIRECT_URI` (it must be on the same origin as the app's redirect URI).
 - Mastodon allows one OpenID Connect provider per instance.
 
@@ -81,7 +82,7 @@ Connect sign-in.
 ### GoToSocial
 
 `oidc-*` keys in `config.yaml` (printed by the preset). GoToSocial requires an email claim, so
-only accounts of this server can sign up there.
+only people whose server shares their email can sign up there.
 
 ### Anything else
 
@@ -96,7 +97,20 @@ username.
 | `did`, `did_slug` | profile | The DID, and the DID as `[A-Za-z0-9_]` |
 | `handle`, `preferred_username` | profile | The full handle; for other servers only when it resolves back to the DID |
 | `name` | profile | Display name (accounts here), else the handle |
-| `email`, `email_verified` | email | Accounts of this server only |
+| `email`, `email_verified` | email | Accounts of this server; for other servers the address they shared (below) |
+
+### Email from other servers
+
+When the app asks for `email`, the sign-in at the person's own server also asks for
+`transition:email`, so they see and approve sharing it there. The provider reads it once
+(`com.atproto.server.getSession`), keeps it on the pending sign-in only (gone once the app has
+its tokens) and revokes the access. Plain sign-in to the dashboard and the SDK does not ask.
+
+`email_verified` is `true` only when that server confirmed the address **and** is listed in
+`OIDC_TRUSTED_EMAIL_ISSUERS` (https origins of the authorization server; default
+`https://bsky.social`, `none` for no server). Anyone can run a server and say any address is
+confirmed, and apps match staff and existing accounts by verified email, so an address from any
+other server is passed on unverified and the app confirms it itself.
 
 ## Who can sign in
 
