@@ -75,3 +75,13 @@ describe('parseTrustedEmailIssuers', () => {
     expect(() => parseTrustedEmailIssuers('bsky.social')).toThrow(/not a URL/);
   });
 });
+
+describe('parseSessionDays (#462)', () => {
+  it('defaults to 7 days; 0 turns remembered sign-in off; at most 90', async () => {
+    const { parseSessionDays } = await import('../../src/oidc/claims.js');
+    expect(parseSessionDays(undefined)).toBe(7);
+    expect(parseSessionDays('0')).toBe(0);
+    expect(parseSessionDays('30')).toBe(30);
+    for (const bad of ['91', '-1', '1.5', 'week', '007']) expect(() => parseSessionDays(bad)).toThrow(/OIDC_SESSION_DAYS/);
+  });
+});

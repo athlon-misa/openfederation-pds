@@ -53,6 +53,7 @@ See `.env.example` for the full list. Critical ones:
 | `PLC_DIRECTORY_URL` | No | Default `http://localhost:2582` (dev). Production: `https://plc.openfederation.net` |
 | `PLC_RESOLVER_URLS` | No | Directories DIDs are read from, in order, first match wins (sign-in from other servers, service-auth). Default: `PLC_DIRECTORY_URL`, then `https://plc.directory`; `none` = own directory only. Registration still uses `PLC_DIRECTORY_URL` only. Invalid values stop the server |
 | `OIDC_PROVIDER_ENABLED` | No | Default `false`: other apps (Mastodon, Lemmy, any OpenID Connect client) may sign people in through this server, issuer `{PDS_SERVICE_URL}/oidc` (ADR-005, `docs/OIDC.md`). Apps are registered by an admin (`ofc oidc add`). Invalid values stop the server |
+| `OIDC_SESSION_DAYS` | No | Default 7: how long the remembered sign-in for apps lasts ("Continue as …" in the next app, #462); `0` = every app sign-in asks for the account. 0–90, invalid values stop the server |
 | `OIDC_TRUSTED_EMAIL_ISSUERS` | No | Default `https://bsky.social`: servers whose "email confirmed" apps may rely on when someone signs in with an account from there (#461); others' addresses reach the app unverified. `none` = no server. Invalid values stop the server |
 | `PDS_SERVICE_DID` | No | Inbound service-auth `aud` claim; default `did:web:{PDS_HOSTNAME}` |
 | `CHAIN_ADAPTERS` | No | Treat as secret — contains RPC API keys. Format: `eip155:137=https://rpc.example.com` |

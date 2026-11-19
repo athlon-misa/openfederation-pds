@@ -99,6 +99,32 @@ ${sharesList(input.scopes, input.serverName)}
   sendPage(res, input.error ? 400 : 200, `Sign in to ${input.appName}`, body);
 }
 
+/** "Continue as …": the remembered sign-in from an earlier app (#462). */
+export function continueAsPage(res: Response, input: {
+  requestId: string;
+  appName: string;
+  appHost: string;
+  serverName: string;
+  handle: string;
+  scopes: readonly string[];
+}): void {
+  const body = `
+<h1>Sign in to ${escapeHtml(input.appName)}</h1>
+<p class="app">${escapeHtml(input.appHost)} uses ${escapeHtml(input.serverName)} to sign you in.</p>
+<form method="post" action="/oidc/authorize/session">
+  <input type="hidden" name="request" value="${escapeHtml(input.requestId)}">
+  <button type="submit" autofocus>Continue as ${escapeHtml(input.handle)}</button>
+</form>
+<form method="get" action="/oidc/authorize/signin">
+  <input type="hidden" name="request" value="${escapeHtml(input.requestId)}">
+  <button type="submit" class="secondary">Use a different account</button>
+</form>
+<p class="hint">${escapeHtml(input.appName)} will receive:</p>
+${sharesList(input.scopes, input.serverName)}
+<p class="hint">You signed in to another app earlier in this browser. Signing out of any app ends this.</p>`;
+  sendPage(res, 200, `Sign in to ${input.appName}`, body);
+}
+
 export function passwordPage(res: Response, input: {
   requestId: string;
   appName: string;
@@ -131,6 +157,6 @@ export function signedOutPage(res: Response, input: { appName: string | null; ap
     : '';
   sendPage(res, 200, 'Signed out', `
 <h1>You are signed out${input.appName ? ` of ${escapeHtml(input.appName)}` : ''}</h1>
-<p class="app">${escapeHtml(input.serverName)} keeps no sign-in session for apps: the next time you sign in to one, you will be asked for your account again.</p>
+<p class="app">You are also signed out of ${escapeHtml(input.serverName)} in this browser: the next time you sign in to an app, you will be asked for your account again.</p>
 ${back}`);
 }

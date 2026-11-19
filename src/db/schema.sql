@@ -956,9 +956,25 @@ CREATE TABLE IF NOT EXISTS oidc_requests (
     auth_time TIMESTAMPTZ,
     remote_email TEXT,
     remote_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    remembered_allowed BOOLEAN NOT NULL DEFAULT FALSE,
     code_hash CHAR(64) UNIQUE,
     code_expires_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_oidc_requests_expires ON oidc_requests(expires_at);
+
+-- A remembered sign-in for apps (#462); see scripts/migrate-067-oidc-sessions.sql.
+CREATE TABLE IF NOT EXISTS oidc_sessions (
+    id_hash CHAR(64) PRIMARY KEY,
+    did VARCHAR(255) NOT NULL,
+    auth_source VARCHAR(16) NOT NULL,
+    token_version INTEGER,
+    remote_email TEXT,
+    remote_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    auth_time TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_oidc_sessions_expires ON oidc_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_oidc_sessions_did ON oidc_sessions(did);

@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { readConfigFile, resolveConfigFilePath, applyConfigToEnv } from './setup/config-file.js';
 import { splitSettingsFile } from './settings/keys.js';
 import { parsePlcResolverUrls } from './identity/plc-directories.js';
-import { parseTrustedEmailIssuers } from './oidc/claims.js';
+import { parseTrustedEmailIssuers, parseSessionDays } from './oidc/claims.js';
 
 // quiet: dotenv 17 prints an informational banner to stdout on every load,
 // which corrupts machine-readable output from the ofc CLI. Loading is unchanged.
@@ -94,6 +94,8 @@ export const config = {
   // passed on to apps (#461, src/oidc/claims.ts).
   oidc: {
     trustedEmailIssuers: parseTrustedEmailIssuers(process.env.OIDC_TRUSTED_EMAIL_ISSUERS),
+    // Remembered sign-in for apps, in days (#462); 0 = off.
+    sessionDays: parseSessionDays(process.env.OIDC_SESSION_DAYS),
   },
 
   // Handle suffix for did:plc communities

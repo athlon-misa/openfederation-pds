@@ -34,7 +34,8 @@ import {
 } from './requests.js';
 import { localPerson, remotePerson, isCommunityMember, communityName } from './person.js';
 import { signIdToken, signAccessToken, verifyAccessToken, ACCESS_TOKEN_TTL_SECONDS } from './tokens.js';
-import { signInPage, passwordPage, errorPage, signedOutPage } from './pages.js';
+import { signInPage, passwordPage, errorPage, signedOutPage, continueAsPage } from './pages.js';
+import { rememberedSignIn, rememberSignIn, forgetSignIn, type RememberedSignIn } from './sessions.js';
 import { compactVerify } from 'jose';
 
 /** The provider's issuer: `{PDS_SERVICE_URL}/oidc`. */
@@ -173,6 +174,34 @@ export async function completeAtprotoSignIn(
   return `/oidc/authorize/continue?request=${encodeURIComponent(request.id)}`;
 }
 
+/**
+ * May this remembered sign-in answer this request (#462)? Not when the app
+ * wants an email the remembered sign-in of another server's account does not
+ * have (its own server is asked again), or when the app's max_age says the
+ * sign-in is too old.
+ */
+function sessionFits(session: RememberedSignIn, scope: string, maxAge: number | null): boolean {
+  if (parseScopes(scope).includes('email') && session.authSource === 'atproto' && !session.remoteEmail) return false;
+  if (maxAge !== null && (Date.now() - session.authTime.getTime()) / 1000 > maxAge) return false;
+  return true;
+}
+
+async function useRememberedSignIn(requestId: string, scope: string, session: RememberedSignIn): Promise<boolean> {
+  const email = parseScopes(scope).includes('email') && session.remoteEmail
+    ? { email: session.remoteEmail, emailVerified: session.remoteEmailVerified }
+    : null;
+  return recordSignIn(requestId, session.did, null, session.authSource, email, session.authTime);
+}
+
+/** The handle to show on "Continue as …": this server's account, or what the DID document says. */
+async function shownHandle(session: RememberedSignIn): Promise<string> {
+  if (session.authSource === 'password') {
+    const u = await query<{ handle: string }>('SELECT handle FROM users WHERE did = $1', [session.did]);
+    if (u.rows[0]) return fullHandle(u.rows[0].handle);
+  }
+  return (await remotePerson(session.did)).handle ?? session.did;
+}
+
 export function createOidcRouter(): Router {
   const router = Router();
 
@@ -228,6 +257,8 @@ export function createOidcRouter(): Router {
     const params = { ...(req.query as Record<string, unknown>), ...(req.body ?? {}) } as Record<string, unknown>;
     const str = (k: string) => (typeof params[k] === 'string' ? (params[k] as string) : undefined);
     try {
+      // Signing out of one app ends the remembered sign-in for all of them (#462).
+      await forgetSignIn(req, res);
       let clientId = str('client_id');
       const hint = str('id_token_hint');
       if (!clientId && hint) {
@@ -310,25 +341,88 @@ export function createOidcRouter(): Router {
         redirectError(res, redirectUri, 'invalid_request', 'Only code_challenge_method=S256 is supported', state);
         return;
       }
-      if (q.prompt === 'none') {
-        // No remembered session here (ADR-005, decision 9).
+      const grantedScope = scopes.filter((s) => client.scopes.includes(s)).join(' ');
+      const prompts = new Set(String(q.prompt ?? '').split(' ').filter(Boolean));
+      const maxAge = typeof q.max_age === 'string' && /^\d{1,9}$/.test(q.max_age) ? Number(q.max_age) : null;
+      // A remembered sign-in from an earlier app (#462), unless the app asks
+      // for the account to be entered again.
+      const remembered = prompts.has('login') ? null : await rememberedSignIn(req);
+      const session = remembered && sessionFits(remembered, grantedScope, maxAge) ? remembered : null;
+      if (prompts.has('none') && !session) {
         redirectError(res, redirectUri, 'login_required', 'Signing in needs the person', state);
         return;
       }
       const { id, browserToken: token } = await createRequest({
         clientId: client.clientId,
         redirectUri,
-        scope: scopes.filter((s) => client.scopes.includes(s)).join(' '),
+        scope: grantedScope,
         state,
         nonce: typeof q.nonce === 'string' ? q.nonce.slice(0, 512) : null,
         codeChallenge: challenge,
+        rememberedAllowed: session !== null,
       });
       setBrowserCookie(res, id, token);
+      if (session && prompts.has('none')) {
+        // No page may be shown: the remembered sign-in answers at once.
+        await useRememberedSignIn(id, grantedScope, session);
+        res.redirect(303, `/oidc/authorize/continue?request=${encodeURIComponent(id)}`);
+        return;
+      }
+      if (session) {
+        res.redirect(303, `/oidc/authorize/session?request=${encodeURIComponent(id)}`);
+        return;
+      }
       const hint = typeof q.login_hint === 'string' ? `&login_hint=${encodeURIComponent(q.login_hint.slice(0, 253))}` : '';
       res.redirect(303, `/oidc/authorize/signin?request=${encodeURIComponent(id)}${hint}`);
     } catch (err) {
       console.error('OIDC authorize error:', err);
       errorPage(res, 500, 'Something went wrong', 'Try again from the app.');
+    }
+  });
+
+  // "Continue as …" with the remembered sign-in (#462).
+  router.get('/oidc/authorize/session', pageLimiter, async (req: Request, res: Response) => {
+    const id = String(req.query.request ?? '');
+    const request = await getOpenRequest(id, browserToken(req, id));
+    const client = request ? await getClient(request.clientId) : null;
+    if (!request || !client) {
+      errorPage(res, 400, 'This sign-in has expired', 'Go back to the app and start again.');
+      return;
+    }
+    // Only when /oidc/authorize allowed it (not after prompt=login or max_age).
+    const session = request.rememberedAllowed ? await rememberedSignIn(req) : null;
+    if (!session || !sessionFits(session, request.scope, null)) {
+      res.redirect(303, `/oidc/authorize/signin?request=${encodeURIComponent(id)}`);
+      return;
+    }
+    continueAsPage(res, {
+      requestId: request.id,
+      appName: client.name,
+      appHost: hostOf(request.redirectUri),
+      serverName: serverName(),
+      handle: await shownHandle(session),
+      scopes: parseScopes(request.scope),
+    });
+  });
+
+  router.post('/oidc/authorize/session', pageLimiter, form, async (req: Request, res: Response) => {
+    const id = String(req.body?.request ?? '');
+    const request = await getOpenRequest(id, browserToken(req, id));
+    const client = request ? await getClient(request.clientId) : null;
+    if (!request || !client) {
+      errorPage(res, 400, 'This sign-in has expired', 'Go back to the app and start again.');
+      return;
+    }
+    try {
+      const session = request.rememberedAllowed ? await rememberedSignIn(req) : null;
+      if (!session || !sessionFits(session, request.scope, null) || !(await useRememberedSignIn(request.id, request.scope, session))) {
+        res.redirect(303, `/oidc/authorize/signin?request=${encodeURIComponent(id)}`);
+        return;
+      }
+      res.redirect(303, `/oidc/authorize/continue?request=${encodeURIComponent(request.id)}`);
+    } catch (err) {
+      console.error('OIDC remembered sign-in error:', err);
+      errorPage(res, 500, 'Something went wrong', 'Go back to the app and start again.');
     }
   });
 
@@ -452,6 +546,17 @@ export function createOidcRouter(): Router {
       }
       await auditLog('oidc.signIn', request.did, null, { clientId: client.clientId, source: request.authSource });
       clearBrowserCookie(res, request.id);
+      // Remember the sign-in for the next app (#462), unless this browser already does.
+      const already = await rememberedSignIn(req);
+      if (request.authSource && already?.did !== request.did) {
+        await rememberSignIn(res, {
+          did: request.did,
+          authSource: request.authSource,
+          authTime: request.authTime,
+          remoteEmail: request.remoteEmail,
+          remoteEmailVerified: request.remoteEmailVerified,
+        });
+      }
       const url = new URL(request.redirectUri);
       url.searchParams.set('code', code);
       if (request.state) url.searchParams.set('state', request.state);
