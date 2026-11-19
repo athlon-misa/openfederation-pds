@@ -294,9 +294,11 @@ describe('ActivityPub discovery (#80)', () => {
         .set('Content-Type', 'application/activity+json')
         .send(JSON.stringify({
           '@context': 'https://www.w3.org/ns/activitystreams',
+          id: 'https://mastodon.example.test/follows/1',
           type: 'Follow', actor: 'https://mastodon.example.test/users/alice', object: actor.id,
         }));
-      expect(delivery.status).toBe(405);
+      // Follows are answered only when signed (#464, tests/api/activitypub-follows.test.ts).
+      expect(delivery.status).toBe(401);
     });
 
     it('verifyMembership answers an AP app with a boolean and a role', async () => {
