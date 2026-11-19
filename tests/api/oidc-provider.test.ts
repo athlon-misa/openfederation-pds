@@ -382,7 +382,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
   }
 
   /** Sign in with the password once; returns the remembered-session cookie. */
-  async function rememberedPasswordSignIn(): Promise<{ session: string; authTime: unknown }> {
+  async function signInOnceAndRemember(): Promise<{ session: string; authTime: unknown }> {
     const { cont } = await signInWithPassword(clientId, user.fullHandle);
     expect(cont.status).toBe(303);
     const session = sessionCookieFrom(cont);
@@ -393,7 +393,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
 
   it('after one sign-in, the next app offers "Continue as …" and one click signs in', async () => {
     if (!plc) return;
-    const { session, authTime } = await rememberedPasswordSignIn();
+    const { session, authTime } = await signInOnceAndRemember();
     const auth = await api.get(authorizeUrl(clientId, { state: 'st-2', nonce: 'n-2' })).set('Cookie', session);
     expect(auth.status).toBe(303);
     expect(String(auth.headers.location)).toMatch(/^\/oidc\/authorize\/session\?request=/);
@@ -420,7 +420,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
 
   it('the remembered sign-in only works in the browser that holds it', async () => {
     if (!plc) return;
-    const { session } = await rememberedPasswordSignIn();
+    const { session } = await signInOnceAndRemember();
     const auth = await api.get(authorizeUrl(clientId)).set('Cookie', session);
     const id = new URL(String(auth.headers.location), 'http://x').searchParams.get('request')!;
     // The request cookie without the session cookie: back to the normal sign-in.
@@ -434,7 +434,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
 
   it('prompt=login asks again; prompt=none answers from the remembered sign-in or says login_required', async () => {
     if (!plc) return;
-    const { session } = await rememberedPasswordSignIn();
+    const { session } = await signInOnceAndRemember();
     const login = await api.get(authorizeUrl(clientId, { prompt: 'login' })).set('Cookie', session);
     expect(String(login.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
     // Opening the "Continue as" step by hand does not get around it.
@@ -458,7 +458,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
 
   it('max_age asks again when the sign-in is older', async () => {
     if (!plc) return;
-    const { session } = await rememberedPasswordSignIn();
+    const { session } = await signInOnceAndRemember();
     await new Promise((r) => setTimeout(r, 1100));
     const auth = await api.get(authorizeUrl(clientId, { max_age: '0' })).set('Cookie', session);
     expect(String(auth.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
@@ -466,7 +466,7 @@ describe('OpenID Connect provider (ADR-005)', () => {
 
   it('signing out of an app ends the remembered sign-in', async () => {
     if (!plc) return;
-    const { session } = await rememberedPasswordSignIn();
+    const { session } = await signInOnceAndRemember();
     const out = await api.get(`/oidc/end_session?client_id=${encodeURIComponent(clientId)}`).set('Cookie', session);
     expect(out.status).toBe(200);
     expect(String(out.headers['set-cookie'])).toContain('ofd_oidcsession=;');
@@ -476,15 +476,16 @@ describe('OpenID Connect provider (ADR-005)', () => {
 
   it('signing out everywhere (token_version) or a suspension ends it', async () => {
     if (!plc) return;
-    const first = await rememberedPasswordSignIn();
+    const first = await signInOnceAndRemember();
+    const rows = async () => (await query('SELECT 1 FROM oidc_sessions WHERE did = $1', [user.did])).rowCount ?? 0;
+    const before = await rows();
     await query('UPDATE users SET token_version = token_version + 1 WHERE did = $1', [user.did]);
     const after = await api.get(authorizeUrl(clientId)).set('Cookie', first.session);
     expect(String(after.headers.location)).toMatch(/^\/oidc\/authorize\/signin\?/);
-    // And the stale row is gone.
-    const hash = crypto.createHash('sha256').update(first.session.split('=')[1]).digest('hex');
-    expect((await query('SELECT 1 FROM oidc_sessions WHERE id_hash = $1', [hash])).rowCount).toBe(0);
+    // And the stale remembered sign-in is deleted.
+    expect(await rows()).toBe(before - 1);
 
-    const second = await rememberedPasswordSignIn();
+    const second = await signInOnceAndRemember();
     await query("UPDATE users SET status = 'suspended' WHERE did = $1", [user.did]);
     try {
       const suspended = await api.get(authorizeUrl(clientId)).set('Cookie', second.session);
