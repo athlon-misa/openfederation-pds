@@ -7,7 +7,8 @@
  * - GET /nodeinfo/2.1 — NodeInfo 2.1 document
  */
 
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { query } from '../db/client.js';
@@ -15,6 +16,7 @@ import { communityFederationView } from '../federation/privacy.js';
 import { encryptKeyBytes, decryptKeyBytes } from '../auth/encryption.js';
 import { buildCommunityActor, communityProfileUrl, type ApplicationRecord } from './ap-actors.js';
 import { SERVER_VERSION } from '../server/server-version.js';
+import { handleInboxDelivery, deliverAccept } from './follows.js';
 
 const router = Router();
 
@@ -217,8 +219,7 @@ router.get('/ap/actor/:did', async (req: Request, res: Response) => {
  *
  * The actor is discovery-only, so both collections are always empty. They
  * exist because ActivityPub requires an actor to name them and Mastodon drops
- * an actor without an inbox. Deliveries are refused with 405: Mastodon treats
- * a 4xx as final and does not retry.
+ * an actor without an inbox. Deliveries are handled below.
  */
 for (const box of ['inbox', 'outbox'] as const) {
   router.get(`/ap/actor/:did/${box}`, async (req: Request, res: Response) => {
@@ -245,12 +246,60 @@ for (const box of ['inbox', 'outbox'] as const) {
   });
 }
 
-router.post('/ap/actor/:did/inbox', (_req: Request, res: Response) => {
-  res.setHeader('Allow', 'GET');
-  res.status(405).json({
-    error: 'MethodNotAllowed',
-    message: 'This actor is discovery-only; the PDS does not process ActivityPub deliveries',
-  });
+/**
+ * POST /ap/actor/:did/inbox (#464)
+ *
+ * A signed Follow of the community is answered with a signed Accept, sent
+ * after the 202 so the sender is not kept waiting; everything else is
+ * acknowledged and dropped (the PDS keeps no followers and the actor never
+ * posts). See src/activitypub/follows.ts for the checks.
+ */
+const inboxLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: config.rateLimits.discoveryPerMin,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+});
+const inboxBody = express.raw({
+  type: ['application/activity+json', 'application/ld+json', 'application/json'],
+  limit: '64kb',
+});
+
+router.post('/ap/actor/:did/inbox', inboxLimiter, inboxBody, async (req: Request, res: Response) => {
+  try {
+    const did = req.params.did as string;
+    const lookup = await lookupActorCommunity(did);
+    if (!lookup.found) {
+      res.status(lookup.status).json({ error: lookup.error, message: lookup.message });
+      return;
+    }
+    if (!Buffer.isBuffer(req.body)) {
+      res.status(415).json({ error: 'UnsupportedMediaType', message: 'Send application/activity+json' });
+      return;
+    }
+    const actorId = `${config.pds.serviceUrl}/ap/actor/${did}`;
+    const headers: Record<string, string | undefined> = {};
+    for (const [name, value] of Object.entries(req.headers)) {
+      headers[name.toLowerCase()] = Array.isArray(value) ? value.join(', ') : value;
+    }
+    const outcome = await handleInboxDelivery({ actorId, path: req.originalUrl, headers, body: req.body });
+    if (outcome.status !== 202) {
+      res.status(outcome.status).json({ error: outcome.error });
+      return;
+    }
+    res.status(202).end();
+    if (!outcome.accept) return;
+    const { follower, activity } = outcome.accept;
+    const { privateKey } = await getOrCreateApKeys(did);
+    deliverAccept({ actorId, privateKeyPem: privateKey, follower, follow: activity })
+      .then((status) => {
+        if (status >= 300) console.warn(`AP Accept to ${new URL(follower.inbox).host} answered ${status}`);
+      })
+      .catch((err) => console.warn('AP Accept delivery failed:', err instanceof Error ? err.message : err));
+  } catch (err) {
+    console.error('Error handling AP inbox delivery:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'InternalServerError' });
+  }
 });
 
 /**

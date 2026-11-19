@@ -2,10 +2,11 @@
  * ActivityPub Actor Document Builder
  *
  * Generates minimal AP Group actors for communities that have linked
- * ActivityPub-compatible applications. These actors are discovery-only: the
- * PDS doesn't process AP messages. They still name an inbox and an outbox,
- * because ActivityPub §4.1 requires both and Mastodon drops an actor without
- * an inbox; both are always-empty collections (see ap-routes.ts).
+ * ActivityPub-compatible applications. These actors are for discovery: they
+ * never post, and the only message the PDS answers is a signed Follow, with a
+ * signed Accept (#464, follows.ts). They name an inbox and an outbox, because
+ * ActivityPub §4.1 requires both and Mastodon drops an actor without an
+ * inbox; both read as always-empty collections (see ap-routes.ts).
  */
 
 export interface CommunityInfo {
