@@ -64,6 +64,19 @@ class PgSessionStore implements NodeSavedSessionStore {
   }
 }
 
+// ---------- Scopes ----------
+
+/**
+ * What this PDS asks another server for when someone signs in with an account
+ * from there. Plain sign-in (dashboard, SDK) asks for the account only. An app
+ * signing people in through the OpenID Connect provider that wants an email
+ * also asks for `transition:email`, so the person's own server, with their
+ * consent, shares a verified address (#461). The client metadata lists both,
+ * since a server only grants scopes the metadata names.
+ */
+export const SIGNIN_SCOPE = 'atproto transition:generic';
+export const SIGNIN_SCOPE_WITH_EMAIL = `${SIGNIN_SCOPE} transition:email`;
+
 // ---------- Identity resolution ----------
 
 /**
@@ -117,7 +130,7 @@ export function createExternalOAuthClient(): NodeOAuthClient {
       client_name: 'OpenFederation PDS',
       client_uri: config.pds.serviceUrl,
       redirect_uris: [`${config.pds.serviceUrl}/oauth/external/callback`],
-      scope: 'atproto transition:generic',
+      scope: SIGNIN_SCOPE_WITH_EMAIL,
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
@@ -150,7 +163,7 @@ export function getClientMetadata() {
     client_name: 'OpenFederation PDS',
     client_uri: config.pds.serviceUrl,
     redirect_uris: [`${config.pds.serviceUrl}/oauth/external/callback`],
-    scope: 'atproto transition:generic',
+    scope: SIGNIN_SCOPE_WITH_EMAIL,
     grant_types: ['authorization_code', 'refresh_token'],
     response_types: ['code'],
     token_endpoint_auth_method: 'none',

@@ -262,7 +262,48 @@ describe('OpenID Connect provider (ADR-005)', () => {
     expect(token.status).toBe(200);
     const claims = decodeJwt(token.body.id_token);
     expect(claims.sub).toBe(user.did);
-    // An account from elsewhere never gets an email from this server.
+    // No email when the account's own server shared none.
+    expect(claims.email).toBeUndefined();
+  });
+
+  async function tokensFor(id: string, cookie: string, next: string) {
+    const cont = await api.get(next).set('Cookie', cookie);
+    expect(cont.status).toBe(303);
+    const code = new URL(String(cont.headers.location)).searchParams.get('code')!;
+    const token = await api.post('/oidc/token').type('form')
+      .send({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, client_id: clientId, client_secret: clientSecret });
+    expect(token.status).toBe(200);
+    return decodeJwt(token.body.id_token);
+  }
+
+  it('the email an account\'s own server shared reaches the app, with its verified flag (#461)', async () => {
+    if (!plc) return;
+    const { id, cookie } = await start(clientId);
+    const next = await completeAtprotoSignIn(`${OIDC_STATE_PREFIX}${id}`, user.did, { email: 'reader@bsky.example', emailVerified: true });
+    const claims = await tokensFor(id, cookie, next!);
+    expect(claims.email).toBe('reader@bsky.example');
+    expect(claims.email_verified).toBe(true);
+    // Held on the request only: the row is gone once the code is redeemed.
+    const left = await query('SELECT 1 FROM oidc_requests WHERE id = $1', [id]);
+    expect(left.rowCount).toBe(0);
+  });
+
+  it('an unconfirmed shared address is passed on as unverified', async () => {
+    if (!plc) return;
+    const { id, cookie } = await start(clientId);
+    const next = await completeAtprotoSignIn(`${OIDC_STATE_PREFIX}${id}`, user.did, { email: 'new@bsky.example', emailVerified: false });
+    const claims = await tokensFor(id, cookie, next!);
+    expect(claims.email).toBe('new@bsky.example');
+    expect(claims.email_verified).toBe(false);
+  });
+
+  it('an app that did not ask for email never gets the shared address', async () => {
+    if (!plc) return;
+    const { id, cookie } = await start(clientId, { scope: 'openid profile' });
+    const next = await completeAtprotoSignIn(`${OIDC_STATE_PREFIX}${id}`, user.did, { email: 'reader@bsky.example', emailVerified: true });
+    const stored = await query<{ remote_email: string | null }>('SELECT remote_email FROM oidc_requests WHERE id = $1', [id]);
+    expect(stored.rows[0].remote_email).toBeNull();
+    const claims = await tokensFor(id, cookie, next!);
     expect(claims.email).toBeUndefined();
   });
 

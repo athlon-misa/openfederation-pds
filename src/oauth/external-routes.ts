@@ -26,7 +26,7 @@ import crypto from 'crypto';
 import { auditLog } from '../db/audit.js';
 import rateLimit from 'express-rate-limit';
 import { config } from '../config.js';
-import { getExternalOAuthClient, getClientMetadata } from './external-client.js';
+import { getExternalOAuthClient, getClientMetadata, SIGNIN_SCOPE } from './external-client.js';
 import { query } from '../db/client.js';
 import { signAccessToken, generateRefreshToken, refreshTtlMs } from '../auth/tokens.js';
 import type { UserRole, UserStatus } from '../auth/types.js';
@@ -238,6 +238,41 @@ function renderRedirectConfirmation(res: Response, authUrl: string, handle: stri
   res.status(200).send(html);
 }
 
+/**
+ * The email an account's own server shared for an OpenID Connect sign-in
+ * (`transition:email`, #461), read once with com.atproto.server.getSession.
+ * The session is then revoked: the provider only needed the answer, not
+ * standing access to the account. Null when the server shared none. The
+ * address counts as verified only when the server confirmed it and is on
+ * OIDC_TRUSTED_EMAIL_ISSUERS: anyone can run a server and say otherwise.
+ */
+export async function readSharedEmail(
+  session: {
+    fetchHandler(path: string, init?: RequestInit): Promise<globalThis.Response>;
+    signOut(): Promise<void>;
+    readonly serverMetadata: { readonly issuer: string };
+  },
+  trustedIssuers: readonly string[] = config.oidc.trustedEmailIssuers,
+): Promise<{ email: string; emailVerified: boolean } | null> {
+  // Only a server on the trusted list is believed when it says it confirmed the address.
+  let trusted = false;
+  try { trusted = trustedIssuers.includes(new URL(session.serverMetadata.issuer).origin); } catch { trusted = false; }
+  let shared: { email: string; emailVerified: boolean } | null = null;
+  try {
+    const res = await session.fetchHandler('/xrpc/com.atproto.server.getSession');
+    if (res.ok) {
+      const body = await res.json() as { email?: unknown; emailConfirmed?: unknown };
+      if (typeof body.email === 'string' && body.email.includes('@')) {
+        shared = { email: body.email.trim().toLowerCase(), emailVerified: trusted && body.emailConfirmed === true };
+      }
+    }
+  } catch {
+    shared = null;
+  }
+  await session.signOut().catch(() => undefined);
+  return shared;
+}
+
 export function createExternalOAuthRouter(): Router {
   const router = Router();
 
@@ -302,6 +337,7 @@ export function createExternalOAuthRouter(): Router {
 
       // Initiate the OAuth flow with the remote PDS
       const authUrl = await client.authorize(handle.trim(), {
+        scope: SIGNIN_SCOPE,
         signal: AbortSignal.timeout(30_000),
       });
 
@@ -361,7 +397,7 @@ export function createExternalOAuthRouter(): Router {
       // A sign-in started by the OpenID Connect provider (ADR-005): no local
       // account and no tokens here; the person goes back to the app.
       if (typeof oauthState === 'string' && oauthState.startsWith(OIDC_STATE_PREFIX)) {
-        const next = await completeAtprotoSignIn(oauthState, did);
+        const next = await completeAtprotoSignIn(oauthState, did, await readSharedEmail(session));
         if (next) {
           res.redirect(303, next);
         } else {

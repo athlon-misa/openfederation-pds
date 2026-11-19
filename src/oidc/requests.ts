@@ -27,6 +27,9 @@ export interface OidcRequest {
   handle: string | null;
   authSource: 'password' | 'atproto' | null;
   authTime: Date | null;
+  /** Email the account's own server shared for this sign-in (#461); atproto sign-ins only. */
+  remoteEmail: string | null;
+  remoteEmailVerified: boolean;
 }
 
 interface Row {
@@ -41,6 +44,8 @@ interface Row {
   handle: string | null;
   auth_source: 'password' | 'atproto' | null;
   auth_time: string | null;
+  remote_email: string | null;
+  remote_email_verified: boolean;
   browser_hash: string;
 }
 
@@ -57,6 +62,8 @@ function fromRow(r: Row): OidcRequest {
     handle: r.handle,
     authSource: r.auth_source,
     authTime: r.auth_time ? new Date(r.auth_time) : null,
+    remoteEmail: r.remote_email,
+    remoteEmailVerified: r.remote_email_verified === true,
   };
 }
 
@@ -101,7 +108,7 @@ export async function createRequest(input: NewRequest): Promise<{ id: string; br
 export async function getOpenRequest(id: string, browserToken: string | undefined): Promise<OidcRequest | null> {
   if (!id || !browserToken) return null;
   const r = await query<Row>(
-    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, browser_hash
+    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, browser_hash
      FROM oidc_requests WHERE id = $1 AND expires_at > NOW() AND code_hash IS NULL`,
     [id],
   );
@@ -113,7 +120,7 @@ export async function getOpenRequest(id: string, browserToken: string | undefine
 /** The request without the browser check, for the AT Protocol callback (it re-checks on continue). */
 export async function getRequestById(id: string): Promise<OidcRequest | null> {
   const r = await query<Row>(
-    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, browser_hash
+    `SELECT id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, browser_hash
      FROM oidc_requests WHERE id = $1 AND expires_at > NOW() AND code_hash IS NULL`,
     [id],
   );
@@ -121,11 +128,18 @@ export async function getRequestById(id: string): Promise<OidcRequest | null> {
 }
 
 /** Record who signed in. Only once per request. */
-export async function recordSignIn(id: string, did: string, handle: string | null, source: 'password' | 'atproto'): Promise<boolean> {
+export async function recordSignIn(
+  id: string,
+  did: string,
+  handle: string | null,
+  source: 'password' | 'atproto',
+  sharedEmail: { email: string; emailVerified: boolean } | null = null,
+): Promise<boolean> {
   const r = await query(
-    `UPDATE oidc_requests SET did = $2, handle = $3, auth_source = $4, auth_time = NOW()
+    `UPDATE oidc_requests SET did = $2, handle = $3, auth_source = $4, auth_time = NOW(),
+            remote_email = $5, remote_email_verified = $6
      WHERE id = $1 AND did IS NULL AND code_hash IS NULL AND expires_at > NOW()`,
-    [id, did, handle, source],
+    [id, did, handle, source, sharedEmail?.email ?? null, sharedEmail?.emailVerified === true],
   );
   return (r.rowCount ?? 0) > 0;
 }
@@ -157,7 +171,7 @@ export async function redeemCode(
 ): Promise<OidcRequest | null> {
   const r = await query<Row & { code_expires_at: string }>(
     `DELETE FROM oidc_requests WHERE code_hash = $1
-     RETURNING id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, browser_hash, code_expires_at`,
+     RETURNING id, client_id, redirect_uri, scope, state, nonce, code_challenge, did, handle, auth_source, auth_time, remote_email, remote_email_verified, browser_hash, code_expires_at`,
     [sha256(code)],
   );
   const row = r.rows[0];
